@@ -1,13 +1,6 @@
 # Scale-Out Computing on AWS
 
 ## :wrench: How to install Scale-Out Computing on AWS
-### 1) 1-Click installer
-
-Visit [https://aws.amazon.com/solutions/scale-out-computing-on-aws](https://aws.amazon.com/solutions/scale-out-computing-on-aws)
-
-:rotating_light: 1-Click installer is only great for PoC or demos. For production workload, it's recommended to go with option 2 instead.
-
-### 2) Build and install Scale-Out Computing on AWS on your own AWS account
 
 + 1\) Clone this git repository
 ```bash
@@ -33,9 +26,6 @@ This will launch a local web server and documentation will be available at `http
 
 ### New User Guide
 [https://awslabs.github.io/scale-out-computing-on-aws/](https://awslabs.github.io/scale-out-computing-on-aws/)
-
-### Implementation Guide
-[https://aws.amazon.com/solutions/scale-out-computing-on-aws](https://aws.amazon.com/solutions/scale-out-computing-on-aws)
 
 ## :pencil2: File Structure
 Scale-Out Computing on AWS project consists in a collection of CloudFormation templates, Shell scripts and Python code.
