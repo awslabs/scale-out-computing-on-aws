@@ -1,0 +1,42 @@
+# SOCA Knowledge Base:
+# 1st: Install Mkdocs: "pip install mkdocs pygments pymdown-extensions"
+# 2nd: Run "mkdocs serve" in this directory
+# ===
+# This will start a new documentation server accessible on http://127.0.0.1:8000
+# For more information: https://www.mkdocs.org/
+
+
+site_name: Scale-Out Computing on AWS Knowledge Base
+theme:
+  name: 'material'
+  feature:
+    tabs: true
+
+# Repository
+repo_name: 'awslabs/scale-out-computing-on-aws'
+repo_url: 'https://github.com/awslabs/scale-out-computing-on-aws'
+extra_css:
+  - 'assets/css/custom.css'
+
+markdown_extensions:
+  - footnotes
+  - codehilite
+  - admonition
+  - pymdownx.arithmatex
+  - pymdownx.betterem:
+      smart_enable: all
+  - pymdownx.caret
+  - pymdownx.critic
+  - pymdownx.details
+  - pymdownx.emoji:
+      emoji_generator: !!python/name:pymdownx.emoji.to_svg
+  - pymdownx.inlinehilite
+  - pymdownx.magiclink
+  - pymdownx.mark
+  - pymdownx.smartsymbols
+  - pymdownx.superfences
+  - pymdownx.tasklist:
+      custom_checkbox: true
+  - pymdownx.tilde
+  - toc:
+      permalink: true

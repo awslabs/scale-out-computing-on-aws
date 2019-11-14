@@ -1,0 +1,243 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: (SOCA) -  Manage cluster-related information.
+Parameters:
+  VpcId:
+    Type: String
+
+  PublicSubnet1:
+    Type: String
+
+  PublicSubnet2:
+    Type: String
+
+  PublicSubnet3:
+    Type: String
+
+  PrivateSubnet1:
+    Type: String
+
+  PrivateSubnet2:
+    Type: String
+
+  PrivateSubnet3:
+    Type: String
+
+  SchedulerPrivateIP:
+    Type: String
+
+  SchedulerPrivateDnsName:
+    Type: String
+
+  SchedulerInstanceId:
+    Type: String
+
+  SchedulerSecurityGroup:
+    Type: String
+
+  ComputeNodeSecurityGroup:
+    Type: String
+
+  SchedulerIAMRoleArn:
+    Type: String
+
+  EFSAppsDns:
+    Type: String
+
+  EFSDataDns:
+    Type: String
+
+  ClusterId:
+    Type: String
+
+  Version:
+    Type: String
+
+  S3Bucket:
+    Type: String
+
+  SSHKeyPair:
+    Type: String
+
+  ImageId:
+    Type: String
+
+  ComputeNodeIAMRoleArn:
+    Type: String
+
+  ComputeNodeIAMRole:
+    Type: String
+
+  SchedulerIAMRole:
+    Type: String
+
+  ComputeNodeInstanceProfile:
+    Type: String
+
+  ESDomainEndpoint:
+    Type: String
+
+  LoadBalancerDNSName:
+    Type: String
+
+  LoadBalancerArn:
+    Type: String
+
+  BaseOS:
+    Type: String
+
+  S3InstallFolder:
+    Type: String
+
+  SchedulerPublicIP:
+    Type: String
+
+  SolutionMetricsRoleArn:
+    Type: String
+
+Resources:
+  SolutionMetricLambda:
+    Type: AWS::Lambda::Function
+    Properties:
+      Description: Send SOCA anonymous Metrics to AWS
+      FunctionName: !Sub ${ClusterId}-Metrics
+      Handler: index.lambda_handler
+      MemorySize: 128
+      Role: !Ref SolutionMetricsRoleArn
+      Runtime: python3.7
+      Timeout: 180
+      Tags:
+        - Key: soca:ClusterId
+          Value: !Ref ClusterId
+      Code:
+        ZipFile: !Sub |
+          import json
+          import sys
+          import datetime
+          import cfnresponse
+          from urllib.request import Request
+          from urllib.request import urlopen
+          import os
+
+          '''
+          To improve performance and usability, SOCA sends anonymous metrics to AWS.
+          You can disable this by switching "Send AnonymousData" to "No" on ComputeNode.template
+          Data tracked:
+            - SOCA Instance information
+            - SOCA Instance Count
+            - SOCA Launch/Delete time
+          '''
+
+          def metrics(solution_id, uuid, data, url, request_timestamp):
+              try:
+                  time_stamp = {'TimeStamp': request_timestamp}
+                  params = {'Solution': solution_id,
+                    'UUID': uuid,
+                    'Data': data}
+
+                  metrics = dict(time_stamp, **params)
+                  json_data = json.dumps(metrics, indent=4)
+                  print(params)
+                  headers = {'content-type': 'application/json'}
+                  req = Request(url, json_data.encode('utf-8'), headers)
+                  rsp = urlopen(req)
+                  content = rsp.read()
+                  rsp_code = rsp.getcode()
+                  print('Response Code: {}'.format(rsp_code))
+              except Exception as e:
+                exc_type, exc_obj, exc_tb = sys.exc_info()
+                fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
+                print(exc_type, fname, exc_tb.tb_lineno)
+
+
+          def lambda_handler(event, context):
+            try:
+              request_timestamp = str(datetime.datetime.utcnow().isoformat())
+              solution_id =  'SO0072'
+              uuid = event['RequestId']
+              data = {
+                      'RequestType': event['RequestType'],
+                      'RequestTimeStamp': request_timestamp,
+                      'StackUUID': event['ResourceProperties']['StackUUID'],
+                      'DesiredCapacity': event['ResourceProperties']['DesiredCapacity'],
+                      'BaseOS': event['ResourceProperties']['BaseOS'],
+                      'InstanceType': event['ResourceProperties']['InstanceType'],
+                      'Efa': event['ResourceProperties']['Efa'],
+                      'ScratchSize': event['ResourceProperties']['ScratchSize'],
+                      'RootSize': event['ResourceProperties']['RootSize'],
+                      'SpotPrice': event['ResourceProperties']['SpotPrice'],
+                      'KeepForever': event['ResourceProperties']['KeepForever'],
+                      'FsxLustre': event['ResourceProperties']['FsxLustre']
+              }
+              # Metrics Account (Production)
+              metrics_url = 'https://metrics.awssolutionsbuilder.com/generic'
+              # Send Anonymous Metrics
+              metrics(solution_id, uuid, data, metrics_url, request_timestamp)
+            except Exception as e:
+              exc_type, exc_obj, exc_tb = sys.exc_info()
+              fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
+              print(exc_type, fname, exc_tb.tb_lineno)
+
+            cfnresponse.send(event, context, cfnresponse.SUCCESS, {}, '')
+
+  ConfigParameters:
+    DependsOn: SolutionMetricLambda
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Name: !Sub ${ClusterId}
+      Description: !Sub Contain all settings for ${ClusterId}
+      SecretString: !Sub '{"VpcId": "${VpcId}",
+      "PublicSubnet1": "${PublicSubnet1}",
+      "PublicSubnet2": "${PublicSubnet2}",
+      "PublicSubnet3": "${PublicSubnet3}",
+      "PrivateSubnet1": "${PrivateSubnet1}",
+      "PrivateSubnet2": "${PrivateSubnet2}",
+      "PrivateSubnet3": "${PrivateSubnet3}",
+      "SchedulerPrivateIP": "${SchedulerPrivateIP}",
+      "SchedulerPrivateDnsName": "${SchedulerPrivateDnsName}",
+      "SchedulerInstanceId": "${SchedulerInstanceId}",
+      "SchedulerSecurityGroup": "${SchedulerSecurityGroup}",
+      "ComputeNodeSecurityGroup": "${ComputeNodeSecurityGroup}",
+      "SchedulerIAMRoleArn": "${SchedulerIAMRoleArn}",
+      "SchedulerIAMRole": "${SchedulerIAMRole}",
+      "ComputeNodeIAMRoleArn": "${ComputeNodeIAMRoleArn}",
+      "ComputeNodeIAMRole": "${ComputeNodeIAMRole}",
+      "ComputeNodeInstanceProfile": "${ComputeNodeInstanceProfile}",
+      "EFSDataDns": "${EFSDataDns}",
+      "EFSAppsDns": "${EFSAppsDns}",
+      "ClusterId": "${ClusterId}",
+      "Version": "${Version}",
+      "S3Bucket": "${S3Bucket}",
+      "SSHKeyPair": "${SSHKeyPair}",
+      "CustomAMI": "${ImageId}",
+      "ESDomainEndpoint": "${ESDomainEndpoint}",
+      "LoadBalancerDNSName": "${LoadBalancerDNSName}",
+      "LoadBalancerArn": "${LoadBalancerArn}",
+      "BaseOS": "${BaseOS}",
+      "S3InstallFolder": "${S3InstallFolder}",
+      "SchedulerPublicIP": "${SchedulerPublicIP}",
+      "SolutionMetricLambda": "${SolutionMetricLambda.Arn}"
+      }'
+
+      Tags:
+        - Key: Name
+          Value: !Sub ${ClusterId}-Configuration
+        - Key: soca:ClusterId
+          Value: !Ref ClusterId
+
+
+  UpdateIAMRole:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyName: AccesClusterConfiguration
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Action:
+              - secretsmanager:GetSecretValue
+            Resource: !Ref ConfigParameters
+      Roles:
+        - !Ref ComputeNodeIAMRole
+        - !Ref SchedulerIAMRole
+
+

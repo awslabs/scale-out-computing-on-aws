@@ -1,0 +1,83 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: (SOCA) - Manage ELK stack
+Parameters:
+  SchedulerSecurityGroup:
+    Type: String
+
+  PublicSubnet1:
+    Type: String
+
+  ClusterId:
+    Type: String
+
+  SchedulerPublicIP:
+    Type: String
+
+  ClientIp:
+    Type: String
+
+Resources:
+  ElasticsearchDomain:
+    Metadata:
+      cfn_nag:
+        rules_to_suppress:
+          - id: W28
+            reason: "Domain Name is required if we want to restrict AccessPolicies to this resource only"
+    Type: AWS::Elasticsearch::Domain
+    Properties:
+      ElasticsearchVersion: 7.1
+      DomainName: !Sub ${ClusterId}
+      EBSOptions:
+        VolumeSize: 20
+        VolumeType: gp2
+        EBSEnabled: true
+      ElasticsearchClusterConfig:
+        InstanceCount: 1
+        InstanceType: t2.small.elasticsearch
+      SnapshotOptions:
+        AutomatedSnapshotStartHour: '0'
+      AccessPolicies:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              AWS: '*'
+            Action: 'es:ESHttp*'
+            Condition:
+              IpAddress:
+                aws:SourceIp:
+                  - !Ref ClientIp
+                  - !Sub ${SchedulerPublicIP}/32
+            Resource: !Sub 'arn:${AWS::Partition}:es:${AWS::Region}:${AWS::AccountId}:domain/${ClusterId}/*'
+
+      AdvancedOptions:
+        rest.action.multi.allow_explicit_index: 'true'
+
+      Tags:
+        - Key: Name
+          Value: !Sub ${ClusterId}-analytics
+        - Key: soca:ClusterId
+          Value: !Ref ClusterId
+
+      # Cloudformation does not support bind of ElasticSearchServiceLinkedRole to ElasticsearchDomain
+      # Because of this limitation we are restricted to non VPC only
+
+      #VPCOptions:
+      #  SubnetIds:
+      #    - !Ref PublicSubnet1
+      #  SecurityGroupIds:
+      #    - !Ref SchedulerSecurityGroup
+
+      #ElasticSearchServiceLinkedRole:
+      #  Type: AWS::IAM::ServiceLinkedRole
+      ##  Properties:
+      #    AWSServiceName: es.amazonaws.com
+      #    Description: !Sub Service Link Role for ${ClusterId}-analytics
+
+
+Outputs:
+  ESDomainArn:
+    Value: !GetAtt ElasticsearchDomain.DomainArn
+  ESDomainEndpoint:
+    Value: !GetAtt ElasticsearchDomain.DomainEndpoint
+

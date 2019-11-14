@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+
+     {% include 'common/header.html' %}
+
+
+</head>
+
+<body id="page-top">
+
+  <div id="wrapper">
+    {% include 'common/vertical_menu_bar.html' %}
+    <div id="content-wrapper" class="d-flex flex-column">
+
+      <div id="content">
+          <br>
+          <div class="container-fluid">
+              {% include 'common/horizontal_menu_bar.html' %}
+              <div class="row">
+                      <div class="col-md-12">
+
+                          <div class="card shadow mb-4">
+                              <div class="card-header py-3">
+                                  <h6 class="m-0 font-weight-bold text-primary">How to manage your HPC budget and prevent overspend</h6>
+                              </div>
+
+                              <div class="card-body">
+
+                                  <h2>AWS Cost Explorer</h2>
+                                  Any EC2 resource launched by Scale-Out Computing on AWS comes with an extensive list of EC2 tags that can be used to get detailed information about your cluster usage. List includes (but not limited to):
+                                  <li>Project Name</li>
+                                  <li>Job Owner</li>
+                                  <li>Job Name</li>
+                                  <li>Job Queue</li>
+                                  <li>Job Id</li>
+
+                                  These are the default tags and you can add your own tags if needed.
+                                   <img height="auto" width="100%" src="{{ url_for('static', filename='img/budget-11.png') }}">
+
+                                  <hr>
+
+                                  <h4>Step1: Enable Cost Allocation Tags</h4>
+                                  <div class="row">
+                                      <div class="col-md-6">
+                                        Click on your account name (1) then select "My Billing Dashboard" (2)<br>
+                                      <img height="100%" width="auto" src="{{ url_for('static', filename='img/budget-1.png') }}">
+                                      </div>
+                                      <div class="col-md-6">
+                                          Then click Cost Allocation tag<br>
+                                          <img  height="100%" width="auto" src="{{ url_for('static', filename='img/budget-2.png') }}">
+                                      </div>
+                                  </div>
+                                  <br>
+                                  <div class="row">
+                                      <div class="col-md-12">
+                                      Finally, search all "Scale-Out Computing on AWS" tags then click "Activate"<br>
+                                          <img width="100%" height="auto" src="{{ url_for('static', filename='img/budget-3.png') }}">
+                                          <br><br>
+                                       <div class="alert alert-warning" role="alert">It could take up to <strong>24 hours for the tags to be active </strong></div>
+                                      </div>
+                                  </div>
+
+
+                                    <hr>
+                                  <h4>Step 2: Enable Cost Explorer</h4>
+                                  In your billing dashboard, select "Cost Explorer" (1) and click "Enable Cost Explorer" (2). This feature will be ready to use within 24 hours
+                                  <img src="{{ url_for('static', filename='img/budget-4.png') }}">
+
+                                    <h3> Step 3: Query Cost Explorer</h3>
+                                  <div class="row">
+                                      <div class="col-md-12">
+                                          Open your Cost Explorer tab and specify your filters. In this example I want to get the EC2 cost (1), group by day for my queue named "cpus" (2). <br>
+                                          <img height="auto" width="100%" src="{{ url_for('static', filename='img/budget-5.png') }}">
+                                      </div>
+                                  </div>
+
+                                  <br>
+                                  <div class="row">
+                                      <div class="col-md-12">
+                                          To get more detailed information, select 'Group By' and apply additional filters. Here is an example if I want user level information for "cpus" queue
+                                          Click "Tag" section under "Group By" horizontal label (1) and select "soca:JobOwner" tag. Your graph will automatically be updated with a cost breakdown by users for "cpus" queue <br>
+                                          <img height="auto" width="100%" src="{{ url_for('static', filename='img/budget-6.png') }}">
+                                      </div>
+                                  </div>
+                                  <hr>
+
+                                  <h2>AWS Budget</h2>
+                                   <div class="row">
+                                      <div class="col-md-12">
+                                  Open your Billing Dashboard (or search for AWS Budget), click "Budget" (1) then "Create a budget" (2) <br>
+                                  <img height="auto" width="100%" src="{{ url_for('static', filename='img/budget-7.png') }}"> <br>
+                                      </div>
+                                   </div>
+                                  <div class="row">
+                                      <div class="col-md-6">
+                                          Specify "Cost Budget" and then apply the tag(s) you want to monitor (usually cost center, team, user, queue or project) as well as your budget limit you don't want to exceed.
+                                          <br><img height="auto" width="50%" src="{{ url_for('static', filename='img/budget-8.png') }}">
+                                      </div>
+                                      <div class="col-md-6">
+                                           Under Budget Parameters, specify your tag  (in this case soca:JobQueue) <br>
+                                  <img height="auto" width="50%" src="{{ url_for('static', filename='img/budget-9.png') }}">
+                                      </div>
+                                  </div>
+
+
+
+
+                                   <div class="alert alert-primary" role="alert">
+                                       You will then need to specify any alerts. You can configure simple email address or SNS topics.
+                                       Topics are very interesting as you can subscribe to lambda functions and execute automated actions to prevent overspend  such as:
+                                       <li>When Budget > 90%, Lambda could use SES to send an email to users/managers</li>
+                                       <li>When Budget > 100%, Lambda could temporarily freeze API keys until budget is reviewed</li>
+                                       <li>When Budget > 100%, Lambda could call a SSM document which change the user shell to /usr/bin/nologin to prevent overspend</li>
+                                   </div>
+
+                                  Here is an example of AWS Budget with one email alert configured: <br>
+                                    <div class="row">
+                                      <div class="col-md-12">
+                                        <img height="auto" width="100%" src="{{ url_for('static', filename='img/budget-10.png') }}">
+                                      </div>
+                                    </div>
+
+                                   <div class="alert alert-primary" role="alert">
+                                       Do you want to alert users when they are about to exceed their allocated budget or block completely prevent job submission for a given user?
+                                       <hr>
+                                       Scale-Out Computing on AWS has a plugin for this. Contact your SA for more information if you want to do this
+                                   </div>
+
+
+
+
+
+
+
+
+
+
+
+
+
+                              </div>
+                          </div>
+                      </div>
+              </div>
+          </div>
+      </div>
+
+  </div>
+
+  <a class="scroll-to-top rounded" href="#page-top">
+    <i class="fas fa-angle-up"></i>
+  </a>
+
+
+    {% include 'common/footer.html' %}
+
+</body>
+
+</html>

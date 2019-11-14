@@ -1,0 +1,20 @@
+
+
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+  <meta name="description" content="">
+  <meta name="author" content="">
+  <title>Scale-Out Computing on AWS</title>
+
+    <link rel="shortcut icon" href={{ url_for('static', filename='img/soca_logo.ico') }} />
+
+    <link href="{{ url_for('static', filename='css/icons.css') }}" rel="stylesheet">
+  <link href="{{ url_for('static', filename='css/app.css') }}" rel="stylesheet">
+  <link href="{{ url_for('static', filename='css/fonts.css') }}" rel="stylesheet">
+    <link href="{{ url_for('static', filename='css/prism.css') }}" rel="stylesheet">
+
+
+  {% if view == 'remotedesktop' or view == 'qstat' %}
+    <meta http-equiv="refresh" content="120">
+  {% endif %}

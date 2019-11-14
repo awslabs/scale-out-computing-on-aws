@@ -1,0 +1,215 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: (SOCA) - Manage DCV sessions.
+Parameters:
+  SchedulerSecurityGroup:
+    Type: String
+
+  VpcId:
+    Type: String
+
+  PublicSubnet1:
+    Type: String
+
+  PublicSubnet2:
+    Type: String
+
+  PublicSubnet3:
+    Type: String
+
+  ClusterId:
+    Type: String
+
+  SchedulerInstanceId:
+    Type: String
+
+  SchedulerIAMRole:
+    Type: String
+
+  LambdaACMIAMRoleArn:
+    Type: String
+
+Resources:
+
+  SchedulerELBPolicy:
+    Metadata:
+      cfn_nag:
+        rules_to_suppress:
+          - id: W12
+            reason: "* is reduced to minimal pattern"
+
+    DependsOn: LoadBalancer
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyName: SchedulerLoadBalancerPermissions
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Action:
+              - elasticloadbalancing:CreateRule
+              - elasticloadbalancing:DeleteRule
+            Resource: !Ref HTTPSLoadBalancerListener
+
+          - Effect: Allow
+            Action:
+              - elasticloadbalancing:DeleteTargetGroup
+              - elasticloadbalancing:CreateTargetGroup
+              - elasticloadbalancing:RegisterTargets
+              - elasticloadbalancing:AddTags
+            Resource: !Sub "arn:${AWS::Partition}:elasticloadbalancing:${AWS::Region}:${AWS::AccountId}:targetgroup/soca*/*"
+
+      Roles:
+         - !Ref SchedulerIAMRole
+
+
+  # During first install, ALB must be listening on port 443 HTTPS for DCV
+  # Because of that, a ACM certificate MUST be created and uploaded to ACM
+  # Today, CloudFormation does not support self-signed ACM certificate
+  # so I have to create a Lambda function which will perform the upload automatically
+  LambdaCreateACMCertificate:
+    Type: AWS::Lambda::Function
+    Properties:
+      Code:
+        ZipFile: !Sub |
+
+          '''
+          This function is only executed during the first install of your Aligo HPC cluster
+          This creates a self-signed certificate used by your LoadBalancer.
+          If a default SOCA certificate is deployed, this script will re-use it and won't create a new one.
+          This is STRONGLY RECOMMENDED for you to upload your own certificate on ACM and update the Load balancer with your personal/corporate certificate
+          '''
+
+          import boto3
+          import os
+          import subprocess
+          import time
+          import cfnresponse
+
+          def generate_cert(event, context):
+              output = {}
+              client_acm = boto3.client('acm')
+              check_existing = client_acm.list_certificates(CertificateStatuses=['ISSUED'])
+              for cert in check_existing['CertificateSummaryList']:
+                  if 'SOCA.DEFAULT.CREATE.YOUR.OWN.CERT' == cert['DomainName']:
+                      output['ACMCertificateArn'] = cert['CertificateArn']
+
+              if 'ACMCertificateArn' in output.keys():
+                cfnresponse.send(event, context, cfnresponse.SUCCESS, output, 'Using existing Self Signed')
+              else:
+                LoadBalancerDNSName = event['ResourceProperties']['LoadBalancerDNSName']
+                ClusterId = event['ResourceProperties']['ClusterId']
+                subprocess.check_output("openssl genrsa 2048 > /tmp/server.key", shell=True)
+                subprocess.check_output("openssl req -new -x509 -sha1 -nodes -days 3650  -key /tmp/server.key -subj '/C=US/ST=California/L=Sunnyvale/O="+ClusterId+"/CN=SOCA.DEFAULT.CREATE.YOUR.OWN.CERT' > /tmp/server.crt", shell=True)
+                key = (open("/tmp/server.key","r")).read()
+                crt = (open("/tmp/server.crt","r")).read()
+
+                try:
+                  response = client_acm.import_certificate(Certificate=crt, PrivateKey=key)
+                  time.sleep(30)
+                  output['ACMCertificateArn'] = response['CertificateArn']
+                  client_acm.add_tags_to_certificate(
+                      CertificateArn=response['CertificateArn'],
+                      Tags=[
+                        {
+                          'Key': 'Name',
+                          'Value': 'Soca_ALB_Cerficate'
+                         }
+                  ])
+                  cfnresponse.send(event, context, cfnresponse.SUCCESS, output, 'Created Self Signed')
+
+                except Exception as e:
+                  cfnresponse.send(event, context, cfnresponse.FAILED, output, str(e))
+
+      Description: Create first self-signed certificate for ALB
+      FunctionName: !Sub ${ClusterId}-CreateACMCertificate
+      Handler: index.generate_cert
+      MemorySize: 128
+      Role: !Ref LambdaACMIAMRoleArn
+      Runtime: python3.6
+      Timeout: 60
+      Tags:
+        - Key: soca:ClusterId
+          Value: !Ref ClusterId
+
+  LoadBalancer:
+    Metadata:
+      cfn_nag:
+        rules_to_suppress:
+          - id: W28
+            reason: "Name is required to easily identify resource deployed by SOCA"
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Name: !Sub ${ClusterId}-viewer
+      Scheme: internet-facing
+      SecurityGroups:
+        - !Ref SchedulerSecurityGroup
+      Subnets:
+        - !Ref PublicSubnet1
+        - !Ref PublicSubnet2
+        - !Ref PublicSubnet3
+      Tags:
+        - Key: Name
+          Value: !Sub ${ClusterId}-viewer
+        - Key: soca:ClusterId
+          Value: !Ref ClusterId
+      Type: application
+
+  RetrieveACMCertificateArn:
+    DependsOn: LoadBalancer
+    Type: Custom::CreateResources
+    Properties:
+      ServiceToken: !GetAtt LambdaCreateACMCertificate.Arn
+      LoadBalancerDNSName: !GetAtt LoadBalancer.DNSName
+      ClusterId: !Sub ${ClusterId}
+
+  HTTPSLoadBalancerListener:
+    DependsOn: RetrieveACMCertificateArn
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      Certificates:
+        - CertificateArn: !GetAtt RetrieveACMCertificateArn.ACMCertificateArn
+      LoadBalancerArn: !Ref LoadBalancer
+      Port: 443
+      Protocol: HTTPS
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref TargetGroupSocaWebUI
+
+  HTTPLoadBalancerListener:
+    DependsOn: LoadBalancer
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      LoadBalancerArn: !Ref LoadBalancer
+      Port: 80
+      Protocol: HTTP
+      DefaultActions:
+        - Type: redirect
+          RedirectConfig:
+            Host: "#{host}"
+            Path: "/#{path}"
+            Port: 443
+            Protocol: HTTPS
+            Query: "#{query}"
+            StatusCode: HTTP_301
+
+  # This section below add a rule for Soca Web UI hosted on the scheduler host
+  TargetGroupSocaWebUI:
+    DependsOn: LoadBalancer
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Name: !Sub ${ClusterId}-SocaWebUi
+      VpcId: !Ref VpcId
+      Port: 8443
+      Protocol: HTTPS
+      TargetType: instance
+      Targets:
+        - Id: !Ref SchedulerInstanceId
+      HealthCheckPath: "/ping"
+
+Outputs:
+  LoadBalancerArn:
+    Value: !Ref LoadBalancer
+  LoadBalancerDNSName:
+    Value: !GetAtt LoadBalancer.DNSName
+  DefaultACMCert:
+    Value: !GetAtt RetrieveACMCertificateArn.ACMCertificateArn

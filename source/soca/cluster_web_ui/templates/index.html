@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+     {% include 'common/header.html' %}
+</head>
+
+<body id="page-top">
+
+  <div id="wrapper">
+    {% include 'common/vertical_menu_bar.html' %}
+    <div id="content-wrapper" class="d-flex flex-column">
+      <div id="content">
+          <br>
+          <div class="container-fluid">
+              {% include 'common/horizontal_menu_bar.html' %}
+              <main role="main">
+                  <section class="jumbotron text-center">
+                        <div class="container">
+                          <h1 class="jumbotron-heading">Welcome to your Scale-Out Computing on AWS HPC cluster</h1>
+                          <p class="lead text-muted">This website is designed to simplify user on-boarding process as well as interactions with our remote AWS cluster. Refer to the links below for more documentation</p>
+                        </div>
+                </section>
+
+                  <div class="row">
+                      <div class="col-md-4">
+                          <div class="card shadow mb-4">
+                              <div class="card-header py-3">
+                                  <h6 class="m-0 font-weight-bold text-primary">Access the Cluster</h6>
+                              </div>
+                              <div class="card-body">
+                                  <div align="center">
+                                      <i class="fas fa-sign-in-alt fa-4x"></i>
+                                  </div>
+                                  <hr>
+                                  <a href="/ssh"><h3> SSH access</h3></a>
+                                  Easily download your private key in pem/ppk format and access the cluster directly.<br><br>
+                                  <a href="/remotedesktop"><h3> Remote Desktop</h3></a>
+                                  DCV is a remote visualization technology that enables users to securely connect to graphic-intensive applications hosted on AWS.
+                              </div>
+                          </div>
+                      </div>
+
+
+                      <div class="col-md-4">
+                          <div class="card shadow mb-4">
+                              <div class="card-header py-3">
+                                  <h6 class="m-0 font-weight-bold text-primary">Job Management</h6>
+                              </div>
+                              <div class="card-body">
+                                  <div align="center">
+                                      <i class="fas fa-network-wired fa-4x"></i>
+                                  </div>
+                                  <hr>
+                                  <h3>Launch your job</h3>
+                                  Scale-Out Computing on AWS leverages AWS flexibility and scalability. To learn how to take advantage of AWS ecosystem to run your job, refer to <a href="/howto-job"> this page.</a>
+                                  <br><br>
+                                  <h3>Check your queue</h3>
+                                  Stay up-to-date with your job process using our web-based <a href="/qstat">queue viewer</a>
+                                  <br><br>
+                                  <h3>Create a new queue</h3>
+                                  You can customize the scheduler <a href="/howto-queue">based on your requirements</a>
+
+                              </div>
+                          </div>
+                      </div>
+
+                      <div class="col-md-4">
+                          <div class="card shadow mb-4">
+                              <div class="card-header py-3">
+                                  <h6 class="m-0 font-weight-bold text-primary">Analytics and Budget</h6>
+                              </div>
+                              <div class="card-body">
+                                  <div align="center">
+                                      <i class="fas fa-chart-pie fa-4x"></i>
+                                  </div>
+                                  <hr>
+                                  <h3>Budget Management</h3>
+                                  Control your HPC spend using <a href="/budget">AWS Cost Explorer and AWS Budget</a> <br><br>
+                                  <h3>Cluster Analytics</h3>
+                                  Access your job analytics and cluster information in real time using <a href="/dashboard"> your ElasticSearch domain</a>
+                              </div>
+                          </div>
+                      </div>
+
+
+
+                  </div>
+
+
+                    </main>
+
+
+
+
+              </div>
+          </div>
+      </div>
+
+  </div>
+
+  <a class="scroll-to-top rounded" href="#page-top">
+    <i class="fas fa-angle-up"></i>
+  </a>
+
+
+    {% include 'common/footer.html' %}
+
+</body>
+
+</html>

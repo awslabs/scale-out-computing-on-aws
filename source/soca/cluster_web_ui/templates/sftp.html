@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+
+     {% include 'common/header.html' %}
+
+
+</head>
+
+<body id="page-top">
+
+  <div id="wrapper">
+    {% include 'common/vertical_menu_bar.html' %}
+    <div id="content-wrapper" class="d-flex flex-column">
+
+      <div id="content">
+          <br>
+          <div class="container-fluid">
+              {% include 'common/horizontal_menu_bar.html' %}
+              <div class="row">
+                      <div class="col-md-12">
+                          <div class="card shadow mb-4">
+                              <div class="card-header py-3">
+                                  <h6 class="m-0 font-weight-bold text-primary">How to easily transfer files from/to Scale-Out Computing on AWS</h6>
+                              </div>
+
+                              <div class="card-body">
+                                  <h4>Step1: Download FileZilla (or any other FTP app)</h4>
+                                  <table class="table table-striped">
+                                      <thead>
+                                        <tr>
+                                          <th scope="col">Mac</th>
+                                          <th scope="col">Windows</th>
+                                          <th scope="col">Linux</th>
+                                        </tr>
+                                      </thead>
+                                      <tbody>
+                                        <tr>
+                                            <td><a href="https://filezilla-project.org/download.php?platform=osx" target="_blank">https://filezilla-project.org/download.php?platform=osx</a></td>
+                                          <td><a href="https://filezilla-project.org/download.php?platform=win64" target="_blank">https://filezilla-project.org/download.php?platform=win64</a></td>
+                                          <td><a href="https://filezilla-project.org/download.php?platform=linux" target="_blank">https://filezilla-project.org/download.php?platform=linux</a></td>
+                                        </tr>
+                                      </tbody>
+                                  </table>
+                                  <hr>
+                                  <h4>Step2: Configure FileZilla</h4>
+                                  Open FileZilla and select File > Site Manager to create a new Site
+
+                                  <table class="table table-striped">
+                                      <tbody>
+                                        <tr>
+                                            <th>Host</th>
+                                            <td>{{scheduler_ip}}</td>
+                                        </tr>
+                                       <tr>
+                                            <th>Port</th>
+                                            <td>22</td>
+                                        </tr>
+                                        <tr>
+                                            <th>Protocol</th>
+                                            <td>SFTP</td>
+                                        </tr>
+                                      <tr>
+                                            <th>Logon Type</th>
+                                            <td>Key File</td>
+                                      </tr>
+                                      <tr>
+                                            <th>User</th>
+                                            <td>{{username}}</td>
+                                      </tr>
+                                      <tr>
+                                          <th>Key File</th>
+                                          <td>/path/to/{{username}}_soca_privatekey.pem (click <a href="/ssh">here</a> to download your Linux private key if needed)</td>
+
+                                      </tr>
+                                      </tbody>
+                                  </table>
+
+                                  Save the settings and click connect
+                                  <hr>
+                                  <h4>Step3: Connect and transfer file to FileZilla</h4>
+                                  During your first connection, you will be asked whether or not you want to trust {{scheduler_ip}}. Check "Always Trust this Host" and Click "Ok".
+                                  <br>Once connected, simply drag & drop to upload/download files.
+
+
+
+
+
+
+
+
+
+                              </div>
+                          </div>
+                      </div>
+              </div>
+          </div>
+      </div>
+
+  </div>
+
+  <a class="scroll-to-top rounded" href="#page-top">
+    <i class="fas fa-angle-up"></i>
+  </a>
+
+
+    {% include 'common/footer.html' %}
+
+</body>
+
+</html>

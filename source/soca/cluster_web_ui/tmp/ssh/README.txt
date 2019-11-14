@@ -1,0 +1,1 @@
+Host all PPK resources for /ssh

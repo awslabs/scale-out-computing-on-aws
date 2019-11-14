@@ -1,13 +1,13 @@
-# Scale Out Computing on AWS (SOCA)
+# Scale-Out Computing on AWS
 
-## :wrench: How to install SOCA
+## :wrench: How to install Scale-Out Computing on AWS
 ### 1) 1-Click installer
 
 Visit [https://aws.amazon.com/solutions/scale-out-computing-on-aws](https://aws.amazon.com/solutions/scale-out-computing-on-aws)
 
-:rotating_light: 1-Click installer is only great for PoC or demos. For production workload, it's recommended you go with option 2 instead.
+:rotating_light: 1-Click installer is only great for PoC or demos. For production workload, it's recommended to go with option 2 instead.
 
-### 2) Build and install SOCA on your own AWS account
+### 2) Build and install Scale-Out Computing on AWS on your own AWS account
 
 + 1\) Clone this git repository
 ```bash
@@ -21,18 +21,24 @@ python source/manual_build.py
 
 + 4\) Upload `source/dist/<build_id>` folder to your own S3 bucket
 
-+ 5\) Launch CloudFormation and use `for-scale-out-computing-on-aws.template` as base template
++ 5\) Launch CloudFormation and use `scale-out-computing-on-aws.template` as base template
 
 ## :book: Documentation
 
+Documentation is written in markdown and accessible under `source/docs` folder. To enable the local HTML version:
++ Install mkdocs: `pip install mkdocs pygments pymdown-extensions`
++ Run mkdocs on `source/` folder: `mkdocs serve`
+
+This will launch a local web server and documentation will be available at `https://127.0.0.1:8000`
+
 ### New User Guide
-[https://soca.dev](https://soca.dev)
+[https://awslabs.github.io/scale-out-computing-on-aws/](https://awslabs.github.io/scale-out-computing-on-aws/)
 
 ### Implementation Guide
 [https://aws.amazon.com/solutions/scale-out-computing-on-aws](https://aws.amazon.com/solutions/scale-out-computing-on-aws)
 
 ## :pencil2: File Structure
-The AWS SOCA project consists in a collection of CloudFormation templates, Shell scripts and Python code.
+Scale-Out Computing on AWS project consists in a collection of CloudFormation templates, Shell scripts and Python code.
 
 ```bash
 .

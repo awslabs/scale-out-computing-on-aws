@@ -1,0 +1,425 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+
+     {% include 'common/header.html' %}
+
+
+</head>
+
+<body id="page-top">
+
+  <div id="wrapper">
+    {% include 'common/vertical_menu_bar.html' %}
+    <div id="content-wrapper" class="d-flex flex-column">
+
+      <div id="content">
+          <br>
+          <div class="container-fluid">
+              {% include 'common/horizontal_menu_bar.html' %}
+              <div class="row">
+                      <div class="col-md-12">
+                          <div class="alert alert-primary">
+  <strong>Things to know before you start</strong>
+                              <li>Jobs start on average 6 minutes after submission (this value may differ depending on the number and type of compute resource you need to be provisioned)</li>
+                              <li>You can launch 'AlwaysOn' instances if you want to avoid the ColdStart penalty</li>
+
+                          <li>If your simulation requires a lot of disk I/O, it's recommended to use high performance SSD-NVMe disks (using /scratch location) and not default HOME path</li>
+
+</div>
+                          <div class="card shadow mb-4">
+                              <div class="card-header py-3">
+                                  <h6 class="m-0 font-weight-bold text-primary">How to submit your job</h6>
+                              </div>
+
+                              <div class="card-body">
+
+                                  <h4>Basic template</h4>
+                                  Create a simple text file and name it "job_submit.que". See below for a simple template (you will be required to edit whatever is between **)
+                                  <pre><code class="language-bash">
+ #!/bin/bash
+ ## BEGIN PBS SETTINGS: Note PBS lines MUST start with #
+ #PBS -N **your_job_name**
+ #PBS -V -j oe -o **your_job_name**.qlog
+ #PBS -P **your_project**
+ #PBS -q **your_queue**
+ #PBS -l nodes=**number_of_nodes_for_this_job**
+ ## END PBS SETTINGS
+ ## BEGIN ACTUAL CODE
+ ** your code goes here **
+ ## END ACTUAL CODE
+                                  </code></pre>
+                                  <hr>
+<h4>Run your job</h4>
+    Run <code class="language-bash">qsub job_submit.que</code> to submit your job to the queue.<br>
+<pre><code class="language-bash">
+#qsub job_submit.que
+3323.ip-10-10-10-28
+</code></pre><br>If your qsub command succeed, you will receive an id for your job (3323 in this example).  To get more information about this job, run <code class="language-bash">qstat -f 3323</code> (or <code class="language-bash">qstat -f 3323 -x</code> is the job is already terminated).
+                                  <br>Your job will start as soon as resources are available (usually within 5 minutes after job submission)
+<hr>
+                                  <h4>Custom AWS scheduler resources (optional)</h4>
+                                  Here is a list of scheduler resources specially designed for workloads running on AWS. The line starting with -l (lowercase L) is meant to define scheduler resources which will be used by this job. Syntax is as follow: <br>
+                                  <code class="language-bash">#PBS -l parameter_name=parameter_value,parameter_name_2=parameter_value_2</code> <br>
+                                  If you don't specify them, your job will use the default values configured for your queue (see <code class="language-bash">/apps/soca/cluster_manager/settings/queue_mapping.yml</code>)<br><br>
+                                  <table class="table table-striped">
+                                      <tbody>
+                                        <tr>
+                                            <th>-l instance_type</th>
+                                            <td>Reference to the type of instance you want to provision for this job</td>
+                                            <td>-l instance=c5.9xlarge</td>
+                                        </tr>
+                                       <tr>
+                                            <th>-l scratch_size</th>
+                                            <td>EBS size you want to provision for this job (in GB) for scratch partition</td>
+                                           <td>-l scratch_size=250</td>
+                                        </tr>
+                                        <tr>
+                                            <th>-l root_size</th>
+                                            <td>EBS size you want to provision for this job (in GB) for root partition</td>
+                                           <td>-l root_size=50</td>
+                                        </tr>
+                                        <tr>
+                                            <th>-l placement_group</th>
+                                            <td>Enable support for placement group<br>
+Notes:<br>
+Placement group is automatically disabled if simulation is running on 1 host<br>
+Placement group is automatically enabled if simulation is running on > 1 host (unless placement_group=false is specified)</td>
+                                                   <td> -l placement_group=true|false</td>
+                                        </tr>
+                                      <tr>
+                                            <th>-l instance_ami</th>
+                                            <td>Support for custom AMI (if AMI OS is different than scheduler OS, use -l base_os as well)</td>
+                                           <td> -l instance_ami=ami-123abc</td>
+                                      </tr>
+                                          <tr>
+                                            <th>-l base_os</th>
+                                            <td>Select the base OS of the AMI </td>
+                                            <td> -l base_os=centos7|rhel7|amazonlinux2</td>
+                                      </tr>
+                                         <tr>
+                                            <th>-l efa_support</th>
+                                            <td>Support for EFA	</td>
+                                             <td> -l efa_support=true</td>
+                                      </tr>
+                                         <tr>
+                                            <th>-l ht_support</th>
+                                            <td>Enable or Disable HyperThreading (Disabled by default)	</td>
+                                             <td> -l ht_support=true</td>
+                                      </tr>
+
+                                      <tr>
+                                            <th>-l spot_price</th>
+                                            <td>Support for SPOT instances with maximum bid price in $	</td>
+                                          <td> -l spot_price=2.5</td>
+                                      </tr>
+                                       <tr>
+                                            <th>-l subnet_id</th>
+                                            <td>Deploy capacity in a specific private subnet</td>
+                                           <td> -l subnet_id=sub-123abc</td>
+                                      </tr>
+
+                                      </tbody>
+                                  </table>
+<hr>
+<h4>Specify an EC2 Instance Type (optional)</h4>
+Scale-Out Computing on AWS supports all type of EC2 instance. If you don't specify it, job will use a default type which may not be optimal (eg: simulation is memory intensive but default EC2 is compute optimized)
+If you are not familiar with EC2 instances, take some time to review  <a href="https://aws.amazon.com/ec2/instance-types/" target="_blank">https://aws.amazon.com/ec2/instance-types/</a><br>
+If you want to force utilization of a specific instance type (and not use the default one), simply change the line and modify instance_type value<br>
+                                  <code class="language-bash">#PBS -l [existing_parameters...],instance_type=**instance_type_value**</code>
+                                  <hr>
+                                  <h4>Specify a license restriction (optional)</h4>
+                                     <div class="alert alert-info">Please refer to <code>/apps/soca/cluster_manager/settings/licenses_mapping.yml</code> for a list of licenses you can restrict. Contact your Administrator if your license is not available yet.
+                                     </div>
+If your job needs to check-out a specific license to run, you want to make sure enough licenses are available before provisioning capacity for the job. To do so, you can add a new resource which will be your license name and the number of license you need.<br>
+
+                                  Example: Your job will only start if we have at least 2 Synopsys VCSRuntime_Net licenses available.<br>
+
+                                  <code class="language-bash">#PBS -l [existing_parameters...],synopsys_lic_vcsruntimenet=2</code><br>
+                                  <hr>
+                                  <h4>Manage your application logs</h4>
+PBS will automatically generate a .qlog file once the job is complete as shown below.<br>
+
+                                  <code class="language-bash">#PBS -V -j oe -o **your_job_name**.qlog</code><br>
+If you need more verbose log, we recommend you using STDERR/STDOUT redirection on your code<br>
+
+<hr>
+                                  <h4>My job is queued. What next? (AWS orchestration)</h4>
+
+                                  First, let's make sure your jobs have been sent to the queue. You can run default <code class="language-bash" >qstat</code> or use <code class="language-bash">aligoqstat</code> which is a custom wrapper developed for Scale-Out Computing on AWS. If you prefer web based solution, you can <a href="/qstat">check your current queue on this page as well</a>
+                                  <br>
+                                  <div class="row">
+                                    <div class="col-md-6">
+                                         <div class="card shadow mb-4">
+                                             <div class="card-header py-3">
+                                                 <h6 class="m-0 font-weight-bold text-primary">Web Based</h6>
+                                             </div>
+                                             <div class="card-body">
+                                                 <img width="100%" height="auto" src="{{ url_for('static', filename='img/howtojob-10.png') }}">
+                                             </div>
+                                         </div>
+
+                                    </div>
+                                      <div class="col-md-6">
+                                          <div class="card shadow mb-4">
+                                             <div class="card-header py-3">
+                                                 <h6 class="m-0 font-weight-bold text-primary">CLI</h6>
+                                             </div>
+                                             <div class="card-body">
+                                                 <img width="100%" height="auto" src="{{ url_for('static', filename='img/howtojob-1.png') }}">
+                                             </div>
+                                         </div>
+
+                                    </div>
+
+                                  </div>
+
+                                  As soon as jobs are sent to the queue, our in-house dispatcher script which will decide if the job can start based on hardware availabilities, priorities or license requirements. <br>Run <code lang="bash"> qstat -f **job_id** | grep Resource</code>.
+                                  <div class="row">
+                                    <div class="col-md-6">
+                                        <div class="card shadow mb-4">
+                                             <div class="card-header py-3">
+                                                 <h6 class="m-0 font-weight-bold text-primary">Web Based</h6>
+                                             </div>
+                                             <div class="card-body">
+                                                 <img width="100%" height="auto" src="{{ url_for('static', filename='img/howtojob-13.png') }}">
+                                             </div>
+                                         </div>
+                                    </div>
+                                      <div class="col-md-6">
+                                         <div class="card shadow mb-4">
+                                             <div class="card-header py-3">
+                                                 <h6 class="m-0 font-weight-bold text-primary">CLI</h6>
+                                             </div>
+                                             <div class="card-body">
+                                                 <img width="100%" height="auto" src="{{ url_for('static', filename='img/howtojob-12.png') }}">
+                                             </div>
+                                         </div>
+
+                                    </div>
+
+                                  </div>
+                                   If you see "stack_id" / "compute_node" resource (under select), that means all requirements are met and capacity is being provisioned (aka: CloudFormation stack is created and capacity is being provisioned).
+
+
+                                <br><img  width="50%" height="auto" src="{{ url_for('static', filename='img/howtojob-5.png') }}">
+                                  <br>Look at your EC2 console. This is what you will see (syntax is **cluster_id**-compute-node-**job_id**):<br>
+
+                                      <img  width="100%" height="auto" src="{{ url_for('static', filename='img/howtojob-2.png') }}">
+                                  <br>Instances are being provisioned successfully, now let's make sure they are correctly being added to the scheduler by running <code class="language-bash">pbsnodes -a</code>
+<br>
+                                  <strong>Note:</strong> PBS is updated as soon as the host are being added to EC2. You will need to wait a couple of minutes before the state change from "down" to "free" as Scale-Out Computing on AWS has to configure each node (install libraries, scheduler ...)
+<pre>
+    <code class="language-bash">
+~pbsnodes -a
+#Host Ready
+ip-90-0-118-49
+     Mom = ip-90-0-118-49.us-west-2.compute.internal
+     ntype = PBS
+     state = free
+     pcpus = 16
+     jobs = 1.ip-90-0-24-214/0
+     resources_available.arch = linux
+     resources_available.availability_zone = us-west-2a
+     resources_available.compute_node = job1
+     resources_available.host = ip-90-0-118-49
+     resources_available.instance_type = c5.4xlarge
+     resources_available.mem = 31890060kb
+     resources_available.ncpus = 16
+     resources_available.subnet_id = subnet-055c0dcdd6ddbb020
+     resources_available.vnode = ip-90-0-118-49
+     resources_assigned.accelerator_memory = 0kb
+     resources_assigned.hbmem = 0kb
+     resources_assigned.mem = 0kb
+     resources_assigned.naccelerators = 0
+     resources_assigned.ncpus = 1
+     resources_assigned.vmem = 0kb
+     queue = normal
+     resv_enable = True
+     sharing = default_shared
+     last_state_change_time = Sun Sep 29 23:30:05 2019
+
+# Host not ready yet
+ip-90-0-188-37
+     Mom = ip-90-0-188-37.us-west-2.compute.internal
+     ntype = PBS
+     state = state-unknown,down
+     resources_available.availability_zone = us-west-2c
+     resources_available.compute_node = job2
+     resources_available.host = ip-90-0-188-37
+     resources_available.instance_type = r5.xlarge
+     resources_available.subnet_id = subnet-0d046c8668ccfdcb0
+     resources_available.vnode = ip-90-0-188-37
+     resources_assigned.accelerator_memory = 0kb
+     resources_assigned.hbmem = 0kb
+     resources_assigned.mem = 0kb
+     resources_assigned.naccelerators = 0
+     resources_assigned.ncpus = 0
+     resources_assigned.vmem = 0kb
+     queue = normal
+     comment = node down: communication closed
+     resv_enable = True
+     sharing = default_shared
+     last_state_change_time = Sun Sep 29 23:28:05 2019
+
+    </code>
+</pre>
+                                  Simply wait a couple of minutes. Your jobs will start as soon as the PBS nodes are configured. <br>
+                                   <img  width="100%" height="auto"  src="{{ url_for('static', filename='img/howtojob-3.png') }}"> <br>
+
+                                  <br><a href="/qstat">Web Based queue viewer</a> will also reflect the state of the job in real-time<br>
+                                   <img  width="50%" height="auto"  src="{{ url_for('static', filename='img/howtojob-14.png') }}">
+
+
+
+
+                                 <hr>
+                                  <h4>Examples</h4>
+   For the rest of the examples below, I will run a simple script named "script.sh" with the following content: <br>
+<pre><code class="language-bash">
+#!/bin/bash
+# Will output the hostname of the host where the script is executed
+# If using MPI (more than 1 node), you will get the hostname of all the hosts allocated for your job
+echo `hostname`</code></pre>
+                                  <hr>
+                                  <h5>Run a simple script on 1 node using default settings on 'normal' queue</h5>
+<pre><code class="language-bash">#!/bin/bash
+#PBS -N my_job_name
+#PBS -V -j oe -o my_job_name.qlog
+#PBS -P project_a
+#PBS -q normal
+#PBS -l nodes=1
+## END PBS SETTINGS
+cd $HOME
+./script.sh >> my_output.log 2>&1</code></pre>
+
+
+                                  <h5>Run a simple MPI script on 3 nodes using custom EC2 instance type</h5>
+This job will use a 3 c5.18xlarge instances <br>
+<pre><code class="language-bash">#!/bin/bash
+#PBS -N my_job_name
+#PBS -V -j oe -o my_job_name.qlog
+#PBS -P project_a
+#PBS -q normal
+#PBS -l nodes=3,instance_type=c5.18xlarge
+## END PBS SETTINGS
+cd $PBS_O_WORKDIR
+cat $PBS_NODEFILE | sort | uniq > mpi_nodes
+export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/apps/openmpi/4.0.1/lib/
+export PATH=$PATH:/apps/openmpi/4.0.1/bin/
+# c5.18xlarge is 36 cores so -np is 36 * 3 hosts
+/apps/openmpi/4.0.1/bin/mpirun --hostfile mpi_nodes -np 108 script.sh > my_output.log
+</code></pre>
+
+                                  <h5>Run a simple script on 3 nodes using custom License Restriction</h5>
+This job will only start if we have at least 4 Comsol Acoustic licenses available<br>
+<pre><code class="language-bash">#!/bin/bash
+#PBS -N my_job_name
+#PBS -V -j oe -o my_job_name.qlog
+#PBS -P project_a
+#PBS -q normal
+#PBS -l nodes=3,instance_type=c5.18xlarge,comsol_lic_acoustic=4
+## END PBS SETTINGS
+cd $PBS_O_WORKDIR
+cat $PBS_NODEFILE | sort | uniq > mpi_nodes
+export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/apps/openmpi/4.0.1/lib/
+export PATH=$PATH:/apps/openmpi/4.0.1/bin/
+# c5.18xlarge is 36 cores so -np is 36 * 3 hosts
+/apps/openmpi/4.0.1/bin/mpirun --hostfile mpi_nodes -np 108 script.sh > my_output.log
+</code></pre>
+
+
+                                  <h5>Run a simple script on 5 nodes using custom AMI</h5>
+This job will use a user-specified AMI ID<br>
+<pre><code class="language-bash">#!/bin/bash
+#PBS -N my_job_name
+#PBS -V -j oe -o my_job_name.qlog
+#PBS -P project_a
+#PBS -q normal
+#PBS -l nodes=5,instance_type=c5.18xlarge,instance_ami=ami-123abcde
+## END PBS SETTINGS
+cd $PBS_O_WORKDIR
+cat $PBS_NODEFILE | sort | uniq > mpi_nodes
+export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/apps/openmpi/4.0.1/lib/
+export PATH=$PATH:/apps/openmpi/4.0.1/bin/
+# c5.18xlarge is 36 cores so -np is 36 * 5 hosts
+/apps/openmpi/4.0.1/bin/mpirun --hostfile mpi_nodes -np 180 script.sh > my_output.log
+</code></pre>
+
+                                  <h5>Run a simple script on 5 m5.24xlarge SPOT instances as long as bid price is lower than $2.5 per hour</h5>
+This job will use SPOT instances. Instances will be automatically terminated if BID price is higher than $2.5 / per hour per instance<br>
+<pre><code class="language-bash">#!/bin/bash
+#PBS -N my_job_name
+#PBS -V -j oe -o my_job_name.qlog
+#PBS -P project_a
+#PBS -q normal
+#PBS -l nodes=5,instance_type=m5.24xlarge,spot_price=2.5
+## END PBS SETTINGS
+cd $PBS_O_WORKDIR
+cat $PBS_NODEFILE | sort | uniq > mpi_nodes
+export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/apps/openmpi/4.0.1/lib/
+export PATH=$PATH:/apps/openmpi/4.0.1/bin/
+# m5.24xlarge is 48 cores so -np is 48 * 5 hosts
+/apps/openmpi/4.0.1/bin/mpirun --hostfile mpi_nodes -np 240 script.sh > my_output.log
+</code></pre>
+
+<h5>Submit a job with EFA</h5>
+ Make sure to use an instance type supported by EFA <a href="https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/efa.html#efa-instance-types">https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/efa.html#efa-instance-types</a>
+<pre><code class="language-bash">#!/bin/bash
+#PBS -N my_job_name
+#PBS -V -j oe -o my_job_name.qlog
+#PBS -P project_a
+#PBS -q normal
+#PBS -l nodes=5,instance_type=c5n.18xlarge,efa_support=true
+## END PBS SETTINGS
+cd $PBS_O_WORKDIR
+cat $PBS_NODEFILE | sort | uniq > mpi_nodes
+export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/apps/openmpi/4.0.1/lib/
+export PATH=$PATH:/apps/openmpi/4.0.1/bin/
+# c5n.18xlarge is 36 cores so -np is 36 * 5
+/apps/openmpi/4.0.1/bin/mpirun --hostfile mpi_nodes -np 180 script.sh > my_output.log
+</code></pre>
+<h5>Combine everything</h5>
+Custom AMI running on a different distribution than the scheduler, with EFA enable, without placement group and within a specific subnet_id
+<pre><code class="language-bash">#!/bin/bash
+#PBS -N my_job_name
+#PBS -V -j oe -o my_job_name.qlog
+#PBS -P project_a
+#PBS -q normal
+## Resources can be specified on multiple lines
+#PBS -l nodes=5,instance_type=c5n.18xlarge,efa_support=yes
+#PBS -l placement_group=false,base_os=rhel7,ami_id=ami-12345,subnet_id=sub-abcde
+## END PBS SETTINGS
+cd $PBS_O_WORKDIR
+cat $PBS_NODEFILE | sort | uniq > mpi_nodes
+export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/apps/openmpi/4.0.1/lib/
+export PATH=$PATH:/apps/openmpi/4.0.1/bin/
+# c5n.18xlarge is 36 cores so -np is 36 * 5
+/apps/openmpi/4.0.1/bin/mpirun --hostfile mpi_nodes -np 180 script.sh > my_output.log</code> </pre>
+
+
+
+
+
+
+
+                              </div>
+                          </div>
+                      </div>
+              </div>
+          </div>
+      </div>
+
+  </div>
+
+  <a class="scroll-to-top rounded" href="#page-top">
+    <i class="fas fa-angle-up"></i>
+  </a>
+
+
+    {% include 'common/footer.html' %}
+
+</body>
+
+</html>

@@ -105,6 +105,7 @@ venv.bak/
 
 # IDE and Editor artifacts #
 *.bbprojectd
+.idea/*
 .idea
 *.iml
 
@@ -115,4 +116,3 @@ cfg.tmp.json
 # OS generated files #
 .DS_Store
 .DS_Store?
-

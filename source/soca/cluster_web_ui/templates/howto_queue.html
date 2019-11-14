@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+
+     {% include 'common/header.html' %}
+
+
+</head>
+
+<body id="page-top">
+
+  <div id="wrapper">
+    {% include 'common/vertical_menu_bar.html' %}
+    <div id="content-wrapper" class="d-flex flex-column">
+
+      <div id="content">
+          <br>
+          <div class="container-fluid">
+              {% include 'common/horizontal_menu_bar.html' %}
+              <div class="row">
+
+                      <div class="col-md-12">
+<div class="alert alert-primary" role="alert">
+                     <strong>Things to know before you start</strong><br>
+                      By default, Scale-Out Computing on AWS creates 4 queues: high, normal (default), low and  alwayson.
+                 </div>
+                          <div class="card shadow mb-4">
+                              <div class="card-header py-3">
+                                  <h6 class="m-0 font-weight-bold text-primary">How to create a new queue</h6>
+                              </div>
+
+                              <div class="card-body">
+                                  <h3>Queue with automatic instance provisioning</h3>
+
+                                  <hr>
+                                  <h4>Create the queue</h4>
+                                  On your scheduler host, run <code>qmgr</code> as root and enter the following commands:
+                                  <pre>
+                                      <code class="language-bash">
+# Create queue name. Note: can't start with numerical character and it's recommended to use lowercase only
+Qmgr:create queue **queue_name**
+
+# Set the queue to execution
+Qmgr:set queue **queue_name** queue_type = Execution
+
+# Set default compute node - See below for more information
+Qmgr:set queue **queue_name** default_chunk.compute_node = tbd
+
+# Enable / Start the queue
+Qmgr:set queue **queue_name** enabled = True
+Qmgr:set queue **queue_name** started = True
+
+# Exit
+Qmgr:exit</code></pre>
+                                  <div class="alert alert-info">
+                                      <strong>What is compute_node=tbd?</strong><br>
+                                      On Scale-Out Computing on AWS, unless you configure queue with AlwaysOn instances, nodes will be provisioned based on queue status. When you submit a job, Scale-Out Computing on AWS will automatically provision capacity for this job and compute_node is the scheduler making sure only one job can run on this instance. compute_node=tbd is the default value, making sure any new jobs won't run on existing (if any) nodes
+                                  </div>
+                                    <hr>
+                                  <h4>Configure automatic host provisioning</h4>
+                                  If you want to enable automatic host provisioning, edit this file: <code>/apps/soca/cluster_manager/settings/queue_mapping.yml</code>
+                                  <h5>Option1: I want to use the same settings as an existing queue</h5>
+                                  In this case, simply update the array with your new queue
+                                  <pre>
+                                      <code class="language-yaml">
+queue_type:
+  compute:
+    queues: ["queue1", "queue2", "queue3"] # <- Add your queue to the array
+    default_ami: "ami-1234567"
+    default_instance: "c5.large"
+    ...
+</code></pre>
+                                   <h5>Option2: I want to configure specific settings</h5>
+                                  In this case, you will first need to create a new section on the YAML file (see example with memory)
+                                  <pre>
+                                      <code class="language-yaml">
+
+queue_type:
+  compute:
+    queues: ["queue1"]
+    default_ami: "ami-1234567"
+    default_instance: "c5.large"
+    scratch_size: "100"
+  memory: # <- Add new section
+    queues: ["queue2"]
+    default_ami: "ami-9876543"
+    default_instance: "r5.24xlarge"
+    scratch_size: "600"</code>
+                                  </pre>
+                                  Finally, add a new crontab on the scheduler machine (as root). Use -c to path to the YAML file and -t to the YAML section you just created
+                                    <br><pre><code class="language-bash">*/3 * * * * source /etc/environment;  /apps/python/latest/bin/python3 /apps/soca/cluster_manager/dispatcher.py -c /apps/soca/cluster_manager/settings/queue_mapping.yml -t memory</code></pre>
+
+<hr>
+                                <h4>Automatic Host provisioning logs</h4>
+                                  All logs queues are stored under /apps/soca/cluster_manager/logs/**queue_name**
+                                  <hr>
+
+                                   <h3>Queue with automatic AlwaysOn instances</h3>
+                                   <div class="alert alert-warning">
+
+                                      <strong>Important</strong><br>
+                                       - Scale-Out Computing on AWS automatically created one AlwaysOn queue for you called "alwayson" during the first installation<br>
+                                       - In this mode, instances will never be stopped programmatically. You are responsible to terminate the capacity manually by deleting the associated CloudFormation stack
+                                  </div>
+                                    <hr>
+                                  <h4>Create the queue</h4>
+                                  On your scheduler host, run <code>qmgr</code> as root and enter the following commands:
+                                  <pre>
+                                      <code class="language-bash">
+ # Create queue name. Note: can't start with numerical character and it's recommended to use lowercase only
+Qmgr:create queue **queue_name**
+
+# Set the queue to execution
+Qmgr:set queue **queue_name** queue_type = Execution
+
+# Enable / Start the queue
+Qmgr:set queue **queue_name** enabled = True
+Qmgr:set queue **queue_name** started = True
+
+# Exit
+Qmgr:exit</code></pre>
+                                  <hr>
+                                  <h4>Start provisioning some capacity</h4>
+
+                                  Run <code class="language-bash">python3 apps/soca/cluster_manager/add_nodes.py</code> and enable <code> --keep_forever</code> flag
+                                  <pre>
+                                      <code class="language-bash">
+# Launch 1 c5.large always on
+python3 /apps/soca/cluster_manager/add_nodes.py --instance_type c5.large \
+    --desired_capacity 1 \
+    --queue cpus \
+    --job_name instancealwayson \
+    --job_owner mcrozes \
+    --keep_forever
+
+ IMPORTANT:
+ You specified --keep-forever flag. This instance will be running 24/7 until you MANUALLY terminate the Cloudformation Stack</code>
+                                  </pre>
+                                  If you need help with this script, run <code class="language-bash">python3 add_nodes.py -h</code>
+                                  <pre>
+                                  <code class="language-bash">
+# Help
+python3 /apps/soca/cluster_manager/add_nodes.py -h
+usage: add_nodes.py [-h] --instance_type [INSTANCE_TYPE] --desired_capacity
+                    [DESIRED_CAPACITY] --queue [QUEUE]
+                    [--custom_ami [CUSTOM_AMI]] [--job_id [JOB_ID]] --job_name
+                    [JOB_NAME] --job_owner [JOB_OWNER]
+                    [--job_project [JOB_PROJECT]]
+                    [--scratch_size [SCRATCH_SIZE]]
+                    [--placement_group PLACEMENT_GROUP] [--tags [TAGS]]
+                    [--keep_forever] [--spot_price [SPOT_PRICE]]</code>
+                                  </pre>
+                            <hr>
+                                  <h4>Delete AlwaysOn capacity</h4>
+                                  Simply go to your CloudFormation console, locate the stack following the naming convention: soca-**cluster-name**-keepforever-**queue_name**-uniqueid and terminate it.
+                                  <br><img  src="{{ url_for('static', filename='img/howtoqueue-1.png') }}">
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                              </div>
+                          </div>
+                      </div>
+              </div>
+          </div>
+      </div>
+
+  </div>
+
+  <a class="scroll-to-top rounded" href="#page-top">
+    <i class="fas fa-angle-up"></i>
+  </a>
+
+
+    {% include 'common/footer.html' %}
+
+</body>
+
+</html>

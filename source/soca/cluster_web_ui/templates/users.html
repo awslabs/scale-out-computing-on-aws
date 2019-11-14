@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+     {% include 'common/header.html' %}
+</head>
+
+<body id="page-top">
+
+  <div id="wrapper">
+    {% include 'common/vertical_menu_bar.html' %}
+    <div id="content-wrapper" class="d-flex flex-column">
+
+      <div id="content">
+          <br>
+          <div class="container-fluid">
+              {% include 'common/horizontal_menu_bar.html' %}
+              {% if sudoers == false %}
+               <div class="alert alert-danger" role="alert">
+                     <strong>Access denied </strong>
+                   Only users with sudo permissions can access this page
+                     <br>
+                 </div>
+              {% else %}
+              <div id="accessok">
+                  {% with messages = get_flashed_messages() %}
+                        {% if messages %}
+                            {% for message in messages %}
+                                <br>
+                                {% if message.success == true %}
+                                <div class="alert alert-success">
+                                    <strong>{{ message.message }} </strong>
+                                </div>
+                                {% else %}
+                                 <div class="alert alert-danger">
+                                    <strong>{{ message.message }} </strong>
+                                </div>
+                                {% endif %}
+
+                            {% endfor %}
+                        {% endif %}
+                    {% endwith %}
+                  <div class="row">
+
+                      <div class="col-md-6">
+                          <div class="card shadow mb-4">
+                              <div class="card-header py-3">
+                                  <h6 class="m-0 font-weight-bold text-primary">Add New User</h6>
+                              </div>
+                              <div class="card-body">
+                                  <form action="/create_new_account" method="post"
+                                    oninput='password_verif.setCustomValidity(password_verif.value != password.value ? "Passwords do not match." : "")'>
+                                      <div class="form-group">
+                                          <input id="username" placeholder="Username" class="form-control" type="text" required name="username">
+                                      </div>
+                                      <div class="form-group">
+                                          <input id="password" placeholder="Password" class="form-control"  type="password" required name="password">
+                                      </div>
+                                      <div class="form-group">
+                                          <input placeholder="Confirm Password" id="password_verif" class="form-control" type="password" name="password_verif">
+                                      </div>
+
+                                       <div class="form-group">
+                                          <input id="email" placeholder="Email" class="form-control"  type="email" required name="email">
+                                      </div>
+                                      <div class="form-group form-check">
+                                          <input type="checkbox" class="form-check-input" name="sudo" id="sudo">
+                                          <label class="form-check-label" for="sudo">Enable Sudo Access</label>
+                                      </div>
+                                      <div align="center">
+                                           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                          <button type="submit" class="btn btn-primary btn-lg">Create Account</button>
+                                      </div>
+                                  </form>
+                              </div>
+                          </div>
+                      </div>
+
+
+                      <div class="col-md-6">
+                          <div class="card shadow mb-4">
+                              <div class="card-header py-3">
+                                  <h6 class="m-0 font-weight-bold text-primary">Delete User</h6>
+                              </div>
+                              <div class="card-body">
+                                  <div class="alert alert-primary" role="alert">
+                                      <strong>Important </strong>
+                                      Deleting user will prevent user to access the cluster but does not remove associated $HOME directory and data
+                                  </div>
+
+                                  <form action="/delete_account" method="post">
+                                  <div class="form-group">
+                                    <select class="form-control" id="user_to_delete" name="user_to_delete">
+                                        {% for user, cn in all_users.items() %}
+                                            <option value="{{user}}">{{user}}</option>
+                                        {% endfor %}
+
+                                    </select>
+                                  </div>
+                                       <div class="form-group form-check">
+                                          <input type="checkbox" class="form-check-input" name="verif" id="verif" required>
+                                          <label class="form-check-label" for="verif">I am sure I want to delete this user</label>
+                                      </div>
+                                      <div align="center">
+                                           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                          <button type="submit" class="btn btn-danger btn-lg">Delete User</button>
+                                      </div>
+                                  </form>
+                              </div>
+                          </div>
+                      </div>
+
+                  </div>
+              <div class="col-md-12">
+                    <div class="card shadow mb-4">
+                        <div class="card-header py-3">
+                            <h6 class="m-0 font-weight-bold text-primary">Technical Details</h6>
+                        </div>
+                        <div class="card-body">
+                            Scale-Out Computing on AWS uses OpenLDAP and you can interact with your directory using LDIF directly. If you are not familiar with LDIF, you can use our custom wrapper available at <code>/apps/soca/cluster_manager/ldap_manager.py</code>
+                            <br><br>
+                            <li>People: OU=People,DC=soca,DC=local</li>
+                            <li>Groups: OU=Group,DC=soca,DC=local</li>
+                            <li>Sudoers: OU=Sudoers,DC=soca,DC=local (This OU manages sudo permission on the cluster)</li>
+                            <br>
+                            <div class="alert alert-warning" role="alert">
+                                Admin username and password can be found on <code>/root/OpenLdapAdminUsername.txt</code> and <code>/root/OpenLdapAdminPassword.txt</code>.
+                            </div>
+                            <hr>
+                            <h3> Example: Create a new LDAP group</h3>
+                            Create a "mynewgroup.ldif" text file.
+                            <pre>
+                               <code class="language-bash">
+dn: cn=mynewgroup,ou=Group,dc=soca,dc=local
+objectClass: top
+objectClass: posixGroup
+cn: mynewgroup
+gidNumber: 6000
+memberUid: mytestuser</code></pre>
+                            Then run the following command to create your group
+                            <pre>
+                                <code class="language-bash">
+~ ldapadd -x -D cn=admin,dc=soca,dc=local -y /root/OpenLdapAdminPassword.txt -f mynewgroup.ldif
+adding new entry "cn=mynewgroup,ou=Group,dc=soca,dc=local"</code></pre>
+                            Finally valid your group has been created correctly using <code>ldapsearch</code>
+                            <pre>
+                                <code class="language-bash">
+# Validate with Ldapsearch
+~ ldapsearch -x cn=mynewgroup
+#Extended LDIF
+#
+# LDAPv3
+# base DC=soca,DC=local (default) with scope subtree
+# filter: cn=mynewgroup
+# requesting: ALL
+#
+
+# mynewgroup, Group, soca.local
+dn: cn=mynewgroup,ou=Group,dc=soca,dc=local
+objectClass: top
+objectClass: posixGroup
+cn: mynewgroup
+gidNumber: 6000
+memberUid: mytestuser</code></pre>
+<hr>
+                             <h3> Example: Modify Operation</h3>
+                            <pre>
+                                <code class="language-bash">
+dn: cn=mynewgroup,ou=Group,dc=soca,dc=local
+changetype: modify
+add: memberUid
+memberUid: anotheruser</code></pre>
+                            <hr>
+                             <h3> Example: Delete Operation</h3>
+                            <pre>
+                                <code class="language-bash">
+dn: cn=mynewgroup,ou=Group,dc=soca,dc=local
+changetype: modify
+delete: memberUid
+memberUid:: anotheruser # you get the memberUid by running a simple ldapsearch first</code></pre>
+
+                        </div>
+                    </div>
+              </div>
+        </div>
+        {% endif %}
+      </div>
+          </div>
+      </div>
+
+  </div>
+
+  <a class="scroll-to-top rounded" href="#page-top">
+    <i class="fas fa-angle-up"></i>
+  </a>
+
+
+    {% include 'common/footer.html' %}
+
+</body>
+
+</html>

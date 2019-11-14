@@ -1,0 +1,118 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: (SOCA) - Manage persistent storage.
+Parameters:
+  VpcId:
+    Type: String
+
+  SchedulerSecurityGroup:
+    Type: String
+
+  ComputeNodeSecurityGroup:
+    Type: String
+
+  PrivateSubnet1:
+    Type: String
+
+  PrivateSubnet2:
+    Type: String
+
+  PrivateSubnet3:
+    Type: String
+  ClusterId:
+    Type: String
+
+
+Resources:
+  EFSApps:
+    Type: AWS::EFS::FileSystem
+    Properties:
+      Encrypted: True
+      FileSystemTags:
+        - Key: Name
+          Value: !Sub ${ClusterId}-EFSApps
+        - Key: soca:ClusterId
+          Value: !Ref ClusterId
+      ThroughputMode: bursting
+
+  AppsMountTarget1:
+    Type: AWS::EFS::MountTarget
+    Properties:
+      FileSystemId: !Ref EFSApps
+      SubnetId: !Ref PrivateSubnet1
+      SecurityGroups:
+        - !Ref SchedulerSecurityGroup
+        - !Ref ComputeNodeSecurityGroup
+
+  AppsaMountTarget2:
+    Type: AWS::EFS::MountTarget
+    Properties:
+      FileSystemId: !Ref EFSApps
+      SubnetId: !Ref PrivateSubnet2
+      SecurityGroups:
+        - !Ref SchedulerSecurityGroup
+        - !Ref ComputeNodeSecurityGroup
+
+  AppsMountTarget3:
+    Type: AWS::EFS::MountTarget
+    Properties:
+      FileSystemId: !Ref EFSApps
+      SubnetId: !Ref PrivateSubnet3
+      SecurityGroups:
+        - !Ref SchedulerSecurityGroup
+        - !Ref ComputeNodeSecurityGroup
+
+  EFSData:
+    Type: AWS::EFS::FileSystem
+    Properties:
+      Encrypted: True
+      LifecyclePolicies:
+         - TransitionToIA: AFTER_30_DAYS
+      FileSystemTags:
+        - Key: Name
+          Value: !Sub ${ClusterId}-EFSData
+        - Key: soca:ClusterId
+          Value: !Ref ClusterId
+      ThroughputMode: bursting
+
+  DataMountTarget1:
+    Type: AWS::EFS::MountTarget
+    Properties:
+      FileSystemId: !Ref EFSData
+      SubnetId: !Ref PrivateSubnet1
+      SecurityGroups:
+        - !Ref SchedulerSecurityGroup
+        - !Ref ComputeNodeSecurityGroup
+
+  DataMountTarget2:
+    Type: AWS::EFS::MountTarget
+    Properties:
+      FileSystemId: !Ref EFSData
+      SubnetId: !Ref PrivateSubnet2
+      SecurityGroups:
+        - !Ref SchedulerSecurityGroup
+        - !Ref ComputeNodeSecurityGroup
+
+  DataMountTarget3:
+    Type: AWS::EFS::MountTarget
+    Properties:
+      FileSystemId: !Ref EFSData
+      SubnetId: !Ref PrivateSubnet3
+      SecurityGroups:
+        - !Ref SchedulerSecurityGroup
+        - !Ref ComputeNodeSecurityGroup
+
+Outputs:
+  EFSApps:
+    Value: !Ref EFSApps
+
+  EFSAppsDns:
+    Value: !Join [ ".", [!Ref EFSApps, 'efs', !Ref "AWS::Region" , !Ref "AWS::URLSuffix"] ]
+
+  EFSData:
+    Value: !Ref EFSData
+
+  EFSDataDns:
+    Value: !Join [ ".", [ !Ref EFSData, 'efs', !Ref "AWS::Region", !Ref "AWS::URLSuffix"] ]
+
+  EFSMountParameters:
+     Value: 'nfsvers=4.1,rsize=1048576,wsize=1048576,hard,timeo=600,retrans=2,noresvport'

@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+
+     {% include 'common/header.html' %}
+
+
+</head>
+
+<body id="page-top">
+
+  <div id="wrapper">
+    {% include 'common/vertical_menu_bar.html' %}
+    <div id="content-wrapper" class="d-flex flex-column">
+
+      <div id="content">
+          <br>
+          <div class="container-fluid">
+              {% include 'common/horizontal_menu_bar.html' %}
+              <div class="row">
+                      <div class="col-md-6">
+                          <div class="card shadow mb-4">
+                              <div class="card-header py-3">
+                                  <h6 class="m-0 font-weight-bold text-primary">Access the cluster using Linux/Mac</h6>
+                              </div>
+                              <div class="card-body">
+                                  <div align="center">
+                                  <i class="fab fa-linux fa-5x"></i>
+                                  </div>
+                                  <br><br>
+
+                                  <h4>Step1:
+                                  <a href="/api/get_pem_key" class="btn btn-primary btn-icon-split">
+                                                   <span class="icon text-white-50">
+                                                       <i class="fas fa-info-circle"></i>
+                                                   </span>
+                                                   <span class="text">Download my private key</span>
+                                               </a>
+                                  </h4>
+
+
+                                  <hr>
+
+                                  <h4>Step2: Modify key permission</h4>
+                                  Run <code>chmod 600 {{username}}_soca_privatekey.pem</code>
+                                    <hr>
+                                  <h4>Step3: Connect to the cluster</h4>
+                                  Run <code>ssh -i {{username}}_soca_privatekey.pem {{username}}@{{scheduler_ip}}</code>
+                                  <hr>
+                                  <h4>Optional: Enable KeepAlive</h4>
+                                   If you don't want your session to be automatically closed after a couple of minutes of inactivity, edit <code>~/.ssh/config</code> and add:<br>
+                                  <code>
+Host {{scheduler_ip}}<br>
+    ServerAliveInterval 30<br>
+    ServerAliveCountMax 2
+                                  </code>
+
+
+                              </div>
+
+
+                          </div>
+                      </div>
+                  <div class="col-md-6">
+                          <div class="card shadow mb-4">
+                              <div class="card-header py-3">
+                                  <h6 class="m-0 font-weight-bold text-primary">Access the cluster using Windows (PuTTY)</h6>
+                              </div>
+                              <div class="card-body">
+                                  <div align="center">
+                                        <i class="fab fa-windows fa-5x"></i>
+                                  </div>
+                                  <br><br>
+                                  <h4>Step1:
+
+                                   <a href="/api/get_ppk_key" class="btn btn-primary btn-icon-split">
+                                                   <span class="icon text-white-50">
+                                                       <i class="fas fa-info-circle"></i>
+                                                   </span>
+                                                   <span class="text">Download my PuTTY private key</span>
+                                               </a>
+                                  </h4>
+                                  <hr>
+
+                                  <h4>Step2: Configure PuTTY</h4>
+                                  <li><a href="https://www.chiark.greenend.org.uk/~sgtatham/putty/latest.html" target="_blank">Download PuTTY</a></li>
+                                  <li>As hostname, enter {{scheduler_ip}}</li>
+                                  <li>Navigate to Connection > SSH > Auth and enter the path of your key ({{username}}_soca_privatekey.ppk) under your "Private Key used for Authentication"</li>
+                                  <li>Save your session</li>
+                                  <li>Click connect/open to access the cluster</li>
+                                  </li>
+                                  <hr>
+                                  <h4>Optional: Enable KeepAlive</h4>
+                                  If you don't want your session to be automatically closed after a couple of minutes of inactivity, go to Connection and add "3" as "Seconds between KeepAlives"
+
+
+                              </div>
+                          </div>
+                      </div>
+
+
+              </div>
+          </div>
+      </div>
+
+  </div>
+
+  <a class="scroll-to-top rounded" href="#page-top">
+    <i class="fas fa-angle-up"></i>
+  </a>
+
+
+    {% include 'common/footer.html' %}
+
+</body>
+
+</html>

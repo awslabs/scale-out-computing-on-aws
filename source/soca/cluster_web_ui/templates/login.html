@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+     {% include 'common/header.html' %}
+</head>
+
+<body class="bg-aws">
+
+
+  <div class="container">
+
+    <div class="row justify-content-center">
+
+      <div class="col-md-6">
+
+        <div class="card o-hidden border-0 shadow-lg my-5">
+          <div class="card-body p-0">
+            <div class="row">
+              <div class="col-md-12">
+
+
+                <div class="p-5">
+                  <div class="text-center">
+                      <img class="img-fluid" height="150px" width="150px" src="{{ url_for('static', filename='img/soca_logo_rev2.png') }}">
+                      <hr>
+                  </div>
+
+
+                  <form class="user" method="post" action="/auth">
+                    <div class="form-group">
+                      <input type="text" required class="form-control form-control-user" id="username" name="username" aria-describedby="user" placeholder="Username">
+                    </div>
+                    <div class="form-group">
+                      <input type="password" required class="form-control form-control-user" id="password" name="password" placeholder="Password">
+                    </div>
+
+                    <div align="center">
+                         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <button type="submit" class="btn btn-success btn-block">Login</button>
+                    </div>
+                  </form>
+
+                    {% with messages = get_flashed_messages() %}
+                        {% if messages %}
+                            {% for message in messages %}
+                                <br>
+                                <div class="alert alert-danger">
+                                    <strong>{{ message }} </strong>
+                                </div>
+                            {% endfor %}
+                        {% endif %}
+                    {% endwith %}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+    </div>
+
+  </div>
+
+
+  {% include 'common/footer.html' %}
+
+</body>
+
+</html>
