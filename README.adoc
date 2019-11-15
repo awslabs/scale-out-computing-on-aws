@@ -1,8 +1,7 @@
 = Scale-Out Computing on AWS
 :toc:
-:icons: font
 
-== icon:wrench[] How to install Scale-Out Computing on AWS
+== How to install Scale-Out Computing on AWS
 
 . Clone this git repository
 +
@@ -22,7 +21,7 @@ python source/manual_build.py
 
 . Launch CloudFormation and use `scale-out-computing-on-aws.template` as base template
 
-== icon:book[] Documentation
+== Documentation
 
 Documentation is written in markdown and accessible under `docs` folder. To enable the local HTML version:
 
