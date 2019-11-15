@@ -1,35 +1,40 @@
-# Scale-Out Computing on AWS
+= Scale-Out Computing on AWS
+:toc:
 
-## :wrench: How to install Scale-Out Computing on AWS
+== How to install Scale-Out Computing on AWS
 
-+ 1\) Clone this git repository
+. Clone this git repository
++
 ```bash
 git clone https://github.com/awslabs/scale-out-computing-on-aws
 ```
-+ 2\) Run the following command to create your build (support Python2 and Python3):
+
+. Run the following command to create your build (support Python2 and Python3):
++
 ```bash
 python source/manual_build.py
 ```
-+ 3\) Output will be created under `source/dist/<build_id>`
 
-+ 4\) Upload `source/dist/<build_id>` folder to your own S3 bucket
+. Output will be created under `source/dist/<build_id>`
 
-+ 5\) Launch CloudFormation and use `scale-out-computing-on-aws.template` as base template
+. Upload `source/dist/<build_id>` folder to your own S3 bucket
 
-## :book: Documentation
+. Launch CloudFormation and use `scale-out-computing-on-aws.template` as base template
+
+== Documentation
 
 Documentation is written in markdown and accessible under `docs` folder. To enable the local HTML version:
-+ Install mkdocs: `pip install mkdocs pygments pymdown-extensions`
-+ Run mkdocs: `mkdocs serve`
+
+* Install mkdocs: `pip install mkdocs pygments pymdown-extensions`
+* Run mkdocs: `mkdocs serve`
 
 This will launch a local web server and documentation will be available at `https://127.0.0.1:8000`
 
-### New User Guide
-[https://awslabs.github.io/scale-out-computing-on-aws/](https://awslabs.github.io/scale-out-computing-on-aws/)
+=== New User Guide
+https://awslabs.github.io/scale-out-computing-on-aws/[https://awslabs.github.io/scale-out-computing-on-aws/]
 
-## :pencil2: File Structure
+=== File Structure
 Scale-Out Computing on AWS project consists in a collection of CloudFormation templates, Shell scripts and Python code.
-
 ```bash
 .
 ├── scale-out-computing-on-aws.template                 [ Soca Install Template ]
