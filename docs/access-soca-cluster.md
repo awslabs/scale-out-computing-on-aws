@@ -15,7 +15,7 @@ To access your Scale-Out Computing on AWS cluster using SSH protocol, simply cli
 
 If you need to access an instance that is in a Private (non-routable) Subnet, you can use ssh-agent to do this:
 
-~~~bash hl_lines="4"
+~~~bash
 $ ssh-add -K ~/Keys/my_key_region.pem
 Identity added: /Users/username/Keys/my_key_region.pem (/Users/username/Keys/my_key_region.pem)
 
@@ -25,12 +25,12 @@ $ ssh-add -L
 
 Now use ```-A``` with ssh and this will forward the key with your ssh login:
 
-~~~bash hl_lines="4"
+~~~bash
 $ ssh -A -i ~/Keys/my_key_region.pem centos@111.222.333.444
 ~~~
 
 Now that you have your key forwarded, you can login to an instance that is in the Private Subnet:
-~~~bash hl_lines="4"
+~~~bash
 $ ssh centos@ip-10-20-111-222
 ~~~
 
