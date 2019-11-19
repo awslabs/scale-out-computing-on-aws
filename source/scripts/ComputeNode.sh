@@ -24,7 +24,6 @@ echo "$EFS_APPS:/ /apps nfs4 nfsvers=4.1,rsize=1048576,wsize=1048576,hard,timeo=
 cd ~
 
 # Install System required libraries
-
 if [[ $SOCA_BASE_OS = "rhel7" ]]
 then
     yum install -y $(echo ${SYSTEM_PKGS[*]}) --enablerepo rhui-REGION-rhel-server-optional
@@ -78,8 +77,8 @@ else
         # Clear Devices which are already mounted (eg: when customer import their own AMI)
         for device in $DEVICES;
         do
-            check_mountpoint=$(lsblk $device -o MOUNTPOINT | tail -n 1)
-            if [[ -z "$check_mountpoint" ]];
+            CHECK_IF_PARTITION_EXIST=$(lsblk -b $device | grep part | wc -l)
+            if [[ $CHECK_IF_PARTITION_EXIST -eq 0 ]];
              then
              echo "$device is free and can be used"
              VOLUME_LIST+=($device)
@@ -93,7 +92,8 @@ else
 	        echo "Detected  1 NVMe device available, formatting as ext4 .."
 	        mkfs -t ext4 $DEVICES
 	        echo "$DEVICES /scratch ext4 defaults 0 0" >> /etc/fstab
-	    else
+	    elif [[ $VOLUME_COUNT -gt 1 ]];
+	    then
 	        # if more than 1 instance store disks, raid them !
 	        echo "Detected more than 1 NVMe device available, creating XFS fs ..."
 	        DEVICE_NAME="md0"
@@ -101,11 +101,14 @@ else
             echo yes | mdadm --create -f --verbose --level=0 --raid-devices=$VOLUME_COUNT /dev/$DEVICE_NAME ${VOLUME_LIST[@]}
             mkfs -t ext4 /dev/$DEVICE_NAME
             echo "/dev/md/0_0 /scratch ext4 defaults 0 0" >> /etc/fstab
+        else
+            echo "All volumes detected already have a partition or mount point and can't be used as scratch devices"
 	    fi
     fi
 fi
 
 # Install PBSPro (Review possible containerization to reduce instance cold start)
+# You can build your own AMI with PBSPro pre-installed to reduce instance startup time
 cd ~
 wget $PBSPRO_URL
 if [[ $(md5sum $PBSPRO_TGZ | awk '{print $1}') != $PBSPRO_HASH ]];  then

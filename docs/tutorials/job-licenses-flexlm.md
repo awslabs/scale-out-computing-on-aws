@@ -26,7 +26,7 @@ Depending your configuration, you may need to edit the security groups to allow 
 
 **Allow traffic from your license server IP to Scale-Out Computing on AWS**
 
-Assuming my license server IP is ==10.0.15.18==, simply go to the EC2 console, locate your `Scheduler` and `ComputeNode` security groups (filter by your Scale-Out Computing on AWS cluster name) associated to your Scale-Out Computing on AWS cluster and whitelist both SERVER and DAEMON ports:
+Assuming my license server IP is ==10.0.15.18==, simply go to the EC2 console, locate your `Scheduler` and `ComputeNode` security groups (filter by your cluster name) associated to your Scale-Out Computing on AWS cluster and whitelist both SERVER and DAEMON ports:
 
 ![](../imgs/flexlm-1.png)
 
@@ -47,7 +47,8 @@ if lmstat_path == "PATH_TO_LMUTIL":
     print('Please specify a link to your lmutil binary (edit line 19 of this file')
     sys.exit(1)
 ```
-
+!!!note 
+    You do not need to install FlexLM server manager. Only `lmutil` binary is required.
 ## How to retrieve number of licenses available
 Scale-Out Computing on AWS includes a script (`/apps/soca/cluster_manager/license_check.py`) which output the number of FlexLM available for a given feature. This script takes the following arguments:
     

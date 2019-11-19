@@ -2,7 +2,7 @@
 title: Create your own analytics dashboard
 ---
 
-[On your Kibana cluster]({{ site.baseurl }}/analytics/monitor-cluster-activity/), click "Visualize" to create a new visualization. Below are some example to help you get started
+[On your Kibana cluster](../../analytics/monitor-cluster-activity/), click "Visualize" to create a new visualization. Below are some example to help you get started
 
 *Note: For each dashboard, you can get detailed data at user, queue, job or project level by simply using the "Filters" section*
 
@@ -139,7 +139,3 @@ If needed, you can filter by project name (note: this type of filtering can be a
 Each job comes with `price_ondemand` and `price_reserved` attributes which are calculated based on: `number of nodes * ( simulation_hours * instance_hourly_rate ) `
 
 ![](../imgs/dashboard-1.png)
-
-## Have something cool to share?
-
-Want to share something? Click here to [contribute](https://github.com/mcrozes/soca-documentation)

@@ -33,7 +33,7 @@ Metadata:
       VpcCidr:
         default: Create your new VPC
       ClientIp:
-        default: What's your IP address?
+        default: What's your IP?
       CustomAMI:
         default: (Optional) Have your own AMI?
       SSHKeyPair:

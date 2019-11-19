@@ -7,13 +7,12 @@ source /root/config.cfg
 crontab -r
 
 # Copy  Aligo scripts file structure
-# NOTE: THIS REQUIRE PERMISSION ON THE SOURCE BUCKET
 AWS=$(which aws)
-$AWS s3 sync s3://$SOCA_INSTALL_BUCKET/$SOCA_INSTALL_BUCKET_FOLDER/soca/cluster_manager/ /apps/soca/cluster_manager
-$AWS s3 sync s3://$SOCA_INSTALL_BUCKET/$SOCA_INSTALL_BUCKET_FOLDER/soca/cluster_analytics/ /apps/soca/cluster_analytics
-$AWS s3 sync s3://$SOCA_INSTALL_BUCKET/$SOCA_INSTALL_BUCKET_FOLDER/soca/cluster_logs_management/ /apps/soca/cluster_logs_management
-$AWS s3 sync s3://$SOCA_INSTALL_BUCKET/$SOCA_INSTALL_BUCKET_FOLDER/soca/cluster_web_ui/ /apps/soca/cluster_web_ui
-$AWS s3 sync s3://$SOCA_INSTALL_BUCKET/$SOCA_INSTALL_BUCKET_FOLDER/soca/cluster_hooks/ /apps/soca/cluster_hooks
+# Retrieve SOCA configuration under soca.tar.gz and extract it on /apps/
+$AWS s3 cp s3://$SOCA_INSTALL_BUCKET/$SOCA_INSTALL_BUCKET_FOLDER/soca.tar.gz /root
+mkdir -p /apps/soca
+tar -xvf /root/soca.tar.gz -C /apps/soca --no-same-owner
+
 mkdir -p /apps/soca/cluster_manager/logs
 
 # Generate default queue_mapping file based on default AMI choosen by customer
@@ -30,7 +29,7 @@ queue_type:
     #scratch_size: "100"
     #scratch_iops: "3600"
     #efa_support: "false"
-    # .. Refer to the doc for more supported parameters https://soca.dev/tutorials/integration-ec2-job-parameters/
+    # .. Refer to the doc for more supported parameters
   desktop:
     queues: ["desktop"]
     instance_ami: "$SOCA_INSTALL_AMI"

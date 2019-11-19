@@ -24,7 +24,7 @@ title: Understand backend storage
 
 ## FSx
 
-Scale-Out Computing on AWS supports FSx natively. [Click here to learn how to use FSx as backend storage for your jobs](/storage/launch-job-with-fsx/).
+Scale-Out Computing on AWS supports FSx natively. [Click here to learn how to use FSx as backend storage for your jobs](../../storage/launch-job-with-fsx/).
 
 ## Instance (local) partitions
 

@@ -43,7 +43,7 @@ Run `qdel <job_id>` to remove a job from the queue. If the job was running, asso
 
 ## Custom AWS scheduler resources (optional)
 
-[Here is a list](/tutorials/integration-ec2-job-parameters/) of scheduler resources specially designed for workloads running on AWS. The line starting with -l (lowercase L) is meant to define scheduler resources which will be used by this job. 
+[Here is a list](../../tutorials/integration-ec2-job-parameters) of scheduler resources specially designed for workloads running on AWS. The line starting with -l (lowercase L) is meant to define scheduler resources which will be used by this job. 
 Syntax is as follow:  
 
 * In a script: `#PBS -l parameter_name=parameter_value,parameter_name_2=parameter_value_2`

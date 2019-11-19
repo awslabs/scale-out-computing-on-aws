@@ -6,7 +6,7 @@ On this page, I will demonstrate how to configure a budget for a given project a
 
 For this example, I will create a budget named "Project 1" and prevent user to submit job if (1) they do not belong to the project and (2) if the budget has expired.
 
-[First, read this link]({{ site.baseurl }}/tutorials/control-your-cost/) to understand how to monitor your cluster cost and budgets on AWS.
+[First, read this link](../../analytics/review-hpc-costs/) to understand how to monitor your cluster cost and budgets on AWS.
 
 ## Configure the scheduler hook
 

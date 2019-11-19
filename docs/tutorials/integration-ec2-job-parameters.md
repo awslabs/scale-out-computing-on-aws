@@ -2,7 +2,7 @@
 title: Job customization for EC2
 ---
 
-Scale-Out Computing on AWS made [job submission on EC2 very easy](/tutorials/launch-your-first-job/) and is fully integrated with EC2.
+Scale-Out Computing on AWS made [job submission on EC2 very easy](../../launch-your-first-job/) and is fully integrated with EC2.
 Below is a list of parameters you can specify when you request your simulation to ensure the hardware provisioned will exactly match your simulation requirements. 
 
 !!!info 

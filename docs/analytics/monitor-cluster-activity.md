@@ -41,33 +41,6 @@ Once your Index is configured, go to Kibana, select "Discover" tab to start visu
 | Recurrence     | 1 minute         | 1 hour **(note: job must be terminated to be shown on ElasticSearch)**       | 
 | Data uploaded         | Host Info (status of provisioned host, lifecycle, memory, cpu etc ..)         | Job Info (allocated hardware, licenses, simulation cost, job owner, instance type ...)        | 
 | Timestamp Key   | Use "timestamp" when you create the index for the first time         | use "stime" when you create the index for the first time        | 
-
-
-
-
-
-<th scope="row">Data uploaded</th>
-
-<td></td>
-
-<td></td>
-
-</tr>
-
-<tr>
-
-<th scope="row"></th>
-
-<td></td>
-
-<td></td>
-
-</tr>
-
-</tbody>
-
-</table>
-
 ____
 
 ### Examples

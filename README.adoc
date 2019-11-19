@@ -23,14 +23,6 @@ python source/manual_build.py
 
 == Documentation
 
-Documentation is written in markdown and accessible under `docs` folder. To enable the local HTML version:
-
-* Install mkdocs: `pip install mkdocs pygments pymdown-extensions`
-* Run mkdocs: `mkdocs serve`
-
-This will launch a local web server and documentation will be available at `https://127.0.0.1:8000`
-
-=== New User Guide
 https://awslabs.github.io/scale-out-computing-on-aws/[https://awslabs.github.io/scale-out-computing-on-aws/]
 
 === File Structure
