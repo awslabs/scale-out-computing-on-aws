@@ -64,12 +64,12 @@ sed -i '' -e $replace $template_dist_dir/*.template
 
 echo "cp -r $source_dir/scripts $template_dist_dir"
 cp -r $source_dir/scripts $template_dist_dir
-echo "cp -r $source_dir/soca $template_dist_dir"
-cp -r $source_dir/soca $template_dist_dir
 echo "cp -r $source_dir/templates $template_dist_dir"
 cp -r $source_dir/templates $template_dist_dir
-echo "cp -r $source_dir/docs $template_dist_dir"
-cp -r $source_dir/docs $template_dist_dir
+
+echo "tar -czf $template_dist_dir/soca.tar.gz $source_dir/soca"
+cd $source_dir/soca
+tar -czf $template_dist_dir/soca.tar.gz *
 
 
 echo "------------------------------------------------------------------------------"
@@ -77,9 +77,5 @@ echo "[Packing] Regional Assets"
 echo "------------------------------------------------------------------------------"
 echo "cp -r $source_dir/scripts $build_dist_dir"
 cp -r $source_dir/scripts $build_dist_dir
-echo "cp -r $source_dir/soca $build_dist_dir"
-cp -r $source_dir/soca $build_dist_dir
 echo "cp -r $source_dir/templates $build_dist_dir"
 cp -r $source_dir/templates $build_dist_dir
-echo "cp -r $source_dir/docs $build_dist_dir"
-cp -r $source_dir/docs $build_dist_dir
