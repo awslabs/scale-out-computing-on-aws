@@ -1,19 +1,22 @@
 # Lab 6: Explore Analytics Dashboard
 
 
-### Dashboard URL
+### Open Cluster Dashboard
 
-Open your SOCA Web UI and refer to the "Analytics" section on the left sidebar
+Return to the your cluster web UI and click on the **Analytics** section on the left sidebar.
+
 ![](../../../imgs/ws-analytics-5.png)
 
 
 ### Add Data to your cluster
 
+By default, job information is ingested by the analytics system on an hourly basis.
 
-By default, Job information are ingested on an hourly basis. Run the command below on the **scheduler host** to trigger on-demand log ingestion into ElasticSearch:
-```bash
-source /etc/environment; /apps/python/latest/bin/python3 /apps/soca/cluster_analytics/job_tracking.py
-```
+1. Log back into the **scheduler host** via SSH as `ec2-user` and run the follow command to force immediate ingestion into ElasticSearch:
+
+    ```bash
+    source /etc/environment; /apps/python/latest/bin/python3 /apps/soca/cluster_analytics/job_tracking.py
+    ```
 
 ### Create your Indexes
 
