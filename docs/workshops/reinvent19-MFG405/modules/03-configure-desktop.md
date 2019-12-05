@@ -7,7 +7,7 @@ While the cluster you deployed in the previous lab is running in the background,
 
     1. Select the root stack named "mod-xxxxxxxxxxxx", where 'x' is a randomized alpha-numeric string, and click **Outputs**.
 
-        ![](../../../imgs/install-9.png)
+        ![](../../../imgs/cfn-ee-stack.png)
 
     1. The **Outputs** tab provides various bits of information about the provisioned environment. Copy the value to the left of **ConnectionString**.  We'll use this command to SSH into the scheduler instance.  
 
@@ -23,6 +23,9 @@ While the cluster you deployed in the previous lab is running in the background,
     Example: `sudo vi /apps/soca/cluster_manager/settings/queue_mapping.yml`
 
 1. Change the the highlighted values in the file to match the example below.
+
+    !!! note
+        We strongly recommend that you do not copy and paste this entire block into the file.  Instead, please edit the value of each highlighted line individually.
 
     ```yaml hl_lines="4 7 8 15 18 19"
     queue_type:

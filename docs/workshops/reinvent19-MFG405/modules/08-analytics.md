@@ -3,8 +3,8 @@
 
 ### Dashboard URL
 
-Open your AWS console and navigate to CloudFormation. Select your parent Stack, click Output, and retrieve "WebUserInterface" 
-![](../../../imgs/kibana-endpoint.png)
+Open your SOCA Web UI and refer to the "Analytics" section on the left sidebar
+![](../../../imgs/ws-analytics-5.png)
 
 
 ### Add Data to your cluster
@@ -15,7 +15,7 @@ By default, Job information are ingested on an hourly basis. Run the command bel
 source /etc/environment; /apps/python/latest/bin/python3 /apps/soca/cluster_analytics/job_tracking.py
 ```
 
-### First Time Configuration
+### Create your Indexes
 
 Since it's the first time you access this endpoint, you will need to configure your indexes.  
 First, access Kibana URL and click "Explore on my Own"
@@ -26,15 +26,24 @@ Go under Management and Click Index Patterns
 
 ![](../../../imgs/kibana-2.png)
 
-Select the Index you want to query
+Create your first index by typing **pbsnodes***.
 
-![](../../../imgs/kibana-3.png)
+![](../../../imgs/ws-analytics-1.png)
 
-Click next, and then specify the Time Filter key (refer to section below for timestamp id). Once done, click Create Index Pattern<
+Click next, and then specify the Time Filter key (**timestamp**). Once done, click Create Index Pattern.
 
-![](../../../imgs/kibana-4.png)
+![](../../../imgs/ws-analytics-2.png)
 
-Once your Index is configured, go to Kibana, select "Discover" tab to start visualizing the data
+Repeat the same operation for **jobs*** index 
+
+![](../../../imgs/ws-analytics-3.png)
+
+This time,  select **start_iso** as time filter key.
+
+![](../../../imgs/ws-analytics-4.png)
+
+
+Once your indexes are configured, go to Kibana, select "Discover" tab to start visualizing the data
 
 ![](../../../imgs/kibana-5.png)
 
@@ -158,22 +167,3 @@ ____
 Each job comes with `estimated_price_ondemand` and `estimated_price_reserved` attributes which are calculated based on: `number of nodes * ( simulation_hours * instance_hourly_rate ) `
 
 ![](../../../imgs/dashboard-1.png)
-
-
-
-### Troubleshooting access permission
-
-Access to ElasticSearch is restricted to the IP you have specified during the installation. If your IP change for any reason, you won't be able to access the analytics dashboard and will get the following error message:
-~~~json
-{"Message":"User: anonymous is not authorized to perform: es:ESHttpGet"}
-~~~
-
-To solve this issue, log in to AWS Console  and go to ElasticSearch Service dashboard. Select  your ElasticSearch cluster and click "Modify Access Policy"
-
-![](../../../imgs/kibana-8.png)
-
-Finally, simply add your new IP under the "Condition" block, then click Submit
-
-![](../../../imgs/kibana-9.png)
-
-Please note it may take up to 5 minutes for your IP to be whitelisted
