@@ -76,14 +76,13 @@ ____
 
 # Generate Graph
 
-
 ## Money spent by instance type
 
 !!!example "Configuration"
     * Select "Vertical Bars" and "jobs" index
     * Y Axis (Metrics):
         * Aggregation: Sum
-        * Field: price_ondemand
+        * Field: estimate_price_ondemand
     * X Axis (Buckets):
         * Aggregation: Terms
         * Field: instance_type_used
