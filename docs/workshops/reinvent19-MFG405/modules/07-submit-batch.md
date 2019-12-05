@@ -4,7 +4,9 @@ This module provides instructions for running an example batch workload in the c
 
 ### Step 1: Clone workload repo
 
-1. Log into the DCV remote desktop session that you established **Launch Remote Desktop Session** lab.
+1. End your SSH sessions and log back into the DCV remote desktop session that you established **Launch Remote Desktop Session** lab.
+
+1. Minimize the Vivado GUI and open a new terminal window.
 
 1. Clone the example workload from the `aws-fpga-sa-demo` Github repo into your user's home directory on the NFS file system.
 
