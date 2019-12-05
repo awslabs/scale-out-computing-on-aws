@@ -1,14 +1,13 @@
 # Lab 6: Explore Analytics Dashboard
 
-
-### Open Cluster Dashboard
+## Step 1: Open Cluster Dashboard
 
 Return to the your cluster web UI and click on the **Analytics** section on the left sidebar.
 
 ![](../../../imgs/ws-analytics-5.png)
 
 
-### Add Data to your cluster
+## Step 2: Add Data to your Cluster
 
 By default, job information is ingested by the analytics system on an hourly basis.
 
@@ -18,7 +17,7 @@ By default, job information is ingested by the analytics system on an hourly bas
     source /etc/environment; /apps/python/latest/bin/python3 /apps/soca/cluster_analytics/job_tracking.py
     ```
 
-### Create your Indexes
+## Step 3: Create Indexes
 
 Since it's the first time you access this endpoint, you will need to configure your indexes.  
 First, access Kibana URL and click "Explore on my Own"
@@ -52,7 +51,6 @@ Once your indexes are configured, go to Kibana, select "Discover" tab to start v
 
 ### Index Information
 
-
 |  | Cluster Node Information | Job Information |
 | ------------------------ | ----------- | ---------- | 
 | Kibana Index Name       | pbsnodes         | jobs        | 
@@ -61,11 +59,9 @@ Once your indexes are configured, go to Kibana, select "Discover" tab to start v
 | Data uploaded         | Host Info (status of provisioned host, lifecycle, memory, cpu etc ..)         | Job Info (allocated hardware, licenses, simulation cost, job owner, instance type ...)        | 
 | Timestamp Key   | Use "timestamp" when you create the index for the first time         | use "start_iso" when you create the index for the first time        | 
 
-
 ____
 
-### Examples
-
+## Examples
 
 #### Cluster Node
 
