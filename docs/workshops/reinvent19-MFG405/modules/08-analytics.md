@@ -85,8 +85,8 @@ ____
         * Field: estimate_price_ondemand
     * X Axis (Buckets):
         * Aggregation: Terms
-        * Field: instance_type_used
-        * Order By: metric: Sum of price_on_demand
+        * Field: instance_type_used.keyword
+        * Order By: metric: Sum of estimated_price_on_demand
     * Split Series (Buckets):
         * Sub Aggregation: Terms
         * Field: instance_type_used
