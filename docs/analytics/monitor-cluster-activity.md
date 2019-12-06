@@ -13,32 +13,32 @@ Open your AWS console and navigate to CloudFormation. Select your parent Stack, 
 Since it's the first time you access this endpoint, you will need to configure your indexes.  
 First, access Kibana URL and click "Explore on my Own"
 
-![](../../../imgs/kibana-1.png)
+![](../imgs/kibana-1.png)
 
 Go under Management and Click Index Patterns
 
-![](../../../imgs/kibana-2.png)
+![](../imgs/kibana-2.png)
 
 Create your first index by typing **pbsnodes***.
 
-![](../../../imgs/ws-analytics-1.png)
+![](../imgs/ws-analytics-1.png)
 
 Click next, and then specify the Time Filter key (**timestamp**). Once done, click Create Index Pattern.
 
-![](../../../imgs/ws-analytics-2.png)
+![](../imgs/ws-analytics-2.png)
 
 Repeat the same operation for **jobs*** index 
 
-![](../../../imgs/ws-analytics-3.png)
+![](../imgs/ws-analytics-3.png)
 
 This time,  select **start_iso** as time filter key.
 
-![](../../../imgs/ws-analytics-4.png)
+![](../imgs/ws-analytics-4.png)
 
 
 Once your indexes are configured, go to Kibana, select "Discover" tab to start visualizing the data
 
-![](../../../imgs/kibana-5.png)
+![](../imgs/kibana-5.png)
 
 ### Index Information
 
