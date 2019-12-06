@@ -14,7 +14,7 @@ This automated AWS CloudFormation template deploys a scale-out computing environ
 
 1. Verify the launch region is **Oregon**
 
-    ![](../../../imgs/verify-region.png)
+    ![](../imgs/verify-region.png)
 
     !!! important
         The template must be launched in **Oregon** for this workshop.

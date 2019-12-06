@@ -11,7 +11,7 @@ In this workshop, you will deploy the [Scale-Out Computing on AWS reference impl
 
 ## Lab environment at a glance
 
-![Reference Architecture Diagram](../../imgs/soca-arch-diagram.png)
+![Reference Architecture Diagram](imgs/soca-arch-diagram.png)
 
 At its core, this solution implements a scheduler **Amazon Elastic Compute Cloud (Amazon EC2)** instance, which leverages **AWS CloudFormation** and **Amazon EC2 Auto Scaling** to automatically provision the resources necessary to execute cluster user tasks such as scale-out compute jobs and remote visualization sessions.
 

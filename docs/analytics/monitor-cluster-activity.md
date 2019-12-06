@@ -8,28 +8,37 @@ Open your AWS console and navigate to CloudFormation. Select your parent Stack, 
 
 
 
-### First Time User
+### Create Indexes
 
-If you are not already familiar with Kibana, read the instructions below. Since it's the first time you access this endpoint, you will need to configure your indexes.  
+Since it's the first time you access this endpoint, you will need to configure your indexes.  
 First, access Kibana URL and click "Explore on my Own"
 
-![](../imgs/kibana-1.png)
+![](../../../imgs/kibana-1.png)
 
 Go under Management and Click Index Patterns
 
-![](../imgs/kibana-2.png)
+![](../../../imgs/kibana-2.png)
 
-Select the Index you want to query
+Create your first index by typing **pbsnodes***.
 
-![](../imgs/kibana-3.png)
+![](../../../imgs/ws-analytics-1.png)
 
-Click next, and then specify the Time Filter key (refer to section below for timestamp id). Once done, click Create Index Pattern<
+Click next, and then specify the Time Filter key (**timestamp**). Once done, click Create Index Pattern.
 
-![](../imgs/kibana-4.png)
+![](../../../imgs/ws-analytics-2.png)
 
-Once your Index is configured, go to Kibana, select "Discover" tab to start visualizing the data
+Repeat the same operation for **jobs*** index 
 
-![](../imgs/kibana-5.png)
+![](../../../imgs/ws-analytics-3.png)
+
+This time,  select **start_iso** as time filter key.
+
+![](../../../imgs/ws-analytics-4.png)
+
+
+Once your indexes are configured, go to Kibana, select "Discover" tab to start visualizing the data
+
+![](../../../imgs/kibana-5.png)
 
 ### Index Information
 
@@ -40,7 +49,7 @@ Once your Index is configured, go to Kibana, select "Discover" tab to start visu
 | Data ingestion       | /apps/soca/cluster_analytics/cluster_nodes_tracking.py         | /apps/soca/cluster_analytics/job_tracking.py        | 
 | Recurrence     | 1 minute         | 1 hour **(note: job must be terminated to be shown on ElasticSearch)**       | 
 | Data uploaded         | Host Info (status of provisioned host, lifecycle, memory, cpu etc ..)         | Job Info (allocated hardware, licenses, simulation cost, job owner, instance type ...)        | 
-| Timestamp Key   | Use "timestamp" when you create the index for the first time         | use "stime" when you create the index for the first time        | 
+| Timestamp Key   | Use "timestamp" when you create the index for the first time         | use "start_iso" when you create the index for the first time        | 
 ____
 
 ### Examples

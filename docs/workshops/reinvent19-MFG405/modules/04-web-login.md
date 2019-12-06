@@ -16,13 +16,13 @@ This workshop requires a subscription to the **AWS FPGA Developer AMI** in **AWS
 
 1. Click [here](https://console.aws.amazon.com/marketplace/home/subscriptions?region=us-east-1#/subscriptions) to verify the subscription within the Marketplace dashboard.  You should see the **FPGA Developer AMI** in the list of subscriptions.
 
-    ![Marketplace Subscriptions](../../../imgs/marketplace-subs.png)
+    ![Marketplace Subscriptions](../imgs/marketplace-subs.png)
 
 ## Step 2: Log into web UI
 
 1. Select the root stack named "mod-xxxxxxxx" again, and click **Outputs**.
 
-    ![](../../../imgs/cfn-ee-stack.png)
+    ![](../imgs/cfn-ee-stack.png)
 
 1. The **Outputs** tab provides various bits of information about the provisioned environment. Click on the link to the right of **WebUserInterface** to log into the Web UI
 

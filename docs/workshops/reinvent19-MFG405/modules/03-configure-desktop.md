@@ -7,11 +7,11 @@ While the cluster you deployed in the previous lab is running in the background,
 
     1. Select the root stack named "mod-xxxxxxxxxxxx", where 'x' is a randomized alpha-numeric string, and click **Outputs**.
 
-        ![](../../../imgs/cfn-ee-stack.png)
+        ![](../imgs/cfn-ee-stack.png)
 
     1. The **Outputs** tab provides various bits of information about the provisioned environment. Copy the value to the left of **ConnectionString**.  We'll use this command to SSH into the scheduler instance.  
 
-        ![](../../../imgs/stack-outputs-connect-str.png)
+        ![](../imgs/stack-outputs-connect-str.png)
 
 1. Connect to the instance over SSH
 

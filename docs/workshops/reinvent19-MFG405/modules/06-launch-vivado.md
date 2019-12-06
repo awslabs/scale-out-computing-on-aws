@@ -19,11 +19,11 @@ By now your remote desktop session should be ready and you should see the follow
 
 1. Type `vivado` at the command prompt and hit enter
 
-    ![](../../../imgs/vivado_launch.png)
+    ![](../imgs/vivado_launch.png)
  
     The Vivado GUI start and show the following screen:
 
-    ![](../../../imgs/vivado_startup.png)
+    ![](../imgs/vivado_startup.png)
  
 ## Step 2: Load sample project
 
@@ -35,7 +35,7 @@ Next, load a sample workload using one of the included example projects:
 
     After the design opens you should see this:
 
-    ![](../../../imgs/vivado_example_project_1.png)
+    ![](../imgs/vivado_example_project_1.png)
  
     You can now click around the GUI and scroll and pan through the schematics to get a sense of the remote desktop experience.
 
