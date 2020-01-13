@@ -1,5 +1,4 @@
-
-# Lab 4 Configure Budgets
+# Lab 6: Configure Budgets
 
 This environment supports [**AWS Budgets**](https://aws.amazon.com/aws-cost-management/aws-budgets/) and lets you create custom budgets assigned to users, teams, projects, or queues. To prevent over-spending, you can integrate the scheduler with **AWS Budgets** to take action when customer-defined budget thesholds have been reached.  
 

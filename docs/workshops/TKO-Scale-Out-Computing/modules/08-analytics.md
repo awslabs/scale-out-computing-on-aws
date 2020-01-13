@@ -1,4 +1,4 @@
-# Lab 6: Explore Analytics Dashboard
+# Lab 7: Explore Analytics Dashboard
 
 ## Step 1: Open Cluster Dashboard
 

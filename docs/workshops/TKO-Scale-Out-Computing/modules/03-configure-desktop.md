@@ -1,6 +1,6 @@
 # Lab 2: Configure Remote Desktop
 
-While the cluster you deployed in the previous lab is running in the background, we'll configure your pre-built cluster to use a specific Amazon Machine Image (AMI) for booting the remote desktop server.  As you saw in the [architecture diagram](../../), the DCV remote desktop will be your portal into the computing environment.  This AMI provides the CentOS 7.5 Linux operating system and the applications you'll use later in the workshop.
+Once the solution has been deployed, we will configure the environment to use a specific Amazon Machine Image (AMI) for booting the remote desktop server.  As you saw in the [architecture diagram](../../), the DCV remote desktop will be your portal into the computing environment.  This AMI provides the CentOS 7.5 Linux operating system and the applications you'll use later in the workshop.
 
 1. Obtain IP address of scheduler server
     1. In the AWS console, navigate to the CloudFormation page.
