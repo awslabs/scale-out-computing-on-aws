@@ -8,9 +8,9 @@ This automated AWS CloudFormation template deploys a scale-out computing environ
 
 1. Sign in to the AWS Management Console and click the link below to launch the scale-out-computing-on-aws AWS CloudFormation template.
 
-    [**Launch Stack in US East (Virginia)**](https://console.aws.amazon.com/cloudformation/home?region=us-east-1#/stacks/new?&templateURL=https://s3.amazonaws.com/solutions-reference/scale-out-computing-on-aws/latest/scale-out-computing-on-aws.template)
+    * [**Launch Stack in US East (Virginia)**](https://console.aws.amazon.com/cloudformation/home?region=us-east-1#/stacks/new?&templateURL=https://s3.amazonaws.com/solutions-reference/scale-out-computing-on-aws/latest/scale-out-computing-on-aws.template)
 
-    [**Launch Stack in US West (Oregon)**](https://console.aws.amazon.com/cloudformation/home?region=us-west-2#/stacks/new?&templateURL=https://s3.amazonaws.com/solutions-reference/scale-out-computing-on-aws/latest/scale-out-computing-on-aws.template)
+    * [**Launch Stack in US West (Oregon)**](https://console.aws.amazon.com/cloudformation/home?region=us-west-2#/stacks/new?&templateURL=https://s3.amazonaws.com/solutions-reference/scale-out-computing-on-aws/latest/scale-out-computing-on-aws.template)
 
 1. On the **Create stack** page, you should see the template URL in the **Amazon S3 URL** text box and choose **Next**.
 
