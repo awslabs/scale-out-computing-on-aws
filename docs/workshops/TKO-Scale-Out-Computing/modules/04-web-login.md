@@ -28,14 +28,10 @@ This workshop requires a subscription to the **AWS FPGA Developer AMI** in **AWS
 
     ![](../../../imgs/install-10.png)
 
-    !!! note 
-        Your web browser will warn you about a certificate problem with the site.  To open the webpage, you must authorize the browser to trust the self-signed security certificate.  In a production deployment, you would upload a Server Certificate to the Elastic Load Balancer endpoint.
+    !!! note
+        Your web browser will warn you about a certificate problem with the site.  To open the webpage, you must authorize the browser to trust the self-signed security certificate.
 
-1. Log in using the web UI using the following credentials:
-
-    username: admin
-
-    password: passw0rd (use a zero instead of 'o')
+1. Log in using the web UI using credentials you provided in the CloudFormation template username and password parameters:
 
 ## Step 3: Launch remote desktop server
 

@@ -5,7 +5,7 @@ Once the solution has been deployed, we will configure the environment to use a 
 1. Obtain IP address of scheduler server
     1. In the AWS console, navigate to the CloudFormation page.
 
-    1. Select the root stack named "mod-xxxxxxxxxxxx", where 'x' is a randomized alpha-numeric string, and click **Outputs**.
+    1. Select the root stack named "soca-xxxxxxxxxxxx", where 'x' is a randomized alpha-numeric string, and click **Outputs**.
 
         ![](../imgs/cfn-ee-stack.png)
 
@@ -25,7 +25,7 @@ Once the solution has been deployed, we will configure the environment to use a 
 1. Change the the highlighted values in the file to match the example below.
 
     !!! note
-        We strongly recommend that you do not copy and paste this entire block into the file.  Instead, please edit the value of each highlighted line individually.
+        Indentation matters in this file.  Therefore, we advise against copying and pasting this entire block into the file, as this can result in malformed formatting.  Instead, please edit the value of each highlighted line individually.
 
     ```yaml hl_lines="4 7 8 15 18 19"
     queue_type:
