@@ -318,7 +318,7 @@ echo "UserKnownHostsFile /dev/null" >> /etc/ssh/ssh_config
       flask==1.0.3 \
       gunicorn==19.9.0 \
       pyopenssl==19.0.0 \
-      flask_wtf==0.14.2
+      flask_wtf==0.14.3
 
 # Install SSM
 yum install -y https://s3.amazonaws.com/ec2-downloads-windows/SSMAgent/latest/linux_amd64/amazon-ssm-agent.rpm
