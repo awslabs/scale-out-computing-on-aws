@@ -37,8 +37,8 @@ yum install -y $(echo ${OPENLDAP_SERVER_PKGS[*]})
 yum install -y $(echo ${SSSD_PKGS[*]})
 
 # Configure Scratch Directory if specified by the user
-mkdir /scratch/
-chmod 777 /scratch/
+mkdir /scratch
+MOUNT_SCRATCH=0
 if [[ $SOCA_SCRATCH_SIZE -ne 0 ]];
 then
     LIST_ALL_DISKS=$(lsblk --list | grep disk | awk '{print $1}')
@@ -50,8 +50,10 @@ then
 	    if [[ $CHECK_IF_PARTITION_EXIST -eq 0 ]] && [[ $CHECK_PARTITION_SIZE -eq $SOCA_SCRATCH_SIZE_IN_BYTES ]];
 	    then
 	        echo "Detected /dev/$disk with no partition as scratch device"
-		    mkfs -t ext4 /dev/$disk
-            echo "/dev/$disk /scratch ext4 defaults 0 0" >> /etc/fstab
+		mkfs -t ext4 /dev/$disk
+                echo "/dev/$disk /scratch ext4 defaults 0 0" >> /etc/fstab
+                MOUNT_SCRATCH=1
+                break
 	    fi
     done
 else
@@ -92,6 +94,7 @@ else
 	        echo "Detected  1 NVMe device available, formatting as ext4 .."
 	        mkfs -t ext4 $DEVICES
 	        echo "$DEVICES /scratch ext4 defaults 0 0" >> /etc/fstab
+                MOUNT_SCRATCH=1
 	    elif [[ $VOLUME_COUNT -gt 1 ]];
 	    then
 	        # if more than 1 instance store disks, raid them !
@@ -101,11 +104,18 @@ else
             echo yes | mdadm --create -f --verbose --level=0 --raid-devices=$VOLUME_COUNT /dev/$DEVICE_NAME ${VOLUME_LIST[@]}
             mkfs -t ext4 /dev/$DEVICE_NAME
             echo "/dev/md0 /scratch ext4 defaults 0 0" >> /etc/fstab
+            MOUNT_SCRATCH=1
         else
             echo "All volumes detected already have a partition or mount point and can't be used as scratch devices"
 	    fi
     fi
 fi
+
+if [ $MOUNT_SCRATCH -eq 1 ] ; then
+    # /scratch has to be mounted for the perms to persist
+    mount /scratch
+fi
+chmod 777 /scratch
 
 # Install PBSPro (Review possible containerization to reduce instance cold start)
 # You can build your own AMI with PBSPro pre-installed to reduce instance startup time
