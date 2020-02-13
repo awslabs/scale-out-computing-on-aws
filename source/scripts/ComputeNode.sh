@@ -100,7 +100,7 @@ else
             for dev in ${VOLUME_LIST[@]} ; do dd if=/dev/zero of=$dev bs=1M count=1 ; done
             echo yes | mdadm --create -f --verbose --level=0 --raid-devices=$VOLUME_COUNT /dev/$DEVICE_NAME ${VOLUME_LIST[@]}
             mkfs -t ext4 /dev/$DEVICE_NAME
-            echo "/dev/md/0_0 /scratch ext4 defaults 0 0" >> /etc/fstab
+            echo "/dev/md0 /scratch ext4 defaults 0 0" >> /etc/fstab
         else
             echo "All volumes detected already have a partition or mount point and can't be used as scratch devices"
 	    fi
