@@ -85,7 +85,7 @@ def main(instance_type,
                     fsx_lustre_size = 1200
                 else:
                     fsx_lustre_capacity_allowed = [1200, 2400, 3600, 7200, 10800]
-                    if fsx_lustre_size not in fsx_lustre_capacity_allowed:
+                    if int(fsx_lustre_size) not in fsx_lustre_capacity_allowed:
                         return {'success': False,
                                 'error': 'fsx_lustre_size must be: 1200, 2400, 3600, 7200, 10800'}
 
