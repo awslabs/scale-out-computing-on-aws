@@ -32,7 +32,7 @@ This automated AWS CloudFormation template deploys a scale-out computing environ
     ----------|-------|-----------
     |**Install Location**|
     |Installer S3 Bucket|`solutions-reference`|The default AWS bucket name. Do not change this parameter unless you are using a custom installer.
-    |Installer Folder|`scale-out-computing-on-aws/latest/`|The default AWS folder name. Do not change this parameter unless you are using a custom installer.
+    |Installer Folder|`scale-out-computing-on-aws/latest`|The default AWS folder name. Do not change this parameter unless you are using a custom installer.
     |**Linux Distribution**|
     |Linux Distribution|AmazonLinux2|The preferred Linux distribution for the scheduler and compute instances.  Do not change this parameter.
     |Custom AMI|<Optional input>|If using a customized Amazon Machine Image, enter the ID. Leave this field blank.
