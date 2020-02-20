@@ -1,0 +1,42 @@
+# Lab 2: Login to SOCA console and launch Remote Desktop Session
+
+The goal of this module is to login to SOCA console and start a remote desktop session from which you will run applications and submit jobs into the cluster.  You will use the cluster's management console to start and monitor the session.
+
+## Step 1: Login to SOCA console
+
+1. Click on the link below to login to SOCA console
+
+    [**Login to SOCA console**](https://soca-tko-viewer-1490821021.us-west-2.elb.amazonaws.com/)
+
+
+    !!! note 
+        Your web browser will warn you about a certificate problem with the site.  To open the webpage, you must authorize the browser to trust the self-signed security certificate.  In a production deployment, you would upload a Server Certificate to the Elastic Load Balancer endpoint.
+
+1. Log in using the web UI using the following credentials:
+
+    username: user + <table id> (for example: user1, user12, user24, etc...)
+
+    password: provided in the session
+
+## Step 3: Launch remote desktop server
+
+Follow these instructions to start a full remote desktop experience in your new cluster:
+
+1. Click **Graphical Access** on the left sidebar.
+
+    ![Graphical Access](../../../imgs/access-2.png)
+
+1. Select  **1 day** in the **Session Validity** popup menu.
+
+1. Choose **2D - Medium (8 vCPUs - 32GB ram)** in the **Session Type** popup menu.
+
+1. Click **Launch my Session #1**
+
+After you click **Launch my session**, a new job is submitted into the queue that will instruct AWS to provision a server with 8 vCPUs and 32GB of memory and install all desktop required packages including Gnome. 
+
+You will see an message asking you to wait up to 20 minutes before being able to access your remote desktop, but it should take around 10 minutes to deploy the remote desktop server.
+
+!!! note
+    You can monitor the deployment of the remote desktop server by observing the status of the CloudFormation stack with a name ending in `job-0`.  If after 5 minutes the status of the stack is not `CREATE_COMPLETE`, please raise your hand for assistance.
+
+Let's move on to the next step while we wait for the desktop instance to launch.  Click **Next**.
