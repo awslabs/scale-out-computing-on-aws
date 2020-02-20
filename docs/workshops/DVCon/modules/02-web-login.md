@@ -1,4 +1,4 @@
-# Lab 2: Login to SOCA console and launch Remote Desktop Session
+# Lab 2: Login to SOCA Console and Launch Remote Desktop Session
 
 The goal of this module is to login to SOCA console and start a remote desktop session from which you will run applications and submit jobs into the cluster.  You will use the cluster's management console to start and monitor the session.
 
@@ -6,19 +6,21 @@ The goal of this module is to login to SOCA console and start a remote desktop s
 
 1. Click on the link below to login to SOCA console
 
-    [**Login to SOCA console**](https://soca-tko-viewer-1490821021.us-west-2.elb.amazonaws.com/)
+    [**Login to SOCA console**](https://soca-tko-viewer-1490821021.us-west-2.elb.amazonaws.com/login)
+    
+    ![SOCA Console](../imgs/soca-console-login.png)
 
 
     !!! note 
-        Your web browser will warn you about a certificate problem with the site.  To open the webpage, you must authorize the browser to trust the self-signed security certificate.  In a production deployment, you would upload a Server Certificate to the Elastic Load Balancer endpoint.
+        Your web browser will warn you about a certificate problem with the site.  To open the webpage, you need to authorize the browser to trust the self-signed security certificate.  In a production deployment, you would upload a Server Certificate to the Elastic Load Balancer endpoint.
 
 1. Log in using the web UI using the following credentials:
 
-    username: user + <table id> (for example: user1, user12, user24, etc...)
+    username: user + table id (for example: user1, user12, user24, etc...)
 
     password: provided in the session
 
-## Step 3: Launch remote desktop server
+## Step 2: Launch remote desktop server
 
 Follow these instructions to start a full remote desktop experience in your new cluster:
 
