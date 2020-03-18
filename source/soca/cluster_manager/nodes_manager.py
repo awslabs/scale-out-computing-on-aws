@@ -1,8 +1,9 @@
-import boto3
-import subprocess
-import json
-import sys
 import os
+import subprocess
+import sys
+
+import boto3
+
 sys.path.append(os.path.dirname(__file__))
 import configuration
 from ast import literal_eval
@@ -63,31 +64,36 @@ def get_all_compute_instances(cluster_id):
 
         for reservation in response['Reservations']:
             for instance in reservation['Instances']:
-                instance_type = instance['InstanceType']
-                subnet_id = instance['SubnetId']
-                availability_zone = instance['Placement']['AvailabilityZone']
-                job_id = [x['Value'] for x in instance['Tags'] if x['Key'] == 'soca:JobId']
-                job_queue = [x['Value'] for x in instance['Tags'] if x['Key'] == 'soca:JobQueue'][0]
-                keep_forever = [x['Value'] for x in instance['Tags'] if x['Key'] == 'soca:KeepForever'][0]
-                cloudformation_stack = [x['Value'] for x in instance['Tags'] if x['Key'] == 'aws:cloudformation:stack-name'][0]
-                private_dns = instance['PrivateDnsName'].split('.')[0]
+                try:
+                    instance_type = instance['InstanceType']
+                    subnet_id = instance['SubnetId']
+                    availability_zone = instance['Placement']['AvailabilityZone']
+                    job_id = [x['Value'] for x in instance['Tags'] if x['Key'] == 'soca:JobId']
+                    job_queue = [x['Value'] for x in instance['Tags'] if x['Key'] == 'soca:JobQueue'][0]
+                    keep_forever = [x['Value'] for x in instance['Tags'] if x['Key'] == 'soca:KeepForever'][0]
+                    cloudformation_stack = [x['Value'] for x in instance['Tags'] if x['Key'] == 'aws:cloudformation:stack-name'][0]
+                    private_dns = instance['PrivateDnsName'].split('.')[0]
 
-                if not job_id:
-                    job_id = 'do_not_delete'
-                else:
-                    job_id = job_id[0]
+                    if not job_id:
+                        job_id = 'do_not_delete'
+                    else:
+                        job_id = job_id[0]
 
-                if job_id in job_stack.keys():
-                    job_stack[job_id]['instances'].append(private_dns)
-                else:
-                    job_stack[job_id] = {'stack_name': cloudformation_stack,
-                                         'keep_forever': keep_forever,
-                                         'instances': [private_dns],
-                                         'job_queue': job_queue,
-                                         'job_id': job_id,
-                                         'instance_type': instance_type,
-                                         'availability_zone': availability_zone,
-                                         'subnet_id': subnet_id}
+                    if job_id in job_stack.keys():
+                        job_stack[job_id]['instances'].append(private_dns)
+                    else:
+                        job_stack[job_id] = {'stack_name': cloudformation_stack,
+                                             'keep_forever': keep_forever,
+                                             'instances': [private_dns],
+                                             'job_queue': job_queue,
+                                             'job_id': job_id,
+                                             'instance_type': instance_type,
+                                             'availability_zone': availability_zone,
+                                             'subnet_id': subnet_id}
+                except Exception as e:
+                    exc_type, exc_obj, exc_tb = sys.exc_info()
+                    fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
+                    print(exc_type, fname, exc_tb.tb_lineno)
 
     return job_stack
 

@@ -79,6 +79,8 @@ Resources:
           Value: !Sub ${ClusterId}
         - Key: soca:NodeType
           Value: scheduler
+        - Key: soca:BackupPlan
+          Value: !Sub ${ClusterId}
 
       UserData:
           "Fn::Base64": !Sub |
@@ -129,9 +131,22 @@ Resources:
             echo export "SOCA_VERSION=${Version}" >> /etc/environment
             echo export "SOCA_INSTALL_AMI=${ImageId}" >> /etc/environment
             source /etc/environment
-            echo "@reboot /bin/aws s3 cp s3://${S3Bucket}/${S3InstallFolder}/scripts/SchedulerPostReboot.sh /root && /bin/bash /root/SchedulerPostReboot.sh ${S3Bucket} ${S3InstallFolder} ${UserName} ${UserPassword}>> /root/PostRebootConfig.log 2>&1" | crontab -
+
+            # Tag EBS disks manually as CFN ASG does not support it
+            AWS_AVAIL_ZONE=$(curl http://169.254.169.254/latest/meta-data/placement/availability-zone)
+            AWS_REGION="`echo \"$AWS_AVAIL_ZONE\" | sed "s/[a-z]$//"`"
+            AWS_INSTANCE_ID=$(curl http://169.254.169.254/latest/meta-data/instance-id)
+            EBS_IDS=$(aws ec2 describe-volumes --filters Name=attachment.instance-id,Values="$AWS_INSTANCE_ID" --region $AWS_REGION --query "Volumes[*].[VolumeId]" --out text | tr "\n" " ")
+            $AWS ec2 create-tags --resources $EBS_IDS --region $AWS_REGION --tags Key=Name,Value="${ClusterId} Root Disk" "Key=soca:ClusterId,Value=${ClusterId}"
+
+            # Tag Network Adapter for the Scheduler
+            ENI_IDS=$(aws ec2 describe-network-interfaces --filters Name=attachment.instance-id,Values="$AWS_INSTANCE_ID" --region $AWS_REGION --query "NetworkInterfaces[*].[NetworkInterfaceId]" --out text | tr "\n" " ")
+            $AWS ec2 create-tags --resources $ENI_IDS --region $AWS_REGION --tags Key=Name,Value="${ClusterId} Scheduler Network Adapter" "Key=soca:ClusterId,Value=${ClusterId}"
+
+            echo "@reboot /bin/aws s3 cp s3://${S3Bucket}/${S3InstallFolder}/scripts/SchedulerPostReboot.sh /root && /bin/bash /root/SchedulerPostReboot.sh ${S3Bucket} ${S3InstallFolder} ${UserName} '${UserPassword}' >> /root/PostRebootConfig.log 2>&1" | crontab -
             AWS=$(which aws)
             $AWS s3 cp s3://${S3Bucket}/${S3InstallFolder}/scripts/config.cfg /root/
+            $AWS s3 cp s3://${S3Bucket}/${S3InstallFolder}/scripts/requirements.txt /root/
             $AWS s3 cp s3://${S3Bucket}/${S3InstallFolder}/scripts/Scheduler.sh /root/
             /bin/bash /root/Scheduler.sh ${EFSDataDns} ${EFSAppsDns}
 
@@ -142,6 +157,11 @@ Resources:
     Properties:
       Domain: vpc
       InstanceId: !Ref SchedulerEC2Host
+      Tags:
+        - Key: Name
+          Value: !Ref ClusterId
+        - Key: soca:ClusterId
+          Value: !Ref ClusterId
 
 Outputs:
   SchedulerInstanceId:

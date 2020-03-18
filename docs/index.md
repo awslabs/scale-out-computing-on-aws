@@ -21,7 +21,7 @@ You can [access your Scale-Out Computing on AWS cluster](access-soca-cluster/) e
 [^1]: [DCV](https://docs.aws.amazon.com/dcv/latest/adminguide/what-is-dcv.html) is a remote visualization technology that enables users to easily and securely connect to graphic-intensive 3D applications hosted on a remote high-performance server.*
 
 ## Simple Job Submission
-Scale-Out Computing on AWS supports a list of parameters designed to simplify your job submission on AWS. Advanced users can either manually choose compute/storage/network configuration for their job or simply ignore these parameters and let Scale-Out Computing on AWS choose the most optimal hardware (defined by the HPC administrator)
+Scale-Out Computing on AWS [supports a list of parameters designed to simplify your job submission on AWS](tutorials/integration-ec2-job-parameters/). Advanced users can either manually choose compute/storage/network configuration for their job or simply ignore these parameters and let Scale-Out Computing on AWS picks the most optimal hardware (defined by the HPC administrator)
 
 ~~~bash
 # Advanced Configuration
@@ -36,11 +36,13 @@ user@host$ qsub -l instance_type=c5n.18xlarge \
 user@host$ qsub myscript.sh
 ~~~
 
-- [Refer to this page for tutorial and examples](tutorials/launch-your-first-job/)
-- [Refer to this page to list all supported parameters](tutorials/integration-ec2-job-parameters/)
+!!!info
+    - [Check our Web-Based utility to generate you submission command](job-configuration-generator/)
+    - [Refer to this page for tutorial and examples](tutorials/launch-your-first-job/)
+    - [Refer to this page to list all supported parameters](tutorials/integration-ec2-job-parameters/)
 
 ## OS agnostic and support for custom AMI
-Customers can integrate their Centos7/Rhel7/AmazonLinux2 AMI automatically by simply using ==-l instance_ami=<ami_id\>== at job submission. There is no limitation in term of AMI numbers (you can have 10 jobs running simultaneously using 10 different AMIs)
+Customers can integrate their Centos7/Rhel7/AmazonLinux2 AMI automatically by simply using ==-l instance_ami=<ami_id\>== at job submission. There is no limitation in term of AMI numbers (you can have 10 jobs running simultaneously using 10 different AMIs). SOCA supports heterogeneous environment, so you can have concurrent jobs running different operating system on the same cluster. 
 
 !!!danger "AMI using OS different than the scheduler"
     In case your AMI is different than your scheduler host, you can specify the OS manually to ensure packages will be installed based on the node distribution.
@@ -54,12 +56,14 @@ Customers can integrate their Centos7/Rhel7/AmazonLinux2 AMI automatically by si
     _____
 
 !!!info "Scale-Out Computing on AWS AMI requirements"
-    When you use a custom AMI, just make sure that your AMI does not use /apps, /scratch or /data partitions as Scale-Out Computing on AWS will need to use these locations during the deployment
+    When you use a custom AMI, just make sure that your AMI does not use /apps, /scratch or /data partitions as Scale-Out Computing on AWS will need to use these locations during the deployment. [Read this page for AMI creation best practices](tutorials/reduce-compute-node-launch-time-with-custom-ami/)
 
 ## Budgets and Cost Management
 You can [review your HPC costs](analytics/review-hpc-costs/) filtered by user/team/project/queue very easily using AWS Cost Explorer. 
 
 Scale-Out Computing on AWS also supports AWS Budget and [let you create budgets](analytics/set-up-budget-project/) assigned to user/team/project or queue. To prevent over-spend, Scale-Out Computing on AWS includes hooks to restrict job submission when customer-defined budget has expired.
+
+Lastly, Scale-Out Computing on AWS let you create queue ACLs or instance restriction at a queue level. [Refer to this link for all best practices in order to control your HPC cost on AWS and prevent overspend](analytics/prevent-overspend-hpc-cost-on-aws-soca/).
 
 ## Detailed Cluster Analytics 
 Scale-Out Computing on AWS [includes ElasticSearch and automatically ingest job and hosts data](analytics/monitor-cluster-activity/) in real-time for accurate visualization of your cluster activity.
@@ -68,7 +72,7 @@ Scale-Out Computing on AWS [includes ElasticSearch and automatically ingest job 
     Scale-Out Computing on AWS [includes dashboard examples](analytics/build-kibana-dashboards/) if you are not familiar with ElasticSearch or Kibana.
     
 ## 100% Customizable
-Scale-Out Computing on AWS is built entirely on top of AWS and can be customized by users as needed. Most of the logic is based of CloudFormation templates and EC2 User Data scripts.
+Scale-Out Computing on AWS is built entirely on top of AWS and can be customized by users as needed. Most of the logic is based of CloudFormation templates, shell scripts and python code.
 More importantly, the entire Scale-Out Computing on AWS codebase is open-source and [available on Github](https://github.com/awslabs/scale-out-computing-on-aws).
 
 ## Persistent and Unlimited Storage
@@ -76,6 +80,9 @@ Scale-Out Computing on AWS includes two unlimited EFS storage (/apps and /data).
 
 ## Centralized user-management
 Customers [can create unlimited LDAP users and groups](tutorials/manage-ldap-users/). By default Scale-Out Computing on AWS includes a default LDAP account provisioned during installation as well as a "Sudoers" LDAP group which manage SUDO permission on the cluster.
+
+## Automatic backup
+Scale-Out Computing on AWS [automatically backup your data](security/backup-restore-your-cluster/) with no additional effort required on your side.
 
 ## Support for network licenses
 Scale-Out Computing on AWS [includes a FlexLM-enabled script which calculate the number of licenses](tutorials/job-licenses-flexlm) for a given features and only start the job/provision the capacity when enough licenses are available. 
@@ -101,3 +108,7 @@ Each user is given a score which vary based on:
 - Type of instance
 
 Job that belong to the user with the highest score will start next 
+
+## And more ...
+
+Refer to the various sections (tutorial/security/analytics ...) to learn more about this solution

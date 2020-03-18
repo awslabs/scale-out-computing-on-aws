@@ -8,6 +8,13 @@ if [ $# -lt 2 ]
     exit 1
 fi
 
+# Install SSM
+yum install -y https://s3.amazonaws.com/ec2-downloads-windows/SSMAgent/latest/linux_amd64/amazon-ssm-agent.rpm
+systemctl enable amazon-ssm-agent
+systemctl restart amazon-ssm-agent
+
+
+mkdir -p /apps/soca/$SOCA_CONFIGURATION
 EFS_DATA=$1
 EFS_APPS=$2
 SERVER_IP=$(hostname -I)
@@ -34,41 +41,70 @@ echo "$EFS_DATA:/ /data/ nfs4 nfsvers=4.1,rsize=1048576,wsize=1048576,hard,timeo
 echo "$EFS_APPS:/ /apps nfs4 nfsvers=4.1,rsize=1048576,wsize=1048576,hard,timeo=600,retrans=2 0 0" >> /etc/fstab
 mount -a
 
-# Install Python
-mkdir -p /apps/python/installer
-cd /apps/python/installer
-wget $PYTHON_URL
-if [[ $(md5sum $PYTHON_TGZ | awk '{print $1}') != $PYTHON_HASH ]];  then
-    echo -e "FATAL ERROR: Checksum for Python failed. File may be compromised." > /etc/motd
-    exit 1
+# Install Python if needed
+PYTHON_INSTALLED_VERS=$(/apps/soca/$SOCA_CONFIGURATION/python/latest/bin/python3 --version | awk {'print $NF'})
+if [[ "$PYTHON_INSTALLED_VERS" != "$PYTHON_VERSION" ]]
+then
+    echo "Python not detected, installing"
+    mkdir -p /apps/soca/$SOCA_CONFIGURATION/python/installer
+    cd /apps/soca/$SOCA_CONFIGURATION/python/installer
+    wget $PYTHON_URL
+    if [[ $(md5sum $PYTHON_TGZ | awk '{print $1}') != $PYTHON_HASH ]];  then
+        echo -e "FATAL ERROR: Checksum for Python failed. File may be compromised." > /etc/motd
+        exit 1
+    fi
+    tar xvf $PYTHON_TGZ
+    cd Python-$PYTHON_VERSION
+    ./configure LDFLAGS="-L/usr/lib64/openssl" CPPFLAGS="-I/usr/include/openssl" --prefix=/apps/soca/$SOCA_CONFIGURATION/python/$PYTHON_VERSION
+    make
+    make install
+    ln -sf /apps/soca/$SOCA_CONFIGURATION/python/$PYTHON_VERSION /apps/soca/$SOCA_CONFIGURATION/python/latest
+else
+    echo "Python already installed and at correct version."
 fi
-tar xvf $PYTHON_TGZ
-cd Python-$PYTHON_VERSION
-./configure LDFLAGS="-L/usr/lib64/openssl" CPPFLAGS="-I/usr/include/openssl" --prefix=/apps/python/$PYTHON_VERSION
-make
-make install
-ln -sf /apps/python/$PYTHON_VERSION /apps/python/latest
-# Install PBSPro
+
+# Install PBSPro if needed
 cd ~
-wget $PBSPRO_URL
-if [[ $(md5sum $PBSPRO_TGZ | awk '{print $1}') != $PBSPRO_HASH ]];  then
-    echo -e "FATAL ERROR: Checksum for PBSPro failed. File may be compromised." > /etc/motd
-    exit 1
+PBSPRO_INSTALLED_VERS=$(/opt/pbs/bin/qstat --version | awk {'print $NF'})
+if [[ "$PBSPRO_INSTALLED_VERS" != "$PBSPRO_VERSION" ]]
+then
+    echo "PBSPro Not Detected, Installing PBSPro ..."
+    cd ~
+    wget $PBSPRO_URL
+    if [[ $(md5sum $PBSPRO_TGZ | awk '{print $1}') != $PBSPRO_HASH ]];  then
+        echo -e "FATAL ERROR: Checksum for PBSPro failed. File may be compromised." > /etc/motd
+        exit 1
+    fi
+    tar zxvf $PBSPRO_TGZ
+    cd pbspro-$PBSPRO_VERSION
+    ./autogen.sh
+    ./configure --prefix=/opt/pbs
+    make -j6
+    make install -j6
+    /opt/pbs/libexec/pbs_postinstall
+    chmod 4755 /opt/pbs/sbin/pbs_iff /opt/pbs/sbin/pbs_rcp
+else
+    echo "PBSPro already installed, and at correct version."
+    echo "PBS_SERVER=$SERVER_HOSTNAME_ALT
+PBS_START_SERVER=1
+PBS_START_SCHED=1
+PBS_START_COMM=1
+PBS_START_MOM=0
+PBS_EXEC=/opt/pbs
+PBS_HOME=/var/spool/pbs
+PBS_CORE_LIMIT=unlimited
+PBS_SCP=/usr/bin/scp
+" > /etc/pbs.conf
+    echo "$clienthost $SERVER_HOSTNAME_ALT" > /var/spool/pbs/mom_priv/config
 fi
-tar zxvf $PBSPRO_TGZ
-cd pbspro-$PBSPRO_VERSION
-./autogen.sh
-./configure --prefix=/opt/pbs
-make
-make install
-/opt/pbs/libexec/pbs_postinstall
-chmod 4755 /opt/pbs/sbin/pbs_iff /opt/pbs/sbin/pbs_rcp
+
 
 # Edit path with new scheduler/python locations
-echo "export PATH=\"/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin:/opt/pbs/bin:/opt/pbs/sbin:/opt/pbs/bin:/apps/python/latest/bin\"" >> /etc/environment
+echo "export PATH=\"/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin:/opt/pbs/bin:/opt/pbs/sbin:/opt/pbs/bin:/apps/soca/$SOCA_CONFIGURATION/python/latest/bin\"" >> /etc/environment
 
 # Default AWS Resources
 cat <<EOF >>/var/spool/pbs/server_priv/resourcedef
+anonymous_metrics type=string
 compute_node type=string flag=h
 instance_type_used type=string
 instance_type type=string
@@ -81,12 +117,14 @@ scratch_iops type=string
 root_size type=string
 placement_group type=string
 spot_price type=string
+spot_allocation_count type=string
+spot_allocation_strategy type=string
 efa_support type=string
 ht_support type=string
+keep_ebs type=string
 base_os type=string
-fsx_lustre_bucket type=string
+fsx_lustre type=string
 fsx_lustre_size type=string
-fsx_lustre_dns type=string
 EOF
 
 systemctl enable pbs
@@ -99,6 +137,7 @@ systemctl start pbs
 /opt/pbs/bin/qmgr -c "set server job_history_enable=1"
 /opt/pbs/bin/qmgr -c "set server job_history_duration = 00:01:00"
 /opt/pbs/bin/qmgr -c "set server scheduler_iteration = 30"
+/opt/pbs/bin/qmgr -c "set server max_concurrent_provision = 5000"
 
 # Default Queue Config
 /opt/pbs/bin/qmgr -c "create queue low"
@@ -121,6 +160,11 @@ systemctl start pbs
 /opt/pbs/bin/qmgr -c "set queue desktop started = True"
 /opt/pbs/bin/qmgr -c "set queue desktop enabled = True"
 /opt/pbs/bin/qmgr -c "set queue desktop default_chunk.compute_node=tbd"
+/opt/pbs/bin/qmgr -c "create queue test"
+/opt/pbs/bin/qmgr -c "set queue test queue_type = Execution"
+/opt/pbs/bin/qmgr -c "set queue test started = True"
+/opt/pbs/bin/qmgr -c "set queue test enabled = True"
+/opt/pbs/bin/qmgr -c "set queue test default_chunk.compute_node=tbd"
 /opt/pbs/bin/qmgr -c "create queue alwayson"
 /opt/pbs/bin/qmgr -c "set queue alwayson queue_type = Execution"
 /opt/pbs/bin/qmgr -c "set queue alwayson started = True"
@@ -306,24 +350,50 @@ echo "UserKnownHostsFile /dev/null" >> /etc/ssh/ssh_config
 
 # Install Python required libraries
 # Source environment to reload path for Python3
-/apps/python/$PYTHON_VERSION/bin/pip3 install awscli==1.16.151 \
-      boto3==1.9.141 \
-      pytz==2019.1 \
-      prettytable==0.7.2 \
-      python-ldap==3.2.0 \
-      cryptography==2.6.1 \
-      requests-aws4auth==0.9 \
-      elasticsearch==6.3.1 \
-      requests==2.6.0 \
-      flask==1.0.3 \
-      gunicorn==19.9.0 \
-      pyopenssl==19.0.0 \
-      flask_wtf==0.14.3
+/apps/soca/$SOCA_CONFIGURATION/python/$PYTHON_VERSION/bin/pip3 install -r /root/requirements.txt
 
-# Install SSM
-yum install -y https://s3.amazonaws.com/ec2-downloads-windows/SSMAgent/latest/linux_amd64/amazon-ssm-agent.rpm
-systemctl enable amazon-ssm-agent
-systemctl restart amazon-ssm-agent
+# PBS hooks still run on python2 env, so some packages are required
+EASY_INSTALL=$(which easy_install-2.7)
+$EASY_INSTALL yaml python-ldap boto3
+
+# Configure NTP
+yum remove -y ntp
+yum install -y chrony
+mv /etc/chrony.conf  /etc/chrony.conf.original
+echo -e """
+# use the local instance NTP service, if available
+server 169.254.169.123 prefer iburst minpoll 4 maxpoll 4
+
+# Use public servers from the pool.ntp.org project.
+# Please consider joining the pool (http://www.pool.ntp.org/join.html).
+# !!! [BEGIN] SOCA REQUIREMENT
+# You will need to open UDP egress traffic on your security group if you want to enable public pool
+#pool 2.amazon.pool.ntp.org iburst
+# !!! [END] SOCA REQUIREMENT
+# Record the rate at which the system clock gains/losses time.
+driftfile /var/lib/chrony/drift
+
+# Allow the system clock to be stepped in the first three updates
+# if its offset is larger than 1 second.
+makestep 1.0 3
+
+# Specify file containing keys for NTP authentication.
+keyfile /etc/chrony.keys
+
+# Specify directory for log files.
+logdir /var/log/chrony
+
+# save data between restarts for fast re-load
+dumponexit
+dumpdir /var/run/chrony
+""" > /etc/chrony.conf
+systemctl enable chronyd
+
+# Disable ulimit
+echo -e  "
+* hard memlock unlimited
+* soft memlock unlimited
+" > /etc/security/limits.conf
 
 # Reboot to ensure SELINUX is disabled
 # Note: Upon reboot, SchedulerPostReboot.sh script will be executed and will finalize scheduler configuration

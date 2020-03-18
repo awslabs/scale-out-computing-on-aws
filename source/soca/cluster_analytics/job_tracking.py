@@ -1,18 +1,18 @@
 from __future__ import division
-import ldap
-import re
+
+import ast
+import datetime
 import json
+import os
+import re
+import sys
+
+import boto3
+import pytz
+import urllib3
 from elasticsearch import Elasticsearch, RequestsHttpConnection
 from elasticsearch.exceptions import NotFoundError as NotFoundError
 from requests_aws4auth import AWS4Auth
-import pytz
-import ast
-import boto3
-import logging
-import sys
-import urllib3
-import os
-import datetime
 
 
 def get_aligo_configuration():
@@ -63,14 +63,24 @@ def get_aws_pricing(ec2_instance_type):
 
 
 def es_entry_exist(job_id):
+    # Make sure the entry has not already been update within the last 100 days. This handle case where customers update their SOCA and reset the scheduler count
     json_to_push = {
         "query": {
-                "bool": {
-                    "must": [
-                        {"match": {"job_id": job_id}}
-                    ],
-                },
+            "bool": {
+                "must": [
+                    {"match": {"job_id": job_id},
+                     }],
+                "filter": [
+                    {"range":
+                        {
+                            "start_iso": {
+                                "gte": (datetime.datetime.now() - datetime.timedelta(days=60)).isoformat() + 'Z',
+                                "lt": "now"
+                            }
+                        }
+                    }],
             },
+        },
     }
     try:
         response = es.search(index="jobs",
@@ -152,12 +162,14 @@ if __name__ == "__main__":
     json_output = []
     output = {}
 
-    # days_to_check = 1 --> Check today & yesterday logs. You can adjust this as needed
-    days_to_check = 1
-    date_to_check = [(datetime.datetime.now() - datetime.timedelta(days_to_check)).strftime('%Y%m%d'),
-                     datetime.datetime.now().strftime('%Y%m%d')]
+    # DAY_TO_INGEST = 2 --> Check today & yesterday logs. You can adjust this as needed
+    DAY_TO_INGEST = 2
+    FROM = datetime.datetime.now()
+    date_to_check = [FROM - datetime.timedelta(days=x) for x in range(DAY_TO_INGEST)]
+
     for day in date_to_check:
-        response = read_file(accounting_log_path+day)
+        scheduler_log_format = day.strftime('%Y%m%d')
+        response = read_file(accounting_log_path+scheduler_log_format)
         try:
             for line in response.splitlines():
                 try:
@@ -287,8 +299,10 @@ if __name__ == "__main__":
                                 if tmp['instance_type_used'] not in pricing_table.keys():
                                     pricing_table[tmp['instance_type_used']] = get_aws_pricing(tmp['instance_type_used'])
 
-                                tmp['estimated_price_ec2_ondemand'] = (tmp['simulation_time_hours'] * pricing_table[tmp['instance_type_used']]['ondemand']) * tmp['nodect']
-                                tmp['estimated_price_ec2_reserved'] = (tmp['simulation_time_hours'] * pricing_table[tmp['instance_type_used']]['reserved']) * tmp['nodect']
+                                tmp['estimated_price_ec2_ondemand'] = simulation_time_seconds_with_penalty * (pricing_table[tmp['instance_type_used']]['ondemand'] / 3600) * tmp['nodect']
+                                reserved_hourly_rate = pricing_table[tmp['instance_type_used']]['reserved'] / 750
+                                tmp['estimated_price_ec2_reserved'] = simulation_time_seconds_with_penalty * (reserved_hourly_rate / 3600) * tmp['nodect']
+
                                 tmp['estimated_price_ondemand'] = tmp['estimated_price_ec2_ondemand'] + tmp['estimated_price_storage_root_size'] + tmp['estimated_price_storage_scratch_size'] + tmp['estimated_price_storage_scratch_iops'] + tmp['estimated_price_fsx_lustre']
                                 tmp['estimated_price_reserved'] = tmp['estimated_price_ec2_reserved'] + tmp['estimated_price_storage_root_size'] + tmp['estimated_price_storage_scratch_size'] + tmp['estimated_price_storage_scratch_iops'] + tmp['estimated_price_fsx_lustre']
 

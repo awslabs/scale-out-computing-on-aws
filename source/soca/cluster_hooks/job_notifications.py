@@ -1,6 +1,6 @@
 #!/apps/python/latest/bin/python3
 '''
-Update ses_sender_email with your SES user. Visit https://soca.dev/tutorials/job-start-stop-email-notification/ for help
+Update ses_sender_email with your SES user. https://awslabs.github.io/scale-out-computing-on-aws/tutorials/job-start-stop-email-notification/ for help
 If SES verified your domain, you can use any address @yourdomain
 If SES verified only some addresses, you can only use these specific addresses
 --
@@ -9,12 +9,13 @@ Update ses_region with the region where you configured SES (may be different wit
 Scheduler Hook (qmgr):
 create hook notify_job_start event=runjob
 create hook notify_job_complete event=execjob_end
-import hook notify_job_start application/x-python default /apps/soca/cluster_hooks/job_notifications.py
-import hook notify_job_complete application/x-python default /apps/soca/cluster_hooks/job_notifications.py
+import hook notify_job_start application/x-python default /apps/soca/<CLUSTER_ID>/cluster_hooks/job_notifications.py
+import hook notify_job_complete application/x-python default /apps/soca/<CLUSTER_ID>cluster_hooks/job_notifications.py
 '''
 
-import pbs
 import sys
+
+import pbs
 
 if "/apps/python/latest/lib/python3.7/site-packages" not in sys.path:
     sys.path.append("/apps/python/latest/lib/python3.7/site-packages/")
@@ -49,7 +50,8 @@ def send_notification(subject, email_message, job_owner_email_address):
 
 
 def find_email(job_owner):
-    # Ideally we should be using python-ldap, but facing some issue importing it with PBS env
+    # Ideally we should be using python-ldap, but facing some issue importing it with PBS env as PBS py is still py2
+    # Will migrate to python-ldap when pbspro supports py3 natively
     cmd = 'ldapsearch -x -b "ou=People,dc=soca,dc=local" -LLL "(uid='+job_owner+')" mail | grep "mail:" | cut -d " " -f 2'
     email_address = os.popen(cmd).read()
     pbs.logmsg(pbs.LOG_DEBUG, 'notify_job: Detected email for ' + job_owner + ' : ' + email_address)

@@ -1,13 +1,14 @@
-#!/apps/python/latest/bin/python3
-import re
 import subprocess
 import argparse
 import getpass
-from datetime import datetime
-from prettytable import PrettyTable
 import json
+import subprocess
 import sys
 from ast import literal_eval
+from datetime import datetime
+
+from prettytable import PrettyTable
+
 
 def run_command(cmd):
     try:

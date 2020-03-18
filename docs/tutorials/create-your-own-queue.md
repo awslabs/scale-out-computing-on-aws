@@ -33,7 +33,7 @@ Qmgr:exit
 
 #### Configure automatic host provisioning
 
-If you want to enable automatic host provisioning, edit this file: `/apps/soca/cluster_manager/settings/queue_mapping.yml`
+If you want to enable automatic host provisioning, edit this file: `/apps/soca/<CLUSTER_ID>/cluster_manager/settings/queue_mapping.yml`
 
 ##### Option1: I want to use the same settings as an existing queue
 
@@ -69,13 +69,13 @@ queue_type:
 Finally, add a new crontab on the scheduler machine (as root). Use -c to path to the YAML file and -t to the YAML section you just created  
 
 ~~~bash
-*/3 * * * * source /etc/environment;  /apps/python/latest/bin/python3 /apps/soca/cluster_manager/dispatcher.py -c /apps/soca/cluster_manager/settings/queue_mapping.yml -t memory
+*/3 * * * * source /etc/environment;  /apps/soca/<CLUSTER_ID>/python/latest/bin/python3 /apps/soca/<CLUSTER_ID>/cluster_manager/dispatcher.py -c /apps/soca/<CLUSTER_ID>/cluster_manager/settings/queue_mapping.yml -t memory
 ~~~
 
 
 #### Automatic Host provisioning logs
 
-All logs queues are stored under `/apps/soca/cluster_manager/logs/<queue_name>`
+All logs queues are stored under `/apps/soca/<CLUSTER_ID>/cluster_manager/logs/<queue_name>`
 
 
 ### Queue with AlwaysOn instances
@@ -106,16 +106,16 @@ Qmgr:exit
 
 #### Start provisioning some capacity
 
-Run `python3 apps/soca/cluster_manager/add_nodes.py` and enable `--keep_forever` flag
+Run `python3 apps/soca/cluster_manager/add_nodes.py` and enable `--keep_forever True` flag
 
 ~~~bash
 # Launch 1 c5.large always on
-python3 /apps/soca/cluster_manager/add_nodes.py --instance_type c5.large \
+python3 /apps/soca/<CLUSTER_ID>/cluster_manager/add_nodes.py --instance_type c5.large \
     --desired_capacity 1 \
-    --queue cpus \
+    --queue <queue_name> \
     --job_name instancealwayson \
     --job_owner mcrozes \
-    --keep_forever
+    --keep_forever True
 
  IMPORTANT:
  You specified --keep-forever flag. This instance will be running 24/7 until you MANUALLY terminate the Cloudformation Stack                            

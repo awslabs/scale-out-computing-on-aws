@@ -1,17 +1,16 @@
-from flask import Flask, render_template, session, redirect, request, flash
-from flask_wtf.csrf import CSRFProtect
-import datetime
 import logging
-import collections
-import generic.parameters as parameters
+import os
 from datetime import timedelta
-from generic import auth, dcv, qstat
-from api.get_ppk_key import get_ppk_key
-from api.get_pem_key import get_pem_key
-from api.dcv_management import dcv_management
+
 import api.openldap as openldap
 import boto3
-import os
+import generic.parameters as parameters
+from api.dcv_management import dcv_management
+from api.get_pem_key import get_pem_key
+from api.get_ppk_key import get_ppk_key
+from flask import Flask, render_template, session, redirect, request, flash
+from flask_wtf.csrf import CSRFProtect
+from generic import auth, dcv, qstat
 
 app = Flask(__name__)
 csrf = CSRFProtect(app)
@@ -28,6 +27,7 @@ def session_info():
     return {'username': session['username'].lower(),
             'sudoers': session['sudoers']
             }
+
 
 @app.route('/', methods=['GET'])
 @auth.login_required
@@ -47,6 +47,7 @@ def logout():
     session.pop('username', None)
     return redirect('/')
 
+
 @app.route('/auth', methods=['POST'])
 def authenticate():
     username = request.form.get('username')
@@ -61,6 +62,7 @@ def authenticate():
 
     else:
         return redirect('/login')
+
 
 @app.route('/remotedesktop', methods=['GET'])
 @auth.login_required
@@ -187,9 +189,24 @@ def delete_account():
     else:
         return redirect('/')
 
+
 @app.route('/ping', methods=['GET'])
 def check_alive():
     return 'Check Alive', 200
+
+
+@app.route('/oauth', methods=['GET'])
+def oauth():
+    next_url = request.args.get('state')
+    sso_auth = auth.sso_authorization(request.args.get('code'))
+    cognito_root_url = parameters.get_parameter("cognito", "cognito_root_url")
+    if sso_auth['success'] is True:
+        return redirect(cognito_root_url+next_url)
+    else:
+        if sso_auth['message'] == 'user_not_found':
+            return redirect(cognito_root_url)
+        else:
+            return str(sso_auth['message'])
 
 
 @app.errorhandler(404)

@@ -3,20 +3,21 @@ SOCA DYNAMIC CLUSTER MANAGER
 This script retrieve all queued jobs, calculate PBS resources required to launch each job
 and provision EC2 capacity if all resources conditions are met.
 """
-import json
 import argparse
-import boto3
-import logging
+import datetime
 import fnmatch
+import json
+import logging
+import os
 import re
 import subprocess
-import yaml
-import datetime
-from datetime import timedelta
-import pytz
-import ast
-import os
 import sys
+from datetime import timedelta
+
+import boto3
+import pytz
+import yaml
+
 sys.path.append(os.path.dirname(__file__))
 import configuration
 import add_nodes
@@ -138,7 +139,7 @@ def fair_share_score(queued_jobs, running_jobs, queue):
             user_score[q_job_data['get_job_owner']] = user_score[q_job_data['get_job_owner']] + job_bonus_score
 
     # Remove user with no queued job
-    for user, score in user_score.items():
+    for user, score in list(user_score.items()): # cast to list as we change the size of the dict on the fly w/ py3
         if [i['get_job_owner'] for i in queued_jobs if i['get_job_owner'] == user]:
             pass
         else:
@@ -155,9 +156,13 @@ def logpush(message, status='info'):
 
 
 def get_jobs_infos(queue):
-    command = [system_cmds['aligoqstat'], '-f', 'json', '-u', 'all',  '-q', queue]
+    command = [system_cmds['python'], system_cmds['aligoqstat'], '-f', 'json', '-u', 'all',  '-q', queue]
     output = run_command(command, "check_output")
-    return json.loads(output)
+    try:
+        return json.loads(output)
+    except Exception as e:
+        # no job
+        return {}
 
 
 def check_if_queue_started(queue_name):
@@ -190,24 +195,25 @@ def check_available_licenses(commands, license_to_check):
 
 # BEGIN EC2 FUNCTIONS
 def can_launch_capacity(instance_type, count, image_id):
-    try:
-        ec2.run_instances(
-            ImageId=image_id,
-            InstanceType=instance_type,
-            SubnetId=aligo_configuration['PrivateSubnet1'],
-            MaxCount=count,
-            MinCount=count,
-            DryRun=True)
+    instance_to_test = instance_type.split('+')
+    for instance in instance_to_test:
+        try:
+            ec2.run_instances(
+                ImageId=image_id,
+                InstanceType=instance,
+                SubnetId=aligo_configuration['PrivateSubnet1'],
+                MaxCount=count,
+                MinCount=count,
+                DryRun=True)
 
-    except Exception as e:
-        if e.response['Error'].get('Code') == 'DryRunOperation':
-            logpush('Dry Run Succeed, capacity can be added')
-            return True
-        else:
-            logpush('Dry Run Failed, capacity can not be added: ' + str(e), 'error')
-            return False
+        except Exception as e:
+            if e.response['Error'].get('Code') == 'DryRunOperation':
+                logpush('[Dispatcher.py] Dry Run Succeed for ' + instance + ', capacity can be added')
+            else:
+                logpush('[Dispatcher.py] Dry Run Failed, capacity ' + instance + ' can not be added: ' + str(e), 'error')
+                return False
+    return True
 
-    ## need to check ServiceQuota
 
 def clean_cloudformation_stack():
     pass
@@ -270,37 +276,49 @@ if __name__ == "__main__":
     arg = parser.parse_args()
     queue_type = (arg.type)
 
+    if not "SOCA_CONFIGURATION" in os.environ:
+        print("SOCA_CONFIGURATION not found, make sure to source /etc/environment first")
+        sys.exit(1)
+
+    aligo_configuration = configuration.get_aligo_configuration()
+
+
     # Begin Pre-requisite
     system_cmds = {
         'qstat': '/opt/pbs/bin/qstat',
         'qmgr': '/opt/pbs/bin/qmgr',
         'qalter': '/opt/pbs/bin/qalter',
         'qdel': '/opt/pbs/bin/qdel',
-        'aligoqstat': '/apps/soca/cluster_manager/aligoqstat.py'
+        'aligoqstat': '/apps/soca/'+ os.environ["SOCA_CONFIGURATION"] + '/cluster_manager/aligoqstat.py',
+        'python': '/apps/soca/'+ os.environ["SOCA_CONFIGURATION"] + '/python/latest/bin/python3'
     }
 
     # AWS Clients
     ses = boto3.client('ses')
     ec2 = boto3.client('ec2')
     cloudformation = boto3.client('cloudformation')
-    aligo_configuration = configuration.get_aligo_configuration()
     queue_parameter_values = {}
     queues = False
+    queues_only_parameters = ["allowed_users", "excluded_users", "excluded_instance_types", "allowed_instance_types", "restricted_parameters"]
     # Retrieve Default Queue parameters
-    stream_resource_mapping = open('/apps/soca/cluster_manager/settings/queue_mapping.yml', "r")
-    docs = yaml.load_all(stream_resource_mapping)
+    stream_resource_mapping = open('/apps/soca/'+ os.environ["SOCA_CONFIGURATION"] + '/cluster_manager/settings/queue_mapping.yml', "r")
+    docs = yaml.load_all(stream_resource_mapping, Loader=yaml.FullLoader)
     for doc in docs:
         for items in doc.values():
             for type, info in items.items():
                 if type == queue_type:
                     queues = info['queues']
                     for parameter_key, parameter_value in info.items():
-                        queue_parameter_values[parameter_key] = parameter_value
+                        if parameter_key in queues_only_parameters:
+                            # specific queue resources which are not job resources
+                            pass
+                        else:
+                            queue_parameter_values[parameter_key] = parameter_value
         stream_resource_mapping.close()
 
     # Generate FlexLM mapping
-    stream_flexlm_mapping = open('/apps/soca/cluster_manager/settings/licenses_mapping.yml', "r")
-    docs = yaml.load_all(stream_flexlm_mapping)
+    stream_flexlm_mapping = open('/apps/soca/'+ os.environ["SOCA_CONFIGURATION"] + '/cluster_manager/settings/licenses_mapping.yml', "r")
+    docs = yaml.load_all(stream_flexlm_mapping, Loader=yaml.FullLoader)
     custom_flexlm_resources = {}
     for doc in docs:
         for k, v in doc.items():
@@ -319,7 +337,7 @@ if __name__ == "__main__":
         exit(1)
 
     for queue_name in queues:
-        log_file = logging.FileHandler('/apps/soca/cluster_manager/logs/' + queue_name + '.log','a')
+        log_file = logging.FileHandler('/apps/soca/'+ os.environ["SOCA_CONFIGURATION"] + '/cluster_manager/logs/' + queue_name + '.log','a')
         formatter = logging.Formatter('[%(asctime)s] [%(lineno)d] [%(levelname)s] [%(message)s]')
         log_file.setFormatter(formatter)
         logger = logging.getLogger('tcpserver')
@@ -439,70 +457,54 @@ if __name__ == "__main__":
                                     can_run = False
                         except:
                             logpush('One required PBS resource has not been specified on the JSON input for ' + job_id + ': ' + str(res) +' . Please update custom_flexlm_resources on ' +str(arg.config))
-                            exit(1)
-
-                    for queue_param in queue_parameter_values.keys():
-                        if queue_param not in job_parameter_values.keys():
-                            job_parameter_values[queue_param] = queue_parameter_values[queue_param]
-
-                    # Checking for required parameters
-                    if 'instance_type' not in job_parameter_values.keys():
-                        logpush('No instance type detected either on the queue_mapping.yml or at job submission. Exiting ...')
-                        exit(1)
-
-                    if 'instance_ami' not in job_parameter_values.keys():
-                        logpush('No instance_ami type detected either on the queue_mapping.yml .. defaulting to base os')
-                        job_parameter_values['instance_ami'] = aligo_configuration['CustomAMI']
-
-                    # Append new resource to job resource for better tracking
-                    alter_job_res = ' '.join('-l {}={}'.format(key, value) for key, value in job_parameter_values.items() if key not in ['select', 'ncpus', 'ngpus', 'place','nodect', 'queues', 'compute_node', 'stack_id'])
-                    run_command([system_cmds['qalter']] + alter_job_res.split() + [str(job_id)], "call")
-
-
-                    desired_capacity = int(job_required_resource['nodect'])
-                    cpus_count_pattern = re.search(r'[.](\d+)', job_parameter_values['instance_type'])
-                    if cpus_count_pattern:
-                        cpu_per_system = int(cpus_count_pattern.group(1)) * 2
-                    else:
-                        cpu_per_system = '2'
-
-                    # Prevent job to start if PPN requested > CPUs per system
-                    if 'ppn' in job_required_resource.keys():
-                        if job_required_resource['ppn'] > cpu_per_system:
-                            logpush('Ignoring Job ' + job_id + ' as the PPN specified (' + str(job_required_resource['ppn']) + ') is higher than the number of cpu per system : ' + str(cpu_per_system), 'error')
                             can_run = False
 
                     if can_run is True:
+                        for queue_param in queue_parameter_values.keys():
+                            if queue_param not in job_parameter_values.keys():
+                                job_parameter_values[queue_param] = queue_parameter_values[queue_param]
+
+                        # Checking for required parameters
+                        if 'instance_type' not in job_parameter_values.keys():
+                            logpush('No instance type detected either on the queue_mapping.yml or at job submission. Exiting ...')
+                            exit(1)
+
+                        if 'instance_ami' not in job_parameter_values.keys():
+                            logpush('No instance_ami type detected either on the queue_mapping.yml .. defaulting to base os')
+                            job_parameter_values['instance_ami'] = aligo_configuration['CustomAMI']
+
+                        # Append new resource to job resource for better tracking
+                        alter_job_res = ' '.join('-l {}={}'.format(key, value) for key, value in job_parameter_values.items() if key not in ['select', 'ncpus', 'ngpus', 'place','nodect', 'queues', 'compute_node', 'stack_id'])
+                        run_command([system_cmds['qalter']] + alter_job_res.split() + [str(job_id)], "call")
+
+
+                        desired_capacity = int(job_required_resource['nodect'])
+                        cpus_count_pattern = re.search(r'[.](\d+)', job_parameter_values['instance_type'])
+                        if cpus_count_pattern:
+                            cpu_per_system = int(cpus_count_pattern.group(1)) * 2
+                        else:
+                            cpu_per_system = '2'
+
+                        # Prevent job to start if PPN requested > CPUs per system
+                        if 'ppn' in job_required_resource.keys():
+                            if job_required_resource['ppn'] > cpu_per_system:
+                                logpush('Ignoring Job ' + job_id + ' as the PPN specified (' + str(job_required_resource['ppn']) + ') is higher than the number of cpu per system : ' + str(cpu_per_system), 'error')
+                                can_run = False
+
                         logpush('job_' + job_id + ' can run, doing dry run test with following parameters: ' + job_parameter_values['instance_type'] + ' *  ' +str(desired_capacity))
                         if can_launch_capacity(job_parameter_values['instance_type'], desired_capacity, job_parameter_values['instance_ami']) is True:
                             try:
-                                keep_forever = 'false'
-                                create_new_asg = add_nodes.main(job_parameter_values['instance_type'],
-                                                                desired_capacity,
-                                                                queue_name,
-                                                                job_parameter_values['instance_ami'],
-                                                                job_id,
-                                                                job['get_job_name'],
-                                                                job['get_job_owner'],
-                                                                job['get_job_project'],
-                                                                keep_forever,
-                                                                job_parameter_values['scratch_size'] if 'scratch_size' in job_parameter_values.keys() else False,
-                                                                job_parameter_values['scratch_iops'] if 'scratch_iops' in job_parameter_values.keys() else 0,
-                                                                job_parameter_values['root_size'] if 'root_size' in job_parameter_values.keys() else False,
-                                                                job_parameter_values['placement_group'] if 'placement_group' in job_parameter_values.keys() else False,
-                                                                job_parameter_values['spot_price'] if 'spot_price' in job_parameter_values.keys() else False,
-                                                                job_parameter_values['efa_support'] if 'efa_support' in job_parameter_values.keys() else False,
-                                                                job_parameter_values['base_os'] if 'base_os' in job_parameter_values.keys() else False,
-                                                                job_parameter_values['subnet_id'] if 'subnet_id' in job_parameter_values.keys() else False,
-                                                                'false' if 'ht_support' not in job_parameter_values.keys() else job_parameter_values['ht_support'] if job_parameter_values['ht_support'] in ['true', 'false'] else 'false',
-                                                                job_parameter_values['fsx_lustre_bucket'] if 'fsx_lustre_bucket' in job_parameter_values.keys() else False,
-                                                                job_parameter_values['fsx_lustre_size'] if 'fsx_lustre_size' in job_parameter_values.keys() else False,
-                                                                job_parameter_values['fsx_lustre_dns'] if 'fsx_lustre_dns' in job_parameter_values.keys() else False,
 
-                                                                # Additional tags below
-                                                                {}
-                                                                )
+                                # Adding extra parameters to job_parameter_values
+                                job_parameter_values['desired_capacity'] = desired_capacity
+                                job_parameter_values['queue'] = queue_name
+                                job_parameter_values['job_id'] = job_id
+                                job_parameter_values['job_name'] = job['get_job_name']
+                                job_parameter_values['job_owner'] = job['get_job_owner']
+                                job_parameter_values['job_project'] = job['get_job_project']
+                                job_parameter_values['keep_forever'] = False
 
+                                create_new_asg = add_nodes.main(**job_parameter_values)
                                 if create_new_asg['success'] is True:
                                     compute_unit = create_new_asg['compute_node']
                                     stack_id = create_new_asg['stack_name']
@@ -523,14 +525,13 @@ if __name__ == "__main__":
                                         logpush('License available: ' + str(license_available[resource]))
 
                                 else:
-                                    logpush('Error while trying to create ASG: ' + str(create_new_asg['error']))
+                                    logpush('Error while trying to create ASG: ' + str(create_new_asg))
 
 
                             except Exception as e:
-                                logpush('Create ASG failed for job_'+job_id + ' with error: ' + str(e), 'error')
                                 exc_type, exc_obj, exc_tb = sys.exc_info()
                                 fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
-                                logpush(str(exc_type) + ' ' + str(fname) + ' ' + str(exc_tb.tb_lineno))
+                                logpush('Create ASG (refer to add_nodes.py) failed for job_'+job_id + ' with error: ' + str(e) + ' ' + str(exc_type) + ' ' + str(fname) + ' ' + str(exc_tb.tb_lineno), 'error')
 
                         else:
                             pass

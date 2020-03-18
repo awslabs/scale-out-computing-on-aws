@@ -1,0 +1,478 @@
+#
+# Use this template if you do NOT want Scale-Out Computing on AWS to create the entire backend  (VPC, storage ...) environment
+# You can edit this file manually or (recommended) use the web-based installer  https://github.com/mcrozes/soca-web-based-installer
+#
+
+AWSTemplateFormatVersion: 2010-09-09
+Description: (SO0072) - Scale-Out Computing on AWS. Template version 1
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      -
+        Label:
+            default: Install Location
+        Parameters:
+          - S3InstallBucket
+          - S3InstallFolder
+
+      - Label:
+          default: Linux Distribution
+        Parameters:
+          - BaseOS
+          - CustomAMI
+          - SchedulerInstanceType
+
+      - Label:
+          default: Network/Security and Storage
+        Parameters:
+          - VpcId
+          - PublicSubnet1
+          - PublicSubnet2
+          - PublicSubnet3
+          - PrivateSubnet1
+          - PrivateSubnet2
+          - PrivateSubnet3
+          - ClientIp
+          - SSHKeyPair
+          - EFSAppsDns
+          - EFSDataDns
+          - SecurityGroupIdCompute
+          - SecurityGroupIdScheduler
+
+      - Label:
+          default: Default LDAP user
+        Parameters:
+          - UserName
+          - UserPassword
+
+    ParameterLabels:
+      ClientIp:
+        default: What's your IP?
+      CustomAMI:
+        default: (Optional) Have your own AMI?
+      SSHKeyPair:
+        default: What's your SSH keypair?
+      BaseOS:
+        default: Linux Distro
+      S3InstallBucket:
+        default: S3 bucket with your SOCA installer
+      S3InstallFolder:
+        default: S3 folder where you uploaded the SOCA files
+      SchedulerInstanceType:
+        default: Instance type for your master host
+      UserName:
+        default: Username for your default LDAP user
+      UserPassword:
+        default: Password for your default LDAP user
+
+Parameters:
+  CustomAMI:
+    Type: String
+    Description: If you use your own AMI, you still have to specify the base os (see above)
+
+  SchedulerInstanceType:
+    Default: m5.large
+    Type: String
+    Description: Choose the type of instance to use for the scheduler
+
+  BaseOS:
+    Type: String
+    "AllowedValues": [
+      "centos7",
+      "rhel7",
+      "amazonlinux2",
+    ]
+    "Default": "amazonlinux2"
+    "Description": IMPORTANT CENTOS USERS > You MUST subscribe to https://aws.amazon.com/marketplace/pp/B00O7WM7QW first if using CentOS
+
+  VpcId:
+    Type: AWS::EC2::VPC::Id
+    Description: VPC Id (must start with vpc-xxx)
+    AllowedPattern: (vpc-[a-zA-Z0-9]*)
+
+  PrivateSubnet1:
+    Type: AWS::EC2::Subnet::Id
+    Description: Private Subnet (must start with subnet-xxxx)
+    AllowedPattern: (subnet-[a-zA-Z0-9]*)
+
+  PrivateSubnet2:
+    Type: AWS::EC2::Subnet::Id
+    Description: Private Subnet (must start with subnet-xxxx)
+    AllowedPattern: (subnet-[a-zA-Z0-9]*)
+
+  PrivateSubnet3:
+    Type: AWS::EC2::Subnet::Id
+    Description: Private Subnet (must start with subnet-xxxx)
+    AllowedPattern: (subnet-[a-zA-Z0-9]*)
+
+  PublicSubnet1:
+    Type: AWS::EC2::Subnet::Id
+    Description: Public Subnet (must start with subnet-xxxx)
+    AllowedPattern: (subnet-[a-zA-Z0-9]*)
+
+  PublicSubnet2:
+    Type: AWS::EC2::Subnet::Id
+    Description: Public Subnet (must start with subnet-xxxx)
+    AllowedPattern: (subnet-[a-zA-Z0-9]*)
+
+  PublicSubnet3:
+    Type: AWS::EC2::Subnet::Id
+    Description: Public Subnet (must start with subnet-xxxx)
+    AllowedPattern: (subnet-[a-zA-Z0-9]*)
+
+  EFSAppsDns:
+    Description: EFS DNS to mount as /apps (must start with fs-xxxx.efs.<region>.amazonaws.com)
+    Type: String
+
+  EFSDataDns:
+    Type: String
+    Description: EFS DNS to mount as /data (must start with fs-xxxx.efs.<region>.amazonaws.com)
+
+  ClientIp:
+    Type: String
+    Default: "0.0.0.0/0"
+    Description: Default IP(s) allowed to directly SSH into the scheduler. 0.0.0.0/0 means ALL access. You probably want to change it with your own IP/subnet. Make sure to keep it restrictive!
+    AllowedPattern: '(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})/(\d{1,2})'
+    ConstraintDescription: ClientIP must be a valid IP or network range of the form x.x.x.x/x
+
+  SSHKeyPair:
+    Type: AWS::EC2::KeyPair::KeyName
+    Description: Default SSH pem keys used to SSH into the scheduler
+
+  S3InstallBucket:
+    Type: String
+    Default: %%BUCKET_NAME%%
+    Description: Name of your S3 Bucket where you uploaded your install files
+    AllowedPattern: '(?=^.{3,63}$)(?!^(\d+\.)+\d+$)(^(([a-z0-9]|[a-z0-9][a-z0-9\-]*[a-z0-9])\.)*([a-z0-9]|[a-z0-9][a-z0-9\-]*[a-z0-9])$)'
+    ConstraintDescription: You must specify the bucket NAME only (no s3:// or https://bucket.s3.amazonaws.com)
+
+  S3InstallFolder:
+    Type: String
+    Default: %%SOLUTION_NAME%%/%%VERSION%%
+    Description: Name of the S3 folder where you uploaded SOCA
+
+  SecurityGroupIdScheduler:
+    Type: AWS::EC2::SecurityGroup::Id
+
+  SecurityGroupIdCompute:
+    Type: AWS::EC2::SecurityGroup::Id
+
+  UserName:
+    Type: String
+    MinLength: 3
+
+  UserPassword:
+    NoEcho: true
+    Type: String
+    MinLength: 5
+    MaxLength: 50
+    AllowedPattern: "^[A-Za-z]+[a-zA-Z0-9@!#!+_^{}\\[\\]()]*$"
+    Description: "5 characters minimum. Must start with a letter. Special chars accepted: !#@!+_^{}[]()"
+    ConstraintDescription: "5 characters minimum. Must start with a letter. Special chars accepted: !#@!+_^{}[]()"
+
+Mappings:
+  Send:
+    AnonymousUsage:
+      Data: Yes # Must be either Yes or No. Do not use any single or double quotes. Refer to https://docs.aws.amazon.com/solutions/latest/scale-out-computing-on-aws/appendix-d.html
+
+  Info:
+    Data:
+      ClusterIdPrefix: soca
+      Version: 2.0.0
+    User:
+      centos7: centos
+      amazonlinux2: ec2-user
+      rhel7: ec2-user
+
+  RegionMap:
+    ap-east-1: # Hong Kong
+      rhel7: ami-1a453e6b
+      centos7: ami-68e59c19
+      amazonlinux2: ami-570c7726
+    ap-northeast-1: # Tokyo
+      rhel7: ami-00b95502a4d51a07e
+      centos7: ami-045f38c93733dd48d
+      amazonlinux2: ami-0c3fd0f5d33134a76
+    ap-northeast-2: # Seoul
+      rhel7: ami-041b16ca28f036753
+      centos7: ami-06cf2a72dadf92410
+      amazonlinux2: ami-095ca789e0549777d
+    ap-south-1: # Mumbai
+      rhel7: ami-0963937a03c01ecd4
+      centos7: ami-02e60be79e78fef21
+      amazonlinux2: ami-0d2692b6acea72ee6
+    ap-southeast-1: # Singapore
+      rhel7: ami-055c55112e25b1f1f
+      centos7: ami-0b4dd9d65556cac22
+      amazonlinux2: ami-01f7527546b557442
+    ap-southeast-2: # Sydney
+      rhel7: ami-036b423b657376f5b
+      centos7: ami-08bd00d7713a39e7d
+      amazonlinux2: ami-0dc96254d5535925f
+    ca-central-1: # Canada
+      rhel7: ami-06ca3c0058d0275b3
+      centos7: ami-033e6106180a626d0
+      amazonlinux2: ami-0d4ae09ec9361d8ac
+    eu-central-1: # Frankfurt
+      rhel7: ami-09de4a4c670389e4b
+      centos7: ami-04cf43aca3e6f3de3
+      amazonlinux2: ami-0cc293023f983ed53
+    eu-north-1: # Stockholm
+      rhel7: ami-66f67f18
+      centos7: ami-5ee66f20
+      amazonlinux2: ami-3f36be41
+    eu-west-1: # Dublin
+      rhel7: ami-0202869bdd0fc8c75
+      centos7: ami-0ff760d16d9497662
+      amazonlinux2: ami-0bbc25e23a7640b9b
+    eu-west-2: # London
+      rhel7: ami-0188c0c5eddd2d032
+      centos7: ami-0eab3a90fc693af19
+      amazonlinux2: ami-0d8e27447ec2c8410
+    eu-west-3: # Paris
+      rhel7: ami-0c4224e392ec4e440
+      centos7: ami-0e1ab783dc9489f34
+      amazonlinux2: ami-0adcddd3324248c4c
+    me-south-1: # Bahrain
+      rhel7: AMI_NOT_ADDED_YET # /todo Update AMI ID when available
+      centos7: ami-08529c51dbe004acb
+      amazonlinux2: ami-0624cbc1598d12691
+    us-east-1: # Virginia
+      rhel7: ami-000db10762d0c4c05
+      centos7: ami-02eac2c0129f6376b
+      amazonlinux2: ami-0b898040803850657
+    us-east-2: # Ohio
+      rhel7: ami-094720ddca649952f
+      centos7: ami-0f2b4fc905b0bd1f1
+      amazonlinux2: ami-0d8f6eb4f641ef691
+    us-west-1: # Northern California
+      rhel7: ami-04642fc8fca1e8e67
+      centos7: ami-074e2d6769f445be5
+      amazonlinux2: ami-056ee704806822732
+    us-west-2: # Oregon
+      rhel7: ami-036affea69a1101c9
+      centos7: ami-01ed306a12b7d1c96
+      amazonlinux2: ami-082b5a644766e0e6f
+    sa-east-1: # Sao Paulo
+      rhel7: ami-05c1c16cac05a7c0b
+      centos7: ami-0b8d86d4bf91850af
+      amazonlinux2: ami-058943e7d9b9cabfb
+
+Conditions:
+  UseCustomAMI: !Not [!Equals [!Ref CustomAMI, ""]]
+
+Resources:
+  # ============ BEGIN PRE-REQUISITE ============ #
+  CheckPreRequisiteRole:
+    Metadata:
+      cfn_nag:
+        rules_to_suppress:
+          - id: W11
+            reason: "* is reduced to minimal pattern"
+
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - !Sub "lambda.${AWS::URLSuffix}"
+            Action:
+              - sts:AssumeRole
+      Policies:
+        - PolicyName: PreRequisite
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:DeleteLogStream
+                  - logs:PutLogEvents
+                Resource:
+                  - !Join [ "", [ "arn:", !Ref "AWS::Partition", ":logs:", !Ref "AWS::Region", ":", !Ref  "AWS::AccountId", ":log-group:/aws/lambda/", !Join [ "-", [ !FindInMap [ Info, Data, ClusterIdPrefix ], !Ref "AWS::StackName"] ], "*"] ]
+
+  CheckPreRequisiteLambda:
+    Type: AWS::Lambda::Function
+    Properties:
+      Description: Check Pre-Requisite for SOCA
+      FunctionName: !Join [ "-", [ !FindInMap [ Info, Data, ClusterIdPrefix ], !Ref "AWS::StackName", "PreRequisitesCheck"] ]
+      Handler: index.lambda_handler
+      MemorySize: 128
+      Role: !GetAtt CheckPreRequisiteRole.Arn
+      Runtime: python3.7
+      Timeout: 180
+      Tags:
+        - Key: soca:ClusterId
+          Value: !Join [ "-", [ !FindInMap [ Info, Data, ClusterIdPrefix ], !Ref "AWS::StackName"] ]
+      Code:
+        ZipFile: !Sub |
+          import cfnresponse
+          '''
+          Check SOCA Pre-Requisite
+          '''
+
+          def lambda_handler(event, context):
+            region = event['ResourceProperties']['Region']
+            stack_name = event['ResourceProperties']['StackName']
+            regions_blacklist = ['ca-central-1', # only_2_az
+                                'us-west-1',  # only_2_az
+                                ]
+
+            if region in regions_blacklist:
+              error_message = 'Sorry, this region is not yet supported by SOCA'
+              cfnresponse.send(event, context, cfnresponse.FAILED, {'error': error_message}, error_message)
+              return error_message
+
+            if stack_name.__len__() > 20:
+              error_message = 'Please use a stack name smaller than 20 characters'
+              cfnresponse.send(event, context, cfnresponse.FAILED, {'error': error_message}, error_message)
+              return error_message
+
+            stack_name_has_caps = any(c.isupper() for c in stack_name)
+            if stack_name_has_caps is True:
+              error_message = 'Do not use any uppercase in the stack name'
+              cfnresponse.send(event, context, cfnresponse.FAILED, {'error': error_message}, error_message)
+              return error_message
+
+            cfnresponse.send(event, context, cfnresponse.SUCCESS, {}, 'Pre-Requisites OK')
+
+  CheckSOCAPreRequisite:
+    DependsOn: CheckPreRequisiteLambda
+    Type: AWS::CloudFormation::CustomResource
+    Properties:
+      ServiceToken: !GetAtt CheckPreRequisiteLambda.Arn
+      Region: !Ref "AWS::Region"
+      StackName: !Ref "AWS::StackName"
+  # ============ END PRE-REQUISITE ============ #
+
+  Security:
+    DependsOn: CheckSOCAPreRequisite
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      Parameters:
+        VpcId: !Ref VpcId
+        ClientIp: !Ref ClientIp
+        ClusterId: !Join [ "-", [ !FindInMap [ Info, Data, ClusterIdPrefix ], !Ref "AWS::StackName"] ]
+        S3InstallBucket: !Ref S3InstallBucket
+        S3InstallFolder: !Ref S3InstallFolder
+      TemplateURL: !Join [ "/", [!Sub "https://s3.${AWS::URLSuffix}", !Ref S3InstallBucket, !Ref S3InstallFolder, "templates/Security.template"] ]
+      TimeoutInMinutes: 30
+
+  Scheduler:
+    DependsOn: Security
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      Parameters:
+        SSHKeyPair: !Ref SSHKeyPair
+        SchedulerInstanceType: !Ref SchedulerInstanceType
+        SubnetId: !Ref PublicSubnet1
+        SecurityGroupId: !Ref SecurityGroupIdScheduler
+        SchedulerIAMInstanceProfile: !GetAtt Security.Outputs.SchedulerIAMInstanceProfile
+        S3InstallFolder: !Ref S3InstallFolder
+        S3Bucket: !Ref S3InstallBucket
+        Version: !FindInMap [ Info, Data, Version ]
+        ClusterId: !Join [ "-", [ !FindInMap [ Info, Data, ClusterIdPrefix ], !Ref "AWS::StackName"] ]
+        EFSDataDns: !Ref EFSDataDns
+        EFSAppsDns: !Ref EFSAppsDns
+        ImageId: !If [UseCustomAMI, !Ref CustomAMI, !FindInMap [RegionMap, !Ref "AWS::Region", !Ref BaseOS]]
+        BaseOS: !Ref BaseOS
+        UserName: !Ref UserName
+        UserPassword: !Ref UserPassword
+      TemplateURL: !Join [ "/", [!Sub "https://s3.${AWS::URLSuffix}", !Ref S3InstallBucket, !Ref S3InstallFolder, "templates/Scheduler.template"] ]
+      TimeoutInMinutes: 60
+
+  Analytics:
+    DependsOn: Scheduler
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      Parameters:
+        SchedulerSecurityGroup: !Ref SecurityGroupIdScheduler
+        PublicSubnet1: !Ref PublicSubnet1
+        ClusterId: !Join [ "-", [ !FindInMap [ Info, Data, ClusterIdPrefix ], !Ref "AWS::StackName"] ]
+        ClientIp: !Ref ClientIp
+        SchedulerPublicIP: !GetAtt Scheduler.Outputs.SchedulerPublicIP
+      TemplateURL: !Join [ "/", [!Sub "https://s3.${AWS::URLSuffix}", !Ref S3InstallBucket, !Ref S3InstallFolder, "templates/Analytics.template"] ]
+      TimeoutInMinutes: 30
+
+  Viewer:
+    DependsOn: Analytics
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      Parameters:
+        SchedulerSecurityGroup: !Ref SecurityGroupIdScheduler
+        PublicSubnet1: !Ref PublicSubnet1
+        PublicSubnet2: !Ref PublicSubnet2
+        PublicSubnet3: !Ref PublicSubnet3
+        ClusterId: !Join [ "-", [ !FindInMap [ Info, Data, ClusterIdPrefix ], !Ref "AWS::StackName"] ]
+        VpcId: !Ref VpcId
+        SchedulerInstanceId: !GetAtt Scheduler.Outputs.SchedulerInstanceId
+        SchedulerIAMRole: !GetAtt Security.Outputs.SchedulerIAMRole
+        LambdaACMIAMRoleArn: !GetAtt Security.Outputs.LambdaACMIAMRoleArn
+      TemplateURL: !Join [ "/", [!Sub "https://s3.${AWS::URLSuffix}", !Ref S3InstallBucket, !Ref S3InstallFolder, "templates/Viewer.template"] ]
+      TimeoutInMinutes: 30
+
+
+  Configuration:
+    DependsOn: Viewer
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      Parameters:
+        SchedulerInstanceId: !GetAtt Scheduler.Outputs.SchedulerInstanceId
+        SchedulerPrivateDnsName: !GetAtt Scheduler.Outputs.SchedulerPrivateDnsName
+        SchedulerPrivateIP: !GetAtt Scheduler.Outputs.SchedulerPrivateIP
+        SchedulerPublicIP: !GetAtt Scheduler.Outputs.SchedulerPublicIP
+        SchedulerSecurityGroup: !Ref SecurityGroupIdScheduler
+        ComputeNodeIAMRoleArn: !GetAtt Security.Outputs.ComputeNodeIAMRoleArn
+        ComputeNodeIAMRole: !GetAtt Security.Outputs.ComputeNodeIAMRole
+        ComputeNodeInstanceProfileArn: !GetAtt Security.Outputs.ComputeNodeInstanceProfileArn
+        SchedulerIAMRoleArn: !GetAtt Security.Outputs.SchedulerIAMRoleArn
+        SchedulerIAMRole: !GetAtt Security.Outputs.SchedulerIAMRole
+        ComputeNodeSecurityGroup: !Ref SecurityGroupIdCompute
+        VpcId: !Ref VpcId
+        PublicSubnet1: !Ref PublicSubnet1
+        PublicSubnet2: !Ref PublicSubnet2
+        PublicSubnet3: !Ref PublicSubnet3
+        PrivateSubnet1: !Ref PrivateSubnet1
+        PrivateSubnet2: !Ref PrivateSubnet2
+        PrivateSubnet3: !Ref PrivateSubnet3
+        EFSDataDns: !Ref EFSDataDns
+        EFSAppsDns: !Ref EFSAppsDns
+        S3InstallFolder: !Ref S3InstallFolder
+        Version: !FindInMap [ Info, Data, Version ]
+        S3Bucket: !Ref S3InstallBucket
+        ClusterId: !Join [ "-", [ !FindInMap [ Info, Data, ClusterIdPrefix ], !Ref "AWS::StackName"] ]
+        SSHKeyPair: !Ref SSHKeyPair
+        ImageId: !If [UseCustomAMI, !Ref CustomAMI, !FindInMap [RegionMap, !Ref "AWS::Region", !Ref BaseOS]]
+        ESDomainEndpoint: !GetAtt Analytics.Outputs.ESDomainEndpoint
+        LoadBalancerDNSName: !GetAtt Viewer.Outputs.LoadBalancerDNSName
+        LoadBalancerArn: !GetAtt Viewer.Outputs.LoadBalancerArn
+        BaseOS: !Ref BaseOS
+        SolutionMetricsRoleArn: !GetAtt Security.Outputs.SolutionMetricsRoleArn
+        DefaultMetricCollection: !FindInMap [ Send, AnonymousUsage, Data ]
+
+      TemplateURL: !Join [ "/", [!Sub "https://s3.${AWS::URLSuffix}", !Ref S3InstallBucket, !Ref S3InstallFolder, "templates/Configuration.template"] ]
+      TimeoutInMinutes: 60
+
+Outputs:
+  SchedulerPublicIP:
+    Value: !GetAtt Scheduler.Outputs.SchedulerPublicIP
+  LDAPMasterUsername:
+    Value: admin
+  LDAPMasterPassword:
+    Value: /root/OpenLdapAdminPassword.txt
+  AnalyticsDashboard:
+    Value: !Join [ "", [ "https://", !GetAtt Analytics.Outputs.ESDomainEndpoint, "/_plugin/kibana/"]]
+  ConnectionString:
+    Value: !Join [ "", [ "ssh -i ", !Ref SSHKeyPair, ".pem ", !FindInMap [ Info, User, !Ref BaseOS ], "@", !GetAtt Scheduler.Outputs.SchedulerPublicIP]]
+  WebUserInterface:
+    Value: !Join [ "", [ "https://", !GetAtt Viewer.Outputs.LoadBalancerDNSName]]
+  BaseOS:
+    Value: !Ref BaseOS
+  BaseAMI:
+    Value: !If [UseCustomAMI, !Ref CustomAMI, !FindInMap [RegionMap, !Ref "AWS::Region", !Ref BaseOS]]
+  Version:
+    Value: !FindInMap [ Info, Data, Version ]

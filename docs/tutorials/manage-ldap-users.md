@@ -34,10 +34,10 @@ You will see a success message if the user is deleted correctly
 
 ## Using command-line interface
 
-If you need to manage the permission programatically, access the scheduler host and execute `/apps/soca/cluster_manager/ldap_manager.py`
+If you need to manage the permission programatically, access the scheduler host and execute `/apps/soca/<CLUSTER_ID>/cluster_manager/ldap_manager.py`
 
 ~~~bash
-python3 /apps/soca/cluster_manager/ldap_manager.py add-user -u newuser -p mynottoosecurepassword
+python3 /apps/soca/<CLUSTER_ID>/cluster_manager/ldap_manager.py add-user -u newuser -p mynottoosecurepassword
 Created User: newuser id: 5002
 Created group successfully
 Home directory created correctly
@@ -110,3 +110,7 @@ changetype: modify
 delete: memberUid
 memberUid:: anotheruser # you get the memberUid by running a simple ldapsearch first
 ```
+
+## Give users permissions to submit job
+
+By default, users can submit job to any queue, however you [can set up ACL at queue level if needed](../../tutorials/manage-queue-acls/)

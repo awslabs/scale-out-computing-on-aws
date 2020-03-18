@@ -2,10 +2,12 @@
 This Script Manage ALB rules for DCV hosts
 '''
 
-import boto3
+import os
 import random
 import sys
-import os
+
+import boto3
+
 sys.path.append(os.path.dirname(__file__))
 import configuration
 
@@ -235,8 +237,13 @@ if __name__ == "__main__":
         if instance_dns not in graphical_instances.keys():
             print(current_rule + ' is pointing to an EC2 resource which does not exist anymore')
             for rule_arn, rule_path in alb_rules.items():
-                if current_rule in rule_path:
-                    delete_rule(rule_arn)
-                    tg_arn_to_delete = current_target_groups[instance_dns]
-                    delete_target_groups(tg_arn_to_delete)
+                try:
+                    if current_rule in rule_path:
+                        delete_rule(rule_arn)
+                        tg_arn_to_delete = current_target_groups["soca-" + instance_dns]
+                        delete_target_groups(tg_arn_to_delete)
+                except Exception as err:
+                    # handle case where TG is already deleted
+                    print(err)
+                    pass
     print('Cleaning complete')

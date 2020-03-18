@@ -3,28 +3,27 @@
 source /etc/environment
 source /root/config.cfg
 
-if [ $# -lt 4 ]
+if [ $# -lt 1 ]
   then
     exit 0
 fi
 
-BUCKET=$1
-EFS_DATA=$2
-EFS_APPS=$3
-SCHEDULER_HOSTNAME=$4
-AWS=$(which aws)
-# Mount EFS
-mkdir -p /data
-mkdir -p /apps
+# In case AMI already have PBS installed, force it to stop
+service pbs stop
 
-echo "$EFS_DATA:/ /data nfs4 nfsvers=4.1,rsize=1048576,wsize=1048576,hard,timeo=600,retrans=2 0 0" >> /etc/fstab
-echo "$EFS_APPS:/ /apps nfs4 nfsvers=4.1,rsize=1048576,wsize=1048576,hard,timeo=600,retrans=2 0 0" >> /etc/fstab
+# Install SSM
+yum install -y https://s3.amazonaws.com/ec2-downloads-windows/SSMAgent/latest/linux_amd64/amazon-ssm-agent.rpm
+systemctl enable amazon-ssm-agent
+systemctl restart amazon-ssm-agent
+
+SCHEDULER_HOSTNAME=$1
+AWS=$(which aws)
 
 # Prepare PBS/System
 cd ~
 
 # Install System required libraries
-if [[ $SOCA_BASE_OS = "rhel7" ]]
+if [[ $SOCA_BASE_OS == "rhel7" ]];
 then
     yum install -y $(echo ${SYSTEM_PKGS[*]}) --enablerepo rhui-REGION-rhel-server-optional
     yum install -y $(echo ${SCHEDULER_PKGS[*]}) --enablerepo rhui-REGION-rhel-server-optional
@@ -38,7 +37,6 @@ yum install -y $(echo ${SSSD_PKGS[*]})
 
 # Configure Scratch Directory if specified by the user
 mkdir /scratch/
-chmod 777 /scratch/
 if [[ $SOCA_SCRATCH_SIZE -ne 0 ]];
 then
     LIST_ALL_DISKS=$(lsblk --list | grep disk | awk '{print $1}')
@@ -100,32 +98,40 @@ else
             for dev in ${VOLUME_LIST[@]} ; do dd if=/dev/zero of=$dev bs=1M count=1 ; done
             echo yes | mdadm --create -f --verbose --level=0 --raid-devices=$VOLUME_COUNT /dev/$DEVICE_NAME ${VOLUME_LIST[@]}
             mkfs -t ext4 /dev/$DEVICE_NAME
-            echo "/dev/md/0_0 /scratch ext4 defaults 0 0" >> /etc/fstab
+            echo "/dev/$DEVICE_NAME /scratch ext4 defaults 0 0" >> /etc/fstab
         else
             echo "All volumes detected already have a partition or mount point and can't be used as scratch devices"
 	    fi
     fi
 fi
 
-# Install PBSPro (Review possible containerization to reduce instance cold start)
-# You can build your own AMI with PBSPro pre-installed to reduce instance startup time
+
+# Install PBSPro if needed
 cd ~
-wget $PBSPRO_URL
-if [[ $(md5sum $PBSPRO_TGZ | awk '{print $1}') != $PBSPRO_HASH ]];  then
-    echo -e "FATAL ERROR: Checksum for PBSPro failed. File may be compromised." > /etc/motd
-    exit 1
+PBSPRO_INSTALLED_VERS=$(/opt/pbs/bin/qstat --version | awk {'print $NF'})
+if [[ "$PBSPRO_INSTALLED_VERS" != "$PBSPRO_VERSION" ]]
+then
+    echo "PBSPro Not Detected, Installing PBSPro ..."
+    cd ~
+    wget $PBSPRO_URL
+    if [[ $(md5sum $PBSPRO_TGZ | awk '{print $1}') != $PBSPRO_HASH ]];  then
+        echo -e "FATAL ERROR: Checksum for PBSPro failed. File may be compromised." > /etc/motd
+        exit 1
+    fi
+    tar zxvf $PBSPRO_TGZ
+    cd pbspro-$PBSPRO_VERSION
+    ./autogen.sh
+    ./configure --prefix=/opt/pbs
+    make -j6
+    make install -j6
+    /opt/pbs/libexec/pbs_postinstall
+    chmod 4755 /opt/pbs/sbin/pbs_iff /opt/pbs/sbin/pbs_rcp
+else
+    echo "PBSPro already installed, and at correct version."
 fi
-tar zxvf $PBSPRO_TGZ
-cd pbspro-$PBSPRO_VERSION
-./autogen.sh
-./configure --prefix=/opt/pbs
-make -j6
-make install -j6
-/opt/pbs/libexec/pbs_postinstall
-chmod 4755 /opt/pbs/sbin/pbs_iff /opt/pbs/sbin/pbs_rcp
 
 # Edit path with new scheduler/python locations
-echo "export PATH=\"/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin:/opt/pbs/bin:/opt/pbs/sbin:/opt/pbs/bin:/apps/python/latest/bin\"" >> /etc/environment
+echo "export PATH=\"/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin:/opt/pbs/bin:/opt/pbs/sbin:/opt/pbs/bin:/apps/soca/$SOCA_CONFIGURATION/python/latest/bin\"" >> /etc/environment
 
 # Disable SELINUX
 sed -i 's/SELINUX=enforcing/SELINUX=disabled/g' /etc/selinux/config
@@ -195,11 +201,6 @@ authconfig --enablesssd --enablesssdauth --enableldap --enableldaptls --enableld
 
 echo "sudoers: files sss" >> /etc/nsswitch.conf
 
-# Install SSM
-yum install -y https://s3.amazonaws.com/ec2-downloads-windows/SSMAgent/latest/linux_amd64/amazon-ssm-agent.rpm
-systemctl enable amazon-ssm-agent
-systemctl restart amazon-ssm-agent
-
 # Disable SELINUX & firewalld
 sed -i 's/SELINUX=enforcing/SELINUX=disabled/g' /etc/selinux/config
 
@@ -229,13 +230,11 @@ echo -e "
 \$clienthost $SCHEDULER_HOSTNAME
 "  > /var/spool/pbs/mom_priv/config
 
-systemctl enable pbs
-
 INSTANCE_TYPE=`curl --silent  http://169.254.169.254/latest/meta-data/instance-type | cut -d. -f1`
 
 # If GPU instance, disable NOUVEAU drivers before installing DCV as this require a reboot
 # Rest of the DCV configuration is managed by ComputeNodeInstallDCV.sh
-if [[ "$INSTANCE_TYPE" == "g2" || "$INSTANCE_TYPE" == "g3" ]]
+if [[ "$INSTANCE_TYPE" == "g2" ]] || [[ "$INSTANCE_TYPE" == "g3" ]]
 then
     cat << EOF | sudo tee --append /etc/modprobe.d/blacklist.conf
 blacklist vga16fb
@@ -248,7 +247,13 @@ EOF
     sudo grub2-mkconfig -o /boot/grub2/grub.cfg
 fi
 
+# Disable ulimit
+echo -e  "
+* hard memlock unlimited
+* soft memlock unlimited
+" > /etc/security/limits.conf
+
 
 # Reboot to disable SELINUX
 sudo reboot
-# Upon reboot, ComputenodePostinstall will be executed
+# Upon reboot, ComputenodePostReboot will be executed

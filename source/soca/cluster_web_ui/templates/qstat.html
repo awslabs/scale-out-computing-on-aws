@@ -58,6 +58,10 @@
                                                    {% elif job_data.get_job_state == 'Q' %}
                                                     <span class="badge badge-warning">QUEUED</span>
 
+                                                   {% elif job_data.get_job_state == 'E' %}
+                                                       <span class="badge badge-danger">EXIT</span>
+
+
                                                    {% else %}
                                                         <span class="badge badge-danger">{{ job_data.get_job_state }}</span>
 

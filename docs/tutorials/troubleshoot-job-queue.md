@@ -7,7 +7,18 @@ title: Debug why your jobs are not starting
 First of all, unless you submit a job on the "alwayson" queue, it will usually take between 5 to 10 minutes before your job can start as Scale-Out Computing on AWS needs to provision your capacity. This can vary based on the type and number of EC2 instances you have requested for your job.
 
 ### Verify the log
-If your job is not starting, first verify the queue log under `/apps/soca/cluster_manager/logs/<queue_name>.log`
+If your job is not starting, first verify the queue log under `/apps/soca/<CLUSTER_ID>/cluster_manager/logs/<queue_name>.log`
+
+If the log is not created or you don't see any update on it even though you submitted a job, try to run the `dispatcher.py` command manually. On the scheduler, list all crontabs as root `crontab -` and refer to "Automatic Host Provisioning" section:
+
+~~~bash
+## Automatic Host Provisioning
+*/3 * * * * source /etc/environment;  /apps/soca/<CLUSTER_ID>/python/latest/bin/python3 /apps/soca/<CLUSTER_ID>cluster_manager/dispatcher.py -c /apps/soca/<CLUSTER_ID>/cluster_manager/settings/queue_mapping.yml -t compute
+*/3 * * * * source /etc/environment;  /apps/soca/<CLUSTER_ID>/python/latest/bin/python3 /apps/soca/<CLUSTER_ID>/cluster_manager/dispatcher.py -c /apps/soca/<CLUSTER_ID>/cluster_manager/settings/queue_mapping.yml -t desktop
+*/3 * * * * source /etc/environment;  /apps/soca/<CLUSTER_ID>/python/latest/bin/python3 /apps/soca/<CLUSTER_ID>/cluster_manager/dispatcher.py -c /apps/soca/<CLUSTER_ID>/cluster_manager/settings/queue_mapping.yml -t test
+~~~
+
+Run the command manually (ex `source /etc/environment;  /apps/soca/<CLUSTER_ID>/python/latest/bin/python3 /apps/soca/<CLUSTER_ID>cluster_manager/dispatcher.py -c /apps/soca/<CLUSTER_ID>/cluster_manager/settings/queue_mapping.yml -t compute`) and look for any error. Common errors include malformed yaml files.
 
 ### Verify the job resource
 

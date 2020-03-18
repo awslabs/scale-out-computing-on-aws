@@ -10,13 +10,13 @@ For this example, I will create a budget named "Project 1" and prevent user to s
 
 ## Configure the scheduler hook
 
-To enable this feature, you will first need to verify the project assigned to each job during submission time. The script managing this can be found on your Scale-Out Computing on AWS cluster at `/apps/soca/cluster_hooks/queuejob/check_project_budget.py`
+To enable this feature, you will first need to verify the project assigned to each job during submission time. The script managing this can be found on your Scale-Out Computing on AWS cluster at `/apps/soca/<YOUR_SOCA_CLUSTER_ID>/cluster_hooks/queuejob/check_project_budget.py`
 First, edit this file and manually enter your AWS account id:
 
 ~~~python hl_lines="2"
 # User Variables
 aws_account_id = '<ENTER_YOUR_AWS_ACCOUNT_ID>'
-budget_config_file = '/apps/soca/cluster_manager/settings/project_cost_manager.txt'
+budget_config_file = '/apps/soca/<YOUR_SOCA_CLUSTER_ID>/cluster_manager/settings/project_cost_manager.txt'
 user_must_belong_to_project = True  # Change if you don't want to restrict project to a list of users
 allow_job_no_project = False  # Change if you do not want to enforce project at job submission
 allow_user_multiple_projects = True  # Change if you want to restrict a user to one project
@@ -26,7 +26,7 @@ Then enable the hook by running the following commands as root (on the scheduler
 
 ~~~bash
 user@host: qmgr -c "create hook check_project_budget event=queuejob"
-user@host: qmgr -c "import hook check_project_budget application/x-python default /apps/soca/cluster_hooks/queuejob/check_project_budget.py"
+user@host: qmgr -c "import hook check_project_budget application/x-python default /apps/soca/<YOUR_SOCA_CLUSTER_ID>/cluster_hooks/queuejob/check_project_budget.py"
 ~~~
 
 ## Test it

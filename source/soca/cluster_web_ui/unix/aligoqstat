@@ -1,4 +1,3 @@
-#!/apps/python/latest/bin/python3
 import re
 import subprocess
 import argparse

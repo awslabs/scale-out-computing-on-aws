@@ -43,12 +43,12 @@ fi
 tar zxvf $DCV_TGZ
 cd nice-dcv-$DCV_VERSION
 rpm -ivh *.rpm --nodeps
+DCVGLADMIN=$(which dcvgladmin)
 
 # Uninstall dcv-gl if not GPU instances
 # Note: NVIDIA-CUDA drivers must be installed first
-if [[ "$INSTANCE_TYPE" != "g2" || "$INSTANCE_TYPE" != "g3"  ]]
+if [[ "$INSTANCE_TYPE" != "g2" ]] || [[ "$INSTANCE_TYPE" != "g3"  ]]
 then
-    DCVGLADMIN=$(which dcvgladmin)
     $DCVGLADMIN disable
 fi
 
@@ -63,6 +63,11 @@ virtual-session-xdcv-args=\"-listen tcp\"
 [session-management/defaults]
 [session-management/automatic-console-session]
 [display]
+# add more if using an instance with more GPU
+cuda-devices=[\"0\"]
+[display/linux]
+# add more if using an instance with more GPU
+gl-displays = [\":0.0\"]
 [display/linux]
 use-glx-fallback-provider=false
 [connectivity]
@@ -85,8 +90,9 @@ systemctl stop firewalld
 systemctl disable firewalld
 
 # Final reboot is needed to update GPU drivers if running on G2/G3
-if [[ "$INSTANCE_TYPE" == "g2" && "$INSTANCE_TYPE" == "g3"  ]]
+if [[ "$INSTANCE_TYPE" == "g2" ]] || [[ "$INSTANCE_TYPE" == "g3"  ]]
 then
+    echo "@reboot $DCVGLADMIN enable >> /root/enable_dcvgladmin.log 2>&1" | crontab -
     reboot
 fi
 # Start X

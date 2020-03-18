@@ -23,7 +23,7 @@
                         {% if messages %}
                             {% for message in messages %}
                                  <div class="alert alert-danger">
-                                    <strong>{{ message}} </strong>
+                                    <strong>{{ message | safe}} </strong>
                                 </div>
                             {% endfor %}
                         {% endif %}

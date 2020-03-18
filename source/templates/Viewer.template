@@ -46,8 +46,12 @@ Resources:
         Statement:
           - Effect: Allow
             Action:
-              - elasticloadbalancing:CreateRule
               - elasticloadbalancing:DeleteRule
+            Resource:  !Sub "arn:${AWS::Partition}:elasticloadbalancing:${AWS::Region}:${AWS::AccountId}:listener-rule/app/soca*/*"
+
+          - Effect: Allow
+            Action:
+              - elasticloadbalancing:CreateRule
             Resource: !Ref HTTPSLoadBalancerListener
 
           - Effect: Allow
@@ -67,6 +71,11 @@ Resources:
   # Today, CloudFormation does not support self-signed ACM certificate
   # so I have to create a Lambda function which will perform the upload automatically
   LambdaCreateACMCertificate:
+    Metadata:
+      cfn_nag:
+        rules_to_suppress:
+          - id: W58
+            reason: "Lambda IAM role has permissions to write CloudWatch log and is defined on security template"
     Type: AWS::Lambda::Function
     Properties:
       Code:
@@ -137,6 +146,8 @@ Resources:
         rules_to_suppress:
           - id: W28
             reason: "Name is required to easily identify resource deployed by SOCA"
+          - id: W52
+            reason: "Not Front Facing"
     Type: AWS::ElasticLoadBalancingV2::LoadBalancer
     Properties:
       Name: !Sub ${ClusterId}-viewer
@@ -163,9 +174,16 @@ Resources:
       ClusterId: !Sub ${ClusterId}
 
   HTTPSLoadBalancerListener:
+    Metadata:
+      cfn_nag:
+        rules_to_suppress:
+          - id: W55
+            reason: "Using AWS recommended policy"
+
     DependsOn: RetrieveACMCertificateArn
     Type: AWS::ElasticLoadBalancingV2::Listener
     Properties:
+      SslPolicy: ELBSecurityPolicy-2016-08
       Certificates:
         - CertificateArn: !GetAtt RetrieveACMCertificateArn.ACMCertificateArn
       LoadBalancerArn: !Ref LoadBalancer
@@ -176,6 +194,11 @@ Resources:
           TargetGroupArn: !Ref TargetGroupSocaWebUI
 
   HTTPLoadBalancerListener:
+    Metadata:
+      cfn_nag:
+        rules_to_suppress:
+          - id: W56
+            reason: "HTTP listener is just there to do HTTPS redirect"
     DependsOn: LoadBalancer
     Type: AWS::ElasticLoadBalancingV2::Listener
     Properties:
@@ -197,7 +220,7 @@ Resources:
     DependsOn: LoadBalancer
     Type: AWS::ElasticLoadBalancingV2::TargetGroup
     Properties:
-      Name: !Sub ${ClusterId}-SocaWebUi
+      Name: !Sub ${ClusterId}-WebUi
       VpcId: !Ref VpcId
       Port: 8443
       Protocol: HTTPS

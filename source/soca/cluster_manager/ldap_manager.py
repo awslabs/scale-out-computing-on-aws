@@ -1,15 +1,14 @@
-import ldap
 import argparse
-import sys
 import hashlib
-from base64 import b64encode as encode
-import shutil
 import os
+import shutil
+import sys
+from base64 import b64encode as encode
+
+import ldap
 
 sys.path.append(os.path.dirname(__file__))
 import configuration
-import binascii
-import uuid
 from cryptography.hazmat.primitives import serialization as crypto_serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
 from cryptography.hazmat.backends import default_backend as crypto_default_backend
@@ -201,13 +200,13 @@ if __name__ == "__main__":
     ldap_action = arg.command
     # Soca Parameters
     aligo_configuration = configuration.get_aligo_configuration()
-    ldap_base = 'DC=soca,DC=local'
+    ldap_base = aligo_configuration['LdapBase']
     user_home = '/data/home'
     slappasswd = '/sbin/slappasswd'
-    root_dn = 'CN=admin,DC=soca,DC=local'
+    root_dn = 'CN=admin,' + ldap_base
     root_pw = open('/root/OpenLdapAdminPassword.txt', 'r').read()
-    ldap_args = '-ZZ -x -H "ldap://' + aligo_configuration['SchedulerPrivateDnsName'] + '" -D ' + root_dn + ' -y ' + root_pw
-    con = ldap.initialize('ldap://' + aligo_configuration['SchedulerPrivateDnsName'])
+    ldap_args = '-ZZ -x -H "ldap://' + aligo_configuration['LdapHost'] + '" -D ' + root_dn + ' -y ' + root_pw
+    con = ldap.initialize('ldap://' + aligo_configuration['LdapHost'])
     con.simple_bind_s(root_dn, root_pw)
 
     if ldap_action == 'delete-user':

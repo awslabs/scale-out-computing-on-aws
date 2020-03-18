@@ -3,6 +3,7 @@ title: Change your DNS name and SSL certificate
 ---
 
 By default, Scale-Out Computing on AWS will use a non-friendly DNS name and create a unique certificate to enable access through your HTTPS endpoint. Because it's a self-signed certificate, browsers won't recognized it and you will get a security warning on your first connection. 
+
 ![](../imgs/cert-1.png)
 
 In this page, we will see how you can update Scale-Out Computing on AWS to match your company domain name.
@@ -72,7 +73,7 @@ Make sure your browser is detecting your new SSL certificate correctly.
 
 ![](../imgs/cert-9.png)
 
-Finally, [create a new DCV session]({{ site.baseurl }}/installation/access-soca-cluster/#graphical-access-using-dcv) and verify the endpoint is using your new DNS name
+Finally, [create a new DCV session](../../access-soca-cluster/#graphical-access-using-dcv) and verify the endpoint is using your new DNS name
 
 ![](../imgs/cert-11.png)
 

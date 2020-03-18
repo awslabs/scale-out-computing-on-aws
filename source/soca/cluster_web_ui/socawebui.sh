@@ -7,7 +7,7 @@
 ##
 
 source /etc/environment
-GUNICORN_BIN='/apps/python/latest/bin/gunicorn'
+GUNICORN_BIN="/apps/soca/$SOCA_CONFIGURATION/python/latest/bin/gunicorn"
 GUNICORN_BIND='0.0.0.0:8443'
 GUNICORN_WORKERS=3
 GUNICORN_APP='app:app'

@@ -180,6 +180,8 @@ Resources:
                 - !Sub "ssm.${AWS::URLSuffix}"
             Action:
               - sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore # Support for SSM
       Policies:
         - PolicyName: ComputeNodePermissions
           PolicyDocument:
@@ -213,10 +215,13 @@ Resources:
                   - ec2:CreateTags
                 Resource:
                   - !Sub "arn:${AWS::Partition}:ec2:*:${AWS::AccountId}:volume/*"
+                  - !Sub "arn:${AWS::Partition}:ec2:*:${AWS::AccountId}:network-interface/*"
 
               - Effect: Allow
                 Action:
                   - ec2:DescribeVolumes
+                  - ec2:DescribeNetworkInterfaces
+                  - fsx:CreateDataRepositoryTask
                   - fsx:DescribeFileSystems # For FSX
                   - tag:GetResources # For FSX detection
                   - tag:GetTagValues # For FSX detection
@@ -250,8 +255,11 @@ Resources:
             Principal:
               Service:
                 - !Sub "ec2.${AWS::URLSuffix}"
+                - !Sub "ssm.${AWS::URLSuffix}"
             Action:
               - sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore # Support for SSM
       Policies:
         - PolicyName: SchedulerReadPermissions
           PolicyDocument:
@@ -268,10 +276,12 @@ Resources:
                   - ec2:DescribeInstanceAttribute
                   - ec2:DescribeSpotInstanceRequests
                   - ec2:DescribeVpcClassicLink
+                  - ec2:DescribeVolumes
                   - ec2:DescribePlacementGroups
                   - ec2:DescribeKeyPairs
                   - ec2:DescribeLaunchTemplates
                   - ec2:DescribeLaunchTemplateVersions
+                  - ec2:DescribeNetworkInterfaces
                   - fsx:DescribeFileSystems
                   - autoscaling:DescribeAutoScalingGroups
                   - autoscaling:DescribeScalingActivities
@@ -292,10 +302,18 @@ Resources:
                   - autoscaling:CreateAutoScalingGroup
                   - ec2:DeleteLaunchTemplate
                   - ec2:CreateLaunchTemplate
+                  - fsx:CreateDataRepositoryTask
                 Resource: "*"
                 Condition:
                   StringLikeIfExists:
                     "autoscaling:LaunchConfigurationName": !Sub "${ClusterId}*"
+
+              - Effect: Allow
+                Action:
+                  - ec2:CreateTags
+                Resource:
+                  - !Sub "arn:${AWS::Partition}:ec2:*:${AWS::AccountId}:volume/*"
+                  - !Sub "arn:${AWS::Partition}:ec2:*:${AWS::AccountId}:network-interface/*"
 
               - Effect: Allow
                 Action:
@@ -409,7 +427,7 @@ Resources:
           - Effect: Allow
             Principal:
               Service:
-                - !Sub "lambda.${AWS::URLSuffix}"
+                - lambda.amazonaws.com
             Action:
               - sts:AssumeRole
       Policies:
@@ -450,7 +468,6 @@ Resources:
             Action:
               - sts:AssumeRole
 
-      RoleName: !Sub ${ClusterId}-LambdaACMIamRole
       Policies:
         - PolicyName: !Sub ${ClusterId}-LambdaACMIamRole-Policy
           PolicyDocument:

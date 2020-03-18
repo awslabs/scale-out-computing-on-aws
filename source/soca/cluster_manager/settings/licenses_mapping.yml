@@ -1,6 +1,6 @@
 # Note: Any entries must have been created as PBS resource first.
-# Refer to the documentation for instructions
-# Examples below
+# Refer to the documentation for instruction https://awslabs.github.io/scale-out-computing-on-aws/tutorials/job-licenses-flexlm/
+# Examples below (adjust as needed)
 
 ansys:
   ansys_anshpc_pack: "/apps/tools/scripts/license_check.py -s licenses.soca.dev -p 21055 -f anshpc_pack"

@@ -32,7 +32,7 @@ If you want to be able to send email to any addresses, [you need to request prod
 ![](../imgs/email-4.png)
 
 ## Notification code
-Create a hook file (note: this file can be found under `/apps/soca/cluster_hooks/job_notification.py` on your Scale-Out Computing on AWS cluster)
+Create a hook file (note: this file can be found under `/apps/soca/<CLUSTER_ID>/cluster_hooks/job_notification.py` on your Scale-Out Computing on AWS cluster)
 
 Edit the following section to match your SES settings
 ~~~
@@ -46,8 +46,8 @@ Once your script is created, configure your scheduler hooks by running the follo
 ~~~bash
 user@host: qmgr -c "create hook notify_job_start event=runjob"
 user@host: qmgr -c "create hook notify_job_complete event=execjob_end"
-user@host: qmgr -c "import hook notify_job_start application/x-python default /apps/soca/cluster_hooks/job_notifications.py"
-user@host: qmgr -c "import hook notify_job_complete application/x-python default /apps/soca/cluster_hooks/job_notifications.py"
+user@host: qmgr -c "import hook notify_job_start application/x-python default /apps/soca/<CLUSTER_ID>/cluster_hooks/job_notifications.py"
+user@host: qmgr -c "import hook notify_job_complete application/x-python default /apps/soca/<CLUSTER_ID>/cluster_hooks/job_notifications.py"
 ~~~
 
 Note: If you make any change to the python file, you **must** re-run the `import hook` command

@@ -3,6 +3,7 @@ title: Launch a job with FSx for Lustre
 ---
 
 ## What is FSx
+
 [Amazon FSx](https://aws.amazon.com/fsx/) provides you with the native compatibility of third-party file systems with feature sets for workloads such as high-performance computing (HPC), machine learning and electronic design automation (EDA). You don’t have to worry about managing file servers and storage, as Amazon FSx automates the time-consuming administration tasks such as hardware provisioning, software configuration, patching, and backups.
 Amazon FSx provides FSx for Lustre for compute-intensive workloads. 
 
@@ -11,11 +12,30 @@ Amazon FSx provides FSx for Lustre for compute-intensive workloads.
     - You can launch an ephemeral FSx filesystem for your job
     - You can connect to an existing FSx filesystem
     - You can dynamically adjust the storage capacity of your FSx filesystem
-    - Exported files (if any) from FSx to S3 will be stored under `s3://<YOUR_BUCKET_NAME>/<CLUSTER_ID>-fsxoutput/job-<JOB_ID>/`
+    - Exported files (if any) from FSx to S3 will be stored under `s3://<YOUR_BUCKET_NAME>/<CLUSTER_ID>-fsxoutput/job-<JOB_ID>/` by default (you can change it if needed)
 
-## Pre-requisite for FSx for Lustre
+Scale-Out automatically determines the actions to be taken based on the `fsx_lustre` value you specified during job submission
 
-You need to give Scale-Out Computing on AWS the permission to map the S3 bucket you want to mount on FSx. To do that, add a new inline policy to the **scheduler IAM role**. The Scheduler IAM role can be found on the IAM bash and is named `<Scale-Out Computing on AWS_STACK_NAME>-Security-<UUID>-SchedulerIAMRole-<UUID>`.
+ - If value is `yes/true/on`, a standard FSx for Lustre will be provisioned
+ 
+ - If value starts with `s3://` or is a string, SOCA will try to mount the S3 bucket automatically as part of the FSx deployment
+ 
+ - If value starts with `fs-xxx`, SOCA will try to mount an existing FSx automatically
+
+## How to provision an ephemeral FSx
+
+To provision an FSx for Lustre without S3 backend, simply specify `-l fsx_lustre=True` at job submission.
+ 
+ If `-l fsx_lustre_capacity` is not set, the default storage provisioned will be 1.2 TB. The FSx will be mounted under "/fsx" by default, you can change this value by referring at the section at the end of this doc.
+
+## How to provision an ephemeral FSx with S3 backend
+
+### Pre-requisite
+
+!!!info "S3 Backend"
+    This section is only required if you are planning to use S3 as a data backend for FSx
+    
+You need to give Scale-Out Computing on AWS the permission to map the S3 bucket you want to mount on FSx. To do that, add a new inline policy to the **scheduler IAM role**. The Scheduler IAM role can be found on the IAM bash and is named `<SOCA_AWS_STACK_NAME>-Security-<UUID>-SchedulerIAMRole-<UUID>`.
 To create an inline policy, select your IAM role, click "Add Inline Policy":
 
 ![](../imgs/fsx-4.png)
@@ -61,13 +81,13 @@ user@host: aws s3 ls s3://<YOUR_BUCKET_NAME>
     DCV sessions or other compute nodes <strong> will not </strong> have access to the S3 bucket.
 
 
-## Provision FSx for your job
+### Setup
 
 For this example, let's say I have my dataset available on S3 and I want to access them for my simulation.
-Submit a job using `-l fsx_lustre_bucket=s3://<YOUR_BUCKET_NAME>`. The bucket will then be mounted on all nodes provisioned for the job under `/fsx` mountpoint.
+Submit a job using `-l fsx_lustre=s3://<YOUR_BUCKET_NAME>`. The bucket will then be mounted on all nodes provisioned for the job under `/fsx` mountpoint.
 
 ~~~bash
-user@host: qsub -l fsx_lustre_bucket=s3://<YOUR_BUCKET_NAME> -- /bin/sleep 600
+user@host: qsub -l fsx_lustre=s3://<YOUR_BUCKET_NAME> -- /bin/sleep 600
 ~~~
 
 This command will provision a new 1200 GB (smallest capacity available) FSx filesystem for your job:
@@ -88,29 +108,20 @@ total 1
 -rwxr-xr-x 1 root root 10285 Nov  2 04:26 dataset2.csv
 ~~~
 
+You can change the ImportPath / ExportPath by using the following syntax: `-l fsx_lustre=<BUCKET>+<EXPORT_PATH>+<IMPORT_PATH>`.
+
+If `<IMPORT_PATH>` is not set, value defaults to the bucket root level. 
+
+The default `<EXPORT_PATH>` is `<BUCKET>/<CLUSTER_ID>-fsxoutput/<JOBID>`
+
 Your FSx filesystem will automatically be terminated when your job complete. [Refer to this link](https://docs.aws.amazon.com/fsx/latest/LustreGuide/fsx-data-repositories.html) to learn how to interact with FSx data repositories. 
-
-
-## Change FSx capacity
-
-Use `-l fsx_lustre_size=<SIZE_IN_GB>` to specify the size of your FSx filesystem. Please note the following informations:
-- If not specified, Scale-Out Computing on AWS deploy the smallest possible capacity (1200GB)
-- Valid sizes (in GB) are 1200, 2400, 3600 and increments of 3600
-
-~~~bash
-user@host: qsub  -l fsx_lustre_size=3600 -l fsx_lustre_bucket=s3://<YOUR_S3_BUCKET> -- /bin/sleep 600
-~~~
-
-This command will mount a 3.6TB FSx filesystem on all nodes provisioned for your simulation.
-
-![](../imgs/fsx-2.png)
 
 ## How to connect to a permanent/existing FSx 
 
-If you already have a running FSx, you can mount it using `-l fsx_lustre_dns` variable.
+If you already have a running FSx, you can mount it using `-l fsx_lustre` variable.
 
 ~~~bash
-user@host: qsub -l fsx_lustre_dns=<MY_FSX_DNS> -- /bin/sleep 60
+user@host: qsub -l fsx_lustre=<MY_FSX_DNS> -- /bin/sleep 60
 ~~~
 
 To retrieve your FSx DNS, select your filesystem and select "Network & Security"
@@ -120,8 +131,23 @@ To retrieve your FSx DNS, select your filesystem and select "Network & Security"
 !!! warning
     - Make sure your FSx is running on the same VPC as Scale-Out Computing on AWS</li>
     - Make sure your FSx security group allow traffic from/to Scale-Out Computing on AWS ComputeNodes SG</li>
-    - If you specify both "fsx_lustre_bucket" and "fsx_lustre_dns", only "fsx_lustre_dns" will be mounted.</li>
+    - If you specify both "fsx_lustre" and "fsx_lustre", only "fsx_lustre" will be mounted.</li>
 
+
+
+## Change FSx capacity
+
+Use `-l fsx_lustre_size=<SIZE_IN_GB>` to specify the size of your FSx filesystem. Please note the following informations:
+- If not specified, Scale-Out Computing on AWS deploy the smallest possible capacity (1200GB)
+- Valid sizes (in GB) are 1200, 2400, 3600 and increments of 3600
+
+~~~bash
+user@host: qsub  -l fsx_lustre_size=3600 -l fsx_lustre=s3://<YOUR_S3_BUCKET> -- /bin/sleep 600
+~~~
+
+This command will mount a 3.6TB FSx filesystem on all nodes provisioned for your simulation.
+
+![](../imgs/fsx-2.png)
 
 
 ## How to change the mountpoint
@@ -130,7 +156,7 @@ By default Scale-Out Computing on AWS mounts fsx on `/fsx`. If you need to chang
 
 ~~~bash hl_lines="4"
 ...
-if [[ $Scale-Out Computing on AWS_FSX_LUSTRE_BUCKET != 'false' ]]; then
+if [[ $SOCA_AWS_fsx_lustre != 'false' ]]; then
     echo "FSx request detected, installing FSX Lustre client ... "
     FSX_MOUNTPOINT="/fsx" ## <-- Update mountpoint here
     mkdir -p $FSX_MOUNTPOINT
@@ -138,15 +164,15 @@ if [[ $Scale-Out Computing on AWS_FSX_LUSTRE_BUCKET != 'false' ]]; then
 ~~~
 
 ## Learn about the other storage options on Scale-Out Computing on AWS
-[Click here to learn about the other storage options]({{ site.baseurl }}/tutorials/understand-storage-backend-options-scratch/) offered by Scale-Out Computing on AWS.
+[Click here to learn about the other storage options](../understand-storage-backend-options-scratch/) offered by Scale-Out Computing on AWS.
 
 ## Troubleshooting and most common errors
 
-Like any other parameter, FSx options can be debugged using `/apps/soca/cluster_manager/logs/<QUEUE_NAME>.log`
+Like any other parameter, FSx options can be debugged using `/apps/soca/<CLUSTER_ID>/cluster_manager/logs/<QUEUE_NAME>.log`
 
 ~~~bash
 [Error while trying to create ASG: Scale-Out Computing on AWS does not have access to this bucket. 
-Update IAM policy as described on https://soca.dev/tutorials/job-fsx-lustre-backend/]
+Update IAM policy as described on the documentation]
 ~~~
 
 **Resolution**: Scale-Out Computing on AWS does not have access to this S3 bucket. Update your IAM role with the policy listed above
@@ -155,10 +181,3 @@ Update IAM policy as described on https://soca.dev/tutorials/job-fsx-lustre-back
 [Error while trying to create ASG: fsx_lustre_size must be: 1200, 2400, 3600, 7200, 10800]
 ~~~
 **Resolution**: fsx_lustre_size must be 1200, 2400, 3600 and increments of 3600
-
-~~~bash
-[Error while trying to create ASG: fsx_lustre_bucket must start with s3://]
-~~~
-**Resolution**: fsx_lustre_bucket must start with s3://. Use s3://mybucket/mypath if you want to mount mybucket/mypath.
-
-

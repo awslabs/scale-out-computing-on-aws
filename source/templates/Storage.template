@@ -32,6 +32,8 @@ Resources:
           Value: !Sub ${ClusterId}-EFSApps
         - Key: soca:ClusterId
           Value: !Ref ClusterId
+        - Key: soca:BackupPlan
+          Value: !Sub ${ClusterId}
       ThroughputMode: bursting
 
   AppsMountTarget1:
@@ -72,6 +74,8 @@ Resources:
           Value: !Sub ${ClusterId}-EFSData
         - Key: soca:ClusterId
           Value: !Ref ClusterId
+        - Key: soca:BackupPlan
+          Value: !Sub ${ClusterId}
       ThroughputMode: bursting
 
   DataMountTarget1:

@@ -2,6 +2,11 @@
 title: Install your Scale-Out Computing on AWS cluster
 ---
 
+## 1-Click installer
+
+You can use the [1-Click installer for quick proof-of-concept (PoC), demo and/or development work](https://aws.amazon.com/solutions/scale-out-computing-on-aws/). This installer is hosted on an AWS controlled S3 bucket and customization is limited, so we recommend downloading building your own SOCA (see below) for your production. Always refers to the Github repository for the latest SOCA version.
+
+
 ## Download Scale-Out Computing on AWS
 
 Scale-Out Computing on AWS is open-source and available on Github ([https://github.com/awslabs/scale-out-computing-on-aws](https://github.com/awslabs/scale-out-computing-on-aws)).
@@ -42,7 +47,7 @@ This command create a build (`r6l1` in this example) under `source/dist/<build_i
 
 ## Upload to S3
 
-Go to your Amazon S3 bash and click "Create Bucket"
+Go to your Amazon S3 console and click "Create Bucket"
 
 ![](imgs/install-1.png)
 
@@ -71,9 +76,14 @@ Your install template is located under `<S3_BUCKET_NAME>/<BUILD_ID>/scale-out-co
 
 ![](imgs/install-5.png)
 
+!!! info "Want to use your existing AWS resources?"
+    Refer to `install-with-existing-resources.template` if you want to use Scale-Out Computing on AWS with your existing resources.
+    
+    [Check out the web installer](https://install.soca.dev) to verify your setup
+
 ## Install Scale-Out Computing on AWS
 
-Open CloudFormation bash and select "Create Stack". Copy the URL of your install template and click "Next".
+Open CloudFormation console and select "Create Stack". Copy the URL of your install template and click "Next".
 
 ![](imgs/install-6.png)
 
@@ -137,46 +147,75 @@ Last login: Mon Oct  7 21:37:21 2019 from <IP>
   \__ \ / / / // /    / /| |
  ___/ // /_/ // /___ / ___ |
 /____/ \____/ \____//_/  |_|
-Cluster: soca-soca-cluster-v1
+Cluster: soca-cluster-v1
 > source /etc/environment to load Scale-Out Computing on AWS paths
 
-[ec2-user@ip-20-0-28-184 ~]$
+[ec2-user@ip-20-0-5-212 ~]$
 ~~~
 
 At this point, you will be able to access the web interface and log in with the default LDAP user you specified at launch creation
 
 ![](imgs/install-11.png)
 
+## What if SSH port (22) is blocked by your IT?
+
+Scale-Out Computing on AWS supports [AWS Session Manager](https://docs.aws.amazon.com/systems-manager/latest/userguide/session-manager.html) in case you corporate firewall is blocking SSH port (22). SSM let you open a secure shell on your EC2 instance through a secure web-based session.
+
+First, access your AWS EC2 Console and select your Scheduler instance, then click "Connect" button
+
+![](imgs/session-1.png){: style="height:250x;width:500px"}
+
+Select "Session Manager" and click Connect
+
+![](imgs/session-2.png){: style="height:300px;width:550px"}
+
+You now have access to a secure shell directly within your browser
+
+![](imgs/session-3.png)
+
+## Enable Termination Protection
+
+This step is optional yet higly recommended. AWS CloudFormation allows you to protect a stack from being accidently deleted. If you attempt to delete a stack with termination protection enabled, the deletion fails and the stack, including its status, will remain unchanged.
+To enable "Termination Protect" select your Primary template and click "Stack Action" button then "Edit Termination Protection". Choose "Enabled" and click Save. Choose "Disabled" if you want to be able to delete the stack again.
+
+## Important Services
+
+!!!note 
+    All services on SOCA will automatically restart if you restart your scheduler instance
+   
+Run the following command (as root) if you want to restart any service: 
+
+   - Scheduler: `service pbs start`
+   - SSSD: `service sssd start`
+   - OpenLDAP: `service openldap start`
+   - Web UI `/apps/soca/<CLUSTER_ID>/cluster_web_ui/socawebui.sh start`
+   - NFS partitions `mount -a` (mount configuration is available on `/etc/fstab`)
+
+
+## Operational Metrics
+
+This solution includes an option to send anonymous operational metrics to AWS. We use this data to better understand how customers use this solution and related services and products. 
+Note that AWS will own the data gathered via this survey. Data collection will be subject to the [AWS Privacy Policy](https://aws.amazon.com/privacy/). 
+
+To opt out of this feature, modify the `/apps/soca/<CLUSTER_ID>/cluster_manager/cloudformation_builder` and set `allow_anonymous_data_collection` variable to `False`
+
+When enabled, the following information is collected and sent to AWS:
+
+       - Solution ID: The AWS solution identifier
+       - Base Operating System: The operating system selected for the solution deployment
+       - Unique ID (UUID): Randomly generated, unique identifier for each solution deployment
+       - Timestamp: Data-collection timestamp
+       - Instance Data: Type or count of the state and type of instances that are provided for by the Amazon EC2 scheduler instance for each job in each AWS Region
+       - Keep Forever: If instances are running when no job is running
+       - EFA Support: If EFA support was selected
+       - Spot Support: If Spot support was invoked for new auto-scaling stacks
+       - Stack Creation Version: The version of the stack that is created or deleted
+       - Status: The status of the stack (stack_created or stack_deleted)
+       - Scratch Disk Size: The size of the scratch disk selected for each solution deployment
+       - Region: The region where the stack is deployed
+       - FSxLustre: If the job is using FSx for Lustre
+
 ## What's next ?
 
-Learn [how to access your cluster](access-soca-cluster.md), [how to submit your first job](tutorials/launch-your-first-job.md) or even [how to change your Scale-Out Computing on AWS DNS](tutorials/update-soca-dns-ssl-certificate.md) to match your personal domain name.
+Learn [how to access your cluster](access-soca-cluster.md), [how to submit your first job](tutorials/launch-your-first-job.md) or even [how to change your Scale-Out Computing on AWS DNS](security/update-soca-dns-ssl-certificate.md) to match your personal domain name.
 
-## Project Structure
-Refer to the project structure below if you want to deploy your own customization
-~~~bash
-.
-├── solution-for-scale-out-computing-on-aws.template    [ Soca Install Template ]
-├── soca                           
-│   ├── cluster_analytics                               [ Scripts to ingest cluster/job data into ELK ]
-│   ├── cluster_hooks                                   [ Scheduler Hooks ]
-│   ├── cluster_logs_management                         [ Scripts to manage cluster log rotation ]
-│   ├── cluster_manager                                 [ Scripts to control Soca cluster ]
-│   └── cluster_web_ui                                  [ Web Interface ]
-├── scripts                                             
-│   ├── ComputeNode.sh                                  [ Configure Compute Node ]
-│   ├── ComputeNodeInstallDCV.sh                        [ Configure DCV Host ]
-│   ├── ComputeNodePostReboot.sh                        [ Post Reboot Compute Node actions ]
-│   ├── ComputeNodeUserCustomization.sh                 [ User customization ]
-│   ├── config.cfg                                      [ List of all packages to install ]
-│   ├── Scheduler.sh                                    [ Configure Schedule Node ]
-│   └── SchedulerPostReboot.sh                          [ Post Reboot Scheduler Node actions ]
-└── templates                              
-    ├── Analytics.template                              [ Manage ELK stack for your cluster ]
-    ├── ComputeNode.template                            [ Manage simulation nodes ]
-    ├── Configuration.template                          [ Centralize cluster configuration ]
-    ├── Network.template                                [ Manage VPC configuration ]
-    ├── Scheduler.template                              [ Manage Scheduler host ]
-    ├── Security.template                               [ Manage ACL, IAM and SGs ]
-    ├── Storage.template                                [ Manage backend storage ]
-    └── Viewer.template                                 [ Manage DCV sessions ]
-~~~

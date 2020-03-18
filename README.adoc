@@ -1,5 +1,9 @@
-= Scale-Out Computing on AWS :palm_tree:
+= Scale-Out Computing on AWS - HPC made easy :palm_tree:
 :toc:
+
+== :book: Documentation
+
+https://awslabs.github.io/scale-out-computing-on-aws/[https://awslabs.github.io/scale-out-computing-on-aws/]
 
 == :rocket: How to install Scale-Out Computing on AWS
 
@@ -32,30 +36,23 @@ python source/manual_build.py
 
 Refer to https://awslabs.github.io/scale-out-computing-on-aws/install-soca-cluster/[https://awslabs.github.io/scale-out-computing-on-aws/install-soca-cluster/] for installation instructions.
 
-== :book: Documentation
-
-https://awslabs.github.io/scale-out-computing-on-aws/[https://awslabs.github.io/scale-out-computing-on-aws/]
-
 == :pencil2: File Structure
 Scale-Out Computing on AWS project consists in a collection of CloudFormation templates, Shell scripts and Python code.
 ```bash
 .
-├── scale-out-computing-on-aws.template                 [ Soca Install Template ]
-├── soca                           
+├── scale-out-computing-on-aws.template                 [ Soca Primary Template ]
+├── soca
 │   ├── cluster_analytics                               [ Scripts to ingest cluster/job data into ELK ]
 │   ├── cluster_hooks                                   [ Scheduler Hooks ]
 │   ├── cluster_logs_management                         [ Scripts to manage cluster log rotation ]
 │   ├── cluster_manager                                 [ Scripts to control Soca cluster ]
 │   └── cluster_web_ui                                  [ Web Interface ]
-├── scripts                                             
-│   ├── ComputeNode.sh                                  [ Configure Compute Node ]
-│   ├── ComputeNodeInstallDCV.sh                        [ Configure DCV Host ]
-│   ├── ComputeNodePostReboot.sh                        [ Post Reboot Compute Node actions ]
-│   ├── ComputeNodeUserCustomization.sh                 [ User customization ]
+│   └── cluster_node_bootstrap                          [ Script to configure compute nodes]
+├── scripts
 │   ├── config.cfg                                      [ List of all packages to install ]
 │   ├── Scheduler.sh                                    [ Configure Schedule Node ]
 │   └── SchedulerPostReboot.sh                          [ Post Reboot Scheduler Node actions ]
-└── templates                              
+└── templates
     ├── Analytics.template                              [ Manage ELK stack for your cluster ]
     ├── ComputeNode.template                            [ Manage simulation nodes ]
     ├── Configuration.template                          [ Centralize cluster configuration ]

@@ -11,6 +11,12 @@ Parameters:
 
 Resources:
   Vpc:
+    Metadata:
+      cfn_nag:
+        rules_to_suppress:
+          - id: W60
+            reason: "Not enforcing VPC Flow Log. Customers are able to enable it post-launch if needed"
+
     Type: AWS::EC2::VPC
     Properties:
       EnableDnsSupport: true

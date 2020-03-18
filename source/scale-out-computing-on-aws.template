@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: 2010-09-09
-Description: (SO0072) - Scale-Out Computing on AWS. Template version 1
+Description: (SO0072) - Scale-Out Computing on AWS. Template version 2.0.0
 Metadata:
   AWS::CloudFormation::Interface:
     ParameterGroups:
@@ -71,7 +71,6 @@ Parameters:
     "Default": "amazonlinux2"
     "Description": IMPORTANT CENTOS USERS > You MUST subscribe to https://aws.amazon.com/marketplace/pp/B00O7WM7QW first if using CentOS
 
-
   VpcCidr:
     Type: String
     Default: 110.0.0.0/16
@@ -81,10 +80,9 @@ Parameters:
 
   ClientIp:
     Type: String
-    Default: "205.251.233.0/24"
-    Description: Default IP(s) allowed to directly SSH into the scheduler. Keep it restrictive !
+    Description: Default IP(s) allowed to directly SSH into the scheduler. 0.0.0.0/0 means ALL access. You probably want to change it with your own IP/subnet (x.x.x.x/32 for your own ip or x.x.x.x/24 for range. Replace x.x.x.x with your own PUBLIC IP. You can get your public IP using tools such as https://ifconfig.co/). Make sure to keep it restrictive!
     AllowedPattern: '(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})/(\d{1,2})'
-    ConstraintDescription: ClientIP must be a valid IP or network range of the form x.x.x.x/x
+    ConstraintDescription: ClientIP must be a valid IP or network range of the form x.x.x.x/x. If you want to add everyone (not recommended) use 0.0.0.0/0 otherwise specify your IP/NETMASK (e.g x.x.x/32 or x.x.x.x/24 for subnet range)
 
   SSHKeyPair:
     Type: AWS::EC2::KeyPair::KeyName
@@ -94,7 +92,7 @@ Parameters:
     Type: String
     Default: %%BUCKET_NAME%%
     Description: Name of your S3 Bucket where you uploaded your install files
-    AllowedPattern: '(?=^.{3,63}$)(?!^(\\d+\\.)+\\d+$)(^(([a-z0-9]|[a-z0-9][a-z0-9\\-]*[a-z0-9])\\.)*([a-z0-9]|[a-z0-9][a-z0-9\\-]*[a-z0-9])$)'
+    AllowedPattern: '(?=^.{3,63}$)(?!^(\d+\.)+\d+$)(^(([a-z0-9]|[a-z0-9][a-z0-9\-]*[a-z0-9])\.)*([a-z0-9]|[a-z0-9][a-z0-9\-]*[a-z0-9])$)'
     ConstraintDescription: You must specify the bucket NAME only (no s3:// or https://bucket.s3.amazonaws.com)
 
   S3InstallFolder:
@@ -111,18 +109,25 @@ Parameters:
     Type: String
     MinLength: 5
     MaxLength: 50
-    AllowedPattern: '^[a-zA-Z0-9!@#$%^&*()_+\-=\[\]{};:]*$'
-    Description: "5 characters minimum. Special chars authorized: (!@#$%^&*..)"
+    AllowedPattern: "^[A-Za-z]+[a-zA-Z0-9@!#+_^{}\\[\\]()]*$"
+    Description: "5 characters minimum. Must start with a letter. Special chars accepted: !#@+_^{}[]()"
+    ConstraintDescription: "5 characters minimum. Must start with a letter. Special chars accepted: !#@+_^{}[]()"
 
 Mappings:
+  Send:
+    AnonymousUsage:
+      Data: Yes # Must be either Yes or No. Do not use any single or double quotes. Refer to https://docs.aws.amazon.com/solutions/latest/scale-out-computing-on-aws/appendix-d.html
+
   Info:
     Data:
       ClusterIdPrefix: soca
-      Version: 0.8
+      Version: 2.0.0
     User:
       centos7: centos
       amazonlinux2: ec2-user
       rhel7: ec2-user
+
+
 
   RegionMap:
     ap-east-1: # Hong Kong
@@ -218,7 +223,7 @@ Resources:
           - Effect: Allow
             Principal:
               Service:
-                - !Sub "lambda.${AWS::URLSuffix}"
+                - lambda.amazonaws.com
             Action:
               - sts:AssumeRole
       Policies:
@@ -258,10 +263,12 @@ Resources:
           def lambda_handler(event, context):
             region = event['ResourceProperties']['Region']
             stack_name = event['ResourceProperties']['StackName']
-            regions_blacklist = ['ca-central-1', 'us-west-1']
+            regions_blacklist = ['ca-central-1', # only_2_az
+                                'us-west-1',  # only_2_az
+                                ]
 
             if region in regions_blacklist:
-              error_message = 'Please use a region with at least 3 AZs (Everything but Canada and Northern California'
+              error_message = 'Sorry, this region is not yet supported by SOCA'
               cfnresponse.send(event, context, cfnresponse.FAILED, {'error': error_message}, error_message)
               return error_message
 
@@ -270,8 +277,8 @@ Resources:
               cfnresponse.send(event, context, cfnresponse.FAILED, {'error': error_message}, error_message)
               return error_message
 
-            check_stack_name = False if not stack_name.islower() and not stack_name.isupper() else True
-            if check_stack_name is False:
+            stack_name_has_caps = any(c.isupper() for c in stack_name)
+            if stack_name_has_caps is True:
               error_message = 'Do not use any uppercase in the stack name'
               cfnresponse.send(event, context, cfnresponse.FAILED, {'error': error_message}, error_message)
               return error_message
@@ -358,6 +365,7 @@ Resources:
         ClusterId: !Join [ "-", [ !FindInMap [ Info, Data, ClusterIdPrefix ], !Ref "AWS::StackName"] ]
         ClientIp: !Ref ClientIp
         SchedulerPublicIP: !GetAtt Scheduler.Outputs.SchedulerPublicIP
+
       TemplateURL: !Join [ "/", [!Sub "https://s3.${AWS::URLSuffix}", !Ref S3InstallBucket, !Ref S3InstallFolder, "templates/Analytics.template"] ]
       TimeoutInMinutes: 30
 
@@ -391,7 +399,7 @@ Resources:
         SchedulerSecurityGroup: !GetAtt Security.Outputs.SchedulerSecurityGroup
         ComputeNodeIAMRoleArn: !GetAtt Security.Outputs.ComputeNodeIAMRoleArn
         ComputeNodeIAMRole: !GetAtt Security.Outputs.ComputeNodeIAMRole
-        ComputeNodeInstanceProfile: !GetAtt Security.Outputs.ComputeNodeInstanceProfile
+        ComputeNodeInstanceProfileArn: !GetAtt Security.Outputs.ComputeNodeInstanceProfileArn
         SchedulerIAMRoleArn: !GetAtt Security.Outputs.SchedulerIAMRoleArn
         SchedulerIAMRole: !GetAtt Security.Outputs.SchedulerIAMRole
         ComputeNodeSecurityGroup: !GetAtt Security.Outputs.ComputeNodeSecurityGroup
@@ -415,6 +423,7 @@ Resources:
         LoadBalancerArn: !GetAtt Viewer.Outputs.LoadBalancerArn
         BaseOS: !Ref BaseOS
         SolutionMetricsRoleArn: !GetAtt Security.Outputs.SolutionMetricsRoleArn
+        DefaultMetricCollection: !FindInMap [ Send, AnonymousUsage, Data ]
       TemplateURL: !Join [ "/", [!Sub "https://s3.${AWS::URLSuffix}", !Ref S3InstallBucket, !Ref S3InstallFolder, "templates/Configuration.template"] ]
       TimeoutInMinutes: 60
 

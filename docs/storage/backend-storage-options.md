@@ -102,6 +102,7 @@ Looking at the EBS bash, the disk type is now "io1" and the number of IOPS match
 ![](../imgs/storage-2.png)
 
 ### Instance store partition
+
 !!! warning "Free storage is always good"
     You are not charged for instance storage (included in the price of the instance)
 
@@ -168,7 +169,7 @@ You can combine parameters as needed. For example, `qsub -l root_size=150 -l scr
 
 ### Change the storage parameters at queue level
 
-Edit `/apps/soca/cluster_manager/settings/queue_mapping.yml` to configure default storage settings at a queue level:
+Edit `/apps/soca/<CLUSTER_ID>/cluster_manager/settings/queue_mapping.yml` to configure default storage settings at a queue level:
 
 ~~~yaml hl_lines="7 8 15 16 23"
 queue_type:

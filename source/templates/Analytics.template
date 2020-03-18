@@ -27,13 +27,15 @@ Resources:
     Properties:
       ElasticsearchVersion: 7.1
       DomainName: !Sub ${ClusterId}
+      EncryptionAtRestOptions:
+         Enabled: True
       EBSOptions:
         VolumeSize: 20
         VolumeType: gp2
         EBSEnabled: true
       ElasticsearchClusterConfig:
         InstanceCount: 1
-        InstanceType: t2.small.elasticsearch
+        InstanceType: m5.large.elasticsearch
       SnapshotOptions:
         AutomatedSnapshotStartHour: '0'
       AccessPolicies:
