@@ -27,7 +27,7 @@ python-jose==3.1.0
 python-ldap==3.2.0
 pytz==2019.1
 PyYAML==5.2
-requests==2.6.0
+requests==2.23.0
 requests-aws4auth==0.9
 rsa==3.4.2
 s3transfer==0.2.1

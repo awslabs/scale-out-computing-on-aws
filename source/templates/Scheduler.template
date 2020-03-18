@@ -148,7 +148,7 @@ Resources:
             $AWS s3 cp s3://${S3Bucket}/${S3InstallFolder}/scripts/config.cfg /root/
             $AWS s3 cp s3://${S3Bucket}/${S3InstallFolder}/scripts/requirements.txt /root/
             $AWS s3 cp s3://${S3Bucket}/${S3InstallFolder}/scripts/Scheduler.sh /root/
-            /bin/bash /root/Scheduler.sh ${EFSDataDns} ${EFSAppsDns}
+            /bin/bash /root/Scheduler.sh ${EFSDataDns} ${EFSAppsDns} >> /root/Scheduler.sh.log 2>&1
 
 
   EIPScheduler:
