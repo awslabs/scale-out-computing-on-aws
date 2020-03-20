@@ -328,6 +328,8 @@ Resources:
               - Effect: Allow
                 Action:
                   - ec2:RunInstances
+                  - ec2:CreateTags
+                  - ec2:TerminateInstances
                   - ec2:CreatePlacementGroup
                   - ec2:DeletePlacementGroup
                 Resource:
