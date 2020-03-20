@@ -23,6 +23,7 @@ from troposphere.ec2 import PlacementGroup, \
     SpotOptions, \
     CpuOptions
 from troposphere.fsx import FileSystem, LustreConfiguration
+import troposphere.ec2 as ec2
 
 
 class CustomResourceSendAnonymousMetrics(AWSCustomObject):
@@ -53,7 +54,6 @@ def main(**params):
         mip_usage = False
         instances_list = params["InstanceType"].split("+")
         asg_lt = asg_LaunchTemplate()
-        ltd = LaunchTemplateData("NodeLaunchTemplateData")
         mip = MixedInstancesPolicy()
         stack_name = Ref("AWS::StackName")
 
@@ -154,6 +154,7 @@ echo "@reboot /bin/bash /apps/soca/$SOCA_CONFIGURATION/cluster_node_bootstrap/Co
 $AWS s3 cp s3://$SOCA_INSTALL_BUCKET/$SOCA_INSTALL_BUCKET_FOLDER/scripts/config.cfg /root/
 /bin/bash /apps/soca/$SOCA_CONFIGURATION/cluster_node_bootstrap/ComputeNode.sh ''' + params['SchedulerHostname'] + ''' >> $SOCA_HOST_SYSTEM_LOG/ComputeNode.sh.log 2>&1'''
 
+        ltd = LaunchTemplateData("NodeLaunchTemplateData")
         ltd.EbsOptimized = True
         for instance in instances_list:
             if "t2." in instance:
@@ -180,6 +181,7 @@ $AWS s3 cp s3://$SOCA_INSTALL_BUCKET/$SOCA_INSTALL_BUCKET_FOLDER/scripts/config.
             InterfaceType="efa" if params["Efa"] is not False else Ref("AWS::NoValue"),
             DeleteOnTermination=True,
             DeviceIndex=0,
+            SubnetId=params["SubnetId"][0],
             Groups=[params["SecurityGroupId"]]
         )]
         ltd.UserData = Base64(Sub(UserData))
@@ -203,6 +205,19 @@ $AWS s3 cp s3://$SOCA_INSTALL_BUCKET/$SOCA_INSTALL_BUCKET_FOLDER/scripts/config.
                         DeleteOnTermination="false" if params["KeepEbs"] is True else "true",
                         Encrypted=True))
             )
+        ltd.TagSpecifications = [ec2.TagSpecifications( 
+            ResourceType="instance", 
+            Tags = base_Tags( 
+                Name=str(params["ClusterId"]) + "-compute-job-" + str(params["JobId"]), 
+                _soca_JobId=str(params["JobId"]), 
+                _soca_JobName=str(params["JobName"]),
+                _soca_JobQueue=str(params["JobQueue"]), 
+                _soca_StackId=stack_name, 
+                _soca_JobOwner=str(params["JobOwner"]), 
+                _soca_JobProject=str(params["JobProject"]),
+                _soca_KeepForever=str(params["KeepForever"]).lower(), 
+                _soca_ClusterId=str(params["ClusterId"]), 
+                _soca_NodeType="soca-compute-node"))]
         # End LaunchTemplateData
 
         # Begin Launch Template Resource
@@ -212,31 +227,87 @@ $AWS s3 cp s3://$SOCA_INSTALL_BUCKET/$SOCA_INSTALL_BUCKET_FOLDER/scripts/config.
         t.add_resource(lt)
         # End Launch Template Resource
 
-        asg_lt.LaunchTemplateSpecification = LaunchTemplateSpecification(
-            LaunchTemplateId=Ref(lt),
-            Version=GetAtt(lt, "LatestVersionNumber")
-        )
+        if int(params["DesiredCapacity"]) == 1:
+            instance = ec2.Instance("ec2instance")
+            instance.ImageId = params["ImageId"]
+            instance.UserData = Base64(Sub(UserData))
+            instance.KeyName = params["SSHKeyPair"]
+            instance.InstanceType = instances_list[0]
+            instance.LaunchTemplate = ec2.LaunchTemplateSpecification(
+                LaunchTemplateId=Ref(lt),
+                Version=GetAtt(lt, "LatestVersionNumber"))
 
-        asg_lt.Overrides = []
-        for instance in instances_list:
-            asg_lt.Overrides.append(LaunchTemplateOverrides(
-                InstanceType=instance))
+            if params["PlacementGroup"] is True:
+                pg = PlacementGroup("ComputeNodePlacementGroup")
+                pg.Strategy = "cluster"
+                t.add_resource(pg)
+                instance.PlacementGroup = Ref(pg)
 
-        # Begin InstancesDistribution
-        if params["SpotPrice"] is not False and \
-                params["SpotAllocationCount"] is not False and \
-                (params["DesiredCapacity"] - params["SpotAllocationCount"]) > 0:
-            mip_usage = True
-            idistribution = InstancesDistribution()
-            idistribution.OnDemandAllocationStrategy = "prioritized"  # only supported value
-            idistribution.OnDemandBaseCapacity = params["DesiredCapacity"] - params["SpotAllocationCount"]
-            idistribution.OnDemandPercentageAboveBaseCapacity = "0"  # force the other instances to be SPOT
-            idistribution.SpotMaxPrice = Ref("AWS::NoValue") if params["SpotPrice"] == "auto" else str(
-                params["SpotPrice"])
-            idistribution.SpotAllocationStrategy = params['SpotAllocationStrategy']
-            mip.InstancesDistribution = idistribution
+            t.add_resource(instance)
 
-        # End MixedPolicyInstance
+        else:
+
+            asg_lt.LaunchTemplateSpecification = LaunchTemplateSpecification(
+                LaunchTemplateId=Ref(lt),
+                Version=GetAtt(lt, "LatestVersionNumber")
+            )
+
+            asg_lt.Overrides = []
+            for instance in instances_list:
+                asg_lt.Overrides.append(LaunchTemplateOverrides(
+                    InstanceType=instance))
+
+            # Begin InstancesDistribution
+            if params["SpotPrice"] is not False and \
+                    params["SpotAllocationCount"] is not False and \
+                    (int(params["DesiredCapacity"]) - int(params["SpotAllocationCount"])) > 0:
+                mip_usage = True
+                idistribution = InstancesDistribution()
+                idistribution.OnDemandAllocationStrategy = "prioritized"  # only supported value
+                idistribution.OnDemandBaseCapacity = params["DesiredCapacity"] - params["SpotAllocationCount"]
+                idistribution.OnDemandPercentageAboveBaseCapacity = "0"  # force the other instances to be SPOT
+                idistribution.SpotMaxPrice = Ref("AWS::NoValue") if params["SpotPrice"] == "auto" else str(
+                    params["SpotPrice"])
+                idistribution.SpotAllocationStrategy = params['SpotAllocationStrategy']
+                mip.InstancesDistribution = idistribution
+
+            # End MixedPolicyInstance
+
+            # Begin AutoScalingGroup Resource
+            asg = AutoScalingGroup("AutoScalingComputeGroup")
+            asg.DependsOn = "NodeLaunchTemplate"
+            if mip_usage is True or instances_list.__len__() > 1:
+                mip.LaunchTemplate = asg_lt
+                asg.MixedInstancesPolicy = mip
+
+            else:
+                asg.LaunchTemplate = LaunchTemplateSpecification(
+                    LaunchTemplateId=Ref(lt),
+                    Version=GetAtt(lt, "LatestVersionNumber"))
+
+            asg.MinSize = int(params["DesiredCapacity"])
+            asg.MaxSize = int(params["DesiredCapacity"])
+            asg.VPCZoneIdentifier = params["SubnetId"]
+
+            if params["PlacementGroup"] is True:
+                pg = PlacementGroup("ComputeNodePlacementGroup")
+                pg.Strategy = "cluster"
+                t.add_resource(pg)
+                asg.PlacementGroup = Ref(pg)
+
+            asg.Tags = Tags(
+                Name=str(params["ClusterId"]) + "-compute-job-" + str(params["JobId"]),
+                _soca_JobId=str(params["JobId"]),
+                _soca_JobName=str(params["JobName"]),
+                _soca_JobQueue=str(params["JobQueue"]),
+                _soca_StackId=stack_name,
+                _soca_JobOwner=str(params["JobOwner"]),
+                _soca_JobProject=str(params["JobProject"]),
+                _soca_KeepForever=str(params["KeepForever"]).lower(),
+                _soca_ClusterId=str(params["ClusterId"]),
+                _soca_NodeType="soca-compute-node")
+            t.add_resource(asg)
+            # End AutoScalingGroup Resource
 
         # Begin FSx for Lustre
         if params["FSxLustreConfiguration"]["fsx_lustre"] is not False:
@@ -269,42 +340,6 @@ $AWS s3 cp s3://$SOCA_INSTALL_BUCKET/$SOCA_INSTALL_BUCKET_FOLDER/scripts/config.
                 t.add_resource(fsx_lustre)
         # End FSx For Lustre
 
-        # Begin AutoScalingGroup Resource
-        asg = AutoScalingGroup("AutoScalingComputeGroup")
-        asg.DependsOn = "NodeLaunchTemplate"
-        if mip_usage is True or instances_list.__len__() > 1:
-            mip.LaunchTemplate = asg_lt
-            asg.MixedInstancesPolicy = mip
-
-        else:
-            asg.LaunchTemplate = LaunchTemplateSpecification(
-                LaunchTemplateId=Ref(lt),
-                Version=GetAtt(lt, "LatestVersionNumber"))
-
-        asg.MinSize = int(params["DesiredCapacity"])
-        asg.MaxSize = int(params["DesiredCapacity"])
-        asg.VPCZoneIdentifier = params["SubnetId"]
-
-        if params["PlacementGroup"] is True:
-            pg = PlacementGroup("ComputeNodePlacementGroup")
-            pg.Strategy = "cluster"
-            t.add_resource(pg)
-            asg.PlacementGroup = Ref(pg)
-
-        asg.Tags = Tags(
-            Name=str(params["ClusterId"]) + "-compute-job-" + str(params["JobId"]),
-            _soca_JobId=str(params["JobId"]),
-            _soca_JobName=str(params["JobName"]),
-            _soca_JobQueue=str(params["JobQueue"]),
-            _soca_StackId=stack_name,
-            _soca_JobOwner=str(params["JobOwner"]),
-            _soca_JobProject=str(params["JobProject"]),
-            _soca_KeepForever=str(params["KeepForever"]).lower(),
-            _soca_ClusterId=str(params["ClusterId"]),
-            _soca_NodeType="soca-compute-node")
-        t.add_resource(asg)
-        # End AutoScalingGroup Resource
-
         # Begin Custom Resource
         # Change Mapping to No if you want to disable this
         if allow_anonymous_data_collection is True:
@@ -321,7 +356,7 @@ $AWS s3 cp s3://$SOCA_INSTALL_BUCKET/$SOCA_INSTALL_BUCKET_FOLDER/scripts/config.
             metrics.KeepForever = str(params["KeepForever"])
             metrics.FsxLustre = str(params["FSxLustreConfiguration"])
             t.add_resource(metrics)
-            # End Custom Resource
+        # End Custom Resource
 
         if debug is True:
             print(t.to_json())
