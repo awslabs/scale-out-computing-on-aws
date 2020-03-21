@@ -68,6 +68,12 @@ def create_home(username):
         # Create user directory structure and permissions
         user_path = user_home + '/' + username + '/.ssh'
         run_command('mkdir -p ' + user_path)
+        shutil.copy('/etc/skel/.bashrc', user_path[:-4])
+        shutil.copy('/etc/skel/.bash_profile', user_path[:-4])
+        shutil.copy('/etc/skel/.bash_logout', user_path[:-4])
+        shutil.chown(user_home + '/' + username + '/.bashrc', user=username, group=username)
+        shutil.chown(user_home + '/' + username + '/.bash_profile', user=username, group=username)
+        shutil.chown(user_home + '/' + username + '/.bash_logout', user=username, group=username)
         print(private_key_str, file=open(user_path + '/id_rsa', 'w'))
         print(public_key_str, file=open(user_path + '/id_rsa.pub', 'w'))
         print(public_key_str, file=open(user_path + '/authorized_keys', 'w'))
