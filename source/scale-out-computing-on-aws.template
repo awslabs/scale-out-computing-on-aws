@@ -263,9 +263,7 @@ Resources:
           def lambda_handler(event, context):
             region = event['ResourceProperties']['Region']
             stack_name = event['ResourceProperties']['StackName']
-            regions_blacklist = ['ca-central-1', # only_2_az
-                                'us-west-1',  # only_2_az
-                                ]
+            regions_blacklist = ['us-west-1'] # Only 2 AZ
 
             if region in regions_blacklist:
               error_message = 'Sorry, this region is not yet supported by SOCA'
