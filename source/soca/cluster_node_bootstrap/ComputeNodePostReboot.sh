@@ -17,6 +17,10 @@ systemctl stop pbs
 if [[ "$SOCA_JOB_QUEUE" == "desktop" ]]; then
     echo "Installing DCV"
     /bin/bash /apps/soca/$SOCA_CONFIGURATION/cluster_node_bootstrap/ComputeNodeInstallDCV.sh >> $SOCA_HOST_SYSTEM_LOG/ComputeNodeInstallDCV.log 2>&1
+    if [[ $? -eq 3 ]];
+     then
+       REQUIRE_REBOOT=1
+    fi
     sleep 30
 fi
 # End DCV Customization

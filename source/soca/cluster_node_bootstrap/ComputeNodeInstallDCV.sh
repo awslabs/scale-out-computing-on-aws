@@ -89,11 +89,13 @@ sudo systemctl start dcvserver
 systemctl stop firewalld
 systemctl disable firewalld
 
-# Final reboot is needed to update GPU drivers if running on G2/G3
+# Final reboot is needed to update GPU drivers if running on G2/G3. Reboot will be triggered by ComputeNodePostReboot.sh
 if [[ "$INSTANCE_TYPE" == "g2" ]] || [[ "$INSTANCE_TYPE" == "g3"  ]]
 then
     echo "@reboot $DCVGLADMIN enable >> /root/enable_dcvgladmin.log 2>&1" | crontab -
-    reboot
+    exit 3 # notify ComputeNodePostReboot.sh to force reboot
 fi
+
 # Start X
 systemctl isolate graphical.target
+exit 0
