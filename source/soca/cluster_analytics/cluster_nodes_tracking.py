@@ -52,8 +52,14 @@ if __name__ == "__main__":
     try:
         command = subprocess.Popen((pbsnodes + pbsnodes_args).split(), stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
         stdout, stderr = command.communicate()
-        pbsnodes_output = json.loads(stdout)
+        if 'pbsnodes: Server has no node list' in stdout.decode("utf-8"):
+            exit(0)
+        else:
+            pbsnodes_output = json.loads(stdout)
     except subprocess.CalledProcessError as e:
+        exit(1)
+    except Exception as e:
+        print('Unknown Error: '+ str(e))
         exit(1)
 
     timestamp = pbsnodes_output['timestamp']
@@ -62,10 +68,4 @@ if __name__ == "__main__":
 
         if es_index_new_item(json.dumps(data)) is False:
             print('Error while indexing ' + str(data))
-
-
-
-
-
-
 
