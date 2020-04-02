@@ -192,29 +192,6 @@ def check_available_licenses(commands, license_to_check):
     return output
 # END FLEXLM FUNCTIONS
 
-
-# BEGIN EC2 FUNCTIONS
-def can_launch_capacity(instance_type, count, image_id):
-    instance_to_test = instance_type.split('+')
-    for instance in instance_to_test:
-        try:
-            ec2.run_instances(
-                ImageId=image_id,
-                InstanceType=instance,
-                SubnetId=aligo_configuration['PrivateSubnet1'],
-                MaxCount=count,
-                MinCount=count,
-                DryRun=True)
-
-        except Exception as e:
-            if e.response['Error'].get('Code') == 'DryRunOperation':
-                logpush('[Dispatcher.py] Dry Run Succeed for ' + instance + ', capacity can be added')
-            else:
-                logpush('[Dispatcher.py] Dry Run Failed, capacity ' + instance + ' can not be added: ' + str(e), 'error')
-                return False
-    return True
-
-
 def clean_cloudformation_stack():
     pass
     # handle specific use case where
@@ -492,46 +469,44 @@ if __name__ == "__main__":
                                 can_run = False
 
                         logpush('job_' + job_id + ' can run, doing dry run test with following parameters: ' + job_parameter_values['instance_type'] + ' *  ' +str(desired_capacity))
-                        if can_launch_capacity(job_parameter_values['instance_type'], desired_capacity, job_parameter_values['instance_ami']) is True:
-                            try:
+                        try:
 
-                                # Adding extra parameters to job_parameter_values
-                                job_parameter_values['desired_capacity'] = desired_capacity
-                                job_parameter_values['queue'] = queue_name
-                                job_parameter_values['job_id'] = job_id
-                                job_parameter_values['job_name'] = job['get_job_name']
-                                job_parameter_values['job_owner'] = job['get_job_owner']
-                                job_parameter_values['job_project'] = job['get_job_project']
-                                job_parameter_values['keep_forever'] = False
+                            # Adding extra parameters to job_parameter_values
+                            job_parameter_values['desired_capacity'] = desired_capacity
+                            job_parameter_values['queue'] = queue_name
+                            job_parameter_values['job_id'] = job_id
+                            job_parameter_values['job_name'] = job['get_job_name']
+                            job_parameter_values['job_owner'] = job['get_job_owner']
+                            job_parameter_values['job_project'] = job['get_job_project']
+                            job_parameter_values['keep_forever'] = False
 
-                                create_new_asg = add_nodes.main(**job_parameter_values)
-                                if create_new_asg['success'] is True:
-                                    compute_unit = create_new_asg['compute_node']
-                                    stack_id = create_new_asg['stack_name']
-                                    logpush(str(job_id) + " : compute_node=" + str(compute_unit) + " | stack_id=" +str(stack_id))
+                            create_new_asg = add_nodes.main(**job_parameter_values)
+                            if create_new_asg['success'] is True:
+                                compute_unit = create_new_asg['compute_node']
+                                stack_id = create_new_asg['stack_name']
+                                logpush(str(job_id) + " : compute_node=" + str(compute_unit) + " | stack_id=" +str(stack_id))
+                                # Add new PBS resource to the job
+                                # stack_id=xxx -> CloudFormation Stack Name
+                                # compute_node=xxx -> Unique ID that will be assigned to all EC2 hosts for this job
 
-                                    # Add new PBS resource to the job
-                                    # stack_id=xxx -> CloudFormation Stack Name
-                                    # compute_node=xxx -> Unique ID that will be assigned to all EC2 hosts for this job
+                                select = job_required_resource['select'].split(':compute_node')[0] + ':compute_node=' + str(compute_unit)
+                                logpush('select variable: ' + str(select))
 
-                                    select = job_required_resource['select'].split(':compute_node')[0] + ':compute_node=' + str(compute_unit)
-                                    logpush('select variable: ' + str(select))
+                                run_command([system_cmds['qalter'], "-l", "select="+select, str(job_id)], "call")
+                                run_command([system_cmds['qalter'], "-l", "stack_id=" + stack_id, str(job_id)], "call")
 
-                                    run_command([system_cmds['qalter'], "-l", "select="+select, str(job_id)], "call")
-                                    run_command([system_cmds['qalter'], "-l", "stack_id=" + stack_id, str(job_id)], "call")
+                                for resource, count_to_substract in license_requirement.items():
+                                    license_available[resource] = (license_available[resource] - count_to_substract)
+                                    logpush('License available: ' + str(license_available[resource]))
 
-                                    for resource, count_to_substract in license_requirement.items():
-                                        license_available[resource] = (license_available[resource] - count_to_substract)
-                                        logpush('License available: ' + str(license_available[resource]))
-
-                                else:
-                                    logpush('Error while trying to create ASG: ' + str(create_new_asg))
+                            else:
+                                logpush('Error while trying to create ASG: ' + str(create_new_asg))
 
 
-                            except Exception as e:
-                                exc_type, exc_obj, exc_tb = sys.exc_info()
-                                fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
-                                logpush('Create ASG (refer to add_nodes.py) failed for job_'+job_id + ' with error: ' + str(e) + ' ' + str(exc_type) + ' ' + str(fname) + ' ' + str(exc_tb.tb_lineno), 'error')
+                        except Exception as e:
+                            exc_type, exc_obj, exc_tb = sys.exc_info()
+                            fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
+                            logpush('Create ASG (refer to add_nodes.py) failed for job_'+job_id + ' with error: ' + str(e) + ' ' + str(exc_type) + ' ' + str(fname) + ' ' + str(exc_tb.tb_lineno), 'error')
 
-                        else:
-                            pass
+                    else:
+                        pass
