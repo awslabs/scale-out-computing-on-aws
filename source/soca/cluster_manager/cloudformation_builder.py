@@ -159,10 +159,11 @@ $AWS s3 cp s3://$SOCA_INSTALL_BUCKET/$SOCA_INSTALL_BUCKET_FOLDER/scripts/config.
             if "t2." in instance:
                 ltd.EbsOptimized = False
             else:
-                # t2 does not support CpuOptions
-                ltd.CpuOptions = CpuOptions(
-                    CoreCount=int(params["CoreCount"]),
-                    ThreadsPerCore=1 if params["ThreadsPerCore"] is False else 2)
+                # metal + t2 does not support CpuOptions
+                if "metal" not in instance:
+                    ltd.CpuOptions = CpuOptions(
+                        CoreCount=int(params["CoreCount"]),
+                        ThreadsPerCore=1 if params["ThreadsPerCore"] is False else 2)
 
         ltd.IamInstanceProfile = IamInstanceProfile(Arn=params["ComputeNodeInstanceProfileArn"])
         ltd.KeyName = params["SSHKeyPair"]
