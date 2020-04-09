@@ -109,6 +109,24 @@ If needed, you can filter by project name (note: this type of filtering can be a
 
 ![](../imgs/dashboard-7.png)
 
+## Total number of CPUs by instance type
+
+!!!example "Configuration"
+    * Select "Area" and "pbsnodes" index
+    * Y Axis (Metrics):
+        * Aggregation: Sum
+        * Field: resources_available.ncpus
+    * X Axis (Buckets):
+        * Aggregation: Date Histogram,
+        * Field: timestamp
+        * Interval: Auto
+    * Split Series (Buckets):
+        * Sub Aggregation: Terms
+        * Field: resources_available.instance_type.keyword
+        * Order By: metric: Sum
+
+![](../imgs/dashboard-10.png)
+
 ## Detailed information per user
 
 !!!example "Configuration"
