@@ -21,15 +21,6 @@ else
    yum groupinstall "GNOME Desktop" -y
 fi
 
-# If GPU instance, install Nvidia Drivers first
-if [[ "$INSTANCE_TYPE" == "g2" || "$INSTANCE_TYPE" == "g3"  ]]
-then
-    $AWS s3 cp --recursive s3://ec2-linux-nvidia-drivers/latest/ .
-    /bin/sh /root/NVIDIA-Linux-x86_64*.run -q -a -n -X -s
-    NVIDIAXCONFIG=$(which nvidia-xconfig)
-    $NVIDIAXCONFIG --preserve-busid --enable-all-gpus
-fi
-
 # Automatic start Gnome upon reboot
 systemctl set-default graphical.target
 

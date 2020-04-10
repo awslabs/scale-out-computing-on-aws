@@ -13,6 +13,17 @@ service pbs stop
 crontab -r
 systemctl stop pbs
 
+# Install latest NVIDIA driver if GPU instance is detected
+INSTANCE_TYPE=`curl --silent  http://169.254.169.254/latest/meta-data/instance-type | cut -d. -f1`
+GPU_INSTANCE_FAMILY=(g2 g3 g4 p2 p3 p3dn)
+if [[ "${GPU_INSTANCE_FAMILY[@]}" =~ "${INSTANCE_TYPE}" ]];
+then
+    $AWS s3 cp --recursive s3://ec2-linux-nvidia-drivers/latest/ .
+    /bin/sh /root/NVIDIA-Linux-x86_64*.run -q -a -n -X -s
+    NVIDIAXCONFIG=$(which nvidia-xconfig)
+    $NVIDIAXCONFIG --preserve-busid --enable-all-gpus
+fi
+
 # Begin DCV Customization
 if [[ "$SOCA_JOB_QUEUE" == "desktop" ]]; then
     echo "Installing DCV"
