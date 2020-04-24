@@ -40,6 +40,9 @@ Parameters:
   SchedulerIAMRoleArn:
     Type: String
 
+  SpotFleetIAMRoleArn:
+    Type: String
+
   EFSAppsDns:
     Type: String
 
@@ -207,6 +210,7 @@ Resources:
       "SchedulerSecurityGroup": "${SchedulerSecurityGroup}",
       "ComputeNodeSecurityGroup": "${ComputeNodeSecurityGroup}",
       "SchedulerIAMRoleArn": "${SchedulerIAMRoleArn}",
+      "SpotFleetIAMRoleArn": "${SpotFleetIAMRoleArn}",
       "SchedulerIAMRole": "${SchedulerIAMRole}",
       "ComputeNodeIAMRoleArn": "${ComputeNodeIAMRoleArn}",
       "ComputeNodeIAMRole": "${ComputeNodeIAMRole}",

@@ -5,9 +5,9 @@ source /root/config.cfg
 DCV_HOST_ALTNAME=$(hostname | cut -d. -f1)
 AWS=$(which aws)
 INSTANCE_TYPE=`curl --silent  http://169.254.169.254/latest/meta-data/instance-type | cut -d. -f1`
+GPU_INSTANCE_FAMILY=(g2 g3 g4 p2 p3 p3dn)
 
-
-# Install Gnome
+# Install Gnome & Mate Desktop
 if [[ $SOCA_BASE_OS == "rhel7" ]]
 then
    yum groupinstall "Server with GUI" -y
@@ -15,6 +15,8 @@ then
 elif [[ $SOCA_BASE_OS == "amazonlinux2" ]]
 then
    yum install -y $(echo ${DCV_AMAZONLINUX_PKGS[*]})
+   amazon-linux-extras install mate-desktop1.x
+   bash -c 'echo PREFERRED=/usr/bin/mate-session > /etc/sysconfig/desktop'
 
 else
     # Centos7
@@ -38,7 +40,7 @@ DCVGLADMIN=$(which dcvgladmin)
 
 # Uninstall dcv-gl if not GPU instances
 # Note: NVIDIA-CUDA drivers must be installed first
-if [[ "$INSTANCE_TYPE" != "g2" ]] || [[ "$INSTANCE_TYPE" != "g3"  ]]
+if [[ "${GPU_INSTANCE_FAMILY[@]}" =~ "${INSTANCE_TYPE}" ]];
 then
     $DCVGLADMIN disable
 fi
@@ -81,7 +83,8 @@ systemctl stop firewalld
 systemctl disable firewalld
 
 # Final reboot is needed to update GPU drivers if running on G2/G3. Reboot will be triggered by ComputeNodePostReboot.sh
-if [[ "$INSTANCE_TYPE" == "g2" ]] || [[ "$INSTANCE_TYPE" == "g3"  ]]
+
+if [[ "${GPU_INSTANCE_FAMILY[@]}" =~ "${INSTANCE_TYPE}" ]];
 then
     echo "@reboot $DCVGLADMIN enable >> /root/enable_dcvgladmin.log 2>&1" | crontab -
     exit 3 # notify ComputeNodePostReboot.sh to force reboot

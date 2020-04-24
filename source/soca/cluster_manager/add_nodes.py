@@ -129,8 +129,13 @@ def check_config(**kwargs):
                             aligo_configuration['PrivateSubnet2'],
                             aligo_configuration['PrivateSubnet3']]
 
+    SpotFleet = True if (kwargs['spot_price'] is not False and (int(kwargs['desired_capacity']) > 1 or kwargs['instance_type'].__len__() > 1)) else False
+
     if kwargs['subnet_id'] is False:
-        kwargs['subnet_id'] = [random.choice(soca_private_subnets)]
+        if SpotFleet is True:
+            kwargs['subnet_id'] = soca_private_subnets
+        else:
+            kwargs['subnet_id'] = [random.choice(soca_private_subnets)]
     else:
         kwargs['subnet_id'] = kwargs['subnet_id'].split('+')
         for subnet in kwargs['subnet_id']:
@@ -179,10 +184,39 @@ def check_config(**kwargs):
 
 
     # Validate Spot Allocation Strategy
+    mapping = {
+        "lowest-price":
+            {
+                "ASG": "lowest-price",
+                "SpotFleet": "lowestPrice",
+                "accepted_values": ["lowest-price", "lowestprice"]
+            },
+        "diversified":
+            {
+                "ASG": "lowest-price",
+                "SpotFleet": "diversified",
+                "accepted_values": ["diversified"]
+            },
+        "capacity-optimized":
+            {
+                "ASG": "capacity-optimized",
+                "SpotFleet": "capacityOptimized",
+                "accepted_values": ["capacityoptimized", "capacity-optimized", "optimized"]
+            }
+    }
+
     if kwargs['spot_allocation_strategy'] is not False:
-        spot_allocation_strategy_allowed = ['lowest-price', 'capacity-optimized']
+        for k,v in mapping.items():
+            if kwargs['spot_allocation_strategy'].lower() in v["accepted_values"]:
+                if SpotFleet is True:
+                    kwargs['spot_allocation_strategy'] = v["SpotFleet"]
+                    break
+                else:
+                    kwargs['spot_allocation_strategy'] = v["ASG"]
+                    break
+        spot_allocation_strategy_allowed = ['lowestPrice', 'lowest-price', 'diversified', 'capacityOptimized', 'capacity-optimized']
         if kwargs['spot_allocation_strategy'] not in spot_allocation_strategy_allowed:
-            error = return_message('spot_allocation_strategy_allowed (' + str(kwargs['spot_allocation_strategy']) + ') must be one of the following value: ' + ','.join(spot_allocation_strategy_allowed))
+            error = return_message('spot_allocation_strategy_allowed (' + str(kwargs['spot_allocation_strategy']) + ') must be one of the following value: ' + ', '.join(spot_allocation_strategy_allowed))
 
     # Validate Spot Allocation Percentage
     if kwargs['spot_allocation_count'] is not False:
@@ -419,6 +453,10 @@ def main(**kwargs):
                 'Key': 'spot_allocation_strategy',
                 'Default': 'lowest-price'
             },
+            'SpotFleetIAMRoleArn': {
+                'Key': None,
+                'Default': aligo_configuration['SpotFleetIAMRoleArn']
+            },
             'SpotPrice': {
                 'Key': 'spot_price',
                 'Default': False
@@ -525,7 +563,7 @@ if __name__ == "__main__":
     parser.add_argument('--scratch_iops', default=0, nargs='?', help="Size of /scratch in GB")
     parser.add_argument('--scratch_size', default=0, nargs='?', help="Size of /scratch in GB")
     parser.add_argument('--spot_allocation_count', default=False, nargs='?', help="When using mixed OD and SPOT, choose %% of SPOT")
-    parser.add_argument('--spot_allocation_strategy', default=False, nargs='?', help="lowest-cost or capacity-optimized")
+    parser.add_argument('--spot_allocation_strategy', default=False, nargs='?', help="lowest-price or capacity-optimized or diversified (supported only for SpotFleet)")
     parser.add_argument('--spot_price', nargs='?', default=False, help="Spot Price")
     parser.add_argument('--keep_ebs', action='store_const', const=True, default=False, help="Do not delete EBS disk")
     parser.add_argument('--subnet_id', default=False, help='Launch capacity in a special subnet')
@@ -537,7 +575,7 @@ if __name__ == "__main__":
         if (arg.keep_forever).lower() == 'true':
             print("""
             IMPORTANT:
-            You specified --keep-forever flag. This instance will be running 24/7 until you MANUALLY terminate the Cloudformation Stack  
+            You specified --keep_forever flag. This instance will be running 24/7 until you MANUALLY terminate the Cloudformation Stack  
             """)
     else:
         print('Error: ' + str(launch))

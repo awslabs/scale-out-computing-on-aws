@@ -4,7 +4,7 @@
 #
 
 AWSTemplateFormatVersion: 2010-09-09
-Description: (SO0072) - Scale-Out Computing on AWS. Template version 1
+Description: (SO0072) - Scale-Out Computing on AWS. Template version 2.0.1
 Metadata:
   AWS::CloudFormation::Interface:
     ParameterGroups:
@@ -318,7 +318,7 @@ Resources:
           def lambda_handler(event, context):
             region = event['ResourceProperties']['Region']
             stack_name = event['ResourceProperties']['StackName']
-            regions_blacklist = ['us-west-1'] # Only 2 AZ
+            regions_blacklist = ['us-west-1'] # only 2 AZs
 
             if region in regions_blacklist:
               error_message = 'Sorry, this region is not yet supported by SOCA'
@@ -428,6 +428,7 @@ Resources:
         ComputeNodeIAMRole: !GetAtt Security.Outputs.ComputeNodeIAMRole
         ComputeNodeInstanceProfileArn: !GetAtt Security.Outputs.ComputeNodeInstanceProfileArn
         SchedulerIAMRoleArn: !GetAtt Security.Outputs.SchedulerIAMRoleArn
+        SpotFleetIAMRoleArn: !GetAtt Security.Outputs.SpotFleetIAMRoleArn
         SchedulerIAMRole: !GetAtt Security.Outputs.SchedulerIAMRole
         ComputeNodeSecurityGroup: !Ref SecurityGroupIdCompute
         VpcId: !Ref VpcId

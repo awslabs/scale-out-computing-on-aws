@@ -218,7 +218,7 @@ def check_cloudformation_status(stack_id, job_id, job_select_resource):
                 run_command(qalter_cmd, "call")
                 cloudformation.delete_stack(StackName=stack_id)
             else:
-                logpush(job_id + ' Stack has been created for more less than 1 hour. Let wait a bit before killing the CI and reset the compute_node value')
+                logpush(job_id + ' Stack has been created for less than 1 hour. Let wait a bit before killing the CI and reset the compute_node value')
 
         elif check_stack_status['Stacks'][0]['StackStatus'] == 'CREATE_IN_PROGRESS':
             logpush(job_id + ' is queued but have a valid CI assigned. However CloudFormation stack is not completed yet so we exit the script.')

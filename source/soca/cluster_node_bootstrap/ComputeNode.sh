@@ -237,6 +237,7 @@ INSTANCE_TYPE=`curl --silent  http://169.254.169.254/latest/meta-data/instance-t
 GPU_INSTANCE_FAMILY=(g2 g3 g4 p2 p3 p3dn)
 if [[ "${GPU_INSTANCE_FAMILY[@]}" =~ "${INSTANCE_TYPE}" ]];
 then
+    echo "Detected GPU instance .. disable NOUVEAU driver"
     cat << EOF | sudo tee --append /etc/modprobe.d/blacklist.conf
 blacklist vga16fb
 blacklist nouveau
