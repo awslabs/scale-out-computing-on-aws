@@ -71,7 +71,15 @@ def get_all_compute_instances(cluster_id):
                     job_id = [x['Value'] for x in instance['Tags'] if x['Key'] == 'soca:JobId']
                     job_queue = [x['Value'] for x in instance['Tags'] if x['Key'] == 'soca:JobQueue'][0]
                     keep_forever = [x['Value'] for x in instance['Tags'] if x['Key'] == 'soca:KeepForever'][0]
-                    cloudformation_stack = [x['Value'] for x in instance['Tags'] if x['Key'] == 'aws:cloudformation:stack-name'][0]
+                    cloudformation_stack = ""
+                    stack_id = ""
+                    for x in instance['Tags']:
+                        if x['Key'] == 'aws:cloudformation:stack-name':
+                            cloudformation_stack = x['Value']
+                        if x['Key'] == 'soca:StackId':
+                            stack_id = x['Value']
+                    if cloudformation_stack == "":
+                        cloudformation_stack = stack_id
                     private_dns = instance['PrivateDnsName'].split('.')[0]
 
                     if not job_id:

@@ -11,7 +11,6 @@ If you are installing this file manually, make sure to replace %SOCA_CONFIGURATI
 '''
 
 import sys
-
 import pbs
 
 sys.path.append('/usr/lib64/python2.7/site-packages')

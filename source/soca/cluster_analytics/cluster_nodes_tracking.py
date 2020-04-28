@@ -68,4 +68,3 @@ if __name__ == "__main__":
 
         if es_index_new_item(json.dumps(data)) is False:
             print('Error while indexing ' + str(data))
-

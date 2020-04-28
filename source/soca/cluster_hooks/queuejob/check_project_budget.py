@@ -7,15 +7,17 @@ import hook check_project_budget application/x-python default /apps/soca/<CLUSTE
 Note: If you make any change to this file, you MUST re-execute the import command
 '''
 
-#!/apps/python/latest/bin/python3
 
 import sys
 
 import pbs
 from ConfigParser import SafeConfigParser  # PBS env is py2.7, so use ConfigParser and not configparser
 
-if "/apps/python/latest/lib/python3.7/site-packages" not in sys.path:
-    sys.path.append("/apps/python/latest/lib/python3.7/site-packages/")
+if "/usr/lib/python2.7/site-packages" not in sys.path:
+    sys.path.append("/usr/lib/python2.7/site-packages")
+
+if "/usr/lib64/python2.7/site-packages" not in sys.path:
+    sys.path.append("/usr/lib64/python2.7/site-packages")
 
 import boto3
 
@@ -54,10 +56,6 @@ if job_project is None and allow_job_no_project is False:
     msg = 'Error. You tried to submit job without project. Specify project using -P parameter'
     e.reject(msg)
 
-elif job_project == 'gui' and job_queue == 'desktop':
-    # Ignore budget checks when launching a DCV job
-    # If you remove this function, make sure to create a new project "gui" and add all users that are authorized to launch DCV sessions
-    e.accept()
 else:
     try:
         pbs.logmsg(pbs.LOG_DEBUG, 'checking_budget: project: ' + str(job_project))

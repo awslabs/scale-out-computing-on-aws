@@ -238,6 +238,53 @@ Resources:
         - !Ref ComputeNodeIAMRole
       #InstanceProfileName: !Sub ${ClusterId}-ComputeNodeInstanceProfile
 
+  SpotFleetIAMRole:
+    Metadata:
+      cfn_nag:
+        rules_to_suppress:
+          - id: W11
+            reason: "* is reduced to minimal pattern"
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - !Sub "spotfleet.${AWS::URLSuffix}"
+            Action:
+              - sts:AssumeRole
+      Policies:
+        - PolicyName: SpotFleetPermissions
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - ec2:DescribeImages
+                  - ec2:DescribeSubnets
+                  - ec2:DescribeInstanceStatus
+                Resource: "*"
+              - Effect: Allow
+                Action:
+                  - ec2:RequestSpotInstances
+                  - ec2:TerminateInstances
+                  - ec2:CreateTags
+                Resource:
+                  - !Sub "arn:${AWS::Partition}:ec2:*:${AWS::AccountId}:instance/*"
+                Condition:
+                  "ForAllValues:ArnEqualsIfExists":
+                      "ec2:Vpc": !Sub "arn:${AWS::Partition}:ec2:${AWS::Region}:${AWS::AccountId}:vpc/${VpcId}"
+              - Effect: Allow
+                Action:
+                  - iam:PassRole
+                Resource:
+                  - !GetAtt ComputeNodeIAMRole.Arn
+                Condition:
+                  "StringEquals":
+                      "iam:PassedToService": ["ec2.amazonaws.com", "ec2.amazonaws.com.cn"]
+
   SchedulerIAMRole:
     Metadata:
       cfn_nag:
@@ -282,6 +329,7 @@ Resources:
                   - ec2:DescribeLaunchTemplates
                   - ec2:DescribeLaunchTemplateVersions
                   - ec2:DescribeNetworkInterfaces
+                  - ec2:DescribeSpotFleetRequests
                   - fsx:DescribeFileSystems
                   - autoscaling:DescribeAutoScalingGroups
                   - autoscaling:DescribeScalingActivities
@@ -314,6 +362,7 @@ Resources:
                 Resource:
                   - !Sub "arn:${AWS::Partition}:ec2:*:${AWS::AccountId}:volume/*"
                   - !Sub "arn:${AWS::Partition}:ec2:*:${AWS::AccountId}:network-interface/*"
+                  - !Sub "arn:${AWS::Partition}:ec2:*:${AWS::AccountId}:instance/*"
 
               - Effect: Allow
                 Action:
@@ -332,7 +381,6 @@ Resources:
                   - ec2:DeletePlacementGroup
                 Resource:
                   - !Sub "arn:${AWS::Partition}:ec2:*:${AWS::AccountId}:subnet/*"
-                  - !Sub "arn:${AWS::Partition}:ec2:*:${AWS::AccountId}:key-pair/*"
                   - !Sub "arn:${AWS::Partition}:ec2:*:${AWS::AccountId}:key-pair/*"
                   - !Sub "arn:${AWS::Partition}:ec2:*:${AWS::AccountId}:instance/*"
                   - !Sub "arn:${AWS::Partition}:ec2:*::snapshot/*"
@@ -375,6 +423,7 @@ Resources:
                 Resource:
                   - !Join [ "", [ "arn:", !Ref "AWS::Partition", ":iam::", !Ref "AWS::AccountId", ":", "role/aws-service-role/s3.data-source.lustre.fsx.amazonaws.com/*"] ]
                   - !Join [ "", [ "arn:", !Ref "AWS::Partition", ":iam::", !Ref "AWS::AccountId", ":", "role/aws-service-role/autoscaling.amazonaws.com/*"] ]
+                  - !Join [ "", [ "arn:", !Ref "AWS::Partition", ":iam::", !Ref "AWS::AccountId", ":", "role/aws-service-role/spotfleet.amazonaws.com/*"] ]
 
               - Effect: Allow
                 Action:
@@ -386,7 +435,12 @@ Resources:
                 Action:
                   - ec2:CreatePlacementGroup
                   - ec2:DeletePlacementGroup
+                  - ec2:RequestSpotFleet
+                  - ec2:CancelSpotFleetRequests
                 Resource: "*"
+                Condition:
+                  "ForAllValues:ArnEqualsIfExists":
+                      "ec2:Vpc": !Sub "arn:${AWS::Partition}:ec2:${AWS::Region}:${AWS::AccountId}:vpc/${VpcId}"
 
               - Effect: Allow
                 Action:
@@ -401,8 +455,12 @@ Resources:
                 Action:
                   - iam:PassRole
                   - iam:CreateServiceLinkedRole
-                Resource: !GetAtt ComputeNodeIAMRole.Arn
-
+                Resource:
+                  - !GetAtt ComputeNodeIAMRole.Arn
+                  - !GetAtt SpotFleetIAMRole.Arn
+                Condition:
+                  "ForAllValues:ArnEqualsIfExists":
+                      "ec2:Vpc": !Sub "arn:${AWS::Partition}:ec2:${AWS::Region}:${AWS::AccountId}:vpc/${VpcId}"
 
 
   SchedulerIAMInstanceProfile:
@@ -496,6 +554,8 @@ Outputs:
     Value: !Ref SchedulerIAMRole
   SchedulerIAMRoleArn:
     Value: !GetAtt SchedulerIAMRole.Arn
+  SpotFleetIAMRoleArn:
+    Value: !GetAtt SpotFleetIAMRole.Arn
   SolutionMetricsRole:
     Value: !Ref LambdaSolutionMetricRole
   SolutionMetricsRoleArn:
