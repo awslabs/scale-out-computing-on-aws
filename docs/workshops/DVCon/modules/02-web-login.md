@@ -41,4 +41,4 @@ You will see an message asking you to wait up to 20 minutes before being able to
 !!! note
     You can monitor the deployment of the remote desktop server by observing the status of the corresponding job under "My Job Queue". 
 
-Please wait till the desktop instance is ready before moving on to the next step.  Click **Next**.
+Please wait till the desktop instance is ready before moving on to the next step.  Click **Next** once the job status on "My Job Queue" is **RUNNING**.

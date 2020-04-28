@@ -1,5 +1,5 @@
 # SOCA Knowledge Base:
-# 1st: Install Mkdocs: "pip install mkdocs pygments pymdown-extensions"
+# 1st: Install Mkdocs: "pip install mkdocs pygments pymdown-extensions mkdocs-material"
 # 2nd: Run "mkdocs serve" in this directory
 # ===
 # This will start a new documentation server accessible on http://127.0.0.1:8000

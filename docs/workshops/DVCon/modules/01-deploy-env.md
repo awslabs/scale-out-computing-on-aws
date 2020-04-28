@@ -53,4 +53,10 @@ This automated AWS CloudFormation template deploys a scale-out computing environ
 
 You can view the status of the stack in the AWS CloudFormation console in the **Status** column. You should see a status of `CREATE_COMPLETE` in approximately 35 minutes.
 
-You can now move on to the next lab.  Click **Next**.
+By now you've learned how to deploy Scale-Out Computing on AWS in an AWS account. For the purpose of this workshop, you'll login to a pre-built setup that has the following:
+
+    * Synopsys VCS software pre-installed,
+    * A license server with valid licenses, and
+    * Workshop test case
+
+You can now move on to the next lab. Click **Next**.
