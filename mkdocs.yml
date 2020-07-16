@@ -10,7 +10,7 @@ site_name: Scale-Out Computing on AWS Knowledge Base
 theme:
   name: 'material'
   feature:
-    tabs: true
+    - tabs
 
 # Repository
 repo_name: 'awslabs/scale-out-computing-on-aws'

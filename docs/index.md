@@ -2,7 +2,7 @@
 title: What is Scale-Out Computing on AWS ?
 ---
 <p align="center">
-<img src="imgs/soca_logo_rev2.png" height="150px">
+<img src="imgs/soca_logo_rev2.png" style="height: 150px;">
 </p>
 
 Scale-Out Computing on AWS is a solution that helps customers more easily deploy and operate a multiuser environment for computationally intensive workflows. The solution features a large selection of compute resources; fast network backbone; unlimited storage; and budget and cost management directly integrated within AWS. The solution also deploys a user interface (UI) and automation tools that allows you to create your own queues, scheduler resources, Amazon Machine Images (AMIs), software, and libraries. 
