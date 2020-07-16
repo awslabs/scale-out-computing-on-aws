@@ -9,7 +9,7 @@
 site_name: Scale-Out Computing on AWS Knowledge Base
 theme:
   name: 'material'
-  feature:
+  features:
     - tabs
 
 # Repository
