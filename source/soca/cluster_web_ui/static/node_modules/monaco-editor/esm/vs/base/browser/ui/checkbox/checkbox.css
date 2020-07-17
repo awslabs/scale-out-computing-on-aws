@@ -1,0 +1,53 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.monaco-custom-checkbox {
+	margin-left: 2px;
+	float: left;
+	cursor: pointer;
+	overflow: hidden;
+	opacity: 0.7;
+	width: 20px;
+	height: 20px;
+	border: 1px solid transparent;
+	padding: 1px;
+	box-sizing:	border-box;
+	user-select: none;
+	-webkit-user-select: none;
+	-ms-user-select: none;
+}
+
+.monaco-custom-checkbox:hover,
+.monaco-custom-checkbox.checked {
+	opacity: 1;
+}
+
+.hc-black .monaco-custom-checkbox {
+	background: none;
+}
+
+.hc-black .monaco-custom-checkbox:hover {
+	background: none;
+}
+
+.monaco-custom-checkbox.monaco-simple-checkbox {
+	height: 18px;
+	width: 18px;
+	border: 1px solid transparent;
+	border-radius: 3px;
+	margin-right: 9px;
+	margin-left: 0px;
+	padding: 0px;
+	opacity: 1;
+	background-size: 16px !important;
+}
+
+.monaco-custom-checkbox.monaco-simple-checkbox.checked {
+	background: url("data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTYiIGhlaWdodD0iMTYiIHZpZXdCb3g9IjAgMCAxNiAxNiIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4NCjxwYXRoIGZpbGwtcnVsZT0iZXZlbm9kZCIgY2xpcC1ydWxlPSJldmVub2RkIiBkPSJNMTUgMy43NjM0NUw1LjgwNjg3IDExLjkzNTFMNS4wODU4NCAxMS44OTI3TDEgNy4yOTYxNEwxLjc2MzQ1IDYuNjE3NTJMNS41MDk5NyAxMC44MzI0TDE0LjMyMTQgM0wxNSAzLjc2MzQ1WiIgZmlsbD0iIzQyNDI0MiIvPg0KPC9zdmc+DQo=") center center no-repeat;
+}
+
+.monaco-custom-checkbox.monaco-simple-checkbox.checked {
+	background: url("data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTYiIGhlaWdodD0iMTYiIHZpZXdCb3g9IjAgMCAxNiAxNiIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4NCjxwYXRoIGZpbGwtcnVsZT0iZXZlbm9kZCIgY2xpcC1ydWxlPSJldmVub2RkIiBkPSJNMTUgMy43NjM0NUw1LjgwNjg3IDExLjkzNTFMNS4wODU4NCAxMS44OTI3TDEgNy4yOTYxNEwxLjc2MzQ1IDYuNjE3NTJMNS41MDk5NyAxMC44MzI0TDE0LjMyMTQgM0wxNSAzLjc2MzQ1WiIgZmlsbD0iI0M1QzVDNSIvPg0KPC9zdmc+DQo=") center center no-repeat;
+}
