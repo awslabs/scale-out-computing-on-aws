@@ -39,6 +39,7 @@ if __name__ == "__main__":
     print("4: Enter your cluster information.")
     print("")
     print("")
+    print("For more information: https://awslabs.github.io/scale-out-computing-on-aws/install-soca-cluster/")
 
     if sys.version_info[0] >= 3:
         input("Press Enter key to close ..")

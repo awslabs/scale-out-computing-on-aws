@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+     {% include 'common/header.html' %}
+
+
+</head>
+
+<body id="page-top">
+  <div id="wrapper">
+    {% include 'common/vertical_menu_bar.html' %}
+    <div id="content-wrapper" class="d-flex flex-column">
+      <div id="content">
+          <br>
+          <div class="container-fluid">
+              {% include 'common/horizontal_menu_bar.html' %}
+              <main role="main">
+              {% with messages = get_flashed_messages(with_categories=true) %}
+                        {% if messages %}
+                            {% for category, message in messages %}
+                                <br>
+                                {% if category == "success" %}
+                                <div class="alert alert-success">
+                                    <strong>{{ message | safe }} </strong>
+                                </div>
+                                {% elif category == "info" %}
+                                 <div class="alert alert-info">
+                                    <strong>{{ message | safe }} </strong>
+                                </div>
+                                {% else %}
+                                 <div class="alert alert-danger">
+                                    <strong>{{ message | safe }} </strong>
+                                </div>
+                                {% endif %}
+                            {% endfor %}
+                        {% endif %}
+                    {% endwith %}
+              <div class="col-md-12">
+                  <div class="card shadow mb-4">
+                              <div class="card-header py-3">
+                                  <h6 class="m-0 font-weight-bold text-primary">Your activity between {{ start }} and {{ end }}</h6>
+                              </div>
+                      <div class="container"><br>
+                           <div class="alert alert-primary">
+                          Jobs must be finished to be visible. Data is refreshed every hour
+                      </div>
+                      </div>
+
+                              <div class="card-body">
+                                   <form class="form-inline" method="get" action="/my_activity">
+                                      <div class="input-group mb-2 mr-sm-2">
+                                        <div class="input-group-prepend">
+                                          <div class="input-group-text">Start</div>
+                                        </div>
+                                        <input type="date" class="form-control" name="start">
+                                      </div>
+                                      <div class="input-group mb-2 mr-sm-2">
+                                        <div class="input-group-prepend">
+                                          <div class="input-group-text">End</div>
+                                        </div>
+                                        <input type="date" class="form-control" name="end">
+                                      </div>
+                                      <button type="submit" class="btn btn-primary mb-2">Search specific date range</button>
+                                  </form>
+
+
+                                  <iframe style="width:100%; border: 0" height="1500" src="{{ user_kibana_url }}"></iframe>
+                                  <br>
+                                  <div class="alert alert-warning">
+                                      <strong>Permission Error</strong>
+                                      Refer to <a href="https://awslabs.github.io/scale-out-computing-on-aws/analytics/monitor-cluster-activity/#troubleshooting-access-permission" target="_blank">this link</a>  and add the following entry {{ client_ip }}/32 if you are getting: {"Message":"User: anonymous is not authorized to perform: es:ESHttpGet"}.
+                                  </div>
+                                  <i>
+                                      All data: <a href="{{ user_kibana_url }}" target="_blank">{{ user_kibana_url }}</a>
+                                  </i>
+                              </div>
+                  </div>
+              </div>
+
+              </main>
+              </div>
+          </div>
+      </div>
+
+  </div>
+
+  <a class="scroll-to-top rounded" href="#page-top">
+    <i class="fas fa-angle-up"></i>
+  </a>
+  {% include 'common/footer.html' %}
+
+
+
+</body>
+
+</html>

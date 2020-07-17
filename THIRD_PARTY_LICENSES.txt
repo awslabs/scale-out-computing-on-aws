@@ -4,8 +4,16 @@ Provided below is a list of the External Dependencies and the applicable license
 THIS INFORMATION IS PROVIDED FOR CONVENIENCE ONLY. AMAZON DOES NOT PROMISE THAT THE LIST OR THE APPLICABLE TERMS AND CONDITIONS ARE COMPLETE, ACCURATE, OR UP-TO-DATE, AND AMAZON WILL HAVE NO LIABILITY FOR ANY INACCURACIES. YOU SHOULD CONSULT THE DOWNLOAD SITES FOR THE EXTERNAL DEPENDENCIES FOR THE MOST COMPLETE AND UP-TO-DATE LICENSING INFORMATION.
 YOUR USE OF THE EXTERNAL DEPENDENCIES IS AT YOUR SOLE RISK. IN NO EVENT WILL AMAZON BE LIABLE FOR ANY DAMAGES, INCLUDING WITHOUT LIMITATION ANY DIRECT, INDIRECT, CONSEQUENTIAL, SPECIAL, INCIDENTAL, OR PUNITIVE DAMAGES (INCLUDING FOR ANY LOSS OF GOODWILL, BUSINESS INTERRUPTION, LOST PROFITS OR DATA, OR COMPUTER FAILURE OR MALFUNCTION) ARISING FROM OR RELATING TO THE EXTERNAL DEPENDENCIES, HOWEVER CAUSED AND REGARDLESS OF THE THEORY OF LIABILITY, EVEN IF AMAZON HAS BEEN ADVISED OF THE POSSIBILITY OF SUCH DAMAGES. THESE LIMITATIONS AND DISCLAIMERS APPLY EXCEPT TO THE EXTENT PROHIBITED BY APPLICABLE LAW.
 
-** PBSPro; -- https://github.com/PBSPro/pbspro/blob/master/LICENSE (AGPLv3)
-** PrismJS; -- https://github.com/PrismJS/prism/blob/master/LICENSE (MIT)
-** Bootstrap; -- https://github.com/twbs/bootstrap/blob/master/LICENSE (MIT)
-** JQuery; -- https://jquery.org/license (MIT)
-** Jquery-Easing; -- https://raw.github.com/gdsmith/jquery-easing/master/LICENSE (BSD)
+** Bootstrap; -- https://github.com/twbs/bootstrap/blob/master/LICENSE (MIT) v4.2.1
+** Dropzone.js; -- https://github.com/enyo/dropzone/blob/master/LICENSE (MIT) v5.7.0
+** formBuilder; -- https://github.com/kevinchappell/formBuilder/blob/master/LICENSE (MIT) v3.4.1
+** JQuery; -- https://jquery.org/license (MIT) v3.3.1
+** Jquery-Easing; -- https://raw.github.com/gdsmith/jquery-easing/master/LICENSE (BSD) v1.4.1
+** Datatables; -- https://datatables.net/license/mit#MIT-license (MIT) v1.10.20
+** Moment.js; -- https://github.com/moment/momentjs.com/blob/master/LICENSE (MIT) v2.26.0
+** Monaco; -- https://github.com/microsoft/monaco-editor/blob/master/LICENSE.md (MIT) v0.19.3
+** PBSPro; -- https://github.com/openpbs/openpbs/blob/master/LICENSE (AGPLv3) v18.1.4
+** PrismJS; -- https://github.com/PrismJS/prism/blob/master/LICENSE (MIT) v1.17.1
+
+
+

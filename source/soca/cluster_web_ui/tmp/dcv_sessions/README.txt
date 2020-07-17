@@ -1,1 +1,0 @@
-Host all DCV sessions information for /remotedesktop

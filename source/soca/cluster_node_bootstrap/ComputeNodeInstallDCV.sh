@@ -5,7 +5,7 @@ source /root/config.cfg
 DCV_HOST_ALTNAME=$(hostname | cut -d. -f1)
 AWS=$(which aws)
 INSTANCE_TYPE=`curl --silent  http://169.254.169.254/latest/meta-data/instance-type | cut -d. -f1`
-GPU_INSTANCE_FAMILY=(g2 g3 g4 p2 p3 p3dn)
+GPU_INSTANCE_FAMILY=(g2 g3 g4 g4dn p2 p3 p3dn)
 
 # Install Gnome & Mate Desktop
 if [[ $SOCA_BASE_OS == "rhel7" ]]
@@ -30,7 +30,7 @@ systemctl set-default graphical.target
 cd ~
 wget $DCV_URL
 if [[ $(md5sum $DCV_TGZ | awk '{print $1}') != $DCV_HASH ]];  then
-    echo -e "FATAL ERROR: Checksum for PBSPro failed. File may be compromised." > /etc/motd
+    echo -e "FATAL ERROR: Checksum for DCV failed. File may be compromised." > /etc/motd
     exit 1
 fi
 tar zxvf $DCV_TGZ
@@ -39,7 +39,6 @@ rpm -ivh *.rpm --nodeps
 DCVGLADMIN=$(which dcvgladmin)
 
 # Uninstall dcv-gl if not GPU instances
-# Note: NVIDIA-CUDA drivers must be installed first
 if [[ ! "${GPU_INSTANCE_FAMILY[@]}" =~ "${INSTANCE_TYPE}" ]];
 then
     $DCVGLADMIN disable
@@ -47,6 +46,9 @@ fi
 
 # Configure
 mv /etc/dcv/dcv.conf /etc/dcv/dcv.conf.orig
+
+#https://docs.aws.amazon.com/dcv/latest/adminguide/manage-disconnect.html
+IDLE_TIMEOUT=1440 # in minutes. Disconnect DCV (but not terminate the session) after 1 day if not active
 
 echo -e """
 [license]
@@ -65,6 +67,7 @@ gl-displays = [\":0.0\"]
 use-glx-fallback-provider=false
 [connectivity]
 web-url-path=\"/$DCV_HOST_ALTNAME\"
+idle-timeout=$IDLE_TIMEOUT
 [security]
 auth-token-verifier=\"http://localhost:8444\"
 """ > /etc/dcv/dcv.conf

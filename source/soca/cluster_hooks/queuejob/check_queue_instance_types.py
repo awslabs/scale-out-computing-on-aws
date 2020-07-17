@@ -61,15 +61,6 @@ if 'instance_type' in j.Resource_List:
 else:
     instance_type = None
 
-# Validate license_mapping YAML is not malformed
-try:
-    license_settings_file = "/apps/soca/%SOCA_CONFIGURATION/cluster_manager/settings/licenses_mapping.yml"
-    lic_reader = open(license_settings_file, "r")
-    lic_data = yaml.safe_load(lic_reader)
-except Exception as err:
-    message = "Job cannot be submitted. Unable to read " + license_settings_file + ". Double chek the YAML syntax is correct and you don't have any invalid indent.\n Error: " + str(err)
-    e.reject(message)
-
 # Validate queue_mapping YAML is not malformed
 try:
     queue_settings_file = "/apps/soca/%SOCA_CONFIGURATION/cluster_manager/settings/queue_mapping.yml"

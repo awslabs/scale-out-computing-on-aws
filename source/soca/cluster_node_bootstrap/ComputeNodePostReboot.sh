@@ -15,11 +15,19 @@ systemctl stop pbs
 
 # Install latest NVIDIA driver if GPU instance is detected
 INSTANCE_TYPE=`curl --silent  http://169.254.169.254/latest/meta-data/instance-type | cut -d. -f1`
-GPU_INSTANCE_FAMILY=(g2 g3 g4 p2 p3 p3dn)
+GPU_INSTANCE_FAMILY=(g2 g3 g4 g4dn p2 p3 p3dn)
+G4_GPUS=(g4 g4dn) #G4 instance use a different driver
+
 if [[ "${GPU_INSTANCE_FAMILY[@]}" =~ "${INSTANCE_TYPE}" ]];
 then
-    echo "Detected GPU instance .. installing the latest NVIDIA driver"
-    $AWS s3 cp --recursive s3://ec2-linux-nvidia-drivers/latest/ .
+    if [[ "${G4_GPUS[@]}" =~ "${INSTANCE_TYPE}" ]];
+    then
+      echo "Detected G4 instance .. installing NVIDIA Drivers"
+      $AWS s3 cp --recursive s3://ec2-linux-nvidia-drivers/g4/latest/ .
+    else
+      echo "Detected GPU instance .. installing NVIDIA driver"
+      $AWS s3 cp --recursive s3://ec2-linux-nvidia-drivers/latest/ .
+    fi
     /bin/sh /root/NVIDIA-Linux-x86_64*.run -q -a -n -X -s
     NVIDIAXCONFIG=$(which nvidia-xconfig)
     $NVIDIAXCONFIG --preserve-busid --enable-all-gpus
@@ -153,35 +161,45 @@ while [[ $? -ne 0 ]] && [[ $LOOP_ENI_TAG -lt 5 ]]
 done
 
 
-# Begin USER Customization
-/bin/bash /apps/soca/$SOCA_CONFIGURATION/cluster_node_bootstrap/ComputeNodeUserCustomization.sh >> $SOCA_HOST_SYSTEM_LOG/ComputeNodeUserCustomization.log 2>&1
-# End USER Customization
-
 if [[ $REQUIRE_REBOOT -eq 1 ]];
 then
-    echo -e "
-    systemctl stop pbs
-    source /etc/environment
-    # Disable HyperThreading
-    if [[ $SOCA_INSTANCE_HYPERTHREADING == "false" ]];
-    then
-        echo "Disabling Hyperthreading"  >> $SOCA_HOST_SYSTEM_LOG/ComputeNodePostReboot.log
-        for cpunum in $(cat /sys/devices/system/cpu/cpu*/topology/thread_siblings_list | cut -s -d, -f2- | tr ',' '\n' | sort -un);
-            do
-                echo 0 > /sys/devices/system/cpu/cpu$cpunum/online;
-            done
-    fi
-    chmod 777 $FSX_MOUNTPOINT
-    systemctl start pbs
-    " >> /etc/rc.local
+    echo "systemctl stop pbs
+source /etc/environment
+# Disable HyperThreading
+if [[ \"$SOCA_INSTANCE_HYPERTHREADING\" == \"false\" ]];
+then
+  echo \"Disabling Hyperthreading\" >> $SOCA_HOST_SYSTEM_LOG/ComputeNodePostReboot.log
+  for cpunum in $(cat /sys/devices/system/cpu/cpu*/topology/thread_siblings_list | cut -s -d, -f2- | tr ',' '\n' | sort -un);
+    do
+      echo 0 > /sys/devices/system/cpu/cpu$cpunum/online;
+    done
+fi
+# Make Scratch FS accessible by everyone. ACL still applies at folder level
+if [[ -n \"$FSX_MOUNTPOINT\" ]]; then
+  chmod 777 $FSX_MOUNTPOINT
+fi
+
+chmod 777 /scratch
+/bin/bash /apps/soca/$SOCA_CONFIGURATION/cluster_node_bootstrap/ComputeNodeUserCustomization.sh >> $SOCA_HOST_SYSTEM_LOG/ComputeNodeUserCustomization.log 2>&1
+/bin/bash /apps/soca/$SOCA_CONFIGURATION/cluster_node_bootstrap/ComputeNodeConfigureMetrics.sh >> $SOCA_HOST_SYSTEM_LOG/ComputeNodeConfigureMetrics.log 2>&1
+systemctl start pbs" >> /etc/rc.local
     chmod +x /etc/rc.d/rc.local
     systemctl enable rc-local
     reboot
+    # End USER Customization
 else
     # Mount
     mount -a
-    echo "chmod FSX"
-    chmod 777 $FSX_MOUNTPOINT
+
+    # Make Scratch (and /fsx if applicable) R/W by everyone. ACL still applies at folder level
+    echo "chmod /scratch"
+    chmod 777 /scratch
+
+    if [[ -n "$FSX_MOUNTPOINT" ]]; then
+        echo "chmod FSX"
+        chmod 777 $FSX_MOUNTPOINT
+    fi
+
     # Disable HyperThreading
     if [[ $SOCA_INSTANCE_HYPERTHREADING == "false" ]];
     then
@@ -191,6 +209,15 @@ else
                 echo 0 > /sys/devices/system/cpu/cpu$cpunum/online;
             done
     fi
+
+    # Begin USER Customization
+    /bin/bash /apps/soca/$SOCA_CONFIGURATION/cluster_node_bootstrap/ComputeNodeUserCustomization.sh >> $SOCA_HOST_SYSTEM_LOG/ComputeNodeUserCustomization.log 2>&1
+    # End USER Customization
+
+    # Begin Metric Customization
+    /bin/bash /apps/soca/$SOCA_CONFIGURATION/cluster_node_bootstrap/ComputeNodeConfigureMetrics.sh >> $SOCA_HOST_SYSTEM_LOG/ComputeNodeConfigureMetrics.log 2>&1
+    # End Metric Customization
+
     # Post-Boot routine completed, starting PBS
     systemctl start pbs
 fi

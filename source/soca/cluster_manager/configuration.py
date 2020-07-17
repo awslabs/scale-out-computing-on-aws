@@ -18,4 +18,4 @@ def return_desktop_queues():
     List of queued dedicated to DCV.
     These queues does not have any compute_node mapping and multiple PBS jobs can land on the same harwdware
     '''
-    return ['desktop2d', 'desktop3d']
+    return ['desktop']

@@ -25,11 +25,9 @@
                       <img class="img-fluid" height="150px" width="150px" src="{{ url_for('static', filename='img/soca_logo_rev2.png') }}">
                       <hr>
                   </div>
-
-
                   <form class="user" method="post" action="/auth">
                     <div class="form-group">
-                      <input type="text" required class="form-control form-control-user" id="username" name="username" aria-describedby="user" placeholder="Username">
+                      <input type="text" required class="form-control form-control-user" id="user" name="user" aria-describedby="user" placeholder="Username">
                     </div>
                     <div class="form-group">
                       <input type="password" required class="form-control form-control-user" id="password" name="password" placeholder="Password">
@@ -37,6 +35,9 @@
 
                     <div align="center">
                          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        {% if redirect != false %}
+                            <input type="hidden" name="redirect" value={{ redirect }}>
+                        {% endif %}
                         <button type="submit" class="btn btn-success btn-block">Login</button>
                     </div>
                   </form>

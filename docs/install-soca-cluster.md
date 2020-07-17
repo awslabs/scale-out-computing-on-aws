@@ -90,7 +90,7 @@ Open CloudFormation console and select "Create Stack". Copy the URL of your inst
 !!! danger "Requirements"
     - No uppercase in stack name
     - Stack name is limited to 20 characters maximum (note: we automatically add soca- prefix)
-    - Not supported on regions with less than 3 AZs (Canada / Northern California)
+    - Not supported on regions with less than 3 AZs (Northern California / us-west-1)
 
 
 If you hit any issue during the installation, refer to the 'CREATE_FAILED' component and find the root cause by referring at "Physical ID"

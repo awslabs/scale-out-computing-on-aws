@@ -1,5 +1,5 @@
 ---
-title: Retrict provisioning of specific instance type
+title: Restrict provisioning of specific instance type
 ---
 
 You can manage the EC2 instance types allowed for each queue by configuring both  `allowed_instance_types` and `excluded_instance_types`.

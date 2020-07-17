@@ -22,7 +22,7 @@ SERVER_HOSTNAME=$(hostname)
 SERVER_HOSTNAME_ALT=$(echo $SERVER_HOSTNAME | cut -d. -f1)
 echo $SERVER_IP $SERVER_HOSTNAME $SERVER_HOSTNAME_ALT >> /etc/hosts
 
-if [[ $SOCA_BASE_OS = "rhel7" ]]
+if [[ $SOCA_BASE_OS == "rhel7" ]]
 then
     yum install -y $(echo ${SYSTEM_PKGS[*]}) --enablerepo rhui-REGION-rhel-server-optional
     yum install -y $(echo ${SCHEDULER_PKGS[*]}) --enablerepo rhui-REGION-rhel-server-optional
@@ -37,8 +37,8 @@ yum install -y $(echo ${SSSD_PKGS[*]})
 # Mount EFS
 mkdir /apps
 mkdir /data
-echo "$EFS_DATA:/ /data/ nfs4 nfsvers=4.1,rsize=1048576,wsize=1048576,hard,timeo=600,retrans=2 0 0" >> /etc/fstab
-echo "$EFS_APPS:/ /apps nfs4 nfsvers=4.1,rsize=1048576,wsize=1048576,hard,timeo=600,retrans=2 0 0" >> /etc/fstab
+echo "$EFS_DATA:/ /data/ nfs4 nfsvers=4.1,rsize=1048576,wsize=1048576,hard,timeo=600,retrans=2,noresvport 0 0" >> /etc/fstab
+echo "$EFS_APPS:/ /apps nfs4 nfsvers=4.1,rsize=1048576,wsize=1048576,hard,timeo=600,retrans=2,noresvport 0 0" >> /etc/fstab
 mount -a
 
 # Install Python if needed
@@ -55,7 +55,7 @@ then
     fi
     tar xvf $PYTHON_TGZ
     cd Python-$PYTHON_VERSION
-    ./configure LDFLAGS="-L/usr/lib64/openssl" CPPFLAGS="-I/usr/include/openssl" --prefix=/apps/soca/$SOCA_CONFIGURATION/python/$PYTHON_VERSION
+    ./configure LDFLAGS="-L/usr/lib64/openssl" CPPFLAGS="-I/usr/include/openssl" -enable-loadable-sqlite-extensions --prefix=/apps/soca/$SOCA_CONFIGURATION/python/$PYTHON_VERSION
     make
     make install
     ln -sf /apps/soca/$SOCA_CONFIGURATION/python/$PYTHON_VERSION /apps/soca/$SOCA_CONFIGURATION/python/latest
@@ -105,26 +105,33 @@ echo "export PATH=\"/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
 # Default AWS Resources
 cat <<EOF >>/var/spool/pbs/server_priv/resourcedef
 anonymous_metrics type=string
-compute_node type=string flag=h
-instance_type_used type=string
-instance_type type=string
-stack_id type=string
+asg_spotfleet_id type=string
 availability_zone type=string
-subnet_id type=string
+base_os type=string
+compute_node type=string flag=h
+efa_support type=string
+error_message type=string
+force_ri type=string
+fsx_lustre type=string
+fsx_lustre_deployment_type type=string
+fsx_lustre_per_unit_throughput type=string
+fsx_lustre_size type=string
+ht_support type=string
 instance_ami type=string
-scratch_size type=string
-scratch_iops type=string
-root_size type=string
+instance_id type=string
+instance_type type=string
+instance_type_used type=string
+keep_ebs type=string
 placement_group type=string
-spot_price type=string
+root_size type=string
+scratch_iops type=string
+scratch_size type=string
 spot_allocation_count type=string
 spot_allocation_strategy type=string
-efa_support type=string
-ht_support type=string
-keep_ebs type=string
-base_os type=string
-fsx_lustre type=string
-fsx_lustre_size type=string
+spot_price type=string
+stack_id type=string
+subnet_id type=string
+system_metrics type=string
 EOF
 
 systemctl enable pbs

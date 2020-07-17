@@ -1,6 +1,7 @@
 ---
 title: What is Scale-Out Computing on AWS ?
 ---
+
 <p align="center">
 <img src="imgs/soca_logo_rev2.png" style="height: 150px;">
 </p>
@@ -40,6 +41,7 @@ user@host$ qsub myscript.sh
     - [Check our Web-Based utility to generate you submission command](job-configuration-generator/)
     - [Refer to this page for tutorial and examples](tutorials/launch-your-first-job/)
     - [Refer to this page to list all supported parameters](tutorials/integration-ec2-job-parameters/)
+    - Jobs can also be submitted [via HTTP API](web-interface/control-hpc-job-with-http-web-rest-api/) or [via web interface](web-interface/submit-hpc-jobs-web-based-interface/)
 
 ## OS agnostic and support for custom AMI
 Customers can integrate their Centos7/Rhel7/AmazonLinux2 AMI automatically by simply using ==-l instance_ami=<ami_id\>== at job submission. There is no limitation in term of AMI numbers (you can have 10 jobs running simultaneously using 10 different AMIs). SOCA supports heterogeneous environment, so you can have concurrent jobs running different operating system on the same cluster. 
@@ -57,6 +59,20 @@ Customers can integrate their Centos7/Rhel7/AmazonLinux2 AMI automatically by si
 
 !!!info "Scale-Out Computing on AWS AMI requirements"
     When you use a custom AMI, just make sure that your AMI does not use /apps, /scratch or /data partitions as Scale-Out Computing on AWS will need to use these locations during the deployment. [Read this page for AMI creation best practices](tutorials/reduce-compute-node-launch-time-with-custom-ami/)
+
+## Web User Interface
+Scale-Out Computing on AWS includes a simple web ui designed to simplify user interactions such as:
+
+- [Start/Stop DCV sessions in 1 click](access-soca-cluster/#graphical-access-using-dcv)
+- [Download private key in both PEM or PPK format](access-soca-cluster/#ssh-access)
+- [Check the queue and job status in real-time](web-interface/manage-ldap-users/)
+- [Add/Remove LDAP users ](web-interface/manage-ldap-users/)
+- [Access the analytic dashboard](web-interface/my-activity/)
+- [Access your filesystem](web-interface/my-files/)
+- [Create Application profiles and let your users submit job directly via the web interface](web-interface/submit-hpc-jobs-web-based-interface/)
+
+## HTTP Rest API
+Users can submit/retrieve/delete jobs [remotely via an HTTP REST API](web-interface/control-hpc-job-with-http-web-rest-api/)
 
 ## Budgets and Cost Management
 You can [review your HPC costs](analytics/review-hpc-costs/) filtered by user/team/project/queue very easily using AWS Cost Explorer. 
@@ -89,15 +105,7 @@ Scale-Out Computing on AWS [includes a FlexLM-enabled script which calculate the
 
 ## Automatic Errors Handling
 Scale-Out Computing on AWS performs various dry run checks before provisioning the capacity. However, it may happen than AWS can't fullfill all requests (eg: need 5 instances but only 3 can be provisioned due to capacity shortage within a placement group). In this case, Scale-Out Computing on AWS will try to provision the capacity for 30 minutes. After 30 minutes, and if the capacity is still not available, Scale-Out Computing on AWS will automatically reset the request and try to provision capacity in a different availability zone.
-
-## Web UI
-Scale-Out Computing on AWS includes a simple web ui designed to simplify user interactions such as:
-
-- Start/Stop DCV sessions in 1 click
-- Download private key in both PEM or PPK format
-- Check the queue status in real-time
-- Add/Remove LDAP users 
-- Access the analytic dashboard
+[To simplify troubleshooting, all these errors are reported on the web interface](web-interface/my-job-queue/#understand-why-your-job-cannot-start)
 
 ## Custom fair-share
 Each user is given a score which vary based on:
@@ -107,7 +115,7 @@ Each user is given a score which vary based on:
 - Priority of each job
 - Type of instance
 
-Job that belong to the user with the highest score will start next 
+Job that belong to the user with the highest score will start next. Fair Share is is configured at the queue level (so you can have one queue using FIFO and another one Fair Share)
 
 ## And more ...
 

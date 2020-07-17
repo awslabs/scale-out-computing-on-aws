@@ -88,6 +88,7 @@ margin-right: 0;
 {{qsub_nodes}}
 {{qsub_base_os}}
 {{qsub_keep_ebs}}
+{{qsub_force_ri}}
 myscript.sh
 
 <h2> Job Parameters</h2>
@@ -195,6 +196,7 @@ myscript.sh
    <input type="checkbox" ng-change="myFunc()" ng-model="placement_group"> I do not want to use Placement Group (enabled by default)    <i><a style="padding: 5px" target="_blank" href="../tutorials/integration-ec2-job-parameters/#placement_group">Documentation</a></i> <br>
    <input type="checkbox" ng-change="myFunc()" ng-model="ht_support"> I want to enable HyperThreading (disabled by default)   <i><a style="padding: 5px" target="_blank" href="../tutorials/integration-ec2-job-parameters/#ht_support">Documentation</a></i><br>
    <input type="checkbox" ng-change="myFunc()" ng-model="keep_ebs"> I want to retain my EBS disks (disabled by default)   <i><a style="padding: 5px" target="_blank" href="../tutorials/integration-ec2-job-parameters/#keep_ebs">Documentation</a></i><br>
+   <input type="checkbox" ng-change="myFunc()" ng-model="force_ri"> I want my job to only run on Reserved instances  <i><a style="padding: 5px" target="_blank" href="../tutorials/integration-ec2-job-parameters/#force_ri">Documentation</a></i><br>
 
 </form> 
   
@@ -223,7 +225,8 @@ myscript.sh
         if($scope.ht_support){$scope.qsub_ht_support = "-l ht_support=True";}else{$scope.qsub_ht_support= "";}
         if($scope.fsx_lustre){$scope.qsub_fsx_lustre = "-l fsx_lustre=" + $scope.fsx_lustre;}else{$scope.qsub_fsx_lustre = "";}
         if($scope.fsx_lustre_size){$scope.qsub_fsx_lustre_size = "-l fsx_lustre_size=" + $scope.fsx_lustre_size;}else{$scope.qsub_fsx_lustre_size = "";}
-        
+         if($scope.force_ri){$scope.qsub_force_ri = "-l force_ri=True";}else{$scope.qsub_fsx_lustre = "";}
+
         if (!$scope.nodes){$scope.nodes_count=0;}else{$scope.nodes_count=$scope.nodes}
             
         

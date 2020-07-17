@@ -55,7 +55,7 @@ You can pre-install the packages listed on [https://github.com/awslabs/scale-out
         - `yum install -y $(echo ${SSSD_PKGS[*]})`
     
     ____
-    [Here is an example](https://github.com/awslabs/scale-out-computing-on-aws/blob/master/source/scripts/Scheduler.sh#L34) of how you can install packages listed in an array in bash.
+    [Here is an example](https://github.com/awslabs/scale-out-computing-on-aws/blob/master/source/scripts/ComputeNode.sh#L34) of how you can install packages listed in an array in bash.
 
 
 
@@ -83,6 +83,7 @@ make -j6
 make install -j6
 /opt/pbs/libexec/pbs_postinstall
 chmod 4755 /opt/pbs/sbin/pbs_iff /opt/pbs/sbin/pbs_rcp
+systemctl disable pbs
 ~~~
 
 !!!note "Installation Path"

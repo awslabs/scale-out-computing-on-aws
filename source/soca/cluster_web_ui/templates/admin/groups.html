@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+     {% include 'common/header.html' %}
+</head>
+
+<body id="page-top">
+
+  <div id="wrapper">
+    {% include 'common/vertical_menu_bar.html' %}
+    <div id="content-wrapper" class="d-flex flex-column">
+
+      <div id="content">
+          <br>
+          <div class="container-fluid">
+              {% include 'common/horizontal_menu_bar.html' %}
+
+                  {% with messages = get_flashed_messages(with_categories=true) %}
+                        {% if messages %}
+                            {% for category, message in messages %}
+                                <br>
+                                {% if category == "success" %}
+                                <div class="alert alert-success">
+                                    <strong>{{ message | safe }} </strong>
+                                </div>
+                                {% else %}
+                                 <div class="alert alert-danger">
+                                    <strong>{{ message | safe }} </strong>
+                                </div>
+                                {% endif %}
+                            {% endfor %}
+                        {% endif %}
+                    {% endwith %}
+                  <div class="col-md-12">
+                  <nav>
+                     <nav>
+                      <div class="nav nav-tabs" id="nav-tab" role="tablist">
+                          <a class="nav-item nav-link active" id="nav-home-tab" data-toggle="tab" href="#nav-add" role="tab" aria-controls="nav-home" aria-selected="true">Create a group</a>
+                          <a class="nav-item nav-link" id="nav-profile-tab" data-toggle="tab" href="#nav-delete" role="tab" aria-controls="nav-delete" aria-selected="false">Delete a group</a>
+                          <a class="nav-item nav-link" id="nav-contact-tab" data-toggle="tab" href="#nav-check" role="tab" aria-controls="nav-contact" aria-selected="false">Check group membership</a>
+                          <a class="nav-item nav-link" id="nav-contact-tab" data-toggle="tab" href="#nav-update" role="tab" aria-controls="nav-contact" aria-selected="false">Change group membership</a>
+
+                      </div>
+                     </nav>
+                  <div class="tab-content" id="nav-tabContent">
+                      <div class="tab-pane fade show active" id="nav-add" role="tabpanel" aria-labelledby="nav-home-tab">
+                          <br>
+                          <div class="card shadow mb-4">
+                              <div class="card-header py-3">
+                                  <h6 class="m-0 font-weight-bold text-primary">Create a new group</h6>
+                              </div>
+                              <div class="card-body">
+                                  <form action="/admin/create_group" method="post">
+                                      <div class="form-group">
+                                          <input id="group_name" placeholder="Group name" class="form-control" type="text" required name="group_name">
+                                      </div>
+                                      Members: (choose all that apply) <br>
+                                      <select class="form-control" id="members" size="15" name="members" multiple>
+                                           {% for user in all_users %}
+                                            <option value="{{user}}">{{user}}</option>
+                                        {% endfor %}
+
+                                    </select>
+                                      <br>
+                                      <div align="center">
+                                           <input type="hidden"  name="csrf_token" value="{{ csrf_token() }}">
+                                          <button type="submit" class="btn btn-primary btn-lg">Create Group</button>
+                                      </div>
+                                  </form>
+                              </div>
+                          </div>
+                      </div>
+
+                      <div class="tab-pane fade" id="nav-delete" role="tabpanel" aria-labelledby="nav-profile-tab">
+                          <br>
+                          <div class="card shadow mb-4">
+                              <div class="card-header py-3">
+                                  <h6 class="m-0 font-weight-bold text-primary">Delete Group</h6>
+                              </div>
+                              <div class="card-body">
+                                  <div class="alert alert-primary" role="alert">
+                                      <strong>Important </strong>
+                                      Deleting group may cause access issue. Make sure your group is no longer in use before deleting it
+                                  </div>
+
+                                  <form action="/admin/delete_group" method="post">
+                                                                      <div class="form-group">
+                                    <select class="form-control" id="group_to_delete" name="group_to_delete">
+                                        {% for group in all_groups %}
+                                            <option value="{{group}}">{{group}}</option>
+                                        {% endfor %}
+
+                                    </select>
+                                  </div>
+                                       <div class="form-group form-check">
+                                          <input type="checkbox" class="form-check-input" name="verif" id="verif" required>
+                                          <label class="form-check-label" for="verif">I am sure I want to delete this group</label>
+                                      </div>
+                                      <div align="center">
+                                           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                          <button type="submit" class="btn btn-danger btn-lg">Delete group</button>
+                                      </div>
+                                  </form>
+                              </div>
+                          </div>
+                      </div>
+
+                    <div class="tab-pane fade" id="nav-check" role="tabpanel" aria-labelledby="nav-contact-tab">
+                          <br>
+                          <div class="card shadow mb-4">
+                              <div class="card-header py-3">
+                                  <h6 class="m-0 font-weight-bold text-primary">Check group membership</h6>
+                              </div>
+                              <div class="card-body">
+                                  <form action="/admin/check_group" method="post">
+                                                                      <div class="form-group">
+                                    <select class="form-control" id="group" name="group">
+                                        {% for group in all_groups %}
+                                            <option value="{{group}}">{{group}}</option>
+                                        {% endfor %}
+
+                                    </select>
+                                  </div>
+                                      <div align="center">
+                                           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                          <button type="submit" class="btn btn-primary btn-lg">Check group</button>
+                                      </div>
+                                  </form>
+                              </div>
+                          </div>
+
+                    </div>
+                      <div class="tab-pane fade" id="nav-update" role="tabpanel" aria-labelledby="nav-home-tab">
+                          <br>
+                          <div class="row">
+                    <div class="col-md-6">
+                          <div class="card shadow mb-4">
+                              <div class="card-header py-3">
+                                  <h6 class="m-0 font-weight-bold text-primary">Add to group</h6>
+                              </div>
+                              <div class="card-body">
+                                  <form action="/admin/manage_group" method="post">
+                                      <div class="form-group">
+                                      Select user:
+                                    <select class="form-control" id="user" name="user">
+                                        {% for user in all_users %}
+                                            <option value="{{user}}">{{user}}</option>
+                                        {% endfor %}
+                                    </select>
+                                  </div>
+                                  <div class="form-group">
+                                  Select group:
+                                      <select class="form-control" id="group" name="group">
+                                        {% for group in all_groups %}
+                                            <option value="{{group}}">{{group}}</option>
+                                        {% endfor %}
+
+                                    </select>
+                                  </div>
+                                       <div class="form-group form-check">
+                                          <input type="checkbox" class="form-check-input" name="admin_verif" id="admin_reset_verif" required>
+                                           <label class="form-check-label" for="admin_verif">I am sure I want to <strong>ADD</strong> this user to the group</label>
+                                      </div>
+                                      <div align="center">
+                                          <input type="hidden" name="action" value="add">
+                                           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+                                           <button type="submit" class="btn btn-success btn-lg">Add user</button>
+                                      </div>
+                                  </form>
+                              </div>
+                          </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="card shadow mb-4">
+                              <div class="card-header py-3">
+                                  <h6 class="m-0 font-weight-bold text-primary">Remove from group</h6>
+                              </div>
+                              <div class="card-body">
+                                  <form action="/admin/manage_group" method="post">
+                                      <div class="form-group">
+                                      Select user:
+                                    <select class="form-control" id="user" name="user">
+                                        {% for user in all_users %}
+                                            <option value="{{user}}">{{user}}</option>
+                                        {% endfor %}
+                                    </select>
+                                  </div>
+                                  <div class="form-group">
+                                  Select group:
+                                      <select class="form-control" id="group" name="group">
+                                        {% for group in all_groups %}
+                                            <option value="{{group}}">{{group}}</option>
+                                        {% endfor %}
+
+                                    </select>
+                                  </div>
+
+                                       <div class="form-group form-check">
+                                          <input type="checkbox" class="form-check-input" name="sudo_revoke_verif" id="sudo_revoke_verif" required>
+                                           <label class="form-check-label" for="sudo_revoke_verif">I am sure I want to <strong>REMOVE</strong> this user from the group</label>
+                                      </div>
+                                      <div align="center">
+                                          <input type="hidden" name="action" value="remove">
+                                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+                                           <button type="submit" class="btn btn-danger btn-lg">Remove user</button>
+                                      </div>
+                                  </form>
+                              </div>
+                          </div>
+                    </div>
+                    </div>
+
+                      </div>
+  </div>
+
+  <a class="scroll-to-top rounded" href="#page-top">
+    <i class="fas fa-angle-up"></i>
+  </a>
+
+
+    {% include 'common/footer.html' %}
+
+</body>
+
+</html>

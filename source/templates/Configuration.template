@@ -192,6 +192,11 @@ Resources:
             cfnresponse.send(event, context, cfnresponse.SUCCESS, {}, '')
 
   ConfigParameters:
+    Metadata:
+      cfn_nag:
+        rules_to_suppress:
+          - id: W77
+            reason: "KmsKeyId defaults to AWS account CMK, aws/secretsmanager hence not explicitly specified"
     DependsOn: SolutionMetricLambda
     Type: AWS::SecretsManager::Secret
     Properties:
@@ -278,6 +283,8 @@ Resources:
         rules_to_suppress:
           - id: W12
             reason: "ReadOnly API commands or only supports wildcard resources"
+          - id: W76
+            reason: "Stelligent Policy Complexity Metric (SPCM) already reduced to minimum"
     Type: AWS::IAM::Policy
     Properties:
       PolicyName: SocaBackup
@@ -367,6 +374,8 @@ Resources:
         rules_to_suppress:
           - id: W12
             reason: "ReadOnly API commands or only supports wildcard resources"
+          - id: W76
+            reason: "Stelligent Policy Complexity Metric (SPCM) already reduced to minimum"
 
     Type: AWS::IAM::Policy
     Properties:
@@ -438,7 +447,11 @@ Resources:
 
 
   SOCABackupVault:
-    DependsOn: SOCABackupRole
+    DependsOn:
+      - SOCABackupRole
+      - SocaBackupIamRole
+      - SOCABackupRestoreIamRole
+
     Type: AWS::Backup::BackupVault
     Properties:
       BackupVaultName: !Sub Vault-${ClusterId}

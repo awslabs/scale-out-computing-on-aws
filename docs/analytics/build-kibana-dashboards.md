@@ -119,7 +119,7 @@ If needed, you can filter by project name (note: this type of filtering can be a
     * X Axis (Buckets):
         * Aggregation: Date Histogram,
         * Field: timestamp
-        * Interval: Auto
+        * Interval: minute
     * Split Series (Buckets):
         * Sub Aggregation: Terms
         * Field: resources_available.instance_type.keyword

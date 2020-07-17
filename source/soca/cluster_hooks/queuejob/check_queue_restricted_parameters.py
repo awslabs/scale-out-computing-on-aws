@@ -11,32 +11,16 @@ If you are installing this file manually, make sure to replace %SOCA_CONFIGURATI
 '''
 
 import sys
-
 import pbs
-
 sys.path.append('/usr/lib64/python2.7/site-packages')
 import yaml
 
 
-      
 e = pbs.event()
 j = e.job
 job_owner = str(e.requestor)
 job_queue = "normal" if str(j.queue) == "" else str(j.queue)
 pbs.logmsg(pbs.LOG_DEBUG, 'queue_acl: job_queue  ' + str(j.queue))
-if 'instance_type' in j.Resource_List:
-    instance_type = j.Resource_List['instance_type']
-else:
-    instance_type = None
-
-# Validate license_mapping YAML is not malformed
-try:
-    license_settings_file = "/apps/soca/%SOCA_CONFIGURATION/cluster_manager/settings/licenses_mapping.yml"
-    lic_reader = open(license_settings_file, "r")
-    lic_data = yaml.safe_load(lic_reader)
-except Exception as err:
-    message = "Job cannot be submitted. Unable to read " + license_settings_file + ". Double chek the YAML syntax is correct and you don't have any invalid indent.\n Error: " + str(err)
-    e.reject(message)
 
 # Validate queue_mapping YAML is not malformed
 try:

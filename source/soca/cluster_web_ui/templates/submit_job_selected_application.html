@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+     {% include 'common/header.html' %}
+
+</head>
+
+<body id="page-top">
+
+  <div id="wrapper">
+    {% include 'common/vertical_menu_bar.html' %}
+    <div id="content-wrapper" class="d-flex flex-column">
+      <div id="content">
+          <br>
+          <div class="container-fluid">
+              {% include 'common/horizontal_menu_bar.html' %}
+              <main role="main">
+              {% with messages = get_flashed_messages(with_categories=true) %}
+                        {% if messages %}
+                            {% for category, message in messages %}
+                                <br>
+                                {% if category == "success" %}
+                                <div class="alert alert-success">
+                                    <strong>{{ message | safe }} </strong>
+                                </div>
+                                {% else %}
+                                 <div class="alert alert-danger">
+                                    <strong>{{ message | safe }} </strong>
+                                </div>
+                                {% endif %}
+                            {% endfor %}
+                        {% endif %}
+                    {% endwith %}
+
+                  <div class="row">
+                      <div class="col-md-6">
+                          <div class="card shadow mb-4" style="width: 100%">
+                              <div class="card-header py-3">
+                                  <h6 class="m-0 font-weight-bold text-primary">Launching your {{ profile_name }} simulation </h6>
+                              </div>
+                              <div class="card-body">
+                                  <form action="/submit_job/send" method="post">
+                                      <div class="form-build"></div>
+                                      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                      <input type="hidden" name="job_script" value="{{ profile_job }}">
+                                      <input type="hidden" name="profile_interpreter" value="{{ profile_interpreter | safe }}">
+                                      <input type="hidden" name="input_file_path" value="{{ input_file_path | safe }}">
+                                      <button type="submit" class="btn btn-success"><i class="fas fa-play"></i> Submit job</button>
+                                  </form>
+                              </div>
+                          </div>
+                      </div>
+                      <div class="col-md-6">
+                          <div class="card shadow mb-4" style="width: 100%">
+                              <div class="card-header py-3">
+                                  <h6 class="m-0 font-weight-bold text-primary">Cost estimate for your job</h6>
+                              </div>
+                              <div class="card-body">
+                                  {% if profile_interpreter != pbs_interpreter %}
+                                  <div class="alert alert-warning">
+                                      Cost estimate is not available because this application will generate a Linux command and not a qsub file.
+                                  </div>
+
+                                  {% else %}
+
+                                  <div id="cost_result">
+                                      <div class="alert alert-primary">
+                                      <h3>
+                                          Please fill out the form first
+                                      </h3>
+                                          Note: If not specified, SOCA uses the following default parameters:
+                                          <li><strong>instance_type</strong>: c5.large</li>
+                                          <li><strong>scratch_size</strong>: 0 GB</li>
+                                          <li><strong>root_size</strong>: 10 GB</li>
+                                          <li><strong>fsx_capacity</strong>: 0 GB</li>
+                                          <li><strong>cpus</strong>: 1</li>
+                                          <li><strong>wall_time</strong>: 60</li>
+                                      </div>
+                                  </div>
+                                  <hr>
+                                  <p>
+                                      <a data-toggle="collapse" href="#disclaimer" role="button" aria-expanded="false" aria-controls="collapseExample">
+                                          Disclaimer: Baseline numbers
+                                      </a>
+                                  </p>
+                                  <div class="collapse" id="disclaimer">
+                                      <div class="card card-body">
+                                          Theses numbers are just an estimate based on:
+                                          <li>Does not reflect any additional charges such as network or storage transfer or usage of io1 volume (default to gp2)</li>
+                                          <li>Compute rate retrieved for your running region</li>
+                                          <li>FSx Persistent Baseline: (50 MB/s/TiB baseline, up to 1.3 GB/s/TiB burst)</li>
+                                          <li>FSx Scratch Baseline: (200 MB/s/TiB baseline, up to 1.3 GB/s/TiB burst)</li>
+                                          <li>EBS/FSx rates as of May 2020 based on us-east-1</li>
+                                      </div>
+                                  </div>
+                                  {% endif %}
+
+                              </div>
+                          </div>
+                      </div>
+                  </div>
+
+              </main>
+
+
+
+
+
+      </div>
+
+    </div>
+  </div>
+</div>
+
+
+
+
+              </div>
+          </div>
+      </div>
+
+  </div>
+
+  <a class="scroll-to-top rounded" href="#page-top">
+    <i class="fas fa-angle-up"></i>
+  </a>
+
+  <script>
+
+      $(document).ready(function(){
+          formBuilder = $('.form-build').formRender({
+              dataType: 'json',
+              formData: {{ profile_form | safe }}
+          })
+
+          // populate input file path by default if they exist
+          $("#input_file").val('{{ input_path }}');
+          $("#job_name").val('{{ input_name }}');
+
+          if ( "{{profile_interpreter | safe }}" == "{{ pbs_interpreter | safe}}") {
+              $("form").change(function () {
+                  var instance_type = $("#instance_type").val() || "c5.large";
+                  var scratch_size = $("#scratch_size").val() || 0;
+                  var root_size = $("#root_size").val() || 0;
+                  var fsx_capacity = $("#fsx_capacity").val() || 0;
+                  var walltime = $("#wall_time").val() || "01:00:00";
+                  var cpus = $("#cpus").val() || 1;
+
+                  $("#cost_result").html('<div align="center"><i class="fas fa-spinner fa-5x"></i></div><h3><br> Please wait while we estimate the price of this job ... </h3>'),
+
+                      $.get('/api/system/aws_price', {
+                          "instance_type": instance_type,
+                          "scratch_size": scratch_size,
+                          "root_size": root_size,
+                          "fsx_capacity": fsx_capacity,
+                          "cpus": cpus,
+                          "wall_time": walltime
+                      }, function (data) {
+
+                          cost_data = jQuery.parseJSON(JSON.stringify(data));
+                          cost_ebs = cost_data.ebs_storage
+                          cost_fsx = cost_data.fsx_storage
+                          cost_compute_ondemand = cost_data.compute.estimated_on_demand_cost
+
+                          var cost_response = '<h4>Estimated Cost: $' + cost_data.estimated_total_cost + ' <small>($' + cost_data.estimated_hourly_cost + ' / hour)</small></h4> \
+                          This estimate is based on a simulation time of ' + cost_data.compute.walltime + ' hour(s) \
+                         <hr> \
+                         <div class="progress" style="height:30px"> \
+                         <div class="progress-bar bg-primary" role="progressbar" style="width: ' + cost_data.compute_pct + '%;height:30px" aria-valuenow="' + cost_data.compute_pct + '" aria-valuemin="0" aria-valuemax="100"> Compute ($' + cost_data.compute.estimated_on_demand_cost + ') </div> \
+                         <div class="progress-bar bg-success" role="progressbar" style="width: ' + cost_data.storage_pct + '%;height:30px" aria-valuenow="' + cost_data.storage_pct + '" aria-valuemin="0" aria-valuemax="100"> Storage ($' + cost_data.estimated_storage_cost + ') </div> \
+                         </div><br><h5>Compute</h5> \
+                         <ul style="list-style: none;"> \
+                         <li><strong>Nodes Count</strong> ' + cost_data.compute.nodes + ' </li>\
+                          <li><strong>Instance Type:</strong> ' + cost_data.compute.instance_type + ' </li> \
+                          <li><strong>Requested CPUs:</strong> ' + cost_data.compute.cpus + ' </li> \
+                          <li><strong>Estimated Compute OnDemand</strong> $' + cost_data.compute.estimated_on_demand_cost + ' </li> </ul> \
+                         <div class="alert alert-warning"> <strong>You could save money by <a href="https://aws.amazon.com/ec2/pricing/reserved-instances/" target="_blank"> purchasing Reserved Instances</a></strong> <br> \
+                         Estimated compute price with RI</strong> $' + cost_data.compute.estimated_reserved_cost + ' <br>  </div>\
+                          <hr><h5>Storage</h5> \
+                          <ul style="list-style: none;"> \
+                         <li><strong>Root Partition:</strong> ' + root_size + ' GB for $' + cost_data.root_size + ' </li>\
+                         <li><strong>Scratch Partition:</strong> ' + scratch_size + ' GB for $' + cost_data.scratch_size + ' </li>\
+                         <li><strong>FSx for Lustre:</strong> ' + fsx_capacity + ' GB for $' + cost_data.fsx_capacity + ' </li> \
+                         <li><strong>Estimated Storage:</strong> $' + cost_data.estimated_storage_cost + ' </li></ul>'
+
+
+                          $("#cost_result").html(cost_response);
+
+                      }).fail(function (data) {
+                          $("#cost_result").html("<div class='alert alert-danger'><h3><i class='fas fa-exclamation-triangle'></i>Unable to estimate cost</h3> <strong>Error:</strong> <br> " + JSON.stringify(data.responseJSON)) + "</div>";
+                      });
+              });
+          }
+
+      });
+
+
+
+  </script>
+
+    {% include 'common/footer.html' %}
+
+</body>
+
+</html>

@@ -41,78 +41,81 @@ if __name__ == "__main__":
         sys.exit(0)
 
     for job, job_data in qstat_output['Jobs'].items():
-        ignore = False
-        job_id = job.split('.')[0]
-        job_owner = job_data['Job_Owner'].split('@')[0]
-        job_queue = job_data['queue']
-        job_state = job_data['job_state']
+        try:
+            ignore = False
+            job_id = job.split('.')[0]
+            job_owner = job_data['Job_Owner'].split('@')[0]
+            job_queue = job_data['queue']
+            job_state = job_data['job_state']
 
-        if arg.user == None:
-            if job_owner != getpass.getuser():
-                # When arg.user is specify, ignore all job which don't match the requested user owner
-                ignore = True
-            else:
-                # If job belongs to user, ignore only if desktop GUI and --desktop is not set
-                if arg.desktop is None:
-                    if job_queue in desktop_queue:
-                        ignore = True
-        else:
-            if arg.user == 'all':
-                pass
-            else:
-                if job_owner != arg.user:
+            if arg.user == None:
+                if job_owner != getpass.getuser():
                     # When arg.user is specify, ignore all job which don't match the requested user owner
                     ignore = True
-
-        if arg.queue is not None:
-            if arg.queue != job_queue:
-                ignore = True
-
-        if arg.state is not None:
-            if (arg.state).lower() != job_state.lower():
-                ignore = True
-
-        if arg.job is not None:
-            if (arg.job) != job_id:
-                ignore = True
-
-        if 'exec_vnode' in job_data.keys():
-            if arg.wide is True:
-                exec_vnode = job_data['exec_vnode']
+                else:
+                    # If job belongs to user, ignore only if desktop GUI and --desktop is not set
+                    if arg.desktop is None:
+                        if job_queue in desktop_queue:
+                            ignore = True
             else:
-                exec_vnode = job_data['exec_vnode'].split('+')[0]
-        else:
-            exec_vnode = '-'
+                if arg.user == 'all':
+                    pass
+                else:
+                    if job_owner != arg.user:
+                        # When arg.user is specify, ignore all job which don't match the requested user owner
+                        ignore = True
 
-        if job_state.lower() != 'r':
-            stime = '-'
-            stime_epoch = '-'
-        else:
-            stime = job_data['stime']
-            stime_epoch = (datetime.strptime(stime, '%a %b %d %H:%M:%S %Y')).strftime('%s')
+            if arg.queue is not None:
+                if arg.queue != job_queue:
+                    ignore = True
 
-        if ignore is False:
-            job_id_order.append(job_id)
-            job_order += 1
-            dict_output[job_id] = {
-                        'get_job_id': job_id,
-                        'get_job_queue_name': job_queue,
-                        'get_job_owner': job_owner,
-                        'get_job_state': job_state,
-                        'get_execution_hosts': exec_vnode,
-                        'get_job_name': job_data['Job_Name'],
-                        'get_job_nodect': job_data['Resource_List']['nodect'],
-                        'get_job_ncpus': job_data['Resource_List']['ncpus'],
-                        'get_job_start_time': stime,
-                        'get_job_start_time_epoch': stime_epoch,
-                        'get_job_queue_time': job_data['qtime'],
-                        'get_job_queue_time_epoch': (datetime.strptime(job_data['qtime'], '%a %b %d %H:%M:%S %Y')).strftime('%s'),
-                        'get_job_project': job_data['project'],
-                        'get_job_submission_directory': job_data['Variable_List']['PBS_O_WORKDIR'],
-                        'get_job_resource_list': job_data['Resource_List'],
-                        'get_job_order_in_queue': job_order
-                    }
+            if arg.state is not None:
+                if (arg.state).lower() != job_state.lower():
+                    ignore = True
 
+            if arg.job is not None:
+                if (arg.job) != job_id:
+                    ignore = True
+
+            if 'exec_vnode' in job_data.keys():
+                if arg.wide is True:
+                    exec_vnode = job_data['exec_vnode']
+                else:
+                    exec_vnode = job_data['exec_vnode'].split('+')[0]
+            else:
+                exec_vnode = '-'
+
+            if job_state.lower() != 'r':
+                stime = '-'
+                stime_epoch = '-'
+            else:
+                stime = job_data['stime']
+                stime_epoch = (datetime.strptime(stime, '%a %b %d %H:%M:%S %Y')).strftime('%s')
+
+            if ignore is False:
+                job_id_order.append(job_id)
+                job_order += 1
+                dict_output[job_id] = {
+                            'get_job_id': job_id,
+                            'get_job_queue_name': job_queue,
+                            'get_job_owner': job_owner,
+                            'get_job_state': job_state,
+                            'get_execution_hosts': exec_vnode,
+                            'get_job_name': job_data['Job_Name'],
+                            'get_job_nodect': job_data['Resource_List']['nodect'],
+                            'get_job_ncpus': job_data['Resource_List']['ncpus'],
+                            'get_job_start_time': stime,
+                            'get_job_start_time_epoch': stime_epoch,
+                            'get_job_queue_time': job_data['qtime'],
+                            'get_job_queue_time_epoch': (datetime.strptime(job_data['qtime'], '%a %b %d %H:%M:%S %Y')).strftime('%s'),
+                            'get_job_project': job_data['project'],
+                            'get_job_submission_directory': job_data['Variable_List']['PBS_O_WORKDIR'],
+                            'get_job_resource_list': job_data['Resource_List'],
+                            'get_job_order_in_queue': job_order
+                        }
+        except Exception as err:
+            #print(err)
+            pass
     if arg.format == 'json':
         table_output = dict_output
         print(json.dumps(table_output))

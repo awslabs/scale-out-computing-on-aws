@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+
+     {% include 'common/header.html' %}
+
+
+</head>
+
+<body id="page-top">
+
+  <div id="wrapper">
+    {% include 'common/vertical_menu_bar.html' %}
+    <div id="content-wrapper" class="d-flex flex-column">
+
+      <div id="content">
+          <br>
+          <div class="container-fluid">
+              {% include 'common/horizontal_menu_bar.html' %}
+              <div class="row">
+                      <div class="col-md-12">
+                          <div class="alert alert-primary">
+                              <h3>Your API key: <strong>{{ user_token }}</strong></h3>
+
+                              This API key is only available to you.
+                              Do not share it externally as this key is used to authorize requests on your behalf.
+                              <hr>
+                              If you think your key has been compromised, reset it using the link available at the bottom of the page.
+
+                          </div>
+                          <div class="card shadow mb-4">
+                              <div class="card-header py-3">
+                                  <h6 class="m-0 font-weight-bold text-primary">How to interact with REST API</h6>
+                              </div>
+
+                              <div class="card-body">
+                                  <div class="alert alert-warning"><strong>API Documentation</strong><br>
+                                  You can interact with your SOCA cluster (create users, groups, queue, submit jobs, view jobs etc ..) via a simple REST interface. <br>
+                                      Documentation and examples can be found on <a href="{{ master_host }}api/doc" target="_blank">{{ master_host }}api/doc</a> (note: you must have <a href="https://awslabs.github.io/scale-out-computing-on-aws/security/update-soca-dns-ssl-certificate/" target="_blank"> a valid SSL certificate installed on SOCA</a>)
+                              </div>
+
+                                  <h2>Example: How to submit/query and delete a job via HTTP API</h2>
+
+                                  <h4>Prepare the input</h4>
+                                  Let's assume you want to submit a simple job
+                                  <pre><code class="language-bash">
+#!/bin/bash
+#PBS -N testjob
+#PBS -V -j oe -o testjob_output.qlog
+#PBS -P myproject
+#PBS -q normal
+#PBS -l nodes=1,instance_type=c5.large
+/bin/echo "Hello World"</code></pre>
+                                  The first action is to encode the payload using Base64. There is multiple way to create a base64 hash. On Linux/Mac, you can use <code>base64</code> encode function:
+
+                                   <pre><code class="language-bash">$ base64 test_input_file.sh
+IyEvYmluL2Jhc2gKI1BCUyAtTiB0ZXN0am9iCiNQQlMgLVYgLWogb2UgLW8gdGVzdGpvYl9vdXRwdXQucWxvZwojUEJTIC1QIG15cHJvamVjdAojUEJTIC1xIG5vcm1hbAojUEJTIC1sIG5vZGVzPTEsaW5zdGFuY2VfdHlwZT1jNS5sYXJnZQovYmluL2VjaG8gIkhlbGxvIFdvcmxkIgo=                                   </code></pre>
+
+                                  You can verify the hash is correct by running the <code>base64</code> decode function (this should return your original input file)
+
+                                   <pre><code class="language-bash">
+$ echo "IyEvYmluL2Jhc2gKI1BCUyAtTiB0ZXN0am9iCiNQQlMgLVYgLWogb2UgLW8gdGVzdGpvYl9vdXRwdXQucWxvZwojUEJTIC1QIG15cHJvamVjdAojUEJTIC1xIG5vcm1hbAojUEJTIC1sIG5vZGVzPTEsaW5zdGFuY2VfdHlwZT1jNS5sYXJnZQovYmluL2VjaG8gIkhlbGxvIFdvcmxkIgo=" | base64 --decode
+#!/bin/bash
+#PBS -N testjob
+#PBS -V -j oe -o testjob_output.qlog
+#PBS -P myproject
+#PBS -q normal
+#PBS -l nodes=1,instance_type=c5.large
+/bin/echo "Hello World"</code></pre>
+                                  <br>
+                                  <h4>Prepare the POST request</h4>
+                                  You will need to specify three headers:
+                                  <li>X-SOCA-USER and set the value to <code>{{  user }}</code></li>
+                                  <li>X-SOCA-TOKEN and set the value to <code>{{  user_token }}</code></li>
+
+                                  You will also need to pass the Base64 encoded string as payload. See below for examples:
+                                    <br><br>
+                                  <h4>Submit a job</h4>
+                                  <hr>
+
+                                  <div class="row">
+                                          <div class="col-md-6">
+                                              <h5>Using Bash</h5>
+                                              <pre><code class="language-bash">
+# remove -k when using a trusted SSL cert
+curl -k -X POST \
+   -H "X-SOCA-TOKEN: {{ user_token }}" \
+   -H "X-SOCA-USER: {{ user }}" \
+   -F payload="IyEvYmluL2Jhc2gKI1BCUyAtTiB0ZXN0am9iCiNQQlMgLVYgLWogb2UgLW8gdGVzdGpvYl9vdXRwdXQucWxvZwojUEJTIC1QIG15cHJvamVjdAojUEJTIC1xIG5vcm1hbAojUEJTIC1sIG5vZGVzPTEsaW5zdGFuY2VfdHlwZT1jNS5sYXJnZQovYmluL2VjaG8gIkhlbGxvIFdvcmxkIgo="  \
+   {{ master_host }}api/scheduler/job</code></pre>
+                                          </div>
+                                      <div class="col-md-6">
+                                          <h5>Using Python</h5>
+                                          <pre><code class="language-python">
+import requests
+import json
+hdrs = {"X-SOCA-TOKEN": "{{ user_token }}",
+        "X-SOCA-USER": "{{ user }}"}
+api_endpoint="{{ master_host }}api/scheduler/job"
+payload = {"payload": "IyEvYmluL2Jhc2gKI1BCUyAtTiB0ZXN0am9iCiNQQlMgLVYgLWogb2UgLW8gdGVzdGpvYl9vdXRwdXQucWxvZwojUEJTIC1QIG15cHJvamVjdAojUEJTIC1xIG5vcm1hbAojUEJTIC1sIG5vZGVzPTEsaW5zdGFuY2VfdHlwZT1jNS5sYXJnZQovYmluL2VjaG8gIkhlbGxvIFdvcmxkIgo="}
+req = requests.post(api_endpoint,
+                   headers=hdrs,
+                   data=payload,
+                   verify=False)  # change verify=True when using a trusted SSL cert
+print(req.status_code)
+print(req.json())
+                                  </code></pre>
+                                      </div>
+                                      Both commands will return the ID associated to the job you just submitted
+                                  </div>
+                                  <!-- row -->
+                                   <br>
+                                  <h4>Query a job</h4>
+                                  <hr>
+                                  <div class="row">
+                                          <div class="col-md-6">
+                                              <h5>Using Bash</h5>
+                                              <pre><code class="language-bash">
+# remove -k when using a trusted SSL cert
+curl -k -X GET  \
+   -H "X-SOCA-TOKEN: {{ user_token }}" \
+   -H "X-SOCA-USER: {{ user }}" \
+   {{ master_host }}api/scheduler/job?job_id=%YOUR_JOB_ID%</code></pre>
+                                          </div>
+                                      <div class="col-md-6">
+                                          <h5>Using Python</h5>
+                                          <pre><code class="language-python">
+import requests
+import json
+hdrs = {"X-SOCA-TOKEN": "{{ user_token }}",
+        "X-SOCA-USER": "{{ user }}",}
+api_endpoint="{{ master_host }}api/scheduler/job"
+data = {"job_id": "%YOUR_JOB_ID%"}
+req = requests.get(api_endpoint, headers=hdrs, params=data, verify=False) # change verify=True when using a trusted SSL cert
+print(req.status_code)
+print(req.json())
+                                  </code></pre>
+                                      </div>
+                                      Both commands will return a JSON object with all information regarding your job.
+                                  </div>
+                                  <!-- row -->
+                                   <br>
+                                  <h4>Delete a job</h4>
+                                  <hr>
+                                  <div class="row">
+                                          <div class="col-md-6">
+                                              <h5>Using Bash</h5>
+                                              <pre><code class="language-bash">
+# remove -k when using a trusted SSL cert
+curl -k -X DELETE  \
+   -H "X-SOCA-TOKEN: {{ user_token }}" \
+   -H "X-SOCA-USER: {{ user }}" \
+   {{ master_host }}api/scheduler/job?job_id=%YOUR_JOB_ID%</code></pre>
+                                          </div>
+                                      <div class="col-md-6">
+                                          <h5>Using Python</h5>
+                                          <pre><code class="language-python">
+import requests
+import json
+hdrs = {"X-SOCA-TOKEN": "{{ user_token }}",
+        "X-SOCA-USER": "{{ user }}"}
+api_endpoint="{{ master_host }}api/scheduler/job"
+data = {"job_id": "%YOUR_JOB_ID%"}
+req = requests.delete(api_endpoint, headers=hdrs, params=data, verify=False) # change verify=True when using a trusted SSL cert
+print(req.status_code)
+print(req.json())
+                                  </code></pre>
+                                      </div>
+                                  </div>
+                                  <!-- row -->
+
+
+                              </div>
+                          </div>
+
+                          <div class="card shadow mb-4">
+                              <div class="card-header py-3">
+                                  <h6 class="m-0 font-weight-bold text-primary">Reset my API key</h6>
+                              </div>
+
+                              <div class="card-body">
+                                  <div class="alert alert-danger">
+                                      <h3>DANGER ZONE</h3>
+                                      Generating a new API key will invalidate the previous key (<strong>{{ user_token }}</strong>).<hr>
+                                      <strong>Any script authenticating to SOCA using this key will return <code>HTTP 401/Unauthorized</code>.
+                                      <br>To prevent outage, you must update all your scripts (if any) with the new key</strong>.<br>
+                                      <hr>
+                                      <form action="/reset_api_key" method="post">
+                                          <div class="form-group form-check">
+                                              <input type="checkbox" class="form-check-input" name="verif" id="verif" required>
+                                              <label class="form-check-label" for="verif">I am sure I want to generate a new key and delete {{ user_token }}</label><br>
+                                               <input type="checkbox" class="form-check-input" name="verif2" id="verif2" required>
+                                              <label class="form-check-label" for="verif2">I understand I will need to update my scripts with the new key to prevent any outage</label>
+                                          </div>
+
+                                          <div align="center">
+                                           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                           <input type="hidden" name="user" value="{{ user }}">
+                                          <button type="submit" class="btn btn-danger btn-lg">Regenerate new key</button>
+                                      </div>
+                                  </form>
+
+                                  </div>
+
+                              </div>
+                          </div>
+
+                      </div>
+              </div>
+          </div>
+      </div>
+
+  </div>
+
+  <a class="scroll-to-top rounded" href="#page-top">
+    <i class="fas fa-angle-up"></i>
+  </a>
+
+
+    {% include 'common/footer.html' %}
+
+</body>
+
+</html>

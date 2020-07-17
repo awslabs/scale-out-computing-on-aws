@@ -57,6 +57,7 @@ if __name__ == "__main__":
         else:
             pbsnodes_output = json.loads(stdout)
     except subprocess.CalledProcessError as e:
+        print('CalledProcessError: ' + str(e))
         exit(1)
     except Exception as e:
         print('Unknown Error: '+ str(e))

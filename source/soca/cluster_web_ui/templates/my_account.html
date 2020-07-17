@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+     {% include 'common/header.html' %}
+</head>
+
+<body id="page-top">
+
+  <div id="wrapper">
+    {% include 'common/vertical_menu_bar.html' %}
+    <div id="content-wrapper" class="d-flex flex-column">
+
+      <div id="content">
+          <br>
+          <div class="container-fluid">
+              {% include 'common/horizontal_menu_bar.html' %}
+              {% if sudoers == false %}
+               <div class="alert alert-danger" role="alert">
+                     <strong>Access denied </strong>
+                   Only users with sudo permissions can access this page
+                     <br>
+                 </div>
+              {% else %}
+              <div id="accessok">
+                  {% with messages = get_flashed_messages(with_categories=true) %}
+                        {% if messages %}
+                            {% for category, message in messages %}
+                                <br>
+                                {% if category == "success" %}
+                                <div class="alert alert-success">
+                                    <strong>{{ message | safe}} </strong>
+                                </div>
+                                {% else %}
+                                 <div class="alert alert-danger">
+                                    <strong>{{ message | safe }} </strong>
+                                </div>
+                                {% endif %}
+                            {% endfor %}
+                        {% endif %}
+                    {% endwith %}
+                  <div class="row">
+
+                      <div class="col-md-5">
+                          <div class="card shadow mb-4">
+                              <div class="card-header py-3">
+                                  <h6 class="m-0 font-weight-bold text-primary">Change my password</h6>
+                              </div>
+                              <div class="card-body">
+                                  <form action="/reset_password" method="post"
+                                    oninput='password_verif.setCustomValidity(password_verif.value != password.value ? "Passwords do not match." : "")'>
+                                      <div class="form-group">
+                                          <input id="password" placeholder="Password" class="form-control"  type="password" required name="password">
+                                      </div>
+                                      <div class="form-group">
+                                          <input placeholder="Confirm Password" id="password_verif" class="form-control" type="password" name="password_verif">
+                                      </div>
+                                      <div align="center">
+                                           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                          <button type="submit" class="btn btn-primary btn-lg">Update Password</button>
+                                      </div>
+                                  </form>
+                              </div>
+                          </div>
+                      </div>
+
+
+                      <div class="col-md-7">
+                          <div class="card shadow mb-4">
+                              <div class="card-header py-3">
+                                  <h6 class="m-0 font-weight-bold text-primary">My LDAP Group</h6>
+                              </div>
+                              <div class="card-body">
+                              <div class="alert alert-primary">
+                                  Users in your group can access (read-only) your $HOME directory by default.
+                              </div>
+
+                                  <h4>User(s) in your group:</h4>
+                                {%  for member in group_members %}
+                                     {%  if member !=  user %}
+                                        <li>{{ member }}</li>
+                                    {% endif %}
+                                  {% endfor %}
+                              </div>
+                          <hr>
+                          <div class="card-body">
+                              <h4>Add a user to your group</h4>
+                              <form action="/manage_group" method="post">
+                                  <div class="form-group">
+                                    <select class="form-control" id="user" name="user">
+                                        {% for user in all_users %}
+                                            <option value="{{user}}">{{user}}</option>
+                                        {% endfor %}
+                                    </select>
+                                  </div>
+
+                                  <div class="form-group form-check">
+                                      <input type="checkbox" class="form-check-input" name="add_user_verif" id="add_user_verif" required>
+                                      <label class="form-check-label" for="add_user_verif">I am sure I want to <strong>ADD</strong> this user to my group</label>
+                                  </div>
+                                  <div align="center">
+                                      <input type="hidden" name="action" value="add">
+                                      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                      <button type="submit" class="btn btn-success btn-lg">Add user to your group</button>
+                                  </div>
+                                  </form>
+                              </div>
+                          <hr>
+                          <div class="card-body">
+                              <h4>Remove a user from your group</h4>
+                              <form action="/manage_group" method="post">
+                                  <div class="form-group">
+                                    <select class="form-control" id="user" name="user">
+                                        {% for member in group_members %}
+                                            {%  if member !=  user %}
+                                            <option value="{{member}}">{{member}}</option>
+                                            {% endif %}
+                                        {% endfor %}
+                                    </select>
+                                  </div>
+
+                                  <div class="form-group form-check">
+                                      <input type="checkbox" class="form-check-input" name="sudo_revoke_verif" id="remove_user_verif" required>
+                                      <label class="form-check-label" for="remove_user_verif">I am sure I want to <strong>REMOVE</strong> this user from my group</label>
+                                  </div>
+                                  <div align="center">
+                                      <input type="hidden" name="action" value="remove">
+                                      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                      <button type="submit" class="btn btn-danger btn-lg">Remove user to your group</button>
+                                  </div>
+                                  </form>
+                              </div>
+
+
+
+
+                          </div>
+                      </div>
+
+                  </div>
+
+        </div>
+        {% endif %}
+
+  </div>
+
+  <a class="scroll-to-top rounded" href="#page-top">
+    <i class="fas fa-angle-up"></i>
+  </a>
+
+
+    {% include 'common/footer.html' %}
+
+</body>
+
+</html>

@@ -21,7 +21,9 @@ from troposphere.ec2 import PlacementGroup, \
     InstanceMarketOptions, \
     NetworkInterfaces, \
     SpotOptions, \
-    CpuOptions
+    CpuOptions,\
+    LaunchTemplateBlockDeviceMapping
+
 from troposphere.fsx import FileSystem, LustreConfiguration
 import troposphere.ec2 as ec2
 
@@ -39,6 +41,7 @@ class CustomResourceSendAnonymousMetrics(AWSCustomObject):
         "BaseOS": (str, True),
         "StackUUID": (str, True),
         "KeepForever": (str, True),
+        "TerminateWhenIdle": (str, True),
         "FsxLustre": (str, True),
     }
 
@@ -48,18 +51,18 @@ def main(**params):
         # Metadata
         t = Template()
         t.set_version("2010-09-09")
-        t.set_description("(SOCA) - Base template to deploy compute nodes.")
+        t.set_description("(SOCA) - Base template to deploy compute nodes. Version 2.5.0")
         allow_anonymous_data_collection = params["MetricCollectionAnonymous"]
         debug = False
         mip_usage = False
-        instances_list = params["InstanceType"].split("+")
+        instances_list = params["InstanceType"] # list of instance type. Use + to specify more than one type
         asg_lt = asg_LaunchTemplate()
         ltd = LaunchTemplateData("NodeLaunchTemplateData")
         mip = MixedInstancesPolicy()
         stack_name = Ref("AWS::StackName")
 
         # Begin LaunchTemplateData
-        UserData = '''#!/bin/bash -xe
+        UserData = '''#!/bin/bash -x
 export PATH=$PATH:/usr/local/bin
 if [[ "''' + params['BaseOS'] + '''" == "centos7" ]] || [[ "''' + params['BaseOS'] + '''" == "rhel7" ]];
     then
@@ -97,6 +100,10 @@ echo export "SOCA_FSX_LUSTRE_BUCKET="''' + str(params['FSxLustreConfiguration'][
 echo export "SOCA_FSX_LUSTRE_DNS="''' + str(params['FSxLustreConfiguration']['existing_fsx']).lower() + '''"" >> /etc/environment
 echo export "SOCA_INSTANCE_TYPE=$GET_INSTANCE_TYPE" >> /etc/environment
 echo export "SOCA_INSTANCE_HYPERTHREADING="''' + str(params['ThreadsPerCore']).lower() + '''"" >> /etc/environment
+echo export "SOCA_SYSTEM_METRICS="''' + str(params['SystemMetrics']).lower() + '''"" >> /etc/environment
+echo export "SOCA_ESDOMAIN_ENDPOINT="''' + str(params['ESDomainEndpoint']).lower() + '''"" >> /etc/environment
+
+
 echo export "SOCA_HOST_SYSTEM_LOG="/apps/soca/''' + str(params['ClusterId']) + '''/cluster_node_bootstrap/logs/''' + str(params['JobId']) + '''/$(hostname -s)"" >> /etc/environment
 echo export "AWS_STACK_ID=${AWS::StackName}" >> /etc/environment
 echo export "AWS_DEFAULT_REGION=${AWS::Region}" >> /etc/environment
@@ -112,9 +119,18 @@ mkdir -p /apps
 mkdir -p /data
 
 # Mount EFS
-echo "''' + params['EFSDataDns'] + ''':/ /data nfs4 nfsvers=4.1,rsize=1048576,wsize=1048576,hard,timeo=600,retrans=2 0 0" >> /etc/fstab
-echo "''' + params['EFSAppsDns'] + ''':/ /apps nfs4 nfsvers=4.1,rsize=1048576,wsize=1048576,hard,timeo=600,retrans=2 0 0" >> /etc/fstab
+echo "''' + params['EFSDataDns'] + ''':/ /data nfs4 nfsvers=4.1,rsize=1048576,wsize=1048576,hard,timeo=600,retrans=2,noresvport 0 0" >> /etc/fstab
+echo "''' + params['EFSAppsDns'] + ''':/ /apps nfs4 nfsvers=4.1,rsize=1048576,wsize=1048576,hard,timeo=600,retrans=2,noresvport 0 0" >> /etc/fstab
 mount -a 
+EFS_MOUNT=0
+while [[ $? -ne 0 ]] && [[ $EFS_MOUNT -lt 5 ]]
+  do
+    SLEEP_TIME=$(( RANDOM % 60 ))
+    echo "Failed to mount EFS, retrying in $SLEEP_TIME seconds and Loop $EFS_MOUNT/5..."
+    sleep $SLEEP_TIME
+    ((EFS_MOUNT++))
+    mount -a
+  done
 
 # Configure NTP
 yum remove -y ntp
@@ -160,14 +176,15 @@ $AWS s3 cp s3://$SOCA_INSTALL_BUCKET/$SOCA_INSTALL_BUCKET_FOLDER/scripts/config.
         for instance in instances_list:
             if "t2." in instance:
                 ltd.EbsOptimized = False
-            else:
-                # metal + t2 does not support CpuOptions
-                if "metal" not in instance and (SpotFleet is False or len(instances_list) == 1):
-                    # Spotfleet with multiple instance types doesn't support CpuOptions
-                    # So we can't add CpuOptions if SpotPrice is specified and when multiple instances are specified
-                    ltd.CpuOptions = CpuOptions(
-                        CoreCount=int(params["CoreCount"]),
-                        ThreadsPerCore=1 if params["ThreadsPerCore"] is False else 2)
+
+            # metal + t2 does not support CpuOptions
+            unsupported = ["t2.", "metal"]
+            if all(itype not in instance for itype in unsupported) and (SpotFleet is False or len(instances_list) == 1):
+                # Spotfleet with multiple instance types doesn't support CpuOptions
+                # So we can't add CpuOptions if SpotPrice is specified and when multiple instances are specified
+                ltd.CpuOptions = CpuOptions(
+                    CoreCount=int(params["CoreCount"]),
+                    ThreadsPerCore=1 if params["ThreadsPerCore"] is False else 2)
 
         ltd.IamInstanceProfile = IamInstanceProfile(Arn=params["ComputeNodeInstanceProfileArn"])
         ltd.KeyName = params["SSHKeyPair"]
@@ -189,7 +206,7 @@ $AWS s3 cp s3://$SOCA_INSTALL_BUCKET/$SOCA_INSTALL_BUCKET_FOLDER/scripts/config.
         )]
         ltd.UserData = Base64(Sub(UserData))
         ltd.BlockDeviceMappings = [
-            BlockDeviceMapping(
+            LaunchTemplateBlockDeviceMapping(
                 DeviceName="/dev/xvda" if params["BaseOS"] == "amazonlinux2" else "/dev/sda1",
                 Ebs=EBSBlockDevice(
                     VolumeSize=params["RootSize"],
@@ -218,6 +235,7 @@ $AWS s3 cp s3://$SOCA_INSTALL_BUCKET/$SOCA_INSTALL_BUCKET_FOLDER/scripts/config.
                 _soca_StackId=stack_name,
                 _soca_JobOwner=str(params["JobOwner"]),
                 _soca_JobProject=str(params["JobProject"]),
+                _soca_TerminateWhenIdle=str(params["TerminateWhenIdle"]),
                 _soca_KeepForever=str(params["KeepForever"]).lower(),
                 _soca_ClusterId=str(params["ClusterId"]),
                 _soca_NodeType="soca-compute-node"))]
@@ -266,6 +284,7 @@ $AWS s3 cp s3://$SOCA_INSTALL_BUCKET/$SOCA_INSTALL_BUCKET_FOLDER/scripts/config.
                 _soca_StackId=stack_name,
                 _soca_JobOwner=str(params["JobOwner"]),
                 _soca_JobProject=str(params["JobProject"]),
+                _soca_TerminateWhenIdle=str(params["TerminateWhenIdle"]),
                 _soca_KeepForever=str(params["KeepForever"]).lower(),
                 _soca_ClusterId=str(params["ClusterId"]),
                 _soca_NodeType="soca-compute-node"))
@@ -334,6 +353,7 @@ $AWS s3 cp s3://$SOCA_INSTALL_BUCKET/$SOCA_INSTALL_BUCKET_FOLDER/scripts/config.
                 _soca_StackId=stack_name,
                 _soca_JobOwner=str(params["JobOwner"]),
                 _soca_JobProject=str(params["JobProject"]),
+                _soca_TerminateWhenIdle=str(params["TerminateWhenIdle"]),
                 _soca_KeepForever=str(params["KeepForever"]).lower(),
                 _soca_ClusterId=str(params["ClusterId"]),
                 _soca_NodeType="soca-compute-node")
@@ -348,19 +368,23 @@ $AWS s3 cp s3://$SOCA_INSTALL_BUCKET/$SOCA_INSTALL_BUCKET_FOLDER/scripts/config.
                 fsx_lustre.StorageCapacity = params["FSxLustreConfiguration"]["capacity"]
                 fsx_lustre.SecurityGroupIds = [params["SecurityGroupId"]]
                 fsx_lustre.SubnetIds = params["SubnetId"]
+                fsx_lustre_configuration = LustreConfiguration()
+                fsx_lustre_configuration.DeploymentType = params["FSxLustreConfiguration"]["deployment_type"].upper()
+                if params["FSxLustreConfiguration"]["deployment_type"].upper() == "PERSISTENT_1":
+                    fsx_lustre_configuration.PerUnitStorageThroughput = params["FSxLustreConfiguration"]["per_unit_throughput"]
 
                 if params["FSxLustreConfiguration"]["s3_backend"] is not False:
-                    fsx_lustre_configuration = LustreConfiguration()
                     fsx_lustre_configuration.ImportPath = params["FSxLustreConfiguration"]["import_path"] if params["FSxLustreConfiguration"]["import_path"] is not False else params["FSxLustreConfiguration"]["s3_backend"]
                     fsx_lustre_configuration.ExportPath = params["FSxLustreConfiguration"]["import_path"] if params["FSxLustreConfiguration"]["import_path"] is not False else params["FSxLustreConfiguration"]["s3_backend"] + "/" + params["ClusterId"] + "-fsxoutput/job-" +  params["JobId"] + "/"
-                    fsx_lustre.LustreConfiguration = fsx_lustre_configuration
 
+                fsx_lustre.LustreConfiguration = fsx_lustre_configuration
                 fsx_lustre.Tags = base_Tags(
                     # False disable PropagateAtLaunch
                     Name=str(params["ClusterId"] + "-compute-job-" + params["JobId"]),
                     _soca_JobId=str(params["JobId"]),
                     _soca_JobName=str(params["JobName"]),
                     _soca_JobQueue=str(params["JobQueue"]),
+                    _soca_TerminateWhenIdle=str(params["TerminateWhenIdle"]),
                     _soca_StackId=stack_name,
                     _soca_JobOwner=str(params["JobOwner"]),
                     _soca_JobProject=str(params["JobProject"]),
@@ -386,6 +410,7 @@ $AWS s3 cp s3://$SOCA_INSTALL_BUCKET/$SOCA_INSTALL_BUCKET_FOLDER/scripts/config.
             metrics.StackUUID = str(params["StackUUID"])
             metrics.KeepForever = str(params["KeepForever"])
             metrics.FsxLustre = str(params["FSxLustreConfiguration"])
+            metrics.TerminateWhenIdle = str(params["TerminateWhenIdle"])
             t.add_resource(metrics)
         # End Custom Resource
 

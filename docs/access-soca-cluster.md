@@ -45,11 +45,19 @@ You can choose how long your session will be valid. This parameter can be custom
 
 ![](imgs/access-6.png)
 
+
+!!!info "Terminate when idle"
+    Starting 2.5.0, HPC admins can configure idle time (`DCV_TERMINATE_IDLE_SESSION`, in hours). DCV session will automatically terminated if the session is inactive for too long.
+
 ### Session type
 
 You can choose the type of session you want to deploy, depending your needs. This parameter can be customized as needed
 
 ![](imgs/access-4.png)
+
+### Advanced Options
+
+Starting 2.5.0, users can choose to install DCV on their custom AMI as well as provision additional EBS volumes
 
 ### Access your session
 

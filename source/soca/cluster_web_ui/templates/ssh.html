@@ -31,7 +31,7 @@
                                   <br><br>
 
                                   <h4>Step1:
-                                  <a href="/api/get_pem_key" class="btn btn-primary btn-icon-split">
+                                  <a href="/ssh/get_key?type=pem&ts={{ timestamp }}" class="btn btn-primary btn-icon-split">
                                                    <span class="icon text-white-50">
                                                        <i class="fas fa-info-circle"></i>
                                                    </span>
@@ -43,16 +43,16 @@
                                   <hr>
 
                                   <h4>Step2: Modify key permission</h4>
-                                  Run <code>chmod 600 {{username}}_soca_privatekey.pem</code>
+                                  Run <code>chmod 600 {{user}}_soca_privatekey.pem</code>
                                     <hr>
                                   <h4>Step3: Connect to the cluster</h4>
-                                  Run <code>ssh -i {{username}}_soca_privatekey.pem {{username}}@{{scheduler_ip}}</code>
+                                  Run <code>ssh -i {{user}}_soca_privatekey.pem {{user}}@{{scheduler_ip}}</code>
                                   <hr>
                                   <h4>Optional: Enable KeepAlive</h4>
                                    If you don't want your session to be automatically closed after a couple of minutes of inactivity, edit <code>~/.ssh/config</code> and add:<br>
                                   <code>
 Host {{scheduler_ip}}<br>
-    ServerAliveInterval 30<br>
+    ServerAliveInterval 10<br>
     ServerAliveCountMax 2
                                   </code>
 
@@ -74,7 +74,7 @@ Host {{scheduler_ip}}<br>
                                   <br><br>
                                   <h4>Step1:
 
-                                   <a href="/api/get_ppk_key" class="btn btn-primary btn-icon-split">
+                                   <a href="/ssh/get_key?type=ppk&ts={{ timestamp }}" class="btn btn-primary btn-icon-split">
                                                    <span class="icon text-white-50">
                                                        <i class="fas fa-info-circle"></i>
                                                    </span>
@@ -86,7 +86,7 @@ Host {{scheduler_ip}}<br>
                                   <h4>Step2: Configure PuTTY</h4>
                                   <li><a href="https://www.chiark.greenend.org.uk/~sgtatham/putty/latest.html" target="_blank">Download PuTTY</a></li>
                                   <li>As hostname, enter {{scheduler_ip}}</li>
-                                  <li>Navigate to Connection > SSH > Auth and enter the path of your key ({{username}}_soca_privatekey.ppk) under your "Private Key used for Authentication"</li>
+                                  <li>Navigate to Connection > SSH > Auth and enter the path of your key ({{user}}_soca_privatekey.ppk) under your "Private Key used for Authentication"</li>
                                   <li>Save your session</li>
                                   <li>Click connect/open to access the cluster</li>
                                   </li>

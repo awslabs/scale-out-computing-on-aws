@@ -13,7 +13,7 @@ import re
 import subprocess
 import sys
 from datetime import timedelta
-
+import socket
 import boto3
 import pytz
 import yaml
@@ -35,6 +35,18 @@ def run_command(cmd, type):
         return command
     except subprocess.CalledProcessError as e:
         return ""
+
+
+def get_lock(process_name):
+    get_lock._lock_socket = socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM)
+    pid = os.getpid()
+    try:
+        get_lock._lock_socket.bind('\0' + process_name)
+        #print('Obtained the lock {} - PID {}'.format(process_name, pid))
+        return True
+    except socket.error:
+        logpush("lock {} exists. Exiting PID {}".format(process_name, pid), "info")
+        return str(pid)
 
 
 def fair_share_job_id_order(sorted_queued_job, user_fair_share):
@@ -202,8 +214,8 @@ def clean_cloudformation_stack():
     # stakc will stay forever. Instead we need to describe all stacks and delete them if they are assigned to a job that no longer exist
 
 
-def check_cloudformation_status(stack_id, job_id, job_select_resource):
-    # This function is only called if we detect a queued job with an already assigned Compute Unit
+def capacity_being_provisioned(stack_id, job_id, job_select_resource):
+    # This function is only called if we detect a queued job with an already assigned Compute Node
     try:
         logpush('Checking existing cloudformation ' +str(stack_id))
         check_stack_status = cloudformation.describe_stacks(StackName=stack_id)
@@ -211,26 +223,26 @@ def check_cloudformation_status(stack_id, job_id, job_select_resource):
             logpush(job_id + ' is queued but CI has been specified and CloudFormation has been created.')
             stack_creation_time = check_stack_status['Stacks'][0]['CreationTime']
             now = pytz.utc.localize(datetime.datetime.utcnow())
-            if now > (stack_creation_time + timedelta(hours=1)):
-                logpush(job_id + ' Stack has been created for more than 1 hour. Because job has not started by then, rollback compute_node value')
+            if now > (stack_creation_time + timedelta(minutes=30)):
+                logpush(job_id + ' Stack has been created for more than 30 minutes. Because job has not started by then, rollback compute_node value')
                 new_job_select = job_select_resource.split(':compute_node')[0] + ':compute_node=tbd'
                 qalter_cmd = [system_cmds['qalter'], "-l", "stack_id=", "-l", "select=" + new_job_select, str(job_id)]
                 run_command(qalter_cmd, "call")
                 cloudformation.delete_stack(StackName=stack_id)
             else:
-                logpush(job_id + ' Stack has been created for less than 1 hour. Let wait a bit before killing the CI and reset the compute_node value')
+                logpush(job_id + ' Stack has been created for less than 30 minutes. Let wait a bit before killing the CI and reset the compute_node value')
+                return True
 
         elif check_stack_status['Stacks'][0]['StackStatus'] == 'CREATE_IN_PROGRESS':
             logpush(job_id + ' is queued but have a valid CI assigned. However CloudFormation stack is not completed yet so we exit the script.')
-            return False
+            return True
 
-        elif check_stack_status['Stacks'][0]['StackStatus'] in ['CREATE_FAILED', 'ROLLBACK_COMPLETE']:
+        elif check_stack_status['Stacks'][0]['StackStatus'] in ['CREATE_FAILED', 'ROLLBACK_COMPLETE', 'ROLLBACK_FAILED']:
             logpush(job_id + ' is queued but have a valid CI assigned. However CloudFormation stack is ' + str(check_stack_status['Stacks'][0]['StackStatus']) +'.  Because job has not started by then, rollback compute_node value and delete stack')
             new_job_select = job_select_resource.split(':compute_node')[0] + ':compute_node=tbd'
-            qalter_cmd = [system_cmds['qalter'], "-l", "stack_id=", "-l", "select=" + new_job_select, str(job_id)]
-            run_command(qalter_cmd, "call")
+            run_command([system_cmds['qalter'], "-l", "stack_id=", "-l", "select=" + new_job_select, str(job_id)], "call")
+            run_command([system_cmds['qalter'], "-l", "error_message=Associated_CloudFormation_Stack_has_failed_to_create_with_status_"+check_stack_status['Stacks'][0]['StackStatus'], str(job_id)], "call")
             cloudformation.delete_stack(StackName=stack_id)
-
         else:
             pass
 
@@ -242,7 +254,7 @@ def check_cloudformation_status(stack_id, job_id, job_select_resource):
         qalter_cmd = [system_cmds['qalter'], "-l", "stack_id=", "select=" + new_job_select, str(job_id)]
         run_command(qalter_cmd, "call")
 
-    return True
+    return False
 
 # END EC2 FUNCTIONS
 
@@ -253,12 +265,17 @@ if __name__ == "__main__":
     arg = parser.parse_args()
     queue_type = (arg.type)
 
-    if not "SOCA_CONFIGURATION" in os.environ:
+    # Try to get a lock; if another dispatcher for the same queue is running, this instance will exit
+    process_lock = get_lock("{} {}".format(__file__, queue_type))
+    if process_lock is not True:
+        print("Dispatcher.py for this queue is already is already running with process id " + process_lock + ". Stop it first")
+        sys.exit(1)
+
+    if "SOCA_CONFIGURATION" not in os.environ:
         print("SOCA_CONFIGURATION not found, make sure to source /etc/environment first")
         sys.exit(1)
 
     aligo_configuration = configuration.get_aligo_configuration()
-
 
     # Begin Pre-requisite
     system_cmds = {
@@ -266,55 +283,67 @@ if __name__ == "__main__":
         'qmgr': '/opt/pbs/bin/qmgr',
         'qalter': '/opt/pbs/bin/qalter',
         'qdel': '/opt/pbs/bin/qdel',
-        'aligoqstat': '/apps/soca/'+ os.environ["SOCA_CONFIGURATION"] + '/cluster_manager/aligoqstat.py',
-        'python': '/apps/soca/'+ os.environ["SOCA_CONFIGURATION"] + '/python/latest/bin/python3'
+        'aligoqstat': '/apps/soca/' + os.environ["SOCA_CONFIGURATION"] + '/cluster_manager/aligoqstat.py',
+        'python': '/apps/soca/' + os.environ["SOCA_CONFIGURATION"] + '/python/latest/bin/python3'
     }
 
     # AWS Clients
     ses = boto3.client('ses')
     ec2 = boto3.client('ec2')
     cloudformation = boto3.client('cloudformation')
+
+    # Variables
     queue_parameter_values = {}
     queues = False
     queues_only_parameters = ["allowed_users", "excluded_users", "excluded_instance_types", "allowed_instance_types", "restricted_parameters"]
-    # Retrieve Default Queue parameters
-    stream_resource_mapping = open('/apps/soca/'+ os.environ["SOCA_CONFIGURATION"] + '/cluster_manager/settings/queue_mapping.yml', "r")
-    docs = yaml.load_all(stream_resource_mapping, Loader=yaml.FullLoader)
-    for doc in docs:
-        for items in doc.values():
-            for type, info in items.items():
-                if type == queue_type:
-                    queues = info['queues']
-                    for parameter_key, parameter_value in info.items():
-                        if parameter_key in queues_only_parameters:
-                            # specific queue resources which are not job resources
-                            pass
-                        else:
-                            queue_parameter_values[parameter_key] = parameter_value
-        stream_resource_mapping.close()
-
-    # Generate FlexLM mapping
-    stream_flexlm_mapping = open('/apps/soca/'+ os.environ["SOCA_CONFIGURATION"] + '/cluster_manager/settings/licenses_mapping.yml', "r")
-    docs = yaml.load_all(stream_flexlm_mapping, Loader=yaml.FullLoader)
-    custom_flexlm_resources = {}
-    for doc in docs:
-        for k, v in doc.items():
-            for license_name, license_output in v.items():
-                custom_flexlm_resources[license_name] = license_output
-    stream_flexlm_mapping.close()
-
-
-    # General Variables
+    backlist_job_resources = ["select", "ncpus", "ngpus", "place", "nodect", "queues", "compute_node", "stack_id", "max_running_jobs", "max_provisioned_instances"] # dispatcher cannot edit these job values
     asg_name = None
     fair_share_running_job_malus = -60
     fair_share_start_score = 100
+
+    # Retrieve Default Queue parameters
+    queue_settings_file = '/apps/soca/' + os.environ["SOCA_CONFIGURATION"] + '/cluster_manager/settings/queue_mapping.yml'
+    try:
+        stream_resource_mapping = open(queue_settings_file, "r")
+        docs = yaml.load_all(stream_resource_mapping, Loader=yaml.FullLoader)
+        for doc in docs:
+            for items in doc.values():
+                for type, info in items.items():
+                    if type == queue_type:
+                        queues = info['queues']
+                        for parameter_key, parameter_value in info.items():
+                            if parameter_key in queues_only_parameters:
+                                # specific queue resources which are not job resources
+                                pass
+                            else:
+                                queue_parameter_values[parameter_key] = parameter_value
+            stream_resource_mapping.close()
+    except Exception as err:
+        print("Unable to read {} with error: {}".format(queue_settings_file, err))
+        sys.exit(1)
+
+    # Generate FlexLM mapping
+    license_mapping_file = '/apps/soca/' + os.environ["SOCA_CONFIGURATION"] + '/cluster_manager/settings/licenses_mapping.yml'
+    try:
+        stream_flexlm_mapping = open(license_mapping_file, "r")
+        docs = yaml.load_all(stream_flexlm_mapping, Loader=yaml.FullLoader)
+        custom_flexlm_resources = {}
+        for doc in docs:
+            for k, v in doc.items():
+                for license_name, license_output in v.items():
+                    custom_flexlm_resources[license_name] = license_output
+        stream_flexlm_mapping.close()
+    except Exception as err:
+        print("Unable to read {} with error: {}".format(license_mapping_file, err))
+        sys.exit(1)
     # End Pre-requisite
+
     if queues is False:
         print('No queues  detected either on the queue_mapping.yml. Exiting ...')
         exit(1)
 
     for queue_name in queues:
-        log_file = logging.FileHandler('/apps/soca/'+ os.environ["SOCA_CONFIGURATION"] + '/cluster_manager/logs/' + queue_name + '.log','a')
+        log_file = logging.FileHandler('/apps/soca/' + os.environ["SOCA_CONFIGURATION"] + '/cluster_manager/logs/' + queue_name + '.log','a')
         formatter = logging.Formatter('[%(asctime)s] [%(lineno)d] [%(levelname)s] [%(message)s]')
         log_file.setFormatter(formatter)
         logger = logging.getLogger('tcpserver')
@@ -324,28 +353,42 @@ if __name__ == "__main__":
         logger.addHandler(log_file)  # set the new handler
         logger.setLevel(logging.DEBUG)
         skip_queue = False
+        limit_running_jobs = False
         get_jobs = get_jobs_infos(queue_name)
+        if "queue_mode" in queue_parameter_values.keys():
+            queue_mode = queue_parameter_values["queue_mode"]
+        else:
+            # default to fifo
+            queue_mode = "fifo"
+
+        logpush("Queue provisioned detected: {}".format(queue_mode))
         # Check if there is any queued job with valid compute unit but has not started within 1 hour
+        # If yes, all other jobs will be paused unless they don't rely on licenses
         for job_id, job_data in get_jobs.items():
             if job_data['get_job_state'] == 'Q':
                 check_compute_unit = re.search(r'compute_node=(\w+)', job_data['get_job_resource_list']['select'])
                 if check_compute_unit:
                     job_data['get_job_resource_list']['compute_node'] = check_compute_unit.group(1)
                     try:
-                        if check_cloudformation_status(job_data['get_job_resource_list']['stack_id'], job_id, job_data['get_job_resource_list']['select']) is False:
-                            logpush('Skipping ' + str(job_id))
-                            # Because applications are license dependant, we want to make sure we won't launch any new jobs until previous launched jobs are running and using the license
-                            #skip_queue = True
-                    except KeyError:
-                        # in certain very rare case, stack_id is not present (after a AWS outage causing some API to fail), in this case we just ignore
-                        pass
+                        if capacity_being_provisioned(job_data['get_job_resource_list']['stack_id'], job_id, job_data['get_job_resource_list']['select']) is True:
+                            logpush('Skipping ' + str(job_id) + ' as this job already has a valid compute node')
+                            resource_name = job_data['get_job_resource_list'].keys()
+                            # If you want to make sure ANY job cannot start if there is a queue job with a valid compute_node, then force skip_queue to True
+                            if fnmatch.filter(resource_name, '*_lic*'):
+                                # Because applications are license dependant, we want to make sure we won't launch any new jobs until previous launched jobs are running and using the license
+                                logpush("Job is being provisioned and has license requirement. We ignore all others job in queue to prevent license double usage due to race condition. Provisioning for " + queue_name + " will continue as soon as this job start running")
+                                skip_queue = True
 
+                    except KeyError:
+                        # in certain very rare case, stack_id is not present, in this case we just ignore as the stack will automatically be generated
+                        pass
                 else:
                     get_jobs[job_id]['get_job_resource_list']['compute_node'] = 'tbd'
 
         queued_jobs = [get_jobs[k] for k, v in get_jobs.items() if v['get_job_state'] == 'Q']
+        queued_jobs_being_provisioned = [get_jobs[k] for k, v in get_jobs.items() if v['get_job_state'] == 'Q' and "compute_node" in v['get_job_resource_list']["select"]]
+        queued_jobs_not_being_provisioned = [get_jobs[k] for k, v in get_jobs.items() if v['get_job_state'] == 'Q' and "compute_node" not in v['get_job_resource_list']["select"]]
         running_jobs = [get_jobs[k] for k, v in get_jobs.items() if v['get_job_state'] == 'R']
-        user_fair_share = fair_share_score(queued_jobs, running_jobs, queue_name)
 
         if check_if_queue_started(queue_name) is False:
             logpush('Queue does not seems to be enabled')
@@ -365,27 +408,128 @@ if __name__ == "__main__":
                         licenses_required.append(license_name)
 
             license_available = check_available_licenses(custom_flexlm_resources, licenses_required)
-            logpush('License Available: ' + str(license_available))
+            logpush('Licenses Available: ' + str(license_available))
 
-            logpush('User Fair Share: ' + str(user_fair_share))
-            job_id_order_based_on_fairshare = fair_share_job_id_order(sorted(queued_jobs, key=lambda k: k['get_job_order_in_queue']), user_fair_share)
-            logpush('Job_id_order_based_on_fairshare: ' + str(job_id_order_based_on_fairshare))
-            queue_mode = 'fairshare'
+            job_list = []
+            # Validate queue_mode
             if queue_mode == 'fairshare':
+                user_fair_share = fair_share_score(queued_jobs, running_jobs, queue_name)
+                logpush('User Fair Share: ' + str(user_fair_share))
+                job_id_order_based_on_fairshare = fair_share_job_id_order(sorted(queued_jobs, key=lambda k: k['get_job_order_in_queue']), user_fair_share)
+                logpush('Job_id_order_based_on_fairshare: ' + str(job_id_order_based_on_fairshare))
                 job_list = job_id_order_based_on_fairshare
             elif queue_mode == 'fifo':
-                job_list = sorted(queued_jobs, key=lambda k: k['get_job_order_in_queue'])
+                for job in sorted(queued_jobs, key=lambda k: k['get_job_order_in_queue']):
+                    job_list.append(job['get_job_id'])
             else:
-                print('queue mode must either be fairshare or fifo')
+                logpush('queue mode must either be fairshare or fifo')
                 exit(1)
+
+            try:
+                # Limit number of instances that can be provisioned
+                if 'max_provisioned_instances' in queue_parameter_values.keys() and limit_running_jobs is False:
+                    if not isinstance(queue_parameter_values['max_provisioned_instances'], int):
+                        logpush("max_provisioned_instances must be an integer")
+                        sys.exit(1)
+                    if int(queue_parameter_values['max_provisioned_instances']) < 0:
+                        logpush("max_provisioned_instances must be an integer greater than 0")
+                        sys.exit(1)
+
+                    # consider queued_job with valid compute_node as valid running job
+                    provisioned_instances = sum(int(job_info['get_job_nodect']) for job_info in running_jobs) + sum(int(job_info['get_job_nodect']) for job_info in queued_jobs_being_provisioned)
+
+                    if provisioned_instances >= queue_parameter_values['max_provisioned_instances']:
+                        logpush("Maximum number of provisioned instances reached, exiting ...")
+                        for job_info in queued_jobs_not_being_provisioned:
+                            run_command([system_cmds['qalter'], "-l", "error_message=Number_of_concurrent_provisioned_instances_("+str(queue_parameter_values['max_provisioned_instances'])+")_or_queued_job_being_launched_reached", str(job_info["get_job_id"])], "call")
+                        limit_running_jobs = True
+
+                    elif (provisioned_instances + sum(int(job_info['get_job_nodect']) for job_info in queued_jobs_not_being_provisioned)) > queue_parameter_values['max_provisioned_instances']:
+                        current_host_count = provisioned_instances
+                        queued_jobs_to_be_started = []
+                        for job in queued_jobs_not_being_provisioned:
+                            new_host_count = current_host_count + int(job['get_job_nodect'])
+                            if queue_parameter_values['max_provisioned_instances'] >= new_host_count:
+                                # break here if you want to enforce FIFO and not optimize the number of job that can run
+                                current_host_count = new_host_count
+                                queued_jobs_to_be_started.append(job["get_job_id"])
+
+                        logpush("Current provisioned {} + capacity queued  {}  will exceed the number of instances that can be provisioned {}. We will limit the number of queued job that can be processed to {}".format(current_host_count,
+                                sum(int(job_info['get_job_nodect']) for job_info in queued_jobs_not_being_provisioned),
+                                queue_parameter_values['max_provisioned_instances'],
+                                queued_jobs_to_be_started))
+
+                        for job_id in set(job_list) - set(queued_jobs_to_be_started):
+                            if "compute_node" not in get_jobs[job_id]['get_job_resource_list']["select"]:
+                                run_command([system_cmds['qalter'], "-l", "error_message=Number_of_concurrent_provisioned_instances_(" + str(queue_parameter_values['max_provisioned_instances']) + ")_or_queued_job_being_launched_reached",str(job_id)], "call")
+
+                        job_list = queued_jobs_to_be_started
+                        logpush("New job_list: " + str(job_list))
+
+                    else:
+                        pass
+
+
+            except Exception as err:
+                exc_type, exc_obj, exc_tb = sys.exc_info()
+                fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
+                logpush("max_provisioned_instances: Error occurred when trying to determine if job can start: {}, {}, {}".format(exc_type, fname, exc_tb.tb_lineno))
+                sys.exit(1)
+
+            # Limit number of concurrent running jobs if "max_running_jobs" is set for this queue
+            try:
+                if 'max_running_jobs' in queue_parameter_values.keys():
+                    if not isinstance(queue_parameter_values['max_running_jobs'], int):
+                        logpush("max_running_jobs must be an integer")
+                        sys.exit(1)
+                    if int(queue_parameter_values['max_running_jobs']) < 0:
+                        logpush("max_running_jobs must be an integer greater than 0")
+                        sys.exit(1)
+
+                    # consider queued_job with valid compute_node as valid running job
+                    all_running_jobs = len(running_jobs) + len(queued_jobs_being_provisioned)
+                    logpush("Running jobs detected {}".format(running_jobs))
+                    logpush("Max number of running jobs {}".format(queue_parameter_values['max_running_jobs']))
+                    if all_running_jobs >= queue_parameter_values['max_running_jobs']:
+                        logpush("Maximum number of running job or queued job with computenode assigned reached, exiting ...")
+                        for job_info in queued_jobs_not_being_provisioned:
+                            run_command([system_cmds['qalter'], "-l", "error_message=Number_of_concurrent_running_jobs_(" + str(queue_parameter_values['max_running_jobs']) + ")_or_queued_job_being_launched_reached", str(job_info["get_job_id"])], "call")
+                        limit_running_jobs = True
+
+                    elif all_running_jobs + len(queued_jobs) > queue_parameter_values['max_running_jobs']:
+                        queued_jobs_to_be_started = queue_parameter_values['max_running_jobs'] - all_running_jobs
+                        logpush("Current running ({}) + queued jobs ({})  will exceed the number of authorized running_jobs. We will limit the number of queued job that can be processed to {}".format(all_running_jobs,len(queued_jobs), queued_jobs_to_be_started))
+                        queued_job_with_valid_compute_node = 0
+                        job_count = 0
+                        for job_id in job_list:
+                            job = get_jobs[job_id]
+                            if job_count == queued_jobs_to_be_started:
+                                break
+                            else:
+                                if job['get_job_resource_list']['compute_node'] != 'tbd':
+                                    queued_job_with_valid_compute_node += 1
+                                else:
+                                    job_count += 1
+
+                        for job_id in set(job_list) - set(job_list[:job_count + queued_job_with_valid_compute_node]):
+                            if "compute_node" not in get_jobs[job_id]['get_job_resource_list']["select"]:
+                                run_command([system_cmds['qalter'], "-l", "error_message=Number_of_concurrent_running_jobs_(" + str(queue_parameter_values['max_running_jobs']) + ")_or_queued_job_being_launched_reached", str(job_id)], "call")
+
+                        job_list = job_list[:job_count + queued_job_with_valid_compute_node]
+                        logpush("New job_list: " + str(job_list))
+                    else:
+                        pass
+
+            except Exception as err:
+                exc_type, exc_obj, exc_tb = sys.exc_info()
+                fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
+                logpush("max_provisioned_instances: Error occurred when trying to determine if job can start: {}, {}, {}".format(exc_type, fname, exc_tb.tb_lineno))
+                sys.exit(1)
+
 
             for job_id in job_list:
                 job_parameter_values = {}
-
-                if queue_mode == 'fifo':
-                    job = job_id
-                else:
-                    job = get_jobs[job_id]
+                job = get_jobs[job_id]
 
                 job_owner = str(job['get_job_owner'])
                 job_id = str(job['get_job_id'])
@@ -395,7 +539,7 @@ if __name__ == "__main__":
                 else:
                     skip_job = False
 
-                if skip_job is False:
+                if skip_job is False and limit_running_jobs is False:
                     job_required_resource = job['get_job_resource_list']
                     license_requirement = {}
                     logpush('Checking if we have enough resources available to run job_' + job_id)
@@ -421,7 +565,7 @@ if __name__ == "__main__":
                             job_parameter_values[res] = job_required_resource[res]
 
                         else:
-                            logpush("No default value for " + res + ". Creating new entry with value: " +  str(job_required_resource[res]))
+                            logpush("No default value for " + res + ". Creating new entry with value: " + str(job_required_resource[res]))
                             job_parameter_values[res] = job_required_resource[res]
 
                         try:
@@ -431,6 +575,8 @@ if __name__ == "__main__":
                                     license_requirement[res] = int(job_required_resource[res])
                                 else:
                                     logpush('Ignoring job_' + job_id + ' as we we dont have enough: ' + str(res))
+                                    license_error_message = "Not enough licenses " + str(res) +". You have requested " + str(job_required_resource[res]) + " but there is only " + str(license_available[res]) + " licenses available."
+                                    run_command([system_cmds['qalter'], "-l", "error_message='" + license_error_message.replace(" ", "_") + "'", str(job_id)], "call")
                                     can_run = False
                         except:
                             logpush('One required PBS resource has not been specified on the JSON input for ' + job_id + ': ' + str(res) +' . Please update custom_flexlm_resources on ' +str(arg.config))
@@ -451,10 +597,13 @@ if __name__ == "__main__":
                             job_parameter_values['instance_ami'] = aligo_configuration['CustomAMI']
 
                         # Append new resource to job resource for better tracking
-                        alter_job_res = ' '.join('-l {}={}'.format(key, value) for key, value in job_parameter_values.items() if key not in ['select', 'ncpus', 'ngpus', 'place','nodect', 'queues', 'compute_node', 'stack_id'])
+                        # Ignore queue resources which are not configurable at job level
+                        try:
+                            alter_job_res = ' '.join('-l {}={}'.format(key, value) for key, value in job_parameter_values.items() if key not in backlist_job_resources)
+                        except Exception as err:
+                            logpush("Unable to edit job with qalter command. Please edit the backlist_job_resource if the parameter is not a valid scheduler resource")
+
                         run_command([system_cmds['qalter']] + alter_job_res.split() + [str(job_id)], "call")
-
-
                         desired_capacity = int(job_required_resource['nodect'])
                         cpus_count_pattern = re.search(r'[.](\d+)', job_parameter_values['instance_type'])
                         if cpus_count_pattern:
@@ -470,7 +619,6 @@ if __name__ == "__main__":
 
                         logpush('job_' + job_id + ' can run, doing dry run test with following parameters: ' + job_parameter_values['instance_type'] + ' *  ' +str(desired_capacity))
                         try:
-
                             # Adding extra parameters to job_parameter_values
                             job_parameter_values['desired_capacity'] = desired_capacity
                             job_parameter_values['queue'] = queue_name
@@ -495,11 +643,17 @@ if __name__ == "__main__":
                                 run_command([system_cmds['qalter'], "-l", "select="+select, str(job_id)], "call")
                                 run_command([system_cmds['qalter'], "-l", "stack_id=" + stack_id, str(job_id)], "call")
 
+                                # flush error if any
+                                run_command([system_cmds['qalter'], "-l", "error_message=", str(job_id)], "call")
+
                                 for resource, count_to_substract in license_requirement.items():
                                     license_available[resource] = (license_available[resource] - count_to_substract)
                                     logpush('License available: ' + str(license_available[resource]))
 
                             else:
+                                sanitized_error = re.sub(r'\W+', '_',  create_new_asg["message"])
+                                sanitized_error = create_new_asg["message"].replace("'", "_").replace("!", "_").replace(" ","_")
+                                run_command([system_cmds['qalter'], "-l", "error_message='" + sanitized_error + "'", str(job_id)], "call")
                                 logpush('Error while trying to create ASG: ' + str(create_new_asg))
 
 
@@ -507,6 +661,7 @@ if __name__ == "__main__":
                             exc_type, exc_obj, exc_tb = sys.exc_info()
                             fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
                             logpush('Create ASG (refer to add_nodes.py) failed for job_'+job_id + ' with error: ' + str(e) + ' ' + str(exc_type) + ' ' + str(fname) + ' ' + str(exc_tb.tb_lineno), 'error')
-
                     else:
-                        pass
+                        logpush("can_run is False for " + str(job_id))
+                else:
+                    logpush("Skip " + str(job_id))

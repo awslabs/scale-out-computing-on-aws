@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+     {% include 'common/header.html' %}
+</head>
+
+<body id="page-top">
+
+  <div id="wrapper">
+    {% include 'common/vertical_menu_bar.html' %}
+    <div id="content-wrapper" class="d-flex flex-column">
+
+      <div id="content">
+          <br>
+          <div class="container-fluid">
+              {% include 'common/horizontal_menu_bar.html' %}
+                  {% with messages = get_flashed_messages(with_categories=true) %}
+                        {% if messages %}
+                            {% for category, message in messages %}
+                                <br>
+                                {% if category == "success" %}
+                                <div class="alert alert-success">
+                                    <strong>{{ message | safe }} </strong>
+                                </div>
+                                {% else %}
+                                 <div class="alert alert-danger">
+                                    <strong>{{ message | safe }} </strong>
+                                </div>
+                                {% endif %}
+                            {% endfor %}
+                        {% endif %}
+                    {% endwith %}
+                  <div class="col-md-12">
+                  <nav>
+                     <nav>
+                      <div class="nav nav-tabs" id="nav-tab" role="tablist">
+                          <a class="nav-item nav-link active" id="nav-home-tab" data-toggle="tab" href="#nav-add" role="tab" aria-controls="nav-home" aria-selected="true">Add new user</a>
+                          <a class="nav-item nav-link" id="nav-profile-tab" data-toggle="tab" href="#nav-delete" role="tab" aria-controls="nav-profile" aria-selected="false">Delete user</a>
+                          <a class="nav-item nav-link" id="nav-contact-tab" data-toggle="tab" href="#nav-reset" role="tab" aria-controls="nav-contact" aria-selected="false">Reset user password</a>
+                          <a class="nav-item nav-link" id="nav-contact-tab" data-toggle="tab" href="#nav-admin" role="tab" aria-controls="nav-contact" aria-selected="false">Grant/Revoke Admin permissions</a>
+                          <a class="nav-item nav-link" id="nav-contact-tab" data-toggle="tab" href="#nav-ldap" role="tab" aria-controls="nav-contact" aria-selected="false">LDAP details</a>
+                      </div>
+                     </nav>
+                  <div class="tab-content" id="nav-tabContent">
+                      <div class="tab-pane fade show active" id="nav-add" role="tabpanel" aria-labelledby="nav-home-tab">
+                          <br>
+                          <div class="card shadow mb-4">
+                              <div class="card-header py-3">
+                                  <h6 class="m-0 font-weight-bold text-primary">Add New User</h6>
+                              </div>
+                              <div class="card-body">
+                                  <form action="/admin/create_user" method="post"
+                                    oninput='password_verif.setCustomValidity(password_verif.value != password.value ? "Passwords do not match." : "")'>
+                                      <div class="form-group">
+                                          <input id="user" placeholder="User" class="form-control" type="text" required name="user">
+                                      </div>
+                                      <div class="form-group">
+                                          <input id="password" placeholder="Password" class="form-control"  type="password" required name="password">
+                                      </div>
+                                      <div class="form-group">
+                                          <input placeholder="Confirm Password" id="password_verif" class="form-control" type="password" name="password_verif">
+                                      </div>
+
+                                       <div class="form-group">
+                                          <input id="email" placeholder="Email" class="form-control"  type="email" required name="email">
+                                      </div>
+                                       <div class="form-group">
+                                          <input id="uid" placeholder="(Optional) User UID" class="form-control" type="number" min=5000 max=65534 name="uid">
+                                      </div>
+                                       <div class="form-group">
+                                          <input id="gid" placeholder="(Optional) User GID" class="form-control" type="number" min=5000 max=65534 name="gid">
+                                      </div>
+                                      <div class="form-group">
+                                           <select class="form-control" id="shell" name="shell">
+                                               <option selected value="/bin/bash">(Default Shell) /bin/bash</option>
+                                               <option value="" disabled="disabled">--Other Shells --</option>
+                                            {% for shell in all_shells %}
+                                                <option value="{{shell}}">{{shell}}</option>
+                                            {% endfor %}
+                                           </select>
+                                          <br>
+                                          <div class="alert alert-warning">
+                                              <strong>/bin/bash is the preferred shell</strong>. If using a new/custom shell, make sure your shell is installed on all compute nodes
+                                          </div>
+                                      </div>
+                                      <div class="form-group form-check">
+                                          <input type="checkbox" class="form-check-input" name="sudo" id="sudo">
+                                          <label class="form-check-label" for="sudo">Enable Sudo Access</label>
+                                      </div>
+                                      <div align="center">
+                                           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                          <button type="submit" class="btn btn-primary btn-lg">Create Account</button>
+                                      </div>
+                                  </form>
+                              </div>
+                          </div>
+                      </div>
+
+                      <div class="tab-pane fade" id="nav-delete" role="tabpanel" aria-labelledby="nav-profile-tab">
+                          <br>
+                          <div class="card shadow mb-4">
+                              <div class="card-header py-3">
+                                  <h6 class="m-0 font-weight-bold text-primary">Delete User</h6>
+                              </div>
+                              <div class="card-body">
+                                  <div class="alert alert-primary" role="alert">
+                                      <strong>Important </strong>
+                                      Deleting user will prevent user to access the cluster but does not remove associated $HOME directory and data
+                                  </div>
+
+                                  <form action="/admin/delete_user" method="post"
+                                    oninput='password_verif.setCustomValidity(password_verif.value != password.value ? "Passwords do not match." : "")'>                                  <div class="form-group">
+                                    <select class="form-control" id="user_to_delete" name="user_to_delete">
+                                        {% for user in all_users %}
+                                            <option value="{{user}}">{{user}}</option>
+                                        {% endfor %}
+
+                                    </select>
+                                  </div>
+                                       <div class="form-group form-check">
+                                          <input type="checkbox" class="form-check-input" name="verif" id="verif" required>
+                                          <label class="form-check-label" for="verif">I am sure I want to delete this user</label>
+                                      </div>
+                                      <div align="center">
+                                           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                          <button type="submit" class="btn btn-danger btn-lg">Delete User</button>
+                                      </div>
+                                  </form>
+                              </div>
+                          </div>
+                      </div>
+                      <div class="tab-pane fade" id="nav-reset" role="tabpanel" aria-labelledby="nav-contact-tab">
+                          <br>
+                          <div class="card shadow mb-4">
+                              <div class="card-header py-3">
+                                  <h6 class="m-0 font-weight-bold text-primary">Reset Password</h6>
+                              </div>
+                              <div class="card-body">
+                                  <div class="alert alert-primary" role="alert">
+                                      <strong>Important </strong>
+                                      This will generate a temporary password for a given user
+                                  </div>
+                                  <form action="/reset_password" method="post" oninput='password_verif.setCustomValidity(password_verif.value != password.value ? "Passwords do not match." : "")'>                                       <div class="form-group">
+                                    <select class="form-control" id="user" name="user">
+                                        {% for user in all_users %}
+                                            <option value="{{user}}">{{user}}</option>
+                                        {% endfor %}
+                                    </select>
+                                  </div>
+
+                                       <div class="form-group form-check">
+                                          <input type="checkbox" class="form-check-input" name="admin_reset_verif" id="admin_reset_verif" required>
+                                          <label class="form-check-label" for="admin_reset_verif">I am sure I want to reset the password for this user</label>
+                                      </div>
+                                      <div align="center">
+                                           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                           <input type="hidden" name="admin_reset" value="yes">
+                                           <button type="submit" class="btn btn-danger btn-lg">Generate temporary password</button>
+                                      </div>
+                                  </form>
+                              </div>
+                          </div>
+                      </div>
+                    <div class="tab-pane fade" id="nav-admin" role="tabpanel" aria-labelledby="nav-contact-tab">
+                          <br>
+                    <div class="row">
+                    <div class="col-md-6">
+                          <div class="card shadow mb-4">
+                              <div class="card-header py-3">
+                                  <h6 class="m-0 font-weight-bold text-primary">Grant user Admin permission</h6>
+                              </div>
+                              <div class="card-body">
+                                  <form action="/admin/manage_sudo" method="post">
+                                      <div class="form-group">
+                                    <select class="form-control" id="user" name="user">
+                                        {% for user in all_users %}
+                                            <option value="{{user}}">{{user}}</option>
+                                        {% endfor %}
+                                    </select>
+                                  </div>
+                                       <div class="form-group form-check">
+                                          <input type="checkbox" class="form-check-input" name="admin_verif" id="admin_reset_verif" required>
+                                           <label class="form-check-label" for="admin_verif">I am sure I want to <strong>grant</strong> Admin permission to this user</label>
+                                      </div>
+                                      <div align="center">
+                                          <input type="hidden" name="action" value="grant">
+                                           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+                                           <button type="submit" class="btn btn-success btn-lg">Grant Admin permission</button>
+                                      </div>
+                                  </form>
+                              </div>
+                          </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="card shadow mb-4">
+                              <div class="card-header py-3">
+                                  <h6 class="m-0 font-weight-bold text-primary">Revoke user Admin permission</h6>
+                              </div>
+                              <div class="card-body">
+                                  <form action="/admin/manage_sudo" method="post">
+                                      <div class="form-group">
+                                    <select class="form-control" id="user" name="user">
+                                        {% for user in all_users %}
+                                            <option value="{{user}}">{{user}}</option>
+                                        {% endfor %}
+                                    </select>
+                                  </div>
+                                       <div class="form-group form-check">
+                                          <input type="checkbox" class="form-check-input" name="sudo_revoke_verif" id="sudo_revoke_verif" required>
+                                           <label class="form-check-label" for="sudo_revoke_verif">I am sure I want to <strong>revoke</strong> Admin permission to this user</label>
+                                      </div>
+                                      <div align="center">
+                                          <input type="hidden" name="action" value="revoke">
+                                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+                                           <button type="submit" class="btn btn-danger btn-lg">Revoke Admin permission</button>
+                                      </div>
+                                  </form>
+                              </div>
+                          </div>
+                    </div>
+                    </div>
+                    </div>
+                      <div class="tab-pane fade" id="nav-ldap" role="tabpanel" aria-labelledby="nav-home-tab">
+                          <br>
+                            <div class="card shadow mb-4">
+                                <div class="card-header py-3">
+                                    <h6 class="m-0 font-weight-bold text-primary">Technical Details</h6>
+                                </div>
+                                <div class="card-body">
+                                    Scale-Out Computing on AWS uses OpenLDAP and you can interact with your directory using LDIF directly.
+                                    <br><br>
+                                    <li>People: OU=People,DC=soca,DC=local</li>
+                                    <li>Groups: OU=Group,DC=soca,DC=local</li>
+                                    <li>Sudoers: OU=Sudoers,DC=soca,DC=local (This OU manages sudo permission on the cluster)</li>
+                                    <br>
+                                    <div class="alert alert-warning" role="alert">
+                                        Admin username and password can be found on <code>/root/OpenLdapAdminUsername.txt</code> and <code>/root/OpenLdapAdminPassword.txt</code>.
+                                    </div>
+                                    To run ldapadd/ldapmodify manually: ldapadd -x -D cn=admin,dc=soca,dc=local -y /root/OpenLdapAdminPassword.txt -f YOUR_LDIF_FILE
+                                    <hr>
+
+                                </div>
+                            </div>
+                      </div>
+                  </div>
+
+  <a class="scroll-to-top rounded" href="#page-top">
+    <i class="fas fa-angle-up"></i>
+  </a>
+
+
+    {% include 'common/footer.html' %}
+
+</body>
+
+</html>

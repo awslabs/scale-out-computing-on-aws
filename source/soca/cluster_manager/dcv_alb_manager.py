@@ -117,12 +117,13 @@ def create_new_target_group(instance_dns, vpc_id, instance_id,cluster_id):
 
 def create_new_alb_rule(instance_dns, target_group_arn, current_priority_rules, listener_arn):
     min_priority = 1
-    max_priority = 100 # adjust this value if your AWS account allow more than 100 rules per alb
+    max_priority = 100  # adjust this value if your AWS account allow more than 100 rules per alb
     priority = random.randint(min_priority, max_priority)
     print('Checking if priority ' + str(priority) + ' is available')
+    #print("List of rules already taken" + str(current_priority_rules))
     while priority in current_priority_rules:
         priority = random.randint(min_priority, max_priority)
-
+    print("Available priority for this rule: " + str(priority))
     new_target_group = elbv2_client.create_rule(ListenerArn=listener_arn,
                              Priority=int(priority),
                              Conditions=[
@@ -145,7 +146,7 @@ def get_current_listener_rules(listener_arn):
     priority_taken = []
     for rule in elbv2_client.describe_rules(ListenerArn=listener_arn)['Rules']:
         if rule['Priority'] != 'default':
-            priority_taken.append(rule['Priority'])
+            priority_taken.append(int(rule['Priority']))
             for condition in rule['Conditions']:
                 condition_list = []
                 for value in condition['Values']:

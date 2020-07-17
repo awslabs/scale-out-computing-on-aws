@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+     {% include 'common/header.html' %}
+
+
+</head>
+
+<body id="page-top">
+  <div id="wrapper">
+    {% include 'common/vertical_menu_bar.html' %}
+    <div id="content-wrapper" class="d-flex flex-column">
+      <div id="content">
+          <br>
+          <div class="container-fluid">
+              {% include 'common/horizontal_menu_bar.html' %}
+              <main role="main">
+              {% with messages = get_flashed_messages(with_categories=true) %}
+                        {% if messages %}
+                            {% for category, message in messages %}
+                                <br>
+                                {% if category == "success" %}
+                                <div class="alert alert-success">
+                                    <strong>{{ message | safe }} </strong>
+                                </div>
+                                {% elif category == "info" %}
+                                 <div class="alert alert-info">
+                                    <strong>{{ message | safe }} </strong>
+                                </div>
+                                {% else %}
+                                 <div class="alert alert-danger">
+                                    <strong>{{ message | safe }} </strong>
+                                </div>
+                                {% endif %}
+                            {% endfor %}
+                        {% endif %}
+                    {% endwith %}
+              <div class="row">
+                  <div class="col-md-12">
+                      <div class="card shadow mb-6">
+                          <div class="card-body">
+                              <form id="search-application">
+                                <input class="form-control" type="text" placeholder="What sofware do you want to run?" aria-label="Search">
+                              </form>
+                              <hr>
+                          <div class="row">
+                          {% if not application_profiles %}
+                              No applications found. <a href="/admin/applications">Create one first.</a>
+                          {% else %}
+                                  {% for app_id, app_data in application_profiles.items() %}
+                                      <div name="application-card" id="{{ application }}" class="col-md-auto" style="margin-top: 5px">
+                                          <form action="/submit_job" method="post">
+                                              <input type="image" style="width: 150px;" class="card" src="{{ app_data.profile_thumbnail }}">
+                                              <div align="center">
+                                                  <app_name>{{  app_data.profile_name }}</app_name>
+                                              </div>
+                                              <input type="hidden" name="csrf_token" value="{{csrf_token()}}">
+                                              <input type="hidden" name="input_file" value="{{input_file}}">
+                                              <input type="hidden" name="app" value="{{app_id}}">
+                                          </form>
+                                      </div>
+                                  {% endfor %}
+                          {% endif %}
+                              </div>
+                          </div>
+                      </div>
+                  </div>
+              </div>
+              </main>
+              </div>
+          </div>
+      </div>
+
+  </div>
+
+  <a class="scroll-to-top rounded" href="#page-top">
+    <i class="fas fa-angle-up"></i>
+  </a>
+  {% include 'common/footer.html' %}
+
+  <script>
+      /* search bar autocomplete */
+    const searchBar = document.forms['search-application'].querySelector('input');
+    searchBar.addEventListener('keyup', function(e) {
+        const term = e.target.value.toLocaleLowerCase();
+        const software_list = document.getElementsByTagName('app_name');
+        Array.from(software_list).forEach(function(software_list) {
+            const title = software_list.textContent;
+            if (title.toLowerCase().indexOf(term) != -1) {
+                software_list.parentElement.parentElement.style.display = 'block';
+            } else {
+                software_list.parentElement.parentElement.style.display = 'none';
+            }
+        });
+});
+</script>
+
+</body>
+
+</html>

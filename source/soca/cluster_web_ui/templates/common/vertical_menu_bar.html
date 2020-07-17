@@ -1,104 +1,167 @@
-<ul class="navbar-nav bg-aws sidebar sidebar-dark accordion" id="accordionSidebar">
-      <!-- Divider -->
-      <hr class="sidebar-divider my-0">
+{% if page == "my_files" or page == "editor" or page == "application" %}
+    <!-- default collapse -->
+     <ul class="navbar-nav bg-aws sidebar sidebar-dark accordion toggled" id="accordionSidebar">
+{% else %}
+    <ul class="navbar-nav bg-aws sidebar sidebar-dark accordion" id="accordionSidebar">
+{% endif %}
+    <!-- Divider -->
 
-      <li class="nav-item active">
+    <hr class="sidebar-divider my-0">
+
+    <li class="nav-item active">
         <a class="nav-link" href="/">
-          <i class="fas fa-home"></i>
-          <span> {{  username  }}'s dashboard</span></a>
-      </li>
+            <i class="fas fa-home"></i>
+            <span> {{  user  }}'s dashboard</span></a>
+    </li>
 
-      <hr class="sidebar-divider">
+    <hr class="sidebar-divider">
 
-      <div class="sidebar-heading">
+    <div class="sidebar-heading">
         Access Cluster
-      </div>
+    </div>
 
-        <li class="nav-item">
-            <a class="nav-link" href="/ssh">
-          <i class="fab fa-linux"></i>
-            <span>SSH access</span></a>
-        </li>
-
-
-     <li class="nav-item">
-        <a class="nav-link" href="/remotedesktop">
-          <i class="fas fa-tv"></i>
-            <span>Graphical Access</span></a>
-     </li>
+    <li class="nav-item">
+        <a class="nav-link" href="/ssh">
+            <i class="fab fa-linux"></i>
+            <span>SSH access</span>
+        </a>
+    </li>
 
 
-        <li class="nav-item">
+    <li class="nav-item">
+        <a class="nav-link" href="/remote_desktop">
+            <i class="fas fa-tv"></i>
+            <span>Graphical Access</span>
+        </a>
+    </li>
+
+    <li class="nav-item">
         <a class="nav-link" href="/sftp">
-          <i class="fas fa-exchange-alt"></i>
-          <span>Transfer Files (SFTP)</span></a>
-      </li>
+            <i class="fas fa-exchange-alt"></i>
+            <span>Transfer Files (SFTP)</span>
+        </a>
+    </li>
 
+    <hr class="sidebar-divider">
 
-          <hr class="sidebar-divider">
+    <div class="sidebar-heading">
+        Profile
+    </div>
 
-     <div class="sidebar-heading">
-        Job Management
-      </div>
+    <li class="nav-item">
+        <a class="nav-link" href="/my_account">
+            <i class="fas fa-user"></i>
+            <span>My Account</span>
+        </a>
+    </li>
 
-        <li class="nav-item">
+    <li class="nav-item">
+        <a class="nav-link" href="/my_activity">
+            <i class="far fa-calendar-alt"></i>
+            <span>My Activity</span>
+        </a>
+    </li>
+
+    <li class="nav-item">
+        <a class="nav-link" href="/my_api_key">
+            <i class="fas fa-key"></i>
+            <span>My API key</span>
+        </a>
+    </li>
+
+    <li class="nav-item">
+        <a class="nav-link" href="/my_files">
+            <i class="fas fa-sitemap"></i>
+            <span>My Files</span>
+        </a>
+    </li>
+
+    <li class="nav-item">
+        <a class="nav-link" href="/my_jobs">
+            <i class="fas fa-fw fa-table"></i>
+            <span>My Job Queue</span>
+        </a>
+    </li>
+
+    <hr class="sidebar-divider">
+
+    <div class="sidebar-heading">
+        Job Documentation
+    </div>
+
+    <li class="nav-item">
+        <a class="nav-link" href="/submit_job">
+            <i class="fas fa-cogs"></i>
+            <span>Submit job (Web)</span>
+        </a>
+    </li>
+
+    <li class="nav-item">
         <a class="nav-link" href="https://awslabs.github.io/scale-out-computing-on-aws/tutorials/launch-your-first-job/" target="_blank">
-          <i class="fas fa-cogs"></i>
-          <span>Submit my first job</span></a>
-      </li>
+            <i class="fas fa-cogs"></i>
+            <span>Submit job (CLI)</span>
+        </a>
+    </li>
 
-      <li class="nav-item">
-        <a class="nav-link" href="/qstat">
-          <i class="fas fa-fw fa-table"></i>
-          <span>My Job Queue</span></a>
-      </li>
-     <li class="nav-item">
-        <a class="nav-link" href="https://awslabs.github.io/scale-out-computing-on-aws/tutorials/create-your-own-queue/" target="_blank">
-          <i class="fas fa-cogs"></i>
-          <span>Create my queue</span></a>
-      </li>
+    <hr class="sidebar-divider">
 
-      <hr class="sidebar-divider">
+    <div class="sidebar-heading">
+            Analytics / Budget
+    </div>
 
-      <div class="sidebar-heading">
-        Analytics
-      </div>
-
-      <li class="nav-item">
+    <li class="nav-item">
         <a class="nav-link" href="/dashboard">
-          <i class="fas fa-fw fa-chart-area"></i>
-          <span>Dashboard</span></a>
-      </li>
-              <hr class="sidebar-divider d-none d-md-block">
+            <i class="fas fa-fw fa-chart-area"></i>
+            <span>Cluster Metrics</span>
+        </a>
+    </li>
 
-         <div class="sidebar-heading">
-        Budget
-      </div>
+    <li class="nav-item">
+        <a class="nav-link" href="https://awslabs.github.io/scale-out-computing-on-aws/budget/prevent-overspend-hpc-cost-on-aws-soca/" target="_blank">
+            <i class="fas fa-money-bill-alt"></i>
+            <span>Cost Management</span>
+        </a>
+    </li>
 
-      <li class="nav-item">
-        <a class="nav-link" href="/budget">
-          <i class="fas fa-money-bill-alt"></i>
-          <span>Cost Management</span></a>
-      </li>
+    <hr class="sidebar-divider d-none d-md-block">
 
-     <hr class="sidebar-divider d-none d-md-block">
-
-         <div class="sidebar-heading">
+    <div class="sidebar-heading">
         Admin Section
-      </div>
+    </div>
 
-      <li class="nav-item">
-        <a class="nav-link" href="/users">
-          <i class="fas fa-users"></i>
-          <span>User Management</span></a>
-      </li>
+    <li class="nav-item">
+        <a class="nav-link" href="/admin/users">
+            <i class="fas fa-users"></i>
+            <span>Users Management</span>
+        </a>
+    </li>
 
-      <hr class="sidebar-divider d-none d-md-block">
+    <li class="nav-item">
+        <a class="nav-link" href="/admin/groups">
+            <i class="fas fa-users-cog"></i>
+            <span>Groups Management</span>
+        </a>
+    </li>
 
+    <li class="nav-item">
+        <a class="nav-link" href="/admin/queues">
+            <i class="fas fa-list-ol"></i>
+            <span>Queue Management</span>
+        </a>
+    </li>
 
-      <!-- Sidebar Toggler (Sidebar)
-      <div class="text-center d-none d-md-inline">
+    <li class="nav-item">
+        <a class="nav-link" href="/admin/applications">
+            <i class="fas fa-rocket"></i>
+            <span>Application Management</span>
+        </a>
+    </li>
+
+    <hr class="sidebar-divider d-none d-md-block">
+
+    <!-- Sidebar Toggler (Sidebar)-->
+    <div class="text-center d-none d-md-inline">
         <button class="rounded-circle border-0" id="sidebarToggle"></button>
-      </div> -->
+    </div>
 
-    </ul>
+</ul>

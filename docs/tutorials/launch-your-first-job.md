@@ -9,6 +9,8 @@ title: Launch your first job
     * If your simulation requires a lot of disk I/O, [it's recommended to use high performance SSD-NVMe](../../tutorials/integration-ec2-job-parameters/#storage) disks (using /scratch location) and not default $HOME path
     * Use [the web-based simulator](../../job-configuration-generator/) to generate your qsub/script command.
 
+!!!success "Web Based Job Submission"
+    In addition of regular qsub, SOCA supports [web based job submission](../../tutorials/submit-hpc-jobs-web-based-interface/) as well as via [HTTP REST API](../../tutorials/control-hpc-job-with-http-web-rest-api/)
 
 To get started, create a simple text file and name it "job_submit.que". See below for a simple template (you will be required to edit whatever is between **)
 

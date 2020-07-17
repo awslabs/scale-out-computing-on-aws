@@ -4,6 +4,44 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.5.0] - 2020-07-17
+### Added
+- Support for Elastic MetricBeat
+- Added HTTP REST API to interact with SOCA
+- Users can now decide to restrict a job to Reserved Instances
+- Revamped Web Interface
+  - Added filesystem explorer
+  - Users can upload files/folders via drag & drop interface
+  - Users can edit files directly on SOCA using a cloud text editor
+  - Users can now manage membership of their own LDAP group via web
+  - Users can now understand why they job is not started  (eg: instance issue, misconfiguration, AWS limit, license limit) directly on the UI
+  - Users can kill their job via the web
+  - Admins can manage SOCA LDAP via web (create group, user, manage ownership and permissions)
+  - Admins can creates application profiles and let user submit job via web interface
+  - Ability to trigger Linux commands via HTML form
+- Admins can now limit the number of running jobs per queue
+- Admins can now limit the number of running instances per queue
+- Admins can now specify the idle timeout value for any DCV sessions. Inactive DCV sessions will be automatically terminated after this period
+- Job selection can now configured at queue level (FIFO or fair share)
+- Dry run now supports vCpus limit
+- Support for custom shells
+
+### Changed
+- Updated Troposphere to 2.6.1
+- Updated EFA to 1.9.3
+- Updated Nice DCV to 2020.0-8428
+- Updated ElasticSearch to 7.4
+- You can specify a name for your DCV sessions 
+- You can now specify custom AMI, base OS or storage options for your DCV sessions
+- Project assigned to DCV jobs has been renamed to "remotedesktop" (previously "gui")
+- Dispatcher script is now running every minute
+- SOCA now deploys 2 instances for ElasticSearch for high availability
+- Users can now specify DEPLOYMENT_TYPE for their FSX for Lustre filesystems
+- Users can specify PerUnitThroughput when FSx for Lustre deployment type is set to PERSISTENT
+- DCV now supports G4 instance type (#24)
+- X11 is now configured correctly for ALI 3D DCV session (#23)
+
+
 ## [2.0.1] - 2020-04-20
 ### Added
 - Support for SpotFleet
@@ -56,3 +94,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [1.0.0] - 2019-11-20
 - Release Candidate
+

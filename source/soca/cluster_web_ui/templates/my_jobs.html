@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+     {% include 'common/header.html' %}
+
+
+</head>
+
+<body id="page-top">
+  <div id="wrapper">
+    {% include 'common/vertical_menu_bar.html' %}
+    <div id="content-wrapper" class="d-flex flex-column">
+      <div id="content">
+          <br>
+          <div class="container-fluid">
+              {% include 'common/horizontal_menu_bar.html' %}
+              <main role="main">
+              {% with messages = get_flashed_messages(with_categories=true) %}
+                        {% if messages %}
+                            {% for category, message in messages %}
+                                <br>
+                                {% if category == "success" %}
+                                <div class="alert alert-success">
+                                    <strong>{{ message | safe }} </strong>
+                                </div>
+                                {% elif category == "info" %}
+                                 <div class="alert alert-info">
+                                    <strong>{{ message | safe }} </strong>
+                                </div>
+                                {% else %}
+                                 <div class="alert alert-danger">
+                                    <strong>{{ message | safe }} </strong>
+                                </div>
+                                {% endif %}
+                            {% endfor %}
+                        {% endif %}
+                    {% endwith %}
+              <div class="col-md-12">
+                  <div class="card shadow mb-4">
+                              <div class="card-header py-3">
+                                  <h6 class="m-0 font-weight-bold text-primary">Your job queue</h6>
+                              </div>
+                              <div class="card-body">
+                              {%  if not jobs %}
+                                  You don't have any jobs. <a href="/howto-job">Need help to submit your first job?</a>
+                              {% else %}
+
+                                     <table class="table table-striped">
+                                      <thead>
+                                        <tr>
+                                          <th scope="col">Job Id</th>
+                                            <th>Name</th>
+                                            <th>Queue</th>
+                                            <th>Status</th>
+                                            <th>CPUs</th>
+                                            <th>Nodes</th>
+                                            <th>Actions</th>
+                                        </tr>
+                                      </thead>
+                                      <tbody>
+                                      {% for job_id, job_data in jobs.items() %}
+                                           <tr>
+                                          <th>{{ job_id.split(".")[0] }}</th>
+                                          <th>{{ job_data.Job_Name }}</th>
+                                          <th>{{ job_data.queue }}</th>
+                                               <th>
+                                                   {% if job_data.job_state == 'R' %}
+                                                    <span class="badge badge-success">RUNNING</span>
+                                                   {% elif job_data.job_state == 'Q' %}
+                                                    <span class="badge badge-warning">QUEUED</span>
+                                                       {% if "compute_node=job" in job_data.Resource_List.select %}
+                                                            <span class="badge badge-info">Capacity being provisioned</span>
+                                                       {% endif %}
+                                                   {% elif job_data.job_state == 'E' %}
+                                                       <span class="badge badge-danger">EXIT</span>
+                                                   {% else %}
+                                                        <span class="badge badge-primary">{{ job_data.job_state }}</span>
+                                                   {% endif %}
+                                               </th>
+                                           <th>{{ job_data.Resource_List.ncpus }}</th>
+                                           <th>{{ job_data.Resource_List.nodect }}</th>
+                                           <th>
+                                               <button type="button" class="btn btn-primary" data-toggle="modal" data-target="#job{{ job_id.split(".")[0] }}">Job Info</button>
+                                               {% if job_data.job_state != 'E' %}
+                                                   <button type="button" class="btn btn-danger" data-toggle="modal" data-target="#delete{{ job_id.split(".")[0] }}">Kill</button>
+                                               {% endif %}
+                                               {% if job_data.Variable_List.PBS_O_WORKDIR %}
+                                                   <a target="_blank" href="/my_files?path={{ job_data.Variable_List.PBS_O_WORKDIR  }}"><button type="button" class="btn btn-warning">Job Directory</button></a>
+                                               {% endif %}
+
+                                               {% if job_data.Resource_List.error_message %}
+                                                   <button type="button" class="btn btn-info" data-toggle="modal" data-target="#error{{ job_id.split(".")[0] }}"><i class="fas fa-exclamation-triangle"></i> JOB CANNOT START</button>
+                                                   <!-- Modal error -->
+                                                  <div class="modal fade" id="error{{ job_id.split(".")[0] }}" tabindex="-1" role="dialog" aria-labelledby="exampleModalLabel" aria-hidden="true">
+                                                      <div class="modal-dialog" role="document">
+                                                          <div class="modal-content">
+                                                              <div class="modal-body">
+                                                                  <div class="alert alert-danger">
+                                                                      <strong>Attention: Your job cannot run</strong>
+                                                                  </div>
+                                                                  {{ job_data.Resource_List.error_message | replace("_"," ") }}
+                                                                  <hr>
+                                                                  Your job will stay in the queue until the issue is fixed.
+                                                              </div>
+                                                          </div>
+                                                      </div>
+                                                  </div>
+                                                    <!-- End -->
+                                               {% endif %}
+                                           </th>
+                                           </tr>
+                                          <!-- Modal Delete -->
+                                          <div class="modal fade" id="delete{{ job_id.split(".")[0] }}" tabindex="-1" role="dialog" aria-labelledby="exampleModalLabel" aria-hidden="true">
+                                              <div class="modal-dialog" role="document">
+                                                  <div class="modal-content">
+                                                      <div class="modal-header">
+                                                          <h5 class="modal-title">Entering the Danger Zone</h5>
+                                                          <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                                                              <span aria-hidden="true">&times;</span>
+                                                          </button>
+                                                      </div>
+                                                      <div class="modal-body container">
+                                                          <div class="alert alert-danger">
+                                                              <strong>Attention</strong> <br>
+                                                              You are about to remove this job from the queue. Any logs/output created by this job may be lost if not copied to a persistent storage.
+                                                              This action cannot be reversed.
+                                                          </div>
+                                                            <a href="/my_jobs/delete?job_id={{ job_id.split(".")[0] }}">
+                                                                <button type="button" class="btn btn-danger form-control">Delete job {{ job_id.split(".")[0] }}</button>
+                                                            </a>
+                                                      </div>
+                                                  </div>
+                                              </div>
+                                          </div>
+                                          <!-- End -->
+                                          <!-- Modal Info -->
+                                          <div class="modal fade" id="job{{ job_id.split(".")[0] }}" tabindex="-1" role="dialog" aria-labelledby="exampleModalLabel" aria-hidden="true">
+                                              <div class="modal-dialog modal-lg" role="document">
+                                                  <div class="modal-content modal-lg">
+                                                      <div class="modal-header">
+                                                          <h5 class="modal-title">Job {{ job_id.split(".")[0] }}</h5>
+                                                          <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                                                              <span aria-hidden="true">&times;</span>
+                                                          </button>
+                                                      </div>
+                                                      <div class="modal-body container">
+                                                          {% for key, value in job_data.items() %}
+                                                              {% if key == "Variable_List" or key == "Resource_List" %}
+                                                                  <strong>{{ key }}</strong>:
+                                                                  {% for resource_name, resource_value in value.items() %}
+                                                                      <li style="margin-left: 30px"><strong>{{ resource_name }}:</strong> {{ resource_value }}</li>
+                                                                  {% endfor %}
+                                                              {% else %}
+                                                                  <strong>{{ key }}</strong>: {{ value }}<br>
+                                                              {% endif %}
+                                                          {% endfor %}
+                                                          </div>
+                                                          <div class="modal-footer">
+                                                            <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
+                                                          </div>
+                                                  </div>
+                                              </div>
+                                          </div>
+                                          <!-- End -->
+                                      {% endfor %}
+
+
+                                      </tbody>
+                                    </table>
+                              {%  endif %}
+
+
+
+
+                              </div>
+                          </div>
+              </div>
+
+              </main>
+              </div>
+          </div>
+      </div>
+
+  </div>
+
+  <a class="scroll-to-top rounded" href="#page-top">
+    <i class="fas fa-angle-up"></i>
+  </a>
+  {% include 'common/footer.html' %}
+
+
+
+</body>
+
+</html>

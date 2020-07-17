@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+     {% include 'common/header.html' %}
+</head>
+
+<body id="page-top">
+
+  <div id="wrapper">
+    {% include 'common/vertical_menu_bar.html' %}
+    <div id="content-wrapper" class="d-flex flex-column">
+      <div id="content">
+          <br>
+          <div class="container-fluid">
+              {% include 'common/horizontal_menu_bar.html' %}
+              <main role="main">
+
+                  {% with messages = get_flashed_messages(with_categories=true) %}
+                        {% if messages %}
+                            {% for category, message in messages %}
+                                <br>
+                                {% if category == "success" %}
+                                <div class="alert alert-success">
+                                    <strong>{{ message | safe }} </strong>
+                                </div>
+                                {% else %}
+                                 <div class="alert alert-danger">
+                                    <strong>{{ message | safe }} </strong>
+                                </div>
+                                {% endif %}
+                            {% endfor %}
+                        {% endif %}
+                    {% endwith %}
+
+
+                  <div class="row">
+                      <div class="col-md-12">
+                          <div class="btn-group">
+                          <button type="button" class="btn btn-primary dropdown-toggle" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                              Select a file to update:
+                          </button>
+                          <div class="dropdown-menu">
+                              {% for id,file_name in config_files.items() %}
+                                  <a class="dropdown-item" href="/admin/configuration?fid={{ id }}">{{file_name}}</a>
+                              {% endfor %}
+                          </div>
+                      </div>
+                      <hr>
+
+                          <div class="alert alert-primary" >
+                          You are editing: <strong>{{ file_to_edit }}</strong>.<br>
+                          SOCA keeps an backup of each file on the filesystem (same directory) in case you need to rollback to a previous version.
+                          </div>
+
+                      <div id="update-div" name="update-div"></div>
+
+
+
+                      </div>
+
+
+
+                   {% include 'common/monaco_editor.html' %}
+                      <div id="text-editor" style="width:100%;height:600px;border:1px solid"></div>
+
+
+                      <div class="col-md-12" style="margin-top: 15px">
+                          <div align="center">
+                              <input type="checkbox"  onchange="document.getElementById('save').disabled = !this.checked;" /> I am sure I want to <strong>EDIT</strong> {{ file_to_edit }} and I understand changing configuration file may cause outage if done incorrectly. <br><br>
+                              <button disabled id="save" name=" save"onclick="saveData()" class="btn btn-primary btn-lg">Save changes</button>
+                          </div>
+                      </div>
+
+                  </div>
+
+
+                    </main>
+
+
+
+
+              </div>
+          </div>
+      </div>
+
+  </div>
+
+  <a class="scroll-to-top rounded" href="#page-top">
+    <i class="fas fa-angle-up"></i>
+  </a>
+
+
+<script>
+
+    require(['vs/editor/editor.main'], function() {
+
+    window.fileeditor = monaco.editor.create(document.getElementById("text-editor"),
+        {
+        value: {{ file_data | safe }}.join("\n"),
+        language: "{{ file_syntax }}"
+        });
+
+
+    });
+
+    function saveData()
+    {
+        getVal = btoa(window.fileeditor.getValue());
+        fileToEdit = btoa("{{file_to_edit}}");
+        var xhr = new XMLHttpRequest();
+        xhr.onreadystatechange = function() {
+            if (this.readyState == 4 && this.status == 200) {
+                 $('#update-div').html('<div class="alert alert-success">File updated correctly</div>');
+            }
+            else {
+                 $('#update-div').html('<div class="alert alert-danger">Could not update file: ' + this.responseText + '<div>');
+            }
+        };
+
+        xhr.open("POST", "/api/system/files", true);
+        xhr.setRequestHeader("Content-type", 'application/x-www-form-urlencoded');
+        xhr.setRequestHeader("X-SOCA-USER", "{{ user }}");
+        xhr.setRequestHeader("X-SOCA-TOKEN", "{{ api_key }}");
+        xhr.send("file_content="+getVal+"&file_name="+fileToEdit);
+    }
+</script>
+</body>
+
+</html>

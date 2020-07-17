@@ -24,10 +24,16 @@ cat <<EOT >> /apps/soca/$SOCA_CONFIGURATION/cluster_manager/settings/queue_mappi
 queue_type:
   compute:
     queues: ["high", "normal", "low"]
+    # Uncomment to limit the number of concurrent running jobs
+    # max_running_jobs: 50
+    # Uncomment to limit the number of concurrent running instances
+    # max_provisioned_instances: 30
     # Queue ACLs:  https://awslabs.github.io/scale-out-computing-on-aws/tutorials/manage-queue-acls/
     allowed_users: [] # empty list = all users can submit job
     excluded_users: [] # empty list = no restriction, ["*"] = only allowed_users can submit job
-    # Instance types restrictions: https://wslabs.github.io/scale-out-computing-on-aws/security/manage-queue-instance-types/
+    # Queue mode (can be either fifo or fairshare)
+    # queue_mode: "fifo"
+    # Instance types restrictions: https://awslabs.github.io/scale-out-computing-on-aws/security/manage-queue-instance-types/
     allowed_instance_types: [] # Empty list, all EC2 instances allowed. You can restrict by instance type (Eg: ["c5.4xlarge"]) or instance family (eg: ["c5"])
     excluded_instance_types: [] # Empty list, no EC2 instance types prohibited.  You can restrict by instance type (Eg: ["c5.4xlarge"]) or instance family (eg: ["c5"])
     # List of parameters user can not override: https://awslabs.github.io/scale-out-computing-on-aws/security/manage-queue-restricted-parameters/
@@ -43,10 +49,16 @@ queue_type:
     # .. Refer to the doc for more supported parameters
   desktop:
     queues: ["desktop"]
+    # Uncomment to limit the number of concurrent running jobs
+    # max_running_jobs: 50
+    # Uncomment to limit the number of concurrent running instances
+    # max_provisioned_instances: 30
     # Queue ACLs:  https://awslabs.github.io/scale-out-computing-on-aws/tutorials/manage-queue-acls/
     allowed_users: [] # empty list = all users can submit job
     excluded_users: [] # empty list = no restriction, ["*"] = only allowed_users can submit job
-    # Instance types restrictions: https://wslabs.github.io/scale-out-computing-on-aws/security/manage-queue-instance-types/
+    # Queue mode (can be either fifo or fairshare)
+    # queue_mode: "fifo"
+    # Instance types restrictions: https://awslabs.github.io/scale-out-computing-on-aws/security/manage-queue-instance-types/
     allowed_instance_types: [] # Empty list, all EC2 instances allowed. You can restrict by instance type (Eg: ["c5.4xlarge"]) or instance family (eg: ["c5"])
     excluded_instance_types: [] # Empty list, no EC2 instance types prohibited.  You can restrict by instance type (Eg: ["c5.4xlarge"]) or instance family (eg: ["c5"])
     # List of parameters user can not override: https://awslabs.github.io/scale-out-computing-on-aws/security/manage-queue-restricted-parameters/
@@ -59,10 +71,16 @@ queue_type:
     # .. Refer to the doc for more supported parameters
   test:
     queues: ["test"]
+    # Uncomment to limit the number of concurrent running jobs
+    # max_running_jobs: 50
+    # Uncomment to limit the number of concurrent running instances
+    # max_provisioned_instances: 30
     # Queue ACLs:  https://awslabs.github.io/scale-out-computing-on-aws/tutorials/manage-queue-acls/
     allowed_users: [] # empty list = all users can submit job
     excluded_users: [] # empty list = no restriction, ["*"] = only allowed_users can submit job
-    # Instance types restrictions: https://wslabs.github.io/scale-out-computing-on-aws/security/manage-queue-instance-types/
+    # Queue mode (can be either fifo or fairshare)
+    # queue_mode: "fifo"
+    # Instance types restrictions: https://awslabs.github.io/scale-out-computing-on-aws/security/manage-queue-instance-types/
     allowed_instance_types: [] # Empty list, all EC2 instances allowed. You can restrict by instance type (Eg: ["c5.4xlarge"]) or instance family (eg: ["c5"])
     excluded_instance_types: [] # Empty list, no EC2 instance types prohibited.  You can restrict by instance type (Eg: ["c5.4xlarge"]) or instance family (eg: ["c5"])
     # List of parameters user can not override: https://awslabs.github.io/scale-out-computing-on-aws/security/manage-queue-restricted-parameters/
@@ -91,6 +109,7 @@ sleep 60
 sed -i "s/%SOCA_CONFIGURATION/$SOCA_CONFIGURATION/g" /apps/soca/$SOCA_CONFIGURATION/cluster_hooks/queuejob/check_queue_acls.py
 sed -i "s/%SOCA_CONFIGURATION/$SOCA_CONFIGURATION/g" /apps/soca/$SOCA_CONFIGURATION/cluster_hooks/queuejob/check_queue_instance_types.py
 sed -i "s/%SOCA_CONFIGURATION/$SOCA_CONFIGURATION/g" /apps/soca/$SOCA_CONFIGURATION/cluster_hooks/queuejob/check_queue_restricted_parameters.py
+sed -i "s/%SOCA_CONFIGURATION/$SOCA_CONFIGURATION/g" /apps/soca/$SOCA_CONFIGURATION/cluster_hooks/queuejob/check_licenses_mapping.py
 
 # Create Default PBS hooks
 qmgr -c "create hook soca_aws_infos event=execjob_begin"
@@ -101,6 +120,8 @@ qmgr -c "create hook check_queue_instance_types event=queuejob"
 qmgr -c "import hook check_queue_instance_types application/x-python default /apps/soca/$SOCA_CONFIGURATION/cluster_hooks/queuejob/check_queue_instance_types.py"
 qmgr -c "create hook check_queue_restricted_parameters event=queuejob"
 qmgr -c "import hook check_queue_restricted_parameters application/x-python default /apps/soca/$SOCA_CONFIGURATION/cluster_hooks/queuejob/check_queue_restricted_parameters.py"
+qmgr -c "create hook check_licenses_mapping event=queuejob"
+qmgr -c "import hook check_licenses_mapping application/x-python default /apps/soca/$SOCA_CONFIGURATION/cluster_hooks/queuejob/check_licenses_mapping.py"
 
 
 # Reload config
@@ -119,15 +140,16 @@ echo "
 * * * * * source /etc/environment;  /apps/soca/$SOCA_CONFIGURATION/python/latest/bin/python3  /apps/soca/$SOCA_CONFIGURATION/cluster_manager/nodes_manager.py >> /apps/soca/$SOCA_CONFIGURATION/cluster_manager/nodes_manager.py.log 2>&1
 
 ## Cluster Web UI
+### Restart UI at reboot
 @reboot /apps/soca/$SOCA_CONFIGURATION/cluster_web_ui/socawebui.sh start
 
 ## Automatic Host Provisioning
-*/3 * * * * source /etc/environment;  /apps/soca/$SOCA_CONFIGURATION/python/latest/bin/python3 /apps/soca/$SOCA_CONFIGURATION/cluster_manager/dispatcher.py -c /apps/soca/$SOCA_CONFIGURATION/cluster_manager/settings/queue_mapping.yml -t compute
-*/3 * * * * source /etc/environment;  /apps/soca/$SOCA_CONFIGURATION/python/latest/bin/python3 /apps/soca/$SOCA_CONFIGURATION/cluster_manager/dispatcher.py -c /apps/soca/$SOCA_CONFIGURATION/cluster_manager/settings/queue_mapping.yml -t desktop
-*/3 * * * * source /etc/environment;  /apps/soca/$SOCA_CONFIGURATION/python/latest/bin/python3 /apps/soca/$SOCA_CONFIGURATION/cluster_manager/dispatcher.py -c /apps/soca/$SOCA_CONFIGURATION/cluster_manager/settings/queue_mapping.yml -t test
+* * * * * source /etc/environment;  /apps/soca/$SOCA_CONFIGURATION/python/latest/bin/python3 /apps/soca/$SOCA_CONFIGURATION/cluster_manager/dispatcher.py -c /apps/soca/$SOCA_CONFIGURATION/cluster_manager/settings/queue_mapping.yml -t compute
+* * * * * source /etc/environment;  /apps/soca/$SOCA_CONFIGURATION/python/latest/bin/python3 /apps/soca/$SOCA_CONFIGURATION/cluster_manager/dispatcher.py -c /apps/soca/$SOCA_CONFIGURATION/cluster_manager/settings/queue_mapping.yml -t desktop
+* * * * * source /etc/environment;  /apps/soca/$SOCA_CONFIGURATION/python/latest/bin/python3 /apps/soca/$SOCA_CONFIGURATION/cluster_manager/dispatcher.py -c /apps/soca/$SOCA_CONFIGURATION/cluster_manager/settings/queue_mapping.yml -t test
 
 # Add/Remove DCV hosts and configure ALB
-*/5 * * * * source /etc/environment; /apps/soca/$SOCA_CONFIGURATION/python/latest/bin/python3 /apps/soca/$SOCA_CONFIGURATION/cluster_manager/dcv_alb_manager.py >> /apps/soca/$SOCA_CONFIGURATION/cluster_manager/dcv_alb_manager.py.log 2>&1
+*/3 * * * * source /etc/environment; /apps/soca/$SOCA_CONFIGURATION/python/latest/bin/python3 /apps/soca/$SOCA_CONFIGURATION/cluster_manager/dcv_alb_manager.py >> /apps/soca/$SOCA_CONFIGURATION/cluster_manager/dcv_alb_manager.py.log 2>&1
 " | crontab -
 
 # Start Web UI
@@ -141,9 +163,6 @@ CURRENT_ATTEMPT=0
 
 sanitized_username="$3"
 sanitized_password="$4"
-
-echo $sanitized_username
-echo $sanitized_password
 
 until `/apps/soca/$SOCA_CONFIGURATION/python/latest/bin/python3 /apps/soca/$SOCA_CONFIGURATION/cluster_manager/ldap_manager.py add-user -u $sanitized_username -p $sanitized_password --admin >> /dev/null 2>&1`
 do

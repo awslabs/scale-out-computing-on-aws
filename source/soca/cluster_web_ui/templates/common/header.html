@@ -1,20 +1,40 @@
 
 
-  <meta charset="utf-8">
-  <meta http-equiv="X-UA-Compatible" content="IE=edge">
-  <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
-  <meta name="description" content="">
-  <meta name="author" content="">
-  <title>Scale-Out Computing on AWS</title>
+<meta charset="utf-8">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+<meta name="description" content="Scale-Out Computing on AWS - HPC made easy">
+<meta name="author" content="Mickael Crozes">
+<title>Scale-Out Computing on AWS</title>
+<link rel="shortcut icon" href={{ url_for('static', filename='img/soca_logo.ico') }} />
 
-    <link rel="shortcut icon" href={{ url_for('static', filename='img/soca_logo.ico') }} />
+<link href="{{ url_for('static', filename='css/icons.css') }}" rel="stylesheet">
+<link href="{{ url_for('static', filename='css/app.css') }}" rel="stylesheet">
+<link href="{{ url_for('static', filename='css/fonts.css') }}" rel="stylesheet">
+<link href="{{ url_for('static', filename='css/prism.css') }}" rel="stylesheet">
 
-    <link href="{{ url_for('static', filename='css/icons.css') }}" rel="stylesheet">
-  <link href="{{ url_for('static', filename='css/app.css') }}" rel="stylesheet">
-  <link href="{{ url_for('static', filename='css/fonts.css') }}" rel="stylesheet">
-    <link href="{{ url_for('static', filename='css/prism.css') }}" rel="stylesheet">
+<!-- Bootstrap core JavaScript-->
+<script src="{{ url_for('static', filename='vendor/jquery/jquery.min.js') }}"></script>
+<script src="{{ url_for('static', filename='js/popper.min.js') }}"></script>
+<script src="{{ url_for('static', filename='vendor/bootstrap/js/bootstrap.bundle.min.js') }}"></script>
 
+<!-- Page Specific -->
 
-  {% if view == 'remotedesktop' or view == 'qstat' %}
+{% if page == 'remote_desktop' or page == 'my_jobs' %}
     <meta http-equiv="refresh" content="120">
-  {% endif %}
+
+{% elif page == 'my_files' %}
+    <script src="{{ url_for('static', filename='js/jquery.dataTables.min.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/dataTables.min.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/dropzone.js') }}"></script>
+    <link href="{{ url_for('static', filename='css/dropzone.css') }}" rel="stylesheet">
+    <script src="{{ url_for('static', filename='js/moment.min.js') }}"></script>
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+    <meta http-equiv="Pragma" content="no-cache" />
+    <meta http-equiv="Expires" content="0" />
+{% elif page == 'submit_job' %}
+    <script src="{{ url_for('static', filename='vendor/jquery-formbuilder/form-render.min.js') }}"></script>
+    <script src="{{ url_for('static', filename='vendor/jquery-ui/jquery-ui.min.js') }}"></script>
+
+{% else %}
+{% endif %}

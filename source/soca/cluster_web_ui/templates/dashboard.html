@@ -1,153 +1,79 @@
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
-
      {% include 'common/header.html' %}
-
-
 </head>
 
 <body id="page-top">
-
   <div id="wrapper">
     {% include 'common/vertical_menu_bar.html' %}
     <div id="content-wrapper" class="d-flex flex-column">
-
       <div id="content">
           <br>
           <div class="container-fluid">
               {% include 'common/horizontal_menu_bar.html' %}
               <div class="row">
                       <div class="col-md-12">
-
-
                           <div class="card shadow mb-4">
                               <div class="card-header py-3">
                                   <h6 class="m-0 font-weight-bold text-primary">Access your cluster analytics</h6>
                               </div>
 
                               <div class="card-body">
+                                  <div class="alert alert-primary">
+                                      <strong>First Time User?</strong><br>
+                                      If you are not already familiar with Kibana, read the following instructions below:
+                                  <li style="list-style-type:none"><a href="https://awslabs.github.io/scale-out-computing-on-aws/analytics/monitor-cluster-activity/" target="_blank">Configure your index and query your data</a></li>
+                                  <li style="list-style-type:none"><a href="https://awslabs.github.io/scale-out-computing-on-aws/analytics/build-kibana-dashboards/">Create your own visualizations</a></li>
+                                  </div>
                                   <h3>Dashboard URL</h3>
-                                  Please click here to access your dashboard url: <a href="{{analytics_url}}" target="_blank" class="btn btn-primary my-2">{{analytics_url}}</a>
+                                  Please click here to access your dashboard url: <a href="{{ kibana_url}}" target="_blank" class="btn btn-primary my-2">{{kibana_url}}</a>
                                   <hr>
-                                  <h3>First Time User</h3>
-                                  <br>
-                                  If you are not already familiar with Kibana, read the instructions below. Since it's the first time you access this endpoint, you will need to configure your indexes.
-                                    <br>
-                                  <table class="table">
-                                      <thead>
-                                      <tr>
-                                          <th scope="col">Step</th>
-                                          <th scope="col">Action</th>
-                                          <th scope="col">Screenshot</th>
-                                      </tr>
-                                      </thead>
-                                      <tbody>
-                                      <tr>
-                                          <th scope="row">1</th>
-                                          <td>First, access  <a href="{{analytics_url}}" target="_blank">Kibana URL</a> and click "Explore on my Own"</td>
-                                          <td><img  width="300" height="300" src="{{ url_for('static', filename='img/kibana-1.png') }}"></td>
-                                      </tr>
-                                      <tr>
-                                          <th scope="row">2</th>
-                                          <td>Go under Management and Click Index Patterns</td>
-                                          <td><img src="{{ url_for('static', filename='img/kibana-2.png') }}"></td>
-                                      </tr>
-                                      <tr>
-                                          <th scope="row">3</th>
-                                          <td>Select the Index you want to query.</td>
-                                          <td><img src="{{ url_for('static', filename='img/kibana-3.png') }}"></td>
-                                      </tr>
-                                      <th scope="row">4</th>
-                                      <td>Click next, and then specify the Time Filter key (refer to section below for timestamp id). Once done, click Create Index Pattern</td>
-                                      <td><img  width="500" src="{{ url_for('static', filename='img/kibana-4.png') }}"></td>
-                                      </tr>
-                                      <th scope="row">5</th>
-                                      <td>Once your Index is configured, go to Kibana, select "Discover" tab to start visualizing the data</td>
-                                      <td><img src="{{ url_for('static', filename='img/kibana-5.png') }}"></td>
-                                      </tr>
-                                      </tbody>
-                                  </table>
-                                  <hr>
-                                  <h3> Index Information</h3>
-                                  <br>
-                                  <table class="table">
-                                      <thead>
-                                      <tr>
-                                          <th scope="col"></th>
-                                          <th scope="col">Cluster Node Information</th>
-                                          <th scope="col">Job Information</th>
-                                      </tr>
-                                      </thead>
-                                      <tbody>
-                                      <tr>
-                                          <th scope="row">Kibana Index Name</th>
-                                          <td>pbsnodes</td>
-                                          <td>jobs</td>
-                                      </tr>
-                                      <tr>
-                                          <th scope="row">Data ingestion</th>
-                                          <td>/apps/soca/cluster_analytics/cluster_nodes_tracking.py</td>
-                                          <td>/apps/soca/cluster_analytics/job_tracking.py</td>
-                                      </tr>
-                                      <tr>
-                                          <th scope="row">Recurrence</th>
-                                          <td>Every 1 minute</td>
-                                          <td>Every 1 hour <strong>(note: job must be terminated to be shown on ElasticSearch)</strong></td>
-                                      </tr>
-                                      <tr>
-                                          <th scope="row">Data uploaded</th>
-                                          <td>Host Info (status of provisioned host, lifecycle, memory, cpu etc ..)	</td>
-                                          <td>Job Info (allocated hardware, licenses, simulation cost, job owner, instance type ...)</td>
-                                      </tr>
-                                      <tr>
-                                          <th scope="row">Timestamp Key</th>
-                                          <td>Use "timestamp" when you create the index for the first time</td>
-                                          <td>use "stime" when you create the index for the first time</td>
-                                      </tr>
-                                      <tr>
-                                      </tbody>
-                                  </table>
+                                  <div class="accordion" id="dashboard_examples">
+                                      <div class="card">
+                                        <div class="card-header" id="Headhost">
+                                          <h2 class="mb-0">
+                                            <button class="btn btn-link" type="button" data-toggle="collapse" data-target="#host" aria-expanded="true" aria-controls="host">
+                                              Example: Host Metrics
+                                            </button>
+                                          </h2>
+                                        </div>
 
-                                    <hr>
-                                  <h3>Examples</h3><br>
-                                  <div class="row">
-                                      <div class="col-md-8">
-                                      <h4>Cluster Node</h4>
-                                      <br>
-                                          <img height="auto" width="100%" src="{{ url_for('static', filename='img/kibana-6.png') }}">
+                                        <div id="host" class="collapse show" aria-labelledby="Headhost" data-parent="#dashboard_examples">
+                                          <div class="card-body">
+                                              <img src="/static/img/host_metrics.png">
+                                          </div>
+                                        </div>
                                       </div>
-                                      <div class="col-md-4">
-                                      <h4> Job Metadata</h4>
-                                      <br>
-                                       <img height="auto" width="100%" src="{{ url_for('static', filename='img/kibana-7.png') }}">
+                                      <div class="card">
+                                        <div class="card-header" id="headJob">
+                                          <h2 class="mb-0">
+                                            <button class="btn btn-link collapsed" type="button" data-toggle="collapse" data-target="#job" aria-expanded="false" aria-controls="job">
+                                              Example: Job Metrics
+                                            </button>
+                                          </h2>
+                                        </div>
+                                        <div id="job" class="collapse" aria-labelledby="headJob" data-parent="#dashboard_examples">
+                                          <div class="card-body">
+                                              <img src="/static/img/job_metrics.png">
+                                          </div>
+                                        </div>
+                                      </div>
+                                      <div class="card">
+                                        <div class="card-header" id="headNodes">
+                                          <h2 class="mb-0">
+                                            <button class="btn btn-link collapsed" type="button" data-toggle="collapse" data-target="#node" aria-expanded="false" aria-controls="node">
+                                              Example: Node Metrics
+                                            </button>
+                                          </h2>
+                                        </div>
+                                        <div id="node" class="collapse" aria-labelledby="headNodes" data-parent="#dashboard_examples">
+                                          <div class="card-body">
+                                              <img src="/static/img/node_metrics.png">
+                                          </div>
+                                        </div>
                                       </div>
                                   </div>
-                                   <hr>
-                                  <h3> Troubleshoot  access permission</h3>
-                                  Access to ElasticSearch is restricted to the IP you have specified during the installation. If your IP change for any reason, you won't be able to access the analytics dashboard and will get the following error message:
-                                  <br><code class="language-json">
-                                  {
-                                    "Message": "User: anonymous is not authorized to perform: es:ESHttpGet"
-                                  }
-                                 </code><br>
-                                  To solve this issue, log in to AWS Console  and go to ElasticSearch Service dashboard. Select  your ElasticSearch cluster and click "Modify Access Policy"
-
-                                 <img height="auto" width="100%" src="{{ url_for('static', filename='img/kibana-8.png') }}">
-
-                                Finally, simply add your new IP under the "Condition" block, then click Submit
-
-                                 <img height="auto" width="100%" src="{{ url_for('static', filename='img/kibana-9.png') }}">
-
-                                Please note it may take up to 5 minutes for your IP to be whitelisted
-
-
-
-
-
-
-
                               </div>
                           </div>
                       </div>

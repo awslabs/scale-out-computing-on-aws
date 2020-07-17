@@ -13,6 +13,9 @@ Parameters:
   SchedulerPublicIP:
     Type: String
 
+  EIPNat:
+    Type: String
+
   ClientIp:
     Type: String
 
@@ -25,17 +28,20 @@ Resources:
             reason: "Domain Name is required if we want to restrict AccessPolicies to this resource only"
     Type: AWS::Elasticsearch::Domain
     Properties:
-      ElasticsearchVersion: 7.1
+      ElasticsearchVersion: 7.4
       DomainName: !Sub ${ClusterId}
+      NodeToNodeEncryptionOptions:
+         Enabled: True
       EncryptionAtRestOptions:
          Enabled: True
       EBSOptions:
-        VolumeSize: 20
+        VolumeSize: 100
         VolumeType: gp2
         EBSEnabled: true
       ElasticsearchClusterConfig:
-        InstanceCount: 1
+        InstanceCount: 2
         InstanceType: m5.large.elasticsearch
+        ZoneAwarenessEnabled: True
       SnapshotOptions:
         AutomatedSnapshotStartHour: '0'
       AccessPolicies:
@@ -50,6 +56,7 @@ Resources:
                 aws:SourceIp:
                   - !Ref ClientIp
                   - !Sub ${SchedulerPublicIP}/32
+                  - !Sub ${EIPNat}/32
             Resource: !Sub 'arn:${AWS::Partition}:es:${AWS::Region}:${AWS::AccountId}:domain/${ClusterId}/*'
 
       AdvancedOptions:

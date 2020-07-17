@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+     {% include 'common/header.html' %}
+</head>
+
+<body id="page-top">
+
+  <div id="wrapper">
+    {% include 'common/vertical_menu_bar.html' %}
+    <div id="content-wrapper" class="d-flex flex-column">
+      <div id="content">
+          <br>
+          <div class="container-fluid">
+              {% include 'common/horizontal_menu_bar.html' %}
+              <main role="main">
+
+                  {% with messages = get_flashed_messages(with_categories=true) %}
+                        {% if messages %}
+                            {% for category, message in messages %}
+                                <br>
+                                {% if category == "success" %}
+                                <div class="alert alert-success">
+                                    <strong>{{ message | safe }} </strong>
+                                </div>
+                                {% else %}
+                                 <div class="alert alert-danger">
+                                    <strong>{{ message | safe }} </strong>
+                                </div>
+                                {% endif %}
+                            {% endfor %}
+                        {% endif %}
+                    {% endwith %}
+
+
+                  <div class="row">
+                      <div class="col-md-12">
+                          <div id="update-div" name="update-div"></div>
+                      </div>
+                  </div>
+
+
+                   {% include 'common/monaco_editor.html' %}
+                  <div class="col-md-12" style="height: 80vh">
+                      <div id="text-editor" style="width:100%;height:100%;border:1px solid"></div>
+
+
+                          <div align="center" style="margin-top: 15px;">
+                              <input type="checkbox"  onchange="document.getElementById('save').disabled = !this.checked;" /> I am sure I want to <strong>EDIT</strong> {{ file_to_edit }} and I understand changing configuration file may cause outage if done incorrectly. <br><br>
+                              <button disabled id="save" name=" save"onclick="saveData()" class="btn btn-primary btn-lg">Save changes</button>
+                          </div>
+                      </div>
+
+                  </div>
+
+
+                    </main>
+
+
+
+
+              </div>
+          </div>
+      </div>
+
+  </div>
+
+  <a class="scroll-to-top rounded" href="#page-top">
+    <i class="fas fa-angle-up"></i>
+  </a>
+
+
+<script>
+
+    require(['vs/editor/editor.main'], function() {
+
+    window.fileeditor = monaco.editor.create(document.getElementById("text-editor"),
+        {
+        value: {{ file_data | safe }}.join("\n"),
+        language: "{{ file_syntax }}"
+        });
+
+
+    });
+
+    function saveData()
+    {
+        $('#update-div').html('<div class="alert alert-primary">Hold on, we are saving this file ... It may take a while if your files is bigger than 200 mb </div>');
+        try {
+            getVal = btoa(window.fileeditor.getValue());
+            fileToEdit = btoa("{{file_to_edit}}");
+        }
+        catch(err) {
+            console.log(err)
+          $('#update-div').html('<div class="alert alert-danger">Unable to edit this file, are you using non ASCII characters? Error: ' + err.message + ' </div>');
+        }
+
+        $.ajax({
+            url: "/api/system/files",
+            type: "post",
+            data: {
+                "file_content": getVal,
+                "file_name": fileToEdit
+            },
+            headers: {
+                "Content-type": "application/x-www-form-urlencoded",
+                "X-SOCA-USER": "{{ user }}",
+                "X-SOCA-TOKEN": "{{ api_key }}"
+            },
+            dataType: 'json',
+            success: function (data) {
+                $('#update-div').html('<div class="alert alert-success">File updated correctly</div>');
+                },
+            fail: function(data){
+                console.log(data)
+                $('#update-div').html('<div class="alert alert-danger">Could not update file. Check the console.log ' + data.toString() + '<div>');
+            }
+        });
+    }
+</script>
+</body>
+
+</html>

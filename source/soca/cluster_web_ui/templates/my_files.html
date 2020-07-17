@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+     {% include 'common/header.html' %}
+<script>
+    function formatBytes(a,b){if(0==a)return"0 Bytes";var c=1024,d=b||2,e=["Bytes","KB","MB","GB","TB","PB","EB","ZB","YB"],f=Math.floor(Math.log(a)/Math.log(c));return parseFloat((a/Math.pow(c,f)).toFixed(d))+" "+e[f]}
+</script>
+</head>
+
+<body id="page-top" class="sidebar-toggled">
+
+  <div id="wrapper">
+    {% include 'common/vertical_menu_bar.html' %}
+    <div id="content-wrapper" class="d-flex flex-column">
+      <div id="content">
+          <br>
+          <div class="container-fluid">
+              {% include 'common/horizontal_menu_bar.html' %}
+              <main role="main">
+              {% with messages = get_flashed_messages(with_categories=true) %}
+                        {% if messages %}
+                            {% for category, message in messages %}
+                                <br>
+                                {% if category == "success" %}
+                                <div class="alert alert-success">
+                                    <strong>{{ message | safe }} </strong>
+                                </div>
+                                {% elif category == "info" %}
+                                 <div class="alert alert-info">
+                                    <strong>{{ message | safe }} </strong>
+                                </div>
+                                {% else %}
+                                 <div class="alert alert-danger">
+                                    <strong>{{ message | safe }} </strong>
+                                </div>
+                                {% endif %}
+                            {% endfor %}
+                        {% endif %}
+               {% endwith %}
+
+                  <div class="row">
+
+                  <div class="col-md-12">
+                      <nav aria-label="breadcrumb">
+                          <ol class="breadcrumb">
+                              <li class="breadcrumb-item"><a href="/my_files?ts={{ timestamp }}"><i class="fas fa-home"></i></a></li>
+                              {% for path,folder_name in breadcrumb.items() %}
+                              <li class="breadcrumb-item"><a href="/my_files?path={{ path }}&ts={{ timestamp }}">{{folder_name}}</a></li>
+                              {% endfor %}
+
+                            {%  if is_cached == True %}
+                                <form class="ml-auto" action="/my_files/flush_cache" method="post">
+                                    <input type="hidden" name="path" value="{{ path }}">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                    <button data-toggle="tooltip" data-placement="top" title="This folder is cached for better performance and automatically refreshed every {{ default_cache_time/ 60 }} minutes. If you have made a change via SSH/Graphical session and this is not visible yet, you can manually invalidate the cache to load the latest updates" class="btn btn-secondary btn-sm" type="submit"><i class="fas fa-sync"></i> Missing files? Refresh folder cache</button>
+                              </form>
+                           {% endif %}
+                          </ol>
+                      </nav>
+
+                        <!-- Modal -->
+                        <div class="modal fade" id="uploadModal" tabindex="-1" role="dialog" aria-labelledby="exampleModalLabel" aria-hidden="true">
+                          <div class="modal-dialog modal-xl" role="document">
+                            <div class="modal-content">
+                              <div class="modal-header">
+                                <h5 class="modal-title" id="exampleModalLabel">Upload your content to SOCA</h5>
+                                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                                  <span aria-hidden="true">&times;</span>
+                                </button>
+                              </div>
+                              <div class="modal-body">
+                                  <div id="update-div" name="update-div"></div>
+                                  <form action="/upload"  id="drop" class="dropzone" style="border: 2px dashed #0087F7;height: 500px">
+                                      <div class="fallback">
+                                          <input name="file" type="file" multiple />
+                                      </div>
+                                  </form>
+                                  <hr>
+                                  Do not close the page while uploading.<br>
+                                  Upload limited to {{ max_upload_size / 1024 }} GB and {{ max_upload_timeout / 60000 }} minutes timeout. Use the <a href="/sftp">SOCA SFTP solution</a> for larger files or edit the configuration files.
+                              </div>
+
+                            </div>
+                          </div>
+                        </div>
+                      <div class="row">
+                           <div class="col-md-5">
+                              <input type="text" id="searchFiles"  class="form-control" placeholder="Search for a file or a folder" aria-controls="list_files_table">
+                          </div>
+                          {% if get_all_uid_count > 0 %}
+                          <div class="col-md-2">
+                              <div id="div_download_all">
+                                  <a href="/my_files/download_all?path={{ path }}&ts={{ timestamp }}">
+                                    <button type="button" data-toggle="tooltip" data-placement="top" title="Download all {{ get_all_uid_count }} files on this folder" class="btn btn-info form-control">Download all</button>
+                                  </a>
+                              </div>
+                              <a id="link_download_selected" href="#" style="display: none">
+                                  <button id="btn_download_selected" data-toggle="tooltip" data-placement="top" title="Download selected files" type="button" class="btn btn-info form-control">Download selected</button>
+                              </a>
+                          </div>
+                          {% endif %}
+                          <div class="col-md-3">
+                            <form class="form-inline" method="POST" action="/my_files/create_folder">
+                              <div class="input-group">
+                                  <input type="text" size="25" class="form-control" name="folder_name" required placeholder="Folder Name">
+                                  <div class="input-group-append">
+                                      <input type="hidden" name="path" value="{{ path }}/">
+                                      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                      <button class="btn btn-success" type="submit">Create Folder</button>
+                                  </div>
+                              </div>
+                            </form>
+                          </div>
+
+                          <div class="col-md-2">
+                              <button type="button" class="btn btn-warning form-control" data-toggle="modal" data-target="#uploadModal">Upload file(s)</button>
+                          </div>
+
+
+                      </div>
+                      <div class="row">
+                      <div class="col-md-12">
+                      <br>
+                          <table id="list_files_table" class="table row-border" style="width:100%">
+        <thead>
+            <tr>
+                <th>Name</th>
+                <th>Type</th>
+                <th>Size</th>
+                <th>Last Modified</th>
+            </tr>
+        </thead>
+        <tbody>
+         {%  for file_name,file_data in filesystem.items() %}
+             <tr>
+                 <td>
+                    {% if file_data.type == "folder" %}
+                        <i class="far fa-folder-open fa-lg"></i>
+                        <strong><a href="/my_files?path={{ file_data.path }}&ts={{ timestamp }}"> {{ file_name }}</a></strong>
+                        <div class="float-right">
+                            <a href="/my_files/delete?uid={{ file_data.uid }}"><i data-toggle="tooltip" data-placement="top" title="Delete the folder" class="fas fa-trash-alt fa-lg"  style="color: grey"></i></a>
+                        </div>
+                    {% else %}
+                        {% if file_data.st_size_default > max_online_preview %}
+                            <i class="far fa-question-circle form-check-input" data-toggle="tooltip" data-placement="top" title="This file is too big to be compressed via web. Download file separately or use SFTP."></i>
+                        {% else %}
+                            <input type="checkbox" onchange="SelectedFiles(this.id)" class="form-check-input" id="{{ file_data.uid }}">
+                        {% endif %}
+
+                        {% if file_name.endswith('.png') or file_name.endswith('.jpg') or file_name.endswith('.jpeg') %}
+                            <i class="far fa-file-image fa-lg"></i>
+                        {% elif file_name.endswith('.zip') or file_name.endswith('.tgz') or file_name.endswith('.tar.gz') or file_name.endswith('.rar') or file_name.endswith('.7z') %}
+                            <i class="far fa-file-archive fa-lg"></i>
+                        {% elif file_name.endswith('.pdf') %}
+                            <i class="far fa-file-pdf fa-lg"></i>
+                        {% elif file_name.endswith('.ppt') or file_name.endswith('.pptx') %}
+                            <i class="far fa-file-powerpoint fa-lg"></i>
+                        {% elif file_name.endswith('.csv') %}
+                            <i class="fas fa-file-csv fa-lg"></i>
+                        {% elif file_name.endswith('.avi') or file_name.endswith('.mkv') or file_name.endswith('.mpg')  %}
+                            <i class="far fa-file-video fa-lg"></i>
+                        {% elif file_name.endswith('.txt') or file_name.endswith('.log') or file_name.endswith('.cfg') or file_name.endswith('.conf')  %}
+                            <i class="far fa-file-alt fa-lg"></i>
+                        {% else %}
+                            <i class="far fa-file-code fa-lg"></i>
+                        {% endif %}
+                        <a href="/my_files/download?uid={{ file_data.uid }}&ts={{ timestamp }}">
+                         {{ file_name }}
+                        </a>
+
+                     <div class="float-right">
+                         <a href="/my_files/download?uid={{ file_data.uid }}&ts={{ timestamp }}"><i data-toggle="tooltip" data-placement="top" title="Download this file" class="fa fa-file-download fa-lg"  style="color: grey"></i></a>
+                         <a href="/submit_job?input_file={{ file_data.uid }}&ts={{ timestamp }}"><i data-toggle="tooltip" data-placement="top" title="Use as simulation input" class="fas fa-microchip fa-lg"  style="color: grey"></i></a>
+                         {% if file_data.st_size_default > max_online_preview %} <!-- Unable to edit file bigger than 150 mb via web -->
+                             <a style="cursor: pointer" target="_blank" data-toggle="modal" data-target="#fileToBig"><i data-toggle="tooltip" data-placement="top" title="View or Edit this file" class="fas fa-edit fa-lg" style="color: grey"></i></a>
+                         {% else %}
+                            <a target="_blank" href="/editor?uid={{ file_data.uid }}&ts={{ timestamp }}"><i data-toggle="tooltip" data-placement="top" title="View or Edit this file" class="fas fa-edit fa-lg" style="color: grey"></i></a>
+                         {% endif %}
+
+                         <a data-toggle="modal" data-target="#deleteModal{{ loop.index }}"><i data-toggle="tooltip" data-placement="top" title="Delete file" style="cursor: pointer" class="fas fa-trash-alt fa-lg" style="color: grey"></i></a>
+                     </div>
+                        <!-- Begin Modal DELETE -->
+                        <div class="modal fade" id="deleteModal{{ loop.index }}" tabindex="-1" role="dialog"  aria-hidden="true">
+                          <div class="modal-dialog" role="document">
+                            <div class="modal-content">
+                              <div class="modal-header">
+                                <h5 class="modal-title">Entering the danger zone</h5>
+                                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                                  <span aria-hidden="true">&times;</span>
+                                </button>
+                              </div>
+                              <div class="modal-body">
+                                  <div class="alert alert-danger">
+                                        <h4 class="alert-heading">Attention</h4>
+
+                                      You are about to permanently delete <strong>{{ file_name }}</strong> from the filesystem. <br>
+                                      This action cannot be reversed.
+                                  </div>
+                                  <a href="/my_files/delete?uid={{ file_data.uid }}&ts={{ timestamp }}">
+                                      <button type="button" class="btn btn-danger form-control">Delete this file</button>
+                                  </a>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                    {% endif %}
+                 </td>
+                 <td>
+                     {% if file_data.type == "folder" %}
+                         Directory
+                     {% else %}
+                         File
+                     {% endif %}
+                 <td>
+                        {% if file_data.type != "folder" %}
+                           {{ file_data.st_size }}
+                     {% endif %}
+                 </td>
+              <td>
+                  <div id="ts{{  file_data.uid }}"></div>
+                  <script>
+                      document.getElementById('ts{{  file_data.uid }}').innerHTML = moment.unix({{ file_data.st_mtime }}).format('YYYY/MM/DD H:mm:ss')
+
+                  </script>
+                 </td>
+
+                     </tr>
+         {% endfor %}
+        <div class="modal fade" id="fileToBig" tabindex="-1" role="dialog"  aria-hidden="true">
+                          <div class="modal-dialog" role="document">
+                            <div class="modal-content">
+                              <div class="modal-header">
+                                <h5 class="modal-title">Unable to preview this file via web</h5>
+                                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                                  <span aria-hidden="true">&times;</span>
+                                </button>
+                              </div>
+                              <div class="modal-body">
+                                  This file is too big and cannot be preview via web. <br> Please <a href="/sftp"> download a copy </a> or open it via <a href="/remote_desktop">remote desktop (DCV)</a> or <a href="/ssh"> cli (via SSH)</a>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+
+
+        </tbody>
+
+    </table>
+
+                      </div>
+
+                      </div>
+
+
+
+
+
+
+
+
+                  </div>
+
+                  <script>
+                      Dropzone.autoDiscover = false;
+
+                      $("#drop").dropzone({
+                          url: "/my_files/upload",
+                          addRemoveLinks : true,
+                          dictDefaultMessage: '<i class="fas fa-cloud-upload-alt fa-3x"></i> <h4>Drag and Drop files to upload or click</h4> File(s) will be uploaded under {{ path }}',
+                          maxFilesize: {{max_upload_size | safe}},
+                          timeout: {{max_upload_timeout | safe }},
+                          params: {
+                                 path: "{{ path }}/"
+                          },
+                          dictResponseError: 'Error uploading file!',
+                          headers: {
+                              'X-CSRFToken': "{{ csrf_token() | safe }}"
+                          },
+                          success: function(file) {
+                              $('#update-div').append('<div class="alert alert-success alert-dismissible fade show" role="alert"><strong>'+file.name+'</strong> has been uploaded to SOCA<button type="button" class="close" data-dismiss="alert" aria-label="Close"><span aria-hidden="true">&times;</span></button><div>');
+                          },
+                          complete: function(file, response)
+                          {
+                              if (this.getUploadingFiles().length === 0 && this.getQueuedFiles().length === 0) {
+                                  $('#update-div').append('<div class="alert alert-info">All operations have completed. Page will reload automatically in 5 seconds (<a href="/my_files?path={{ path }}">click here for manual reload</a>) <div>');
+                                  setTimeout(() => { location.reload(); }, 5000);
+                              }
+
+                          },
+                          canceled: function(file, response)
+                          {
+                              $('#update-div').append('<div class="alert alert-danger alert-dismissible fade show" role="alert"><strong>'+file.name+'</strong> upload was canceled<button type="button" class="close" data-dismiss="alert" aria-label="Close"><span aria-hidden="true">&times;</span></button><div>');
+                          },
+                          error: function(file, response)
+                          {
+                              console.log("SOCAUploadError: " + file)
+                              console.log("SOCAUploadError: " + response)
+                              $('#update-div').append('<div class="alert alert-danger alert-dismissible fade show" role="alert"><strong> Error during '+file.name+'</strong> upload because of '+response+'<button type="button" class="close" data-dismiss="alert" aria-label="Close"><span aria-hidden="true">&times;</span></button><div>');
+
+                          },
+                      });
+
+
+                      $(document).ready(function() {
+
+                          // enable tooltip
+                          $(function () {
+                              $('[data-toggle="tooltip"]').tooltip()
+                          })
+
+                          // build datatable
+                          dtable = $('#list_files_table').DataTable({
+                              sorting: false,
+                              paging: true,
+                              pagingType: "full_numbers",
+                              lengthMenu: [[100, 300, 500, -1], [100, 300, 500, "All"]],
+                              language: {
+                                emptyTable: "<h4>No files in this directory</h4>",
+                              },
+                              //'sDom': 'tpl',
+                              dom: "<'row'<'col-sm-12'tr>>" + "<'row'<'col-sm-4'l><'col-sm-8'p>>",
+                              fixedColumns: {
+                                  heightMatch: 'none'
+                              },
+                          });
+                          // bind search input
+                          $('#searchFiles').keyup(function(){
+                              dtable.search($(this).val()).draw() ;
+                          })
+                          $('.dataTables_filter input[type="search"]').css({'display':'none'});
+                      });
+                  </script>
+
+                  <script>
+                      var selected_files = []
+                      function SelectedFiles(uid){
+                          now = new Date();
+                          dl_link = document.getElementById("link_download_selected");
+                          download_all = document.getElementById("div_download_all");
+                          if (document.getElementById(uid).checked) {
+                               if(selected_files.length > 40) {
+                                  // URL/Payload limit. Limit the number of uid to 40
+                                  document.getElementById(uid).checked = false;
+                                  alert("Sorry you cannot download more than 40 files in a single call")
+                               }
+                               else{
+                                   selected_files.push(uid)
+                               }
+                          }
+                          else {
+                              selected_files = selected_files.filter(v => v !== uid);
+                          }
+
+                          if (selected_files.length > 0) {
+                              download_all.setAttribute("style", "display: none;");
+                              dl_link.setAttribute("style", "display: visible;");
+                              dl_link.setAttribute("href", "/my_files/download?uid="+selected_files.join(',')+"&ts=" + now.getTime())
+                          }
+                          else{
+                              dl_link.setAttribute("style", "display: none;");
+                              download_all.setAttribute("style", "display: visible;");
+                          }
+                      }
+                  </script>
+
+
+
+
+
+
+                  </div>
+
+
+
+
+
+
+
+
+                  </div>
+
+
+              </main>
+
+
+
+
+              </div>
+          </div>
+      </div>
+
+  </div>
+
+  <a class="scroll-to-top rounded" href="#page-top">
+    <i class="fas fa-angle-up"></i>
+  </a>
+
+
+    {% include 'common/footer.html' %}
+
+</body>
+
+</html>

@@ -2,15 +2,18 @@
 
 ##
 #
-# aligo.sh start|stop|status
+# socawebui.sh start|stop|status
 #
 ##
 
 source /etc/environment
-GUNICORN_BIN="/apps/soca/$SOCA_CONFIGURATION/python/latest/bin/gunicorn"
-GUNICORN_BIND='0.0.0.0:8443'
-GUNICORN_WORKERS=3
-GUNICORN_APP='app:app'
+UWSGI_BIN="/apps/soca/$SOCA_CONFIGURATION/python/latest/bin/uwsgi"
+UWSGI_BIND='0.0.0.0:8443'
+
+UWSGI_PROCESSES=5
+UWSGI_THREADS=$(cat  /proc/cpuinfo | grep processor | wc -l)
+UWSGI_FILE='wsgi.py'
+BUFFER_SIZE=32768
 
 if [[ $EUID -ne 0 ]]; then
    echo "This script must be run as root"
@@ -20,7 +23,7 @@ fi
 cd `dirname "$0"`
 status ()
     {
-    status_check_process=`ps aux | grep gunicorn | grep $GUNICORN_APP | awk '{print $2}'`
+    status_check_process=`ps aux | grep uwsgi | grep $UWSGI_FILE | awk '{print $2}'`
     }
 
 if [[ $# -eq 0 ]] ; then
@@ -33,8 +36,13 @@ case "$1" in
     start)
 
     ## Create the structure if does not exist
-    mkdir -p tmp/ssh
-    mkdir -p tmp/dcv_sessions
+    if [[ ! -d "tmp/" ]]; then
+      echo "First configuration: Creating tmp/ folder structure, please wait 10 seconds"
+      mkdir -p tmp/ssh
+      mkdir -p tmp/zip_downloads
+      chmod 700 tmp/
+      sleep 10
+    fi
 
     status
         if [[ -z $status_check_process ]]; then
@@ -44,8 +52,14 @@ case "$1" in
                 cat /dev/urandom | tr -dc 'a-zA-Z0-9' | fold -w 32 | head -n 1 > flask_secret_key.txt
                 chmod 600 flask_secret_key.txt
             fi
-            export FLASK_SECRET_KEY=$(cat flask_secret_key.txt)
-            $GUNICORN_BIN $GUNICORN_APP -b $GUNICORN_BIND --workers $GUNICORN_WORKERS --log-level warning --certfile cert.crt --keyfile cert.key --log-file application_output.log --daemon
+
+            export SOCA_FLASK_SECRET_KEY=$(cat flask_secret_key.txt)
+            # Creating unique, random and temp credentials
+            export SOCA_FLASK_FERNET_KEY=$(dd if=/dev/urandom bs=32 count=1 2>/dev/null | openssl base64)
+            export SOCA_FLASK_API_ROOT_KEY=$(cat /dev/urandom | tr -dc 'a-zA-Z0-9' | fold -w 32 | head -n 1)
+
+            # Launching process
+            $UWSGI_BIN --master --https $UWSGI_BIND,cert.crt,cert.key --wsgi-file $UWSGI_FILE --processes $UWSGI_PROCESSES --threads $UWSGI_THREADS --daemonize application.log --enable-threads --buffer-size $BUFFER_SIZE --check-static /apps/soca/$SOCA_CONFIGURATION/cluster_web_ui/static
 
         else
            echo 'SOCA is already running with PIDs: ' $status_check_process

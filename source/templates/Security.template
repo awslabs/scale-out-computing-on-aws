@@ -291,6 +291,8 @@ Resources:
         rules_to_suppress:
           - id: W11
             reason: "API calls are read commands which have to be mapped to wildcard resources"
+          - id: W76
+            reason: "Stelligent Policy Complexity Metric (SPCM) already reduced to minimum"
 
     Type: AWS::IAM::Role
     DependsOn: ComputeNodeIAMRole
@@ -321,6 +323,8 @@ Resources:
                   - ec2:DescribeSecurityGroups
                   - ec2:DescribeImages
                   - ec2:DescribeInstanceAttribute
+                  - ec2:DescribeInstanceTypes
+                  - ec2:DescribeReservedInstances
                   - ec2:DescribeSpotInstanceRequests
                   - ec2:DescribeVpcClassicLink
                   - ec2:DescribeVolumes
@@ -330,6 +334,7 @@ Resources:
                   - ec2:DescribeLaunchTemplateVersions
                   - ec2:DescribeNetworkInterfaces
                   - ec2:DescribeSpotFleetRequests
+                  - ec2:DescribeSpotFleetInstances
                   - fsx:DescribeFileSystems
                   - autoscaling:DescribeAutoScalingGroups
                   - autoscaling:DescribeScalingActivities
@@ -337,6 +342,8 @@ Resources:
                   - elasticloadbalancing:DescribeRules
                   - elasticloadbalancing:DescribeListeners
                   - elasticloadbalancing:DescribeTargetGroups
+                  - savingsplans:DescribeSavingsPlans
+                  - servicequotas:ListServiceQuotas
                 Resource: "*"
 
         - PolicyName: SchedulerWritePermissions
@@ -348,6 +355,7 @@ Resources:
                   - autoscaling:UpdateAutoScalingGroup
                   - autoscaling:DeleteAutoScalingGroup
                   - autoscaling:CreateAutoScalingGroup
+                  - autoscaling:DetachInstances
                   - ec2:DeleteLaunchTemplate
                   - ec2:CreateLaunchTemplate
                   - fsx:CreateDataRepositoryTask
@@ -377,6 +385,7 @@ Resources:
               - Effect: Allow
                 Action:
                   - ec2:RunInstances
+                  - ec2:TerminateInstances
                   - ec2:CreatePlacementGroup
                   - ec2:DeletePlacementGroup
                 Resource:
@@ -436,6 +445,7 @@ Resources:
                   - ec2:CreatePlacementGroup
                   - ec2:DeletePlacementGroup
                   - ec2:RequestSpotFleet
+                  - ec2:ModifySpotFleetRequest
                   - ec2:CancelSpotFleetRequests
                 Resource: "*"
                 Condition:
