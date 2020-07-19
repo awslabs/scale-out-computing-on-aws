@@ -69,17 +69,18 @@ Scale-Out Computing on AWS includes a simple web ui designed to simplify user in
 - [Add/Remove LDAP users ](web-interface/manage-ldap-users/)
 - [Access the analytic dashboard](web-interface/my-activity/)
 - [Access your filesystem](web-interface/my-files/)
+- [Understand why your jobs are stuck in the queue](web-interface/my-job-queue/#understand-why-your-job-cannot-start)
 - [Create Application profiles and let your users submit job directly via the web interface](web-interface/submit-hpc-jobs-web-based-interface/)
 
 ## HTTP Rest API
 Users can submit/retrieve/delete jobs [remotely via an HTTP REST API](web-interface/control-hpc-job-with-http-web-rest-api/)
 
 ## Budgets and Cost Management
-You can [review your HPC costs](analytics/review-hpc-costs/) filtered by user/team/project/queue very easily using AWS Cost Explorer. 
+You can [review your HPC costs](budget/review-hpc-costs/) filtered by user/team/project/queue very easily using AWS Cost Explorer. 
 
-Scale-Out Computing on AWS also supports AWS Budget and [let you create budgets](analytics/set-up-budget-project/) assigned to user/team/project or queue. To prevent over-spend, Scale-Out Computing on AWS includes hooks to restrict job submission when customer-defined budget has expired.
+Scale-Out Computing on AWS also supports AWS Budget and [let you create budgets](budget/set-up-budget-project/) assigned to user/team/project or queue. To prevent over-spend, Scale-Out Computing on AWS includes hooks to restrict job submission when customer-defined budget has expired.
 
-Lastly, Scale-Out Computing on AWS let you create queue ACLs or instance restriction at a queue level. [Refer to this link for all best practices in order to control your HPC cost on AWS and prevent overspend](analytics/prevent-overspend-hpc-cost-on-aws-soca/).
+Lastly, Scale-Out Computing on AWS let you create queue ACLs or instance restriction at a queue level. [Refer to this link for all best practices in order to control your HPC cost on AWS and prevent overspend](budget/prevent-overspend-hpc-cost-on-aws-soca/).
 
 ## Detailed Cluster Analytics 
 Scale-Out Computing on AWS [includes ElasticSearch and automatically ingest job and hosts data](analytics/monitor-cluster-activity/) in real-time for accurate visualization of your cluster activity.
