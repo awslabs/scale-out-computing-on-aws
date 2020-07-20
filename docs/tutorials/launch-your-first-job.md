@@ -10,7 +10,7 @@ title: Launch your first job
     * Use [the web-based simulator](../../job-configuration-generator/) to generate your qsub/script command.
 
 !!!success "Web Based Job Submission"
-    In addition of regular qsub, SOCA supports [web based job submission](../../tutorials/submit-hpc-jobs-web-based-interface/) as well as via [HTTP REST API](../../tutorials/control-hpc-job-with-http-web-rest-api/)
+    In addition of regular qsub, SOCA supports [web based job submission](../../web-interface/submit-hpc-jobs-web-based-interface/) as well as via [HTTP REST API](../../web-interface/control-hpc-job-with-http-web-rest-api/)
 
 To get started, create a simple text file and name it "job_submit.que". See below for a simple template (you will be required to edit whatever is between **)
 

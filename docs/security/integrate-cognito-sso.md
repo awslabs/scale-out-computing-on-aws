@@ -17,7 +17,7 @@ Additionally, [read this link ](https://docs.aws.amazon.com/cognito/latest/devel
 ![](../imgs/cognito-6.png)
 
 - 1: Mary has an account on her corporate LDAP or Active Directory. This account has an username (e.g mary), an email (e.g mary@company.com) and other parameters (cost center, location ... ). She uses her account to log in to her corporate network.
-- 2: Mary wants to access the web UI of SOCA (we assume she already has an active account on SOCA. If not, [refer to this page to learn how to manage user account on SOCA](../tutorials/manage-ldap-users/))
+- 2: Mary wants to access the web UI of SOCA (we assume she already has an active account on SOCA. If not, [refer to this page to learn how to manage user account on SOCA](../../web-interface/manage-ldap-users/))
     + 2.1: She can access the application by entering her SOCA LDAP username/password
     + 2.2: She can be automatically logged in using Amazon Cognito
 - 3: Assuming SSO is enabled, SOCA will forward the access request Cognito which will use Mary's Corporate LDAP as a Federated identity to determine if she is a valid user. **This is the authentication part.**

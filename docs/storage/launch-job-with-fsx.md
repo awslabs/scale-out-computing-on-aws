@@ -164,7 +164,7 @@ if [[ $SOCA_AWS_fsx_lustre != 'false' ]]; then
 ~~~
 
 ## Learn about the other storage options on Scale-Out Computing on AWS
-[Click here to learn about the other storage options](../understand-storage-backend-options-scratch/) offered by Scale-Out Computing on AWS.
+[Click here to learn about the other storage options](../../storage/backend-storage-options/) offered by Scale-Out Computing on AWS.
 
 ## Troubleshooting and most common errors
 

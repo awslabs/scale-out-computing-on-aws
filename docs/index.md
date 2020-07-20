@@ -96,7 +96,7 @@ More importantly, the entire Scale-Out Computing on AWS codebase is open-source 
 Scale-Out Computing on AWS includes two unlimited EFS storage (/apps and /data). Customers also have the ability to deploy high-speed SSD EBS disks or FSx for Lustre as scratch location on their compute nodes. [Refer to this page to learn more about the various storage options](storage/backend-storage-options/) offered by Scale-Out Computing on AWS
 
 ## Centralized user-management
-Customers [can create unlimited LDAP users and groups](tutorials/manage-ldap-users/). By default Scale-Out Computing on AWS includes a default LDAP account provisioned during installation as well as a "Sudoers" LDAP group which manage SUDO permission on the cluster.
+Customers [can create unlimited LDAP users and groups](web-interface/manage-ldap-users/). By default Scale-Out Computing on AWS includes a default LDAP account provisioned during installation as well as a "Sudoers" LDAP group which manage SUDO permission on the cluster.
 
 ## Automatic backup
 Scale-Out Computing on AWS [automatically backup your data](security/backup-restore-your-cluster/) with no additional effort required on your side.

@@ -81,4 +81,4 @@ Finally, simply add your new IP under the "Condition" block, then click Submit
 
 Please note it may take up to 5 minutes for your IP to be whitelisted
 
-###[Create your own dashboard]({{ site.baseurl }}/analytics/build-kibana-dashboards/)
+###[Create your own dashboard](../../analytics/build-kibana-dashboards/)

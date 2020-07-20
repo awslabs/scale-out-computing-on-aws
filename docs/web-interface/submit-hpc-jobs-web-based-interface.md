@@ -5,7 +5,7 @@ title: Submit your HPC job via a custom web interface
 On this page, you will learn how to create an application profile and give your users the ability to submit HPC jobs via a simple web interface. 
 
 !!!note "Submit a job via REST API"
-    In addition of web based job submission, SOCA also supports job management via REST API. [Click here to learn more](../../tutorials/control-hpc-job-with-http-web-rest-api/)
+    In addition of web based job submission, SOCA also supports job management via REST API. [Click here to learn more](../../web-interface/control-hpc-job-with-http-web-rest-api/)
 
 
 ## No coding experience = No Problem 
