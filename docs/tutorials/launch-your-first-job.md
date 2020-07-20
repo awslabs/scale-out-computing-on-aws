@@ -4,7 +4,7 @@ title: Launch your first job
 ## Submit your job
 
 !!!info "Things to know before you start"
-    * Jobs start on average 5 minutes after submission (this value may differ depending on the number and type of compute resource you need to be provisioned). [You can reduce this cold-start by pre-configuring your AMI](../../tutorials/reduce-compute-node-launch-time/)
+    * Jobs start on average 5 minutes after submission (this value may differ depending on the number and type of compute resource you need to be provisioned). [You can reduce this cold-start by pre-configuring your AMI](../../tutorials/reduce-compute-node-launch-time-with-custom-ami/)
     * Nodes are ephemeral and tie to a given job id. If needed, [you can launch 'AlwaysOn' instances](../../tutorials/launch-always-on-instances/) that will be running 24/7.
     * If your simulation requires a lot of disk I/O, [it's recommended to use high performance SSD-NVMe](../../tutorials/integration-ec2-job-parameters/#storage) disks (using /scratch location) and not default $HOME path
     * Use [the web-based simulator](../../job-configuration-generator/) to generate your qsub/script command.

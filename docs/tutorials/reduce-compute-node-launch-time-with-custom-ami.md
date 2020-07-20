@@ -3,7 +3,7 @@ title: Import custom AMI to provision capacity faster
 ---
 
 By default, SOCA provision a vanilla AMI and install all required packages in ~3 to 5 minutes. 
-If this cold time is not acceptable for your workload, you can [launch AlwaysOn instance](../tutorials/launch-always-on-instances/) or pre-bake your AMI with all required libraries.
+If this cold time is not acceptable for your workload, you can [launch AlwaysOn instance](../../tutorials/launch-always-on-instances/) or pre-bake your AMI with all required libraries.
 
 ### Step 1: Locate your base AMI
 
@@ -55,7 +55,7 @@ You can pre-install the packages listed on [https://github.com/awslabs/scale-out
         - `yum install -y $(echo ${SSSD_PKGS[*]})`
     
     ____
-    [Here is an example](https://github.com/awslabs/scale-out-computing-on-aws/blob/master/source/scripts/ComputeNode.sh#L34) of how you can install packages listed in an array in bash.
+    [Here is an example](https://github.com/awslabs/scale-out-computing-on-aws/blob/master/source/scripts/Scheduler.sh#L34) of how you can install packages listed in an array in bash.
 
 
 
