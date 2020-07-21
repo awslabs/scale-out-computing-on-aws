@@ -33,7 +33,7 @@ user@host: qmgr -c "import hook check_project_budget application/x-python defaul
 
 ### Submit a job when budget is valid
 
-Go to [AWS Billing](https://aws.amazon.com/billing/home#/), click Budget on the left sidebar and create a new budget
+Go to [AWS Billing](https://console.aws.amazon.com/billing/home?#/), click Budget on the left sidebar and create a new budget
 
 ![](../imgs/budget-7.png)
 

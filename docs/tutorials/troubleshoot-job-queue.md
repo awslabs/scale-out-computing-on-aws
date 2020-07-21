@@ -51,9 +51,38 @@ bash-4.2$ qstat -f 2 | grep -i resource
     Resource_List.select = 3:ncpus=1
 ~~~
 
-
 If you see a `compute_node` different than `tbd` as well as `stack_id`, that means Scale-Out Computing on AWS triggered capacity provisioning by creating a new CloudFormation stack.
 If you go to your CloudFormation console, you should see  a new stack being created using the following naming convention: `soca-<cluster_name>-job-<job_id>`
+
+### Retrieve node logs
+
+On the master host, access `/apps/soca/<cluster_id>/cluster_node_bootstrap/logs/`. This folder contains the output of all logs for all hosts provisioned by SOCA
+
+~~~bash hl_lines="2 10 18"
+# Retrieve logs for the most recent (2 weeks) jobs
+ls -ltr /apps/soca/<CLUSTER_ID>/cluster_node_bootstrap/logs/ | tail -n 5
+drwxr-xr-x   3 root root  6144 Jul 21 17:02 19607
+drwxr-xr-x   3 root root  6144 Jul 21 17:16 19608
+drwxr-xr-x   3 root root  6144 Jul 21 17:21 19609
+drwxr-xr-x   6 root root  6144 Jul 21 17:40 19575
+drwxr-xr-x  10 root root  6144 Jul 21 17:44 19606
+
+# Filter for a specific job id. Each nodes provisioned for this job will show up on the directory
+ls -ltr /apps/soca/<CLUSTER_ID>/cluster_node_bootstrap/logs/19606 | tail -n 5
+drwxr-xr-x 2 root root 6144 Jul 21 17:47 ip-10-10-99-2
+drwxr-xr-x 2 root root 6144 Jul 21 17:47 ip-10-10-102-78
+drwxr-xr-x 2 root root 6144 Jul 21 17:48 ip-10-10-101-45
+drwxr-xr-x 2 root root 6144 Jul 21 17:48 ip-10-10-85-64
+drwxr-xr-x 2 root root 6144 Jul 21 17:48 ip-10-10-77-184
+
+# For each hosts, you will be able to retrieve the install logs and do any troubleshooting
+ls -ltr /apps/soca/<CLUSTER_ID>/cluster_node_bootstrap/logs/19606/ip-10-10-85-64
+-rw-r--r-- 1 root root 77326 Jul 21 17:47 ComputeNode.sh.log
+-rw-r--r-- 1 root root   864 Jul 21 17:48 ComputeNodePostReboot.log
+-rw-r--r-- 1 root root    12 Jul 21 17:48 ComputeNodeUserCustom.log
+-rw-r--r-- 1 root root 73009 Jul 21 17:48 ComputeNodeUserCustomization.log
+-rw-r--r-- 1 root root 77995 Jul 21 17:48 ComputeNodeConfigureMetrics.log
+~~~
 
 ### If CloudFormation stack is NOT "CREATE_COMPLETE"
 

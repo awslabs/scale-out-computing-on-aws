@@ -56,7 +56,7 @@ Choose a name and a region then click  "Create"
 ![](imgs/install-2.png)
 
 !!! warning "Avoid un-necessary charge"
-    It's recommended to create your bucket in the same region as your are planning to use Scale-Out Computing on AWS to avoid Cross-Regions charge (<a href="/https://aws.amazon.com/s3/pricing/"> See Data Transfer </a>)
+    It's recommended to create your bucket in the same region as your are planning to use Scale-Out Computing on AWS to avoid Cross-Regions charge (<a href="https://aws.amazon.com/s3/pricing/"> See Data Transfer </a>)
 
 Once your bucket is created, select it and click "Upload". Simply drag and drop your build folder  (`r6l1` in this example) to upload the content of the folder to S3.
 

@@ -64,11 +64,11 @@ Stay on top of your AWS costs in real time. Quickly visualize your overall usage
 
 Assuming you are on-boarding a new team, here are our recommend best practices:
 
-1 - [Create LDAP account for all users](../../tutorials/manage-ldap-users/#add-users)
+1 - [Create LDAP account for all users](../../web-interface/manage-ldap-users/#add-users)
 
-2 - [Create LDAP group for the team. Add all users to the group](../../tutorials/manage-ldap-users/#other-ldap-operations)
+2 - [Create LDAP group for the team. Add all users to the group](../../web-interface/manage-ldap-users/#other-ldap-operations)
 
-3 - [Create a new queue](../../tutorials/create-your-own-queue/#queue-with-automatic-instance-provisioning)
+3 - [Create a new queue](../../web-interface/create-your-own-queue/#queue-with-automatic-instance-provisioning)
 
 4 - [Limit the queue to the LDAP group you just created](../../security/manage-queue-acls/#manage-acls-using-ldap-groups)
 

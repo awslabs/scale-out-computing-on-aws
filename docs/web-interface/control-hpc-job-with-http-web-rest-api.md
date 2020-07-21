@@ -6,7 +6,7 @@ title: Control your job with HTTP/REST API
     You can interact with your SOCA cluster (create users, groups, queue, submit jobs, view jobs etc ..) via a simple REST interface. Documentation and examples can be found on `https://your_soca_url/api/doc` (note: [Your SOCA must have a valid SSL certificate](../../security/update-soca-dns-ssl-certificate/)
 
 !!!note "Submit a job via web"
-    In addition of REST API, SOCA also support job management via a web based interface. [Click here to learn more](../../tutorials/submit-hpc-jobs-web-based-interface/)
+    In addition of REST API, SOCA also support job management via a web based interface. [Click here to learn more](../../web-interface/submit-hpc-jobs-web-based-interface/)
 
 ## Step1: Retrieve your API key
 
