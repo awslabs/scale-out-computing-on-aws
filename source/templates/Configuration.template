@@ -197,6 +197,8 @@ Resources:
         rules_to_suppress:
           - id: W77
             reason: "KmsKeyId defaults to AWS account CMK, aws/secretsmanager hence not explicitly specified"
+          - id: F81
+            reason: "KmsKeyId defaults to AWS account CMK, aws/secretsmanager hence not explicitly specified"
     DependsOn: SolutionMetricLambda
     Type: AWS::SecretsManager::Secret
     Properties:
