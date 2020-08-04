@@ -3,9 +3,6 @@ import os
 import random
 import string
 import sys
-import boto3
-from colored import fg, bg, attr
-from botocore.client import ClientError
 import argparse
 from shutil import make_archive, copy, copytree
 
@@ -32,6 +29,14 @@ def get_input(prompt):
     return response
 
 if __name__ == "__main__":
+    try:
+        from colored import fg, bg, attr
+        import boto3
+        from botocore.client import ClientError
+    except ImportError:
+        print(" > You must have 'colored' and 'boto3' installed. Run 'pip install boto3 colored'")
+        exit(1)
+
     parser = argparse.ArgumentParser(description='Build & Upload SOCA CloudFormation resources.')
     parser.add_argument('--profile', '-p', type=str, help='AWS CLI profile to use. See https://docs.aws.amazon.com/cli/latest/userguide/cli-configure-profiles.html')
     parser.add_argument('--region', '-r', type=str, help='AWS region to use. If not specified will be prompted.')
