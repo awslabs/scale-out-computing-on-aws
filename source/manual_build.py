@@ -31,6 +31,17 @@ def get_input(prompt):
     return response
 
 if __name__ == "__main__":
+    print("====== Parameters ======\n")
+    region = get_input(" > Please enter the AWS region you'd like to build SOCA in: ")
+    bucket_name = get_input(" > Please enter the name of an S3 bucket you own: ")
+    try:
+        print(" > Validating you can have access to that bucket...")
+        s3 = boto3.resource('s3', region_name=region)
+        s3.meta.client.head_bucket(Bucket=bucket_name)
+    except Exception:
+        print(" > The bucket "+ bucket_name + " does not exist or you have no access.")
+        exit(1)
+
     build_path = os.path.dirname(os.path.realpath(__file__))
     os.chdir(build_path)
     # Make sure build ID is > 3 chars and does not start with a number
@@ -57,13 +68,6 @@ if __name__ == "__main__":
     make_archive('dist/' + output_prefix, 'gztar', build_folder)
 
     print("====== Upload to S3 ======\n")
-    s3 = boto3.resource('s3')
-    region = get_input(" > Please enter the AWS region you'd like to build SOCA in: ")
-    bucket_name = get_input(" > Please enter the name of an S3 bucket you own: ")
-    try:
-        s3.meta.client.head_bucket(Bucket=bucket_name)
-    except ClientError:
-        bucket_name = input(" > The bucket "+ bucket_name + " does not exist or you have no access.")
     print(" > Uploading required files ... ")
     upload_objects(s3, bucket_name, output_prefix, build_path + "/" + build_folder)
 
@@ -73,7 +77,7 @@ if __name__ == "__main__":
     print("\n====== Upload COMPLETE ======")
     print("\n====== Installation Instructions ======")
     print("1. Click on the following link:")
-    print("%shttps://console.aws.amazon.com/cloudformation/home?region=%s#/stacks/create/review?&templateURL=%s&param_S3InstallBucket=%s&param_S3InstallFolder=%s%s" % (fg('blue'), region, template_url, bucket_name, output_prefix, attr('reset')))
+    print("%s==> https://console.aws.amazon.com/cloudformation/home?region=%s#/stacks/create/review?&templateURL=%s&param_S3InstallBucket=%s&param_S3InstallFolder=%s%s" % (fg('light_blue'), region, template_url, bucket_name, output_prefix, attr('reset')))
     print("2. The 'Install Location' parameters are pre-filled for you, fill out the rest of the parameters.")
     print("")
     print("")
