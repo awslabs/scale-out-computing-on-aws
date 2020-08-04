@@ -9,7 +9,9 @@ You can use the [1-Click installer for quick proof-of-concept (PoC), demo and/or
 
 ## Download Scale-Out Computing on AWS
 
-Scale-Out Computing on AWS is open-source and available on Github ([https://github.com/awslabs/scale-out-computing-on-aws](https://github.com/awslabs/scale-out-computing-on-aws)).
+### Option 1: Build your own version
+
+Scale-Out Computing on AWS is open-source and available on Github ([https://github.com/awslabs/scale-out-computing-on-aws](https://github.com/awslabs/scale-out-computing-on-aws).
 To get started, simply clone the repository:
 
 ~~~bash
@@ -20,9 +22,13 @@ user@host: git clone https://github.com/awslabs/scale-out-computing-on-aws .
 user@host: git clone git@github.com:awslabs/scale-out-computing-on-aws.git .
 ~~~
 
-## Build your release
+**Build your release**
+
 Once you have cloned your repository, install dependencies with `pip` and then execute `source/manual_build.py` using either python2 or python3. In the following example we use python3:
 
+!!!note "IAM permissions required"
+    Your IAM user invoked by `awscli` must have the permission to list and upload to S3
+    
 ~~~~bash hl_lines="24"
 user@host: pip3 install -r source/requirements.txt
 user@host: python3 source/manual_build.py
@@ -47,7 +53,7 @@ user@host: python3 source/manual_build.py
 
 ====== Installation Instructions ======
 1. Click on the following link:
-https://console.aws.amazon.com/cloudformation/home?region=us-east-1#/stacks/create/review?&templateURL=https://your-bucket.s3.amazonaws.com/soca-installer-r6l1/scale-out-computing-on-aws.template&param_S3InstallBucket=your-bucket&param_S3InstallFolder=soca-installer-r6l1
+==> https://console.aws.amazon.com/cloudformation/home?region=us-east-1#/stacks/create/review?&templateURL=https://your-bucket.s3.amazonaws.com/soca-installer-r6l1/scale-out-computing-on-aws.template&param_S3InstallBucket=your-bucket&param_S3InstallFolder=soca-installer-r6l1
 2. The 'Install Location' parameters are pre-filled for you, fill out the rest of the parameters.
 
 For more information: https://awslabs.github.io/scale-out-computing-on-aws/install-soca-cluster/
@@ -59,9 +65,51 @@ This command builds and uploads the required files to Amazon S3, then outputs a 
 !!! info
     You can use the same bucket to host multiple Scale-Out Computing on AWS clusters. Each build generates a unique ID and uses that as the S3 key.
 
+### Option 2: Download the latest release (.tar.gz)
+
+Download the tarball from [https://github.com/awslabs/scale-out-computing-on-aws/releases](https://github.com/awslabs/scale-out-computing-on-aws/releases)
+
+**Upload to S3**
+
+Go to your Amazon S3 console and click "Create Bucket"
+
+![](imgs/install-1.png)
+
+Choose a name and a region then click  "Create"
+
+![](imgs/install-2.png)
+
+!!! warning "Avoid un-necessary charge"
+    It's recommended to create your bucket in the same region as your are planning to use Scale-Out Computing on AWS to avoid Cross-Regions charge (<a href="https://aws.amazon.com/s3/pricing/"> See Data Transfer </a>)
+
+Once your bucket is created, select it and click "Upload". Simply drag and drop your build folder  (`r6l1` in this example) to upload the content of the folder to S3.
+
+![](imgs/install-3.png)
+
+!!! info
+    You can use the same bucket to host multiple Scale-Out Computing on AWS clusters
+
+
+**Locate the install template**
+
+On your S3 bucket, click on the folder you just uploaded.
+
+![](imgs/install-4.png)
+
+Your install template is located under `<S3_BUCKET_NAME>/<BUILD_ID>/scale-out-computing-on-aws.template`. Click on the object to retrieve the "Object URL"
+
+![](imgs/install-5.png)
+
+!!! info "Want to use your existing AWS resources?"
+    Refer to `install-with-existing-resources.template` if you want to use Scale-Out Computing on AWS with your existing resources. 
+    [Check out the web installer](https://install.soca.dev) to verify your setup
+
+
 ## Install Scale-Out Computing on AWS
 
-Clicking on the link will open the CloudFormation console and pre-fill the **Install Location** parameters:
+If you've used the `manual_build.py` version, clicking on the link will open the CloudFormation console and pre-fill the **Install Location** parameters:
+
+If you've manually uploaded these to S3 following [Option 2](#option-2-download-the-latest-release-targz), you'll need to fill out these two parameters.
 
 ![](imgs/install-6.png)
 
