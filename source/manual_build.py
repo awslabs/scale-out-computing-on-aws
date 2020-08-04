@@ -6,6 +6,7 @@ import sys
 import boto3
 from colored import fg, bg, attr
 from botocore.client import ClientError
+import argparse
 from shutil import make_archive, copy, copytree
 
 def upload_objects(s3, bucket_name, s3_prefix, directory_name):
@@ -31,16 +32,36 @@ def get_input(prompt):
     return response
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description='Build & Upload SOCA CloudFormation resources.')
+    parser.add_argument('--profile', '-p', type=str, help='AWS CLI profile to use. See https://docs.aws.amazon.com/cli/latest/userguide/cli-configure-profiles.html')
+    parser.add_argument('--region', '-r', type=str, help='AWS region to use. If not specified will be prompted.')
+    parser.add_argument('--bucket', '-b', type=str, help='S3 Bucket to use. If not specified will be prompted.')
+    args = parser.parse_args()
+
     print("====== Parameters ======\n")
-    region = get_input(" > Please enter the AWS region you'd like to build SOCA in: ")
-    bucket_name = get_input(" > Please enter the name of an S3 bucket you own: ")
+    if not args.region:
+        region = get_input(" > Please enter the AWS region you'd like to build SOCA in: ")
+    else:
+        region = args.region
+    if not args.bucket:
+        bucket = get_input(" > Please enter the name of an S3 bucket you own: ")
+    else:
+        bucket = args.bucket
+
+    s3_bucket_exists = False
     try:
         print(" > Validating you can have access to that bucket...")
-        s3 = boto3.resource('s3', region_name=region)
-        s3.meta.client.head_bucket(Bucket=bucket_name)
-    except Exception:
-        print(" > The bucket "+ bucket_name + " does not exist or you have no access.")
-        exit(1)
+        if args.profile:
+            session = boto3.session.Session(profile_name=args.profile)
+            s3 = session.resource('s3', region_name=region)
+        else:
+            s3 = boto3.resource('s3', region_name=region)
+        s3.meta.client.head_bucket(Bucket=bucket)
+        s3_bucket_exists = True
+    except ClientError as e:
+        print(" > The bucket "+ bucket + " does not exist or you have no access.")
+        print(e)
+        print(" > Building locally but not uploading to S3")
 
     build_path = os.path.dirname(os.path.realpath(__file__))
     os.chdir(build_path)
@@ -67,23 +88,27 @@ if __name__ == "__main__":
     print(" > Creating archive for build id: " + unique_id)
     make_archive('dist/' + output_prefix, 'gztar', build_folder)
 
-    print("====== Upload to S3 ======\n")
-    print(" > Uploading required files ... ")
-    upload_objects(s3, bucket_name, output_prefix, build_path + "/" + build_folder)
+    if s3_bucket_exists:
+        print("====== Upload to S3 ======\n")
+        print(" > Uploading required files ... ")
+        upload_objects(s3, bucket, output_prefix, build_path + "/" + build_folder)
 
-    # CloudFormation Template URL
-    template_url = "https://%s.s3.amazonaws.com/%s/scale-out-computing-on-aws.template" % (bucket_name, output_prefix)
+        # CloudFormation Template URL
+        template_url = "https://%s.s3.amazonaws.com/%s/scale-out-computing-on-aws.template" % (bucket, output_prefix)
 
-    print("\n====== Upload COMPLETE ======")
-    print("\n====== Installation Instructions ======")
-    print("1. Click on the following link:")
-    print("%s==> https://console.aws.amazon.com/cloudformation/home?region=%s#/stacks/create/review?&templateURL=%s&param_S3InstallBucket=%s&param_S3InstallFolder=%s%s" % (fg('light_blue'), region, template_url, bucket_name, output_prefix, attr('reset')))
-    print("2. The 'Install Location' parameters are pre-filled for you, fill out the rest of the parameters.")
-    print("")
-    print("")
-    print("For more information: https://awslabs.github.io/scale-out-computing-on-aws/install-soca-cluster/")
+        print("\n====== Upload COMPLETE ======")
+        print("\n====== Installation Instructions ======")
+        print("1. Click on the following link:")
+        print("%s==> https://console.aws.amazon.com/cloudformation/home?region=%s#/stacks/create/review?&templateURL=%s&param_S3InstallBucket=%s&param_S3InstallFolder=%s%s" % (fg('light_blue'), region, template_url, bucket, output_prefix, attr('reset')))
+        print("2. The 'Install Location' parameters are pre-filled for you, fill out the rest of the parameters.")
+    else:
+        print("\n====== Installation Instructions ======")
+        print("1: Create or use an existing S3 bucket on your AWS account (eg: 'mysocacluster')")
+        print("2: Drag & Drop " + build_path + "/" + build_folder + " to your S3 bucket (eg: 'mysocacluster/" + build_folder + ")")
+        print("3: Launch CloudFormation and use scale-out-computing-on-aws.template as base template")
+        print("4: Enter your cluster information.")
 
-    get_input("Press Enter key to close ..")
+    print("\n\nFor more information: https://awslabs.github.io/scale-out-computing-on-aws/install-soca-cluster/")
 
 
 
