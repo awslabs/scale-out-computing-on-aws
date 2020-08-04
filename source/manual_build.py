@@ -33,6 +33,7 @@ if __name__ == "__main__":
         from colored import fg, bg, attr
         import boto3
         from botocore.client import ClientError
+        from botocore.exceptions import ProfileNotFound
     except ImportError:
         print(" > You must have 'colored' and 'boto3' installed. Run 'pip install boto3 colored'")
         exit(1)
@@ -57,8 +58,12 @@ if __name__ == "__main__":
     try:
         print(" > Validating you can have access to that bucket...")
         if args.profile:
-            session = boto3.session.Session(profile_name=args.profile)
-            s3 = session.resource('s3', region_name=region)
+            try:
+                session = boto3.session.Session(profile_name=args.profile)
+                s3 = session.resource('s3', region_name=region)
+            except ProfileNotFound:
+                print(" > Profile %s not found. Check ~/.aws/credentials file." % args.profile)
+                exit(1)
         else:
             s3 = boto3.resource('s3', region_name=region)
         s3.meta.client.head_bucket(Bucket=bucket)
