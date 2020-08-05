@@ -9,7 +9,9 @@ You can use the [1-Click installer for quick proof-of-concept (PoC), demo and/or
 
 ## Download Scale-Out Computing on AWS
 
-Scale-Out Computing on AWS is open-source and available on Github ([https://github.com/awslabs/scale-out-computing-on-aws](https://github.com/awslabs/scale-out-computing-on-aws)).
+### Option 1: Build your own version
+
+Scale-Out Computing on AWS is open-source and available on Github ([https://github.com/awslabs/scale-out-computing-on-aws](https://github.com/awslabs/scale-out-computing-on-aws).
 To get started, simply clone the repository:
 
 ~~~bash
@@ -20,10 +22,15 @@ user@host: git clone https://github.com/awslabs/scale-out-computing-on-aws .
 user@host: git clone git@github.com:awslabs/scale-out-computing-on-aws.git .
 ~~~
 
-## Build your release
-Once you have cloned your repository, execute `source/manual_build.py` using either python2 or python3
+**Build your release**
 
-~~~~bash hl_lines="4"
+Once you have cloned your repository, install dependencies with `pip` and then execute `source/manual_build.py` using either python2 or python3. In the following example we use python3:
+
+!!!note "IAM permissions required"
+    Your IAM user invoked by `awscli` must have the permission to list and upload to S3
+    
+~~~~bash hl_lines="24"
+user@host: pip3 install -r source/requirements.txt
 user@host: python3 source/manual_build.py
 ====== Scale-Out Computing on AWS Build ======
 
@@ -32,20 +39,37 @@ user@host: python3 source/manual_build.py
  > Copying required files ...
  > Creating archive for build id: r6l1
 
-====== Build COMPLETE ======
+====== Uploading to S3 ======
+
+ > Please enter the AWS region youd like to build SOCA in: us-east-1
+ > Please enter the name of an S3 bucket you own: your-bucket
+ > Uploading required files ...'
+
+[+] Uploading /home/you/scale-out-computing-on-aws/source/dist/r6l1/install-with-existing-resources.template to s3://your-bucket/soca-installer-r6l1/install-with-existing-resources.template
+...
+[+] Uploading /home/you/scale-out-computing-on-aws/source/dist/r6l1/templates/Security.template to s3://your-bucket/soca-installer-r6l1/templates/Security.template'
+
+====== Upload COMPLETE ======
 
 ====== Installation Instructions ======
-1: Create or use an existing S3 bucket on your AWS account (eg: 'mysocacluster')
-2: Drag & Drop source/dist/r6l1 to your S3 bucket (eg: 'mysocacluster/dist/r6l1)
-3: Launch CloudFormation and use scale-out-computing-on-aws.template as base template
-4: Enter your cluster information.
+1. Click on the following link:
+==> https://console.aws.amazon.com/cloudformation/home?region=us-east-1#/stacks/create/review?&templateURL=https://your-bucket.s3.amazonaws.com/soca-installer-r6l1/scale-out-computing-on-aws.template&param_S3InstallBucket=your-bucket&param_S3InstallFolder=soca-installer-r6l1
+2. The 'Install Location' parameters are pre-filled for you, fill out the rest of the parameters.
 
+For more information: https://awslabs.github.io/scale-out-computing-on-aws/install-soca-cluster/
 Press Enter key to close ..
 ~~~~
 
-This command create a build (`r6l1` in this example) under `source/dist/<build_id>` 
+This command builds and uploads the required files to Amazon S3, then outputs a 1-Click url to launch the SOCA CloudFormation Stack.
 
-## Upload to S3
+!!! info
+    You can use the same bucket to host multiple Scale-Out Computing on AWS clusters. Each build generates a unique ID and uses that as the S3 key.
+
+### Option 2: Download the latest release (.tar.gz)
+
+Download the tarball from [https://github.com/awslabs/scale-out-computing-on-aws/releases](https://github.com/awslabs/scale-out-computing-on-aws/releases)
+
+**Upload to S3**
 
 Go to your Amazon S3 console and click "Create Bucket"
 
@@ -66,7 +90,7 @@ Once your bucket is created, select it and click "Upload". Simply drag and drop 
     You can use the same bucket to host multiple Scale-Out Computing on AWS clusters
 
 
-## Locate the install template
+**Locate the install template**
 
 On your S3 bucket, click on the folder you just uploaded.
 
@@ -77,28 +101,24 @@ Your install template is located under `<S3_BUCKET_NAME>/<BUILD_ID>/scale-out-co
 ![](imgs/install-5.png)
 
 !!! info "Want to use your existing AWS resources?"
-    Refer to `install-with-existing-resources.template` if you want to use Scale-Out Computing on AWS with your existing resources.
-    
+    Refer to `install-with-existing-resources.template` if you want to use Scale-Out Computing on AWS with your existing resources. 
     [Check out the web installer](https://install.soca.dev) to verify your setup
+
 
 ## Install Scale-Out Computing on AWS
 
-Open CloudFormation console and select "Create Stack". Copy the URL of your install template and click "Next".
+If you've used the `manual_build.py` version, clicking on the link will open the CloudFormation console and pre-fill the **Install Location** parameters:
+
+If you've manually uploaded these to S3 following [Option 2](#option-2-download-the-latest-release-targz), you'll need to fill out these two parameters.
 
 ![](imgs/install-6.png)
+
+Under stack details, choose the stack name (do not use uppercase or it will break your ElasticSearch cluster). 
 
 !!! danger "Requirements"
     - No uppercase in stack name
     - Stack name is limited to 20 characters maximum (note: we automatically add soca- prefix)
     - Not supported on regions with less than 3 AZs (Northern California / us-west-1)
-
-
-If you hit any issue during the installation, refer to the 'CREATE_FAILED' component and find the root cause by referring at "Physical ID"
-![](imgs/install-12.png)
-
-Under stack details, choose the stack name (do not use uppercase or it will break your ElasticSearch cluster). 
-
-- Install Parameters: Specify your S3 bucket you have uploaded your build (`my-soca-hpc-test` in this example) as well as the name of your build (`r6l1` in this example). If you haven't uploaded your build on your S3 root level, make sure you specify the entire file hierarchy.
 
 - Environment Parameters: Choose your Linux Distribution, instance type for your master host, VPC CIDR, your IP which will be whitelisted for port 22, 80 and 443 as well as the root SSH keypair you want to use
 
@@ -112,6 +132,10 @@ Under stack details, choose the stack name (do not use uppercase or it will brea
 Click Next two times and make sure to check "Capabilities" section. One done simply click "Create Stack". The installation procedure will take about 45 minutes.
 
 ![](imgs/install-8.png)
+
+!!! info "CREATE_FAILED"
+    If you hit any issue during the installation, refer to the 'CREATE_FAILED' component and find the root cause by referring at "Physical ID"
+    ![](imgs/install-12.png)
 
 ## Post Install Verifications
 
