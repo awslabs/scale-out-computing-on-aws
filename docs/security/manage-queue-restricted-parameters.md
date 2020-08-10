@@ -8,7 +8,7 @@ When submitting a job, users can override the default parameters configured for 
 
 ## Prevent user to choose a different instance type
 
-Considering `/apps/soca/<CLUSTER_ID>/cluster_manager/settings/queue_mapping.yml`
+Considering `/apps/soca/$SOCA_CONFIGURATION/cluster_manager/settings/queue_mapping.yml`
 
 ```hl_lines="5"
 queue_type:
@@ -23,7 +23,7 @@ In this example, a job will be rejected if a user try to specify the `instance_t
 
 ~~~console
 qsub -q normal -l instance_type=m5.24xlarge -- /bin/echo test
-qsub: instance_type is a restricted parameter and can't be configure by the user. Contact your HPC admin and update /apps/soca/<CLUSTER_ID>/cluster_manager/settings/queue_mapping.yml
+qsub: instance_type is a restricted parameter and can't be configure by the user. Contact your HPC admin and update /apps/soca/$SOCA_CONFIGURATION/cluster_manager/settings/queue_mapping.yml
 ~~~
 
 !!!note "Need to whitelist more than one instance type/family?"
@@ -31,7 +31,7 @@ qsub: instance_type is a restricted parameter and can't be configure by the user
 
 ## Prevent user to provision additional storage
 
-Considering `/apps/soca/<CLUSTER_ID>/cluster_manager/settings/queue_mapping.yml`
+Considering `/apps/soca/$SOCA_CONFIGURATION/cluster_manager/settings/queue_mapping.yml`
 
 ```hl_lines="5 9"
 queue_type:
@@ -45,13 +45,13 @@ In this example, a job will be rejected if a user try to specify the `scratch_si
 
 ~~~console
 qsub -q normal -l scratch_size=550 -- /bin/echo test
-qsub: scratch_size is a restricted parameter and can't be configure by the user. Contact your HPC admin and update /apps/soca/<CLUSTER_ID>/cluster_manager/settings/queue_mapping.yml
+qsub: scratch_size is a restricted parameter and can't be configure by the user. Contact your HPC admin and update /apps/soca/$SOCA_CONFIGURATION/cluster_manager/settings/queue_mapping.yml
 ~~~
 
 
 ## Combine multiple restrictions
 
-Considering `/apps/soca/<CLUSTER_ID>/cluster_manager/settings/queue_mapping.yml`
+Considering `/apps/soca/$SOCA_CONFIGURATION/cluster_manager/settings/queue_mapping.yml`
 
 ```hl_lines="5"
 queue_type:
@@ -66,14 +66,14 @@ In this example, a job will be rejected if a user try to change either `instance
 
 ~~~console
 qsub -q normal -l fsx_lustre_bucket=mybucket -- /bin/echo test
-qsub: fsx_lustre_bucket is a restricted parameter and can't be configure by the user. Contact your HPC admin and update /apps/soca/<CLUSTER_ID>/cluster_manager/settings/queue_mapping.yml
+qsub: fsx_lustre_bucket is a restricted parameter and can't be configure by the user. Contact your HPC admin and update /apps/soca/$SOCA_CONFIGURATION/cluster_manager/settings/queue_mapping.yml
 ~~~
 
 ## Check the logs
 Scheduler hooks are located on /var/spool/pbs/server_logs/
 
 ## Code
-The hook file can be found under `/apps/soca/cluster_hooks/<CLUSTER_ID>/queuejob/check_queue_restricted_parameters.py` on your Scale-Out Computing on AWS cluster)
+The hook file can be found under `/apps/soca/cluster_hooks/$SOCA_CONFIGURATION/queuejob/check_queue_restricted_parameters.py` on your Scale-Out Computing on AWS cluster)
 
 ## Disable the hook
 You can disable the hook by running the following command on the scheduler host (as root):

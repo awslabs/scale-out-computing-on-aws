@@ -179,7 +179,7 @@ As you are planning to use a custom AMI, you will be required to specify `-l ins
 It's recommended to go with the "Entire Queue" option below if you do not want to manually specify this resource each time you submit a job
 
 #### Entire queue
-Edit `/apps/soca/<CLUSTER_ID>/cluster_manager/settings/queue_mapping.yml` and update the default AMI
+Edit `/apps/soca/$SOCA_CONFIGURATION/cluster_manager/settings/queue_mapping.yml` and update the default AMI
 
 ~~~yaml hl_lines="4"
 queue_type:

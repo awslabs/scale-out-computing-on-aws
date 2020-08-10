@@ -53,7 +53,7 @@ user@host: python3 source/manual_build.py
 
 ====== Installation Instructions ======
 1. Click on the following link:
-==> https://console.aws.amazon.com/cloudformation/home?region=us-east-1#/stacks/create/review?&templateURL=https://your-bucket.s3.amazonaws.com/soca-installer-r6l1/scale-out-computing-on-aws.template&param_S3InstallBucket=your-bucket&param_S3InstallFolder=soca-installer-r6l1
+https://console.aws.amazon.com/cloudformation/home?region=us-east-1#/stacks/create/review?&templateURL=https://your-bucket.s3.amazonaws.com/soca-installer-r6l1/scale-out-computing-on-aws.template&param_S3InstallBucket=your-bucket&param_S3InstallFolder=soca-installer-r6l1
 2. The 'Install Location' parameters are pre-filled for you, fill out the rest of the parameters.
 
 For more information: https://awslabs.github.io/scale-out-computing-on-aws/install-soca-cluster/
@@ -107,9 +107,7 @@ Your install template is located under `<S3_BUCKET_NAME>/<BUILD_ID>/scale-out-co
 
 ## Install Scale-Out Computing on AWS
 
-If you've used the `manual_build.py` version, clicking on the link will open the CloudFormation console and pre-fill the **Install Location** parameters:
-
-If you've manually uploaded these to S3 following [Option 2](#option-2-download-the-latest-release-targz), you'll need to fill out these two parameters.
+Clicking on the link will open the CloudFormation console and pre-fill the **Install Location** parameters:
 
 ![](imgs/install-6.png)
 
@@ -212,7 +210,7 @@ Run the following command (as root) if you want to restart any service:
    - Scheduler: `service pbs start`
    - SSSD: `service sssd start`
    - OpenLDAP: `service openldap start`
-   - Web UI `/apps/soca/<CLUSTER_ID>/cluster_web_ui/socawebui.sh start`
+   - Web UI `/apps/soca/$SOCA_CONFIGURATION/cluster_web_ui/socawebui.sh start`
    - NFS partitions `mount -a` (mount configuration is available on `/etc/fstab`)
 
 
@@ -221,7 +219,7 @@ Run the following command (as root) if you want to restart any service:
 This solution includes an option to send anonymous operational metrics to AWS. We use this data to better understand how customers use this solution and related services and products. 
 Note that AWS will own the data gathered via this survey. Data collection will be subject to the [AWS Privacy Policy](https://aws.amazon.com/privacy/). 
 
-To opt out of this feature, modify the `/apps/soca/<CLUSTER_ID>/cluster_manager/cloudformation_builder` and set `allow_anonymous_data_collection` variable to `False`
+To opt out of this feature, modify the `/apps/soca/$SOCA_CONFIGURATION/cluster_manager/cloudformation_builder` and set `allow_anonymous_data_collection` variable to `False`
 
 When enabled, the following information is collected and sent to AWS:
 

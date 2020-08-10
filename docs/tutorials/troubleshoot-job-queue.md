@@ -7,18 +7,18 @@ title: Debug why your jobs are not starting
 First of all, unless you submit a job on the "alwayson" queue, it will usually take between 5 to 10 minutes before your job can start as Scale-Out Computing on AWS needs to provision your capacity. This can vary based on the type and number of EC2 instances you have requested for your job.
 
 ### Verify the log
-If your job is not starting, first verify the queue log under `/apps/soca/<CLUSTER_ID>/cluster_manager/logs/<queue_name>.log`
+If your job is not starting, first verify the queue log under `/apps/soca/$SOCA_CONFIGURATION/cluster_manager/logs/<queue_name>.log`
 
 If the log is not created or you don't see any update on it even though you submitted a job, try to run the `dispatcher.py` command manually. On the scheduler, list all crontabs as root `crontab -` and refer to "Automatic Host Provisioning" section:
 
 ~~~bash
 ## Automatic Host Provisioning
-*/3 * * * * source /etc/environment;  /apps/soca/<CLUSTER_ID>/python/latest/bin/python3 /apps/soca/<CLUSTER_ID>cluster_manager/dispatcher.py -c /apps/soca/<CLUSTER_ID>/cluster_manager/settings/queue_mapping.yml -t compute
-*/3 * * * * source /etc/environment;  /apps/soca/<CLUSTER_ID>/python/latest/bin/python3 /apps/soca/<CLUSTER_ID>/cluster_manager/dispatcher.py -c /apps/soca/<CLUSTER_ID>/cluster_manager/settings/queue_mapping.yml -t desktop
-*/3 * * * * source /etc/environment;  /apps/soca/<CLUSTER_ID>/python/latest/bin/python3 /apps/soca/<CLUSTER_ID>/cluster_manager/dispatcher.py -c /apps/soca/<CLUSTER_ID>/cluster_manager/settings/queue_mapping.yml -t test
+*/3 * * * * source /etc/environment;  /apps/soca/$SOCA_CONFIGURATION/python/latest/bin/python3 /apps/soca/$SOCA_CONFIGURATION/cluster_manager/dispatcher.py -c /apps/soca/$SOCA_CONFIGURATION/cluster_manager/settings/queue_mapping.yml -t compute
+*/3 * * * * source /etc/environment;  /apps/soca/$SOCA_CONFIGURATION/python/latest/bin/python3 /apps/soca/$SOCA_CONFIGURATION/cluster_manager/dispatcher.py -c /apps/soca/$SOCA_CONFIGURATION/cluster_manager/settings/queue_mapping.yml -t desktop
+*/3 * * * * source /etc/environment;  /apps/soca/$SOCA_CONFIGURATION/python/latest/bin/python3 /apps/soca/$SOCA_CONFIGURATION/cluster_manager/dispatcher.py -c /apps/soca/$SOCA_CONFIGURATION/cluster_manager/settings/queue_mapping.yml -t test
 ~~~
 
-Run the command manually (ex `source /etc/environment;  /apps/soca/<CLUSTER_ID>/python/latest/bin/python3 /apps/soca/<CLUSTER_ID>cluster_manager/dispatcher.py -c /apps/soca/<CLUSTER_ID>/cluster_manager/settings/queue_mapping.yml -t compute`) and look for any error. Common errors include malformed yaml files.
+Run the command manually (ex `source /etc/environment;  /apps/soca/$SOCA_CONFIGURATION/python/latest/bin/python3 /apps/soca/$SOCA_CONFIGURATIONcluster_manager/dispatcher.py -c /apps/soca/$SOCA_CONFIGURATION/cluster_manager/settings/queue_mapping.yml -t compute`) and look for any error. Common errors include malformed yaml files.
 
 ### Verify the job resource
 
@@ -56,11 +56,11 @@ If you go to your CloudFormation console, you should see  a new stack being crea
 
 ### Retrieve node logs
 
-On the master host, access `/apps/soca/<cluster_id>/cluster_node_bootstrap/logs/`. This folder contains the output of all logs for all hosts provisioned by SOCA
+On the master host, access `/apps/soca/$SOCA_CONFIGURATION/cluster_node_bootstrap/logs/`. This folder contains the output of all logs for all hosts provisioned by SOCA
 
 ~~~bash hl_lines="2 10 18"
 # Retrieve logs for the most recent (2 weeks) jobs
-ls -ltr /apps/soca/<CLUSTER_ID>/cluster_node_bootstrap/logs/ | tail -n 5
+ls -ltr /apps/soca/$SOCA_CONFIGURATION/cluster_node_bootstrap/logs/ | tail -n 5
 drwxr-xr-x   3 root root  6144 Jul 21 17:02 19607
 drwxr-xr-x   3 root root  6144 Jul 21 17:16 19608
 drwxr-xr-x   3 root root  6144 Jul 21 17:21 19609
@@ -68,7 +68,7 @@ drwxr-xr-x   6 root root  6144 Jul 21 17:40 19575
 drwxr-xr-x  10 root root  6144 Jul 21 17:44 19606
 
 # Filter for a specific job id. Each nodes provisioned for this job will show up on the directory
-ls -ltr /apps/soca/<CLUSTER_ID>/cluster_node_bootstrap/logs/19606 | tail -n 5
+ls -ltr /apps/soca/$SOCA_CONFIGURATION/cluster_node_bootstrap/logs/19606 | tail -n 5
 drwxr-xr-x 2 root root 6144 Jul 21 17:47 ip-10-10-99-2
 drwxr-xr-x 2 root root 6144 Jul 21 17:47 ip-10-10-102-78
 drwxr-xr-x 2 root root 6144 Jul 21 17:48 ip-10-10-101-45
@@ -76,7 +76,7 @@ drwxr-xr-x 2 root root 6144 Jul 21 17:48 ip-10-10-85-64
 drwxr-xr-x 2 root root 6144 Jul 21 17:48 ip-10-10-77-184
 
 # For each hosts, you will be able to retrieve the install logs and do any troubleshooting
-ls -ltr /apps/soca/<CLUSTER_ID>/cluster_node_bootstrap/logs/19606/ip-10-10-85-64
+ls -ltr /apps/soca/$SOCA_CONFIGURATION/cluster_node_bootstrap/logs/19606/ip-10-10-85-64
 -rw-r--r-- 1 root root 77326 Jul 21 17:47 ComputeNode.sh.log
 -rw-r--r-- 1 root root   864 Jul 21 17:48 ComputeNodePostReboot.log
 -rw-r--r-- 1 root root    12 Jul 21 17:48 ComputeNodeUserCustom.log

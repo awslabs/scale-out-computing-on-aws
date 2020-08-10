@@ -9,10 +9,10 @@ If you want to avoid this penalty, you can provision "AlwaysOn instance". Please
 
 ## How to launch an AlwaysOn instance?
 
-On your scheduler host, sudo as root and run `source /etc/environment` to load Scale-Out Computing on AWS shell and then execute `/apps/soca/<CLUSTER_ID>/cluster_manager/add_nodes.py`
+On your scheduler host, sudo as root and run `source /etc/environment` to load Scale-Out Computing on AWS shell and then execute `/apps/soca/$SOCA_CONFIGURATION/cluster_manager/add_nodes.py`
 
 ~~~bash
-[root@ip-40-0-22-232 ~]# python3 /apps/soca/<CLUSTER_ID>/cluster_manager/add_nodes.py -h
+[root@ip-40-0-22-232 ~]# python3 /apps/soca/$SOCA_CONFIGURATION/cluster_manager/add_nodes.py -h
 usage: add_nodes.py [-h] --desired_capacity [DESIRED_CAPACITY] --instance_type
                     [INSTANCE_TYPE] --job_name [JOB_NAME] --job_owner
                     [JOB_OWNER] --queue [QUEUE] [--efa_support EFA_SUPPORT]
@@ -90,7 +90,7 @@ Use `--keep_forever true` and `alwayson` queue. If you do not want to use `alway
  See example below (note: you can use additional parameters if needed)
 
 ~~~bash hl_lines="3 6"
- python3 /apps/soca/<CLUSTER_ID>/cluster_manager/add_nodes.py --instance_type=c5.large \
+ python3 /apps/soca/$SOCA_CONFIGURATION/cluster_manager/add_nodes.py --instance_type=c5.large \
      --desired_capacity=1 \
      --keep_forever true \
      --job_owner mickael \
@@ -115,7 +115,7 @@ Simply go to your CloudFormation console, locate the stack following the naming 
  See example below (note: you can use additional parameters if needed)
 
 ~~~bash hl_lines="3 4 7"
- python3 /apps/soca/<CLUSTER_ID>/cluster_manager/add_nodes.py --instance_type=c5.large \
+ python3 /apps/soca/$SOCA_CONFIGURATION/cluster_manager/add_nodes.py --instance_type=c5.large \
      --desired_capacity=1 \
      --terminate_when_idle 5 \
      --keep_forever false \

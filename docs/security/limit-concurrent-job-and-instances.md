@@ -6,7 +6,7 @@ title: Restrict number of concurrent jobs and/or instances
 ## Restrict number of concurrent running jobs
 
 Configure `max_running_jobs` to limit the number of jobs running in parallel for a given queue
-Considering `/apps/soca/<CLUSTER_ID>/cluster_manager/settings/queue_mapping.yml`
+Considering `/apps/soca/$SOCA_CONFIGURATION/cluster_manager/settings/queue_mapping.yml`
 
 ```hl_lines="4 8"
 queue_type:

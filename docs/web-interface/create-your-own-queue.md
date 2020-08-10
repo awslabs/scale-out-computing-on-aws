@@ -41,7 +41,7 @@ Qmgr:exit
 
 #### Configure automatic host provisioning
 
-If you want to enable automatic host provisioning, edit this file: `/apps/soca/<CLUSTER_ID>/cluster_manager/settings/queue_mapping.yml`
+If you want to enable automatic host provisioning, edit this file: `/apps/soca/$SOCA_CONFIGURATION/cluster_manager/settings/queue_mapping.yml`
 
 ##### Option1: I want to use the same settings as an existing queue
 
@@ -77,13 +77,13 @@ queue_type:
 Finally, add a new crontab on the scheduler machine (as root). Use -c to path to the YAML file and -t to the YAML section you just created  
 
 ~~~bash
-*/3 * * * * source /etc/environment;  /apps/soca/<CLUSTER_ID>/python/latest/bin/python3 /apps/soca/<CLUSTER_ID>/cluster_manager/dispatcher.py -c /apps/soca/<CLUSTER_ID>/cluster_manager/settings/queue_mapping.yml -t memory
+*/3 * * * * source /etc/environment;  /apps/soca/$SOCA_CONFIGURATION/python/latest/bin/python3 /apps/soca/$SOCA_CONFIGURATION/cluster_manager/dispatcher.py -c /apps/soca/$SOCA_CONFIGURATION/cluster_manager/settings/queue_mapping.yml -t memory
 ~~~
 
 
 #### Automatic Host provisioning logs
 
-All logs queues are stored under `/apps/soca/<CLUSTER_ID>/cluster_manager/logs/<queue_name>`
+All logs queues are stored under `/apps/soca/$SOCA_CONFIGURATION/cluster_manager/logs/<queue_name>`
 
 
 ### Queue with AlwaysOn instances
@@ -124,7 +124,7 @@ Run `python3 apps/soca/cluster_manager/add_nodes.py` and enable `--keep_forever 
 
 ~~~bash
 # Launch 1 c5.large always on
-python3 /apps/soca/<CLUSTER_ID>/cluster_manager/add_nodes.py --instance_type c5.large \
+python3 /apps/soca/$SOCA_CONFIGURATION/cluster_manager/add_nodes.py --instance_type c5.large \
     --desired_capacity 1 \
     --queue <queue_name> \
     --job_name instancealwayson \

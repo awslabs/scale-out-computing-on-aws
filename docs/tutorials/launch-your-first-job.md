@@ -54,7 +54,7 @@ Syntax is as follow:
 * Using qsub: `qsub -l parameter_name=parameter_value -l parameter_name_2=parameter_value_2 myscript.sh`
 
 !!!info
-    [If you don't specify them, your job will use the default values configured for your queue (see `/apps/soca/<CLUSTER_ID>/cluster_manager/settings/queue_mapping.yml`) ](../integration-ec2-job-parameters/#how-to-use-custom-parameters)
+    [If you don't specify them, your job will use the default values configured for your queue (see `/apps/soca/$SOCA_CONFIGURATION/cluster_manager/settings/queue_mapping.yml`) ](../integration-ec2-job-parameters/#how-to-use-custom-parameters)
 
 
 ## Specify an EC2 Instance Type (optional)
@@ -67,7 +67,7 @@ If you want to force utilization of a specific instance type (and not use the de
 ## Specify a license restriction (optional)
 
 !!!info "License Mapping"
-    Please refer to /apps/soca/<CLUSTER_ID>/cluster_manager/settings/licenses_mapping.yml for a list of licenses you can restrict. Contact your Administrator if your license is not available yet.
+    Please refer to /apps/soca/$SOCA_CONFIGURATION/cluster_manager/settings/licenses_mapping.yml for a list of licenses you can restrict. Contact your Administrator if your license is not available yet.
 
 If your job needs to check-out a specific license to run, you want to make sure enough licenses are available before provisioning capacity for the job. To do so, you can add a new resource which will be your license name and the number of license you need.  
 Example: Your job will only start if we have at least 2 Synopsys VCSRuntime_Net licenses available.  

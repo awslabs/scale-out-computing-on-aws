@@ -6,7 +6,7 @@ Scale-Out Computing on AWS made [job submission on EC2 very easy](../../tutorial
 Below is a list of parameters you can specify when you request your simulation to ensure the hardware provisioned will exactly match your simulation requirements. 
 
 !!!info 
-    If you don't specify them, your job will use the default values configured for your queue (see `/apps/soca/<CLUSTER_ID>/cluster_manager/settings/queue_mapping.yml`)
+    If you don't specify them, your job will use the default values configured for your queue (see `/apps/soca/$SOCA_CONFIGURATION/cluster_manager/settings/queue_mapping.yml`)
     ____
     You can use [the web-based simulator](../../job-configuration-generator/) to generate your qsub command very easily.
 
@@ -308,7 +308,7 @@ $ qsub -l instance_ami=ami-082b... -- /bin/echo Hello
 
 #### For an entire queue
 
-Edit `/apps/soca/<CLUSTER_ID>/cluster_manager/settings/queue_mapping.yml` and update the default `instance_ami` parameter if you want all jobs in this queue to use your new AMI:
+Edit `/apps/soca/$SOCA_CONFIGURATION/cluster_manager/settings/queue_mapping.yml` and update the default `instance_ami` parameter if you want all jobs in this queue to use your new AMI:
 
 ~~~yaml hl_lines="4"
 queue_type:

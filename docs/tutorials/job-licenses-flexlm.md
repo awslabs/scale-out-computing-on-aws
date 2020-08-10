@@ -38,7 +38,7 @@ Your Scheduler Public IP is listed on CloudFormation, to retrieve your NAT Gatew
 
 ## Upload your lmutil
 
-lmutil binary is not included with Scale-Out Computing on AWS. You are required to upload it manually and update `/apps/soca/<CLUSTER_ID>/cluster_manager/license_check.py` with the location of your file.
+lmutil binary is not included with Scale-Out Computing on AWS. You are required to upload it manually and update `/apps/soca/$SOCA_CONFIGURATION/cluster_manager/license_check.py` with the location of your file.
 
 ```python hl_lines="2"
 arg = parser.parse_args()
@@ -55,7 +55,7 @@ if lmstat_path == "PATH_TO_LMUTIL":
     
     
 ## How to retrieve number of licenses available
-Scale-Out Computing on AWS includes a script (`/apps/soca/<CLUSTER_ID>/cluster_manager/license_check.py`) which output the number of FlexLM available for a given feature. This script takes the following arguments:
+Scale-Out Computing on AWS includes a script (`/apps/soca/$SOCA_CONFIGURATION/cluster_manager/license_check.py`) which output the number of FlexLM available for a given feature. This script takes the following arguments:
     
 - -s: The license server hostname
 - -p: The port used by your flexlm deamon
@@ -84,23 +84,23 @@ license_check.py -s licenses.soca.dev -p 5000 -f Audio_System_Toolbox -m 15
 !!!danger "IMPORTANT"
     The name of the resource **must** be `*_lic_*`. We recommend using `<application>_lic_<feature_name>`
 
-Update your `/apps/soca/<CLUSTER_ID>/cluster_manager/settings/licenses_mapping.yml` and create a new resource. This file must follow the YAML syntax. 
+Update your `/apps/soca/$SOCA_CONFIGURATION/cluster_manager/settings/licenses_mapping.yml` and create a new resource. This file must follow the YAML syntax. 
 
 ```yaml hl_lines="4"
 # There is no requirements for section names, but I recommend having 1 section = 1 application
 
 matlab:
-  matlab_lic_audiosystemtoolbox: "/apps/soca/<CLUSTER_ID>/cluster_manager/license_check.py -s licenses.soca.dev -p 5000 -f Audio_System_Toolbox"
+  matlab_lic_audiosystemtoolbox: "/apps/soca/$SOCA_CONFIGURATION/cluster_manager/license_check.py -s licenses.soca.dev -p 5000 -f Audio_System_Toolbox"
 
 # Example for other daemons/features
 comsol:
-  comsol_lic_acoustic: "/apps/soca/<CLUSTER_ID>/cluster_manager/license_check.py -s licenses.soca.dev -p 27718 -f ACOUSTICS"
+  comsol_lic_acoustic: "/apps/soca/$SOCA_CONFIGURATION/cluster_manager/license_check.py -s licenses.soca.dev -p 27718 -f ACOUSTICS"
   comsol_lic_cadimport: "/apps/soca/cluster_manager/license_check.py -s licenses.soca.dev -p 27718 -f CADIMPORT"
 
 synopsys:
-  synopsys_lic_testbenchruntime: "/apps/soca/<CLUSTER_ID>/cluster_manager/license_check.py -s licenses.soca.dev -p 27020 -f VT_TestbenchRuntime"
-  synopsys_lic_vcsruntime: "/apps/soca/<CLUSTER_ID>/cluster_manager/license_check.py -s licenses.soca.dev -p 27020 -f VCSRuntime_Net"
-  synopsys_lic_vipambaaxisvt: "/apps/soca/<CLUSTER_ID>/cluster_manager/license_check.py -s licenses.soca.dev -p 27020 -f VIP-AMBA-AXI-SVT"
+  synopsys_lic_testbenchruntime: "/apps/soca/$SOCA_CONFIGURATION/cluster_manager/license_check.py -s licenses.soca.dev -p 27020 -f VT_TestbenchRuntime"
+  synopsys_lic_vcsruntime: "/apps/soca/$SOCA_CONFIGURATION/cluster_manager/license_check.py -s licenses.soca.dev -p 27020 -f VCSRuntime_Net"
+  synopsys_lic_vipambaaxisvt: "/apps/soca/$SOCA_CONFIGURATION/cluster_manager/license_check.py -s licenses.soca.dev -p 27020 -f VIP-AMBA-AXI-SVT"
 ```
 
 This parameter will let Scale-Out Computing on AWS knows your license mapping and capacity will only be provisioned if enough licenses are available based on job's requirements.
@@ -109,7 +109,7 @@ Since you are about to create a new custom resource, additional configuration is
 On the scheduler host, edit ==`/var/spool/pbs/sched_priv/sched_config`== and add a new `server_dyn_res`
 
 ```bash
-server_dyn_res: "matlab_lic_audiosystemtoolbox !/apps/soca/<CLUSTER_ID>/cluster_manager/license_check.py -s licenses.soca.dev -p 5000 -f Audio_System_Toolbox"
+server_dyn_res: "matlab_lic_audiosystemtoolbox !/apps/soca/$SOCA_CONFIGURATION/cluster_manager/license_check.py -s licenses.soca.dev -p 5000 -f Audio_System_Toolbox"
 ```
 
 On the same file, add your new resource under `resources` section. This section will not allow a job to run if the amount of assigned resources exceeds the available amount.
@@ -136,7 +136,7 @@ Once done, restart the scheduler using `service pbs restart`
 
 For this example, let's assume we do have 3 "Audio_System_Toolbox" licenses available
 ```bash
-/apps/soca/<CLUSTER_ID>/cluster_manager/license_check.py -s licenses.soca.dev -p 5000 -f Audio_System_Toolbox
+/apps/soca/$SOCA_CONFIGURATION/cluster_manager/license_check.py -s licenses.soca.dev -p 5000 -f Audio_System_Toolbox
 3
 ```
 
@@ -147,7 +147,7 @@ qsub -l matlab_lic_audiosystemtoolbox=5 -- /bin/sleep 600
 31.ip-20-0-2-69
 ```
 
-Let's check the log files under `/apps/soca/<CLUSTER_ID>/cluster_manager/log/<QUEUE_NAME>`. Scale-Out Computing on AWS will ignore this job due to the lack of licenses available
+Let's check the log files under `/apps/soca/$SOCA_CONFIGURATION/cluster_manager/log/<QUEUE_NAME>`. Scale-Out Computing on AWS will ignore this job due to the lack of licenses available
 
 ```text hl_lines="1 6 7"
  [157] [INFO] [License Available: {'matlab_lic_audiosystemtoolbox': 3}]

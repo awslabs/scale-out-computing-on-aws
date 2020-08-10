@@ -21,7 +21,7 @@ These parameters can be configured as:
 
 ## Allow only compute optimized EC2 instances
 
-Considering `/apps/soca/<CLUSTER_ID>/cluster_manager/settings/queue_mapping.yml`
+Considering `/apps/soca/$SOCA_CONFIGURATION/cluster_manager/settings/queue_mapping.yml`
 ```hl_lines="4 9"
 queue_type:
   compute:
@@ -40,7 +40,7 @@ In this example, only EC2 instance types in the c5 and c5n families can be used 
 ~~~console
 # Job submission to queue "normal" using instance type i3.2xlarge is blocked
 qsub -q normal -l instance_type=i3.2xlarge -- /bin/echo test
-qsub: i3.2xlarge is not a valid instance type for the job queue normal. Contact your HPC admin and update /apps/soca/<CLUSTER_ID>/cluster_manager/settings/queue_mapping.yml
+qsub: i3.2xlarge is not a valid instance type for the job queue normal. Contact your HPC admin and update /apps/soca/$SOCA_CONFIGURATION/cluster_manager/settings/queue_mapping.yml
 
 # Job submission to queue "normal" using instance from c5 family is allowed.
 qsub -q normal -l instance_type=c5.2xlarge -- /bin/echo test
@@ -48,7 +48,7 @@ qsub -q normal -l instance_type=c5.2xlarge -- /bin/echo test
 
 # Job submission to "test" queue only allowed if using c5.4xlarge instance type
 qsub -q test -l instance_type=c5.2xlarge -- /bin/echo test
-qsub: c5.2xlarge is not a valid instance type for the job queue test. Contact your HPC admin and update /apps/soca/<CLUSTER_ID>/cluster_manager/settings/queue_mapping.yml
+qsub: c5.2xlarge is not a valid instance type for the job queue test. Contact your HPC admin and update /apps/soca/$SOCA_CONFIGURATION/cluster_manager/settings/queue_mapping.yml
 
 qsub -q test -l instance_type=c5.4xlarge -- /bin/echo test
 16.ip-110-0-12-28
@@ -59,7 +59,7 @@ qsub -q test -l instance_type=c5.4xlarge -- /bin/echo test
 
 ## Block users from using specific EC2 instance types
 
-Considering `/apps/soca/<CLUSTER_ID>/cluster_manager/settings/queue_mapping.yml`
+Considering `/apps/soca/$SOCA_CONFIGURATION/cluster_manager/settings/queue_mapping.yml`
 ```hl_lines="5 10"
 queue_type:
   compute:
@@ -77,18 +77,18 @@ In this example the normal queue will not allow instances in the f1 and g3 famil
 ~~~console
 # Job submission to queue "normal" using instance type in f1 family is blocked
 qsub -q normal -l instance_type=f1.2xlarge -- /bin/echo test
-qsub: f1.2xlarge is not a valid instance type for the job queue normal. Contact your HPC admin and update /apps/soca/<CLUSTER_ID>/cluster_manager/settings/queue_mapping.yml
+qsub: f1.2xlarge is not a valid instance type for the job queue normal. Contact your HPC admin and update /apps/soca/$SOCA_CONFIGURATION/cluster_manager/settings/queue_mapping.yml
 
 # Job submission to queue "test" using instance type in g4dn is blocked
 qsub -q normal -l instance_type=g4dn.xlarge -- /bin/echo test
-qsub: g4dn.xlarge is not a valid instance type for the job queue test. Contact your HPC admin and update /apps/soca/<CLUSTER_ID>/cluster_manager/settings/queue_mapping.yml
+qsub: g4dn.xlarge is not a valid instance type for the job queue test. Contact your HPC admin and update /apps/soca/$SOCA_CONFIGURATION/cluster_manager/settings/queue_mapping.yml
 ~~~
 
 ## Check the logs
 Scheduler hooks are located on /var/spool/pbs/server_logs/
 
 ## Code
-The hook file can be found under `/apps/soca/cluster_hooks/<CLUSTER_ID>/queuejob/check_queue_instance_types.py` on your Scale-Out Computing on AWS cluster)
+The hook file can be found under `/apps/soca/cluster_hooks/$SOCA_CONFIGURATION/queuejob/check_queue_instance_types.py` on your Scale-Out Computing on AWS cluster)
 
 ## Disable the hook
 You can disable the hook by running the following command on the scheduler host (as root):

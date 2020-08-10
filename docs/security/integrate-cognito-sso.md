@@ -31,7 +31,7 @@ Assuming a user has a valid credential on corporate LDAP/AD but not on SOCA, Cog
 **How do you determine if a user has an account on SOCA?**
 
 To verify if a corporate user is active and can log in, SOCA checks whether or not this user has an account. By default, we determine the user account name is the first part of an email address. 
-For example, if the email returned by your corporate LDAP for a given user is `myuser@company.com`, we will assume this user the SOCA account is `myuser`. If this mapping does not apply to your company, you can change it by editing `/apps/soca/<CLUSTER_ID>/cluster_web_ui/generic/auth.py`.   
+For example, if the email returned by your corporate LDAP for a given user is `myuser@company.com`, we will assume this user the SOCA account is `myuser`. If this mapping does not apply to your company, you can change it by editing `/apps/soca/$SOCA_CONFIGURATION/cluster_web_ui/generic/auth.py`.
 
 
 
@@ -82,7 +82,7 @@ You also want to specify the callback url(s) for all domains you are planning to
 
 ### Configure SOCA
 
-Edit `/apps/soca/<CLUSTER_ID>/cluster_web_ui/generic/parameters.cfg` and update the `[cognito]` section as shown below:
+Edit `/apps/soca/$SOCA_CONFIGURATION/cluster_web_ui/generic/parameters.cfg` and update the `[cognito]` section as shown below:
 
 ~~~bash
 [cognito]
@@ -105,8 +105,8 @@ cognito_callback_url="<YOUR_CALLBACK_URL>"
 Simply restart the Web UI by running:
 
 ~~~bash
-/apps/soca/<CLUSTER_ID>/cluster_web_ui/socawebui.sh stop
-/apps/soca/<CLUSTER_ID>/cluster_web_ui/socawebui.sh start
+/apps/soca/$SOCA_CONFIGURATION/cluster_web_ui/socawebui.sh stop
+/apps/soca/$SOCA_CONFIGURATION/cluster_web_ui/socawebui.sh start
 ~~~
 
 Now try to access `https://<YOUR_SOCA_DNS>/`, you should be automatically logged in.

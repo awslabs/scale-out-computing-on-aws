@@ -12,7 +12,7 @@ These parameters can be configured as:
 
 ## Restrict queue for some users
 
-Considering `/apps/soca/<CLUSTER_ID>cluster_manager/settings/queue_mapping.yml`
+Considering `/apps/soca/$SOCA_CONFIGURATION/cluster_manager/settings/queue_mapping.yml`
 ```
 queue_type:
   compute:
@@ -31,7 +31,7 @@ In this example, `user1` can submit a job to "normal" queue but not on "high" or
 ~~~console
 # Job submission does not work on "high" queue because user1 is on the excluded_users list pattern
 qsub -q high -- /bin/sleep 60
-qsub: user1 is not authorized to use submit this job on the queue high. Contact your HPC admin and update /apps/soca/<CLUSTER_ID>/cluster_manager/settings/queue_mapping.yml
+qsub: user1 is not authorized to use submit this job on the queue high. Contact your HPC admin and update /apps/soca/$SOCA_CONFIGURATION/cluster_manager/settings/queue_mapping.yml
 
 # Job submission is ok on "normal" queue
 qsub -q normal -- /bin/sleep 60
@@ -166,7 +166,7 @@ excluded_users: ["cn=mynewgroup,ou=Group,dc=soca,dc=local"]
 Scheduler hooks are located on /var/spool/pbs/server_logs/
 
 ## Code
-The hook file can be found under `/apps/soca/cluster_hooks/<CLUSTER_ID>/queuejob/check_queue_acls.py` on your Scale-Out Computing on AWS cluster)
+The hook file can be found under `/apps/soca/cluster_hooks/$SOCA_CONFIGURATION/queuejob/check_queue_acls.py` on your Scale-Out Computing on AWS cluster)
 
 ## Disable the hook
 You can disable the hook by running the following command on the scheduler host (as root):
