@@ -39,9 +39,10 @@ def reset_key():
         logger.debug("invalidate_user_key: Content: " + str(invalidate_user_key._content))
 
         if invalidate_user_key.status_code == 200:
+            session.pop("api_key", None)
             return redirect("/my_api_key")
         else:
-            logger.error("Error while trying to reset Trace: " +str(invalidate_user_key))
+            logger.error("Error while trying to reset Trace: " + str(invalidate_user_key))
             return redirect("/my_api_key")
 
     else:

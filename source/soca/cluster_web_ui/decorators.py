@@ -71,12 +71,16 @@ def login_required(f):
             if "api_key" in session:
                 # If a new API key has been issued,
                 check_existing_key = ApiKeys.query.filter_by(user=session["user"], is_active=True).first()
-                if check_existing_key.token != session["api_key"]:
-                    # Update API Key in session
-                    session["api_key"] = check_existing_key.token
+                if check_existing_key:
+                    if check_existing_key.token != session["api_key"]:
+                        # Update API Key in session
+                        session["api_key"] = check_existing_key.token
+                    else:
+                        # API Key exist and is already up-to-date
+                        pass
                 else:
-                    # API Key exist and is already up-to-date
-                    pass
+                    session.pop("api_key")
+                    return redirect("/")
 
                 #  Make sure the scope still align with SUDO permissions (eg: when admin grant/revoke sudo)
                 if session["sudoers"] is True and check_existing_key.scope == "user":
