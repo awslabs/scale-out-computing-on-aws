@@ -2,7 +2,7 @@
 This hook reject the job if the user does not have a valid budget associated
 Doc: https://awslabs.github.io/scale-out-computing-on-aws/analytics/set-up-budget-project/
 create hook check_project_budget event=queuejob
-import hook check_project_budget application/x-python default /apps/soca/<CLUSTER_ID>/cluster_hooks/queuejob/check_project_budget.py
+import hook check_project_budget application/x-python default /apps/soca/%SOCA_CONFIGURATION/cluster_hooks/queuejob/check_project_budget.py
 
 Note: If you make any change to this file, you MUST re-execute the import command
 '''
@@ -18,6 +18,9 @@ if "/usr/lib/python2.7/site-packages" not in sys.path:
 
 if "/usr/lib64/python2.7/site-packages" not in sys.path:
     sys.path.append("/usr/lib64/python2.7/site-packages")
+
+if "/apps/soca/%SOCA_CONFIGURATION/python/latest/lib/python3.7/site-packages" not in sys.path:
+    sys.path.append("/apps/soca/%SOCA_CONFIGURATION/python/latest/lib/python3.7/site-packages")
 
 import boto3
 
@@ -47,7 +50,7 @@ job_project = None if j.project is None else str(j.project) # <class 'pbs.v1._ba
 
 # User Variables
 aws_account_id = '<YOUR_AWS_ACCOUNT_ID>'
-budget_config_file = '/apps/soca/<CLUSTER_ID>/cluster_manager/settings/project_cost_manager.txt'  # Link to example
+budget_config_file = '/apps/soca/%SOCA_CONFIGURATION/cluster_manager/settings/project_cost_manager.txt'  # Link to example
 user_must_belong_to_project = True  # Change if you don't want to restrict project to a list of users
 allow_job_no_project = False  # Change if you do not want to enforce project at job submission
 allow_user_multiple_projects = True  # Change if you want to restrict a user to one project

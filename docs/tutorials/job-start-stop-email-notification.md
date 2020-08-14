@@ -32,7 +32,7 @@ If you want to be able to send email to any addresses, [you need to request prod
 ![](../imgs/email-4.png)
 
 ## Notification code
-Create a hook file (note: this file can be found under `/apps/soca/$SOCA_CONFIGURATION/cluster_hooks/job_notification.py` on your Scale-Out Computing on AWS cluster)
+Create a hook file (note: this file can be found under `/apps/soca/$SOCA_CONFIGURATION/cluster_hooks/job_notifications.py` on your Scale-Out Computing on AWS cluster)
 
 Edit the following section to match your SES settings
 ~~~
