@@ -165,23 +165,29 @@ if [[ $REQUIRE_REBOOT -eq 1 ]];
 then
     echo "systemctl stop pbs
 source /etc/environment
+DCVGLADMIN=\$(which dcvgladmin)
+\$DCVGLADMIN enable >> /root/enable_dcvgladmin.log 2>&1
 # Disable HyperThreading
-if [[ \"$SOCA_INSTANCE_HYPERTHREADING\" == \"false\" ]];
+if [[ \"\$SOCA_INSTANCE_HYPERTHREADING\" == \"false\" ]];
 then
-  echo \"Disabling Hyperthreading\" >> $SOCA_HOST_SYSTEM_LOG/ComputeNodePostReboot.log
-  for cpunum in $(cat /sys/devices/system/cpu/cpu*/topology/thread_siblings_list | cut -s -d, -f2- | tr ',' '\n' | sort -un);
+  echo \"Disabling Hyperthreading\" >> \$SOCA_HOST_SYSTEM_LOG/ComputeNodePostReboot.log
+  for cpunum in \$(cat /sys/devices/system/cpu/cpu*/topology/thread_siblings_list | cut -s -d, -f2- | tr ',' '\n' | sort -un);
     do
-      echo 0 > /sys/devices/system/cpu/cpu$cpunum/online;
+      echo 0 > /sys/devices/system/cpu/cpu\$cpunum/online;
     done
 fi
 # Make Scratch FS accessible by everyone. ACL still applies at folder level
-if [[ -n \"$FSX_MOUNTPOINT\" ]]; then
-  chmod 777 $FSX_MOUNTPOINT
+if [[ -n \"\$FSX_MOUNTPOINT\" ]]; then
+  chmod 777 \$FSX_MOUNTPOINT
 fi
 
 chmod 777 /scratch
-/bin/bash /apps/soca/$SOCA_CONFIGURATION/cluster_node_bootstrap/ComputeNodeUserCustomization.sh >> $SOCA_HOST_SYSTEM_LOG/ComputeNodeUserCustomization.log 2>&1
-/bin/bash /apps/soca/$SOCA_CONFIGURATION/cluster_node_bootstrap/ComputeNodeConfigureMetrics.sh >> $SOCA_HOST_SYSTEM_LOG/ComputeNodeConfigureMetrics.log 2>&1
+while [ ! -d \$SOCA_HOST_SYSTEM_LOG ]
+do
+    sleep 1
+done
+/bin/bash /apps/soca/\$SOCA_CONFIGURATION/cluster_node_bootstrap/ComputeNodeUserCustomization.sh >> \$SOCA_HOST_SYSTEM_LOG/ComputeNodeUserCustomization.log 2>&1
+/bin/bash /apps/soca/\$SOCA_CONFIGURATION/cluster_node_bootstrap/ComputeNodeConfigureMetrics.sh >> \$SOCA_HOST_SYSTEM_LOG/ComputeNodeConfigureMetrics.log 2>&1
 systemctl start pbs" >> /etc/rc.local
     chmod +x /etc/rc.d/rc.local
     systemctl enable rc-local

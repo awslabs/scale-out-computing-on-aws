@@ -36,11 +36,12 @@ fi
 tar zxvf $DCV_TGZ
 cd nice-dcv-$DCV_VERSION
 rpm -ivh *.rpm --nodeps
-DCVGLADMIN=$(which dcvgladmin)
+
 
 # Uninstall dcv-gl if not GPU instances
 if [[ ! "${GPU_INSTANCE_FAMILY[@]}" =~ "${INSTANCE_TYPE}" ]];
 then
+    DCVGLADMIN=$(which dcvgladmin)
     $DCVGLADMIN disable
 fi
 
@@ -89,7 +90,6 @@ systemctl disable firewalld
 
 if [[ "${GPU_INSTANCE_FAMILY[@]}" =~ "${INSTANCE_TYPE}" ]];
 then
-    echo "@reboot $DCVGLADMIN enable >> /root/enable_dcvgladmin.log 2>&1" | crontab -
     exit 3 # notify ComputeNodePostReboot.sh to force reboot
 fi
 

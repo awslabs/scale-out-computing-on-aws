@@ -89,7 +89,7 @@ queue_type:
     scratch_size: "600"</code>
                                   </pre>
                                   Finally, add a new crontab on the scheduler machine (as root). Use -c to path to the YAML file and -t to the YAML section you just created
-                                    <br><pre><code class="language-bash">*/3 * * * * source /etc/environment;  /apps/python/latest/bin/python3 /apps/soca/cluster_manager/dispatcher.py -c /apps/soca/cluster_manager/settings/queue_mapping.yml -t memory</code></pre>
+                                    <br><pre><code class="language-bash">*/3 * * * * source /etc/environment;  /apps/soca/$SOCA_CONFIGURATION/python/latest/bin/python3 /apps/soca/$SOCA_CONFIGURATION/cluster_manager/dispatcher.py -c /apps/soca/$SOCA_CONFIGURATION/cluster_manager/settings/queue_mapping.yml -t memory</code></pre>
 
 <hr>
                                 <h4>Automatic Host provisioning logs</h4>

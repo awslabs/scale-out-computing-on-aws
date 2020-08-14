@@ -14,7 +14,7 @@ By default, job information is ingested by the analytics system on an hourly bas
 1. Log back into the **scheduler host** via SSH as `ec2-user` and run the follow command to force immediate ingestion into ElasticSearch:
 
     ```bash
-    source /etc/environment; /apps/python/latest/bin/python3 /apps/soca/cluster_analytics/job_tracking.py
+    source /etc/environment; /apps/soca/$SOCA_CONFIGURATION/python/latest/bin/python3 /apps/soca/$SOCA_CONFIGURATION/cluster_analytics/job_tracking.py
     ```
 
 ## Step 3: Create Indexes

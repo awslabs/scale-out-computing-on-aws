@@ -126,6 +126,7 @@ then
     make install -j6
     /opt/pbs/libexec/pbs_postinstall
     chmod 4755 /opt/pbs/sbin/pbs_iff /opt/pbs/sbin/pbs_rcp
+    systemctl disable pbs
 else
     echo "PBSPro already installed, and at correct version."
 fi
