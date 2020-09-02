@@ -119,7 +119,7 @@ class AwsPrice(Resource):
             for opt in scratch_opts.split(','):
                 try:
                     key, value = opt.split('=', 1)
-                    if value != None:
+                    if value != '':
                         if key == 'scratch_size':
                             try:
                                 scratch_size = int(value)
