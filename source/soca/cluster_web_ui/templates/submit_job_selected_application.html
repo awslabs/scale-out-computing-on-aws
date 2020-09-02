@@ -146,6 +146,22 @@
                   var fsx_capacity = $("#fsx_capacity").val() || 0;
                   var walltime = $("#wall_time").val() || "01:00:00";
                   var cpus = $("#cpus").val() || 1;
+                  var scratch_opts = $("#scratch_opts").val() || 0;
+
+                  if (scratch_opts) {
+                      scratch_opts.split(',').forEach(function (item, index) {
+                          var opt = item.split('=')
+                          if (opt.length > 1) {
+                              var k = opt[0]
+                              var v = opt[1]
+                              if (k == 'scratch_size') {
+                                  scratch_size = v
+                              } else if (k == 'fsx_lustre_size') {
+                                  fsx_capacity = v
+                              }
+                          }
+                      })
+                  }
 
                   $("#cost_result").html('<div align="center"><i class="fas fa-spinner fa-5x"></i></div><h3><br> Please wait while we estimate the price of this job ... </h3>'),
 
@@ -155,7 +171,8 @@
                           "root_size": root_size,
                           "fsx_capacity": fsx_capacity,
                           "cpus": cpus,
-                          "wall_time": walltime
+                          "wall_time": walltime,
+                          "scratch_opts": scratch_opts
                       }, function (data) {
 
                           cost_data = jQuery.parseJSON(JSON.stringify(data));

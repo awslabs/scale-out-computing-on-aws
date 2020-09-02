@@ -102,17 +102,53 @@ class AwsPrice(Resource):
         parser.add_argument('root_size', type=int, location='args', help="Please specify your AMI root disk space (Default 10gb)", default=10)
         parser.add_argument('fsx_capacity', type=int, location='args', help="Please specify fsx_storage in GB", default=0)
         parser.add_argument('fsx_type', type=str, location='args', default="SCRATCH_2")
+        parser.add_argument('scratch_opts', type=str, location='args', help="Please specify -l options", default="")
+
         args = parser.parse_args()
         instance_type = args['instance_type']
         scratch_size = args['scratch_size']
         root_size = args['root_size']
         fsx_storage = args['fsx_capacity']
         fsx_type = args['fsx_type']
+        scratch_opts = args['scratch_opts']
         cpus = args['cpus']
+        scratch_iops = None
         sim_cost = {}
+
+        if scratch_opts:
+            for opt in scratch_opts.split(','):
+                try:
+                    key, value = opt.split('=', 1)
+                    if value != None:
+                        if key == 'scratch_size':
+                            try:
+                                scratch_size = int(value)
+                            except ValueError:
+                                return {'message': 'scratch_opts scratch_size must be an int'}, 500
+                        elif key == 'scratch_iops':
+                            try:
+                                scratch_iops = int(value)
+                            except ValueError:
+                                return {'message': 'scratch_opts scratch_iops must be an int'}, 500
+                        elif key == 'fsx_lustre_size':
+                            try:
+                                fsx_storage = int(value)
+                            except ValueError:
+                                return {'message': 'scratch_opts fsx_lustre_size must be an int'}, 500
+                        elif key == 'fsx_lustre_deployment_type':
+                            fsx_type = value
+                    else:
+                        raise ValueError('no value specified')
+                except ValueError:
+                    return {'message': 'scratch_opts must be comma-separated, key=value'}, 500
+
+            if fsx_storage and fsx_type != 'scratch_2':
+                return {'message' : 'fsx_deployment_type must be specified as scratch_2, {0} specified'.format(fsx_type)}, 500
 
         # Change value below as needed if you use a different region
         EBS_GP2_STORAGE_BASELINE = 0.1  # us-east-1 0.1 cts per gb per month
+        EBS_IO1_STORAGE_BASELINE = 0.125  # us-east-1 0.125 cts per gb per month
+        EBS_IO1_IOPS_BASELINE = 0.065  # us-east-1 0.065 cts per IOPS per month
         FSX_STORAGE_BASELINE = 0.14  # us-east-1Persistent (50 MB/s/TiB baseline, up to 1.3 GB/s/TiB burst)  Scratch (200 MB/s/TiB baseline, up to 1.3 GB/s/TiB burst)
 
         # Get WallTime in hours
@@ -140,11 +176,16 @@ class AwsPrice(Resource):
             nodect = math.ceil(int(cpus) / cpu_per_system)
 
         # Calculate EBS Storage (storage * ebs_price * sim_time_in_secs / (walltime_seconds * 30 days) * number of nodes
-        sim_cost["scratch_size"] = "%.3f" % ((scratch_size * EBS_GP2_STORAGE_BASELINE * (walltime * 3600) / (86400 * 30)) * nodect)
+        if not scratch_iops:
+            sim_cost["scratch_size"] = "%.3f" % ((scratch_size * EBS_GP2_STORAGE_BASELINE * (walltime * 3600) / (86400 * 30)) * nodect)
+        else:
+            sim_cost["scratch_size"] = "%.3f" % (((scratch_size * EBS_IO1_STORAGE_BASELINE + scratch_iops * EBS_IO1_IOPS_BASELINE)
+                                                  * (walltime * 3600) / (86400 * 30)) * nodect)
+
         sim_cost["root_size"] = "%.3f" % ((root_size * EBS_GP2_STORAGE_BASELINE * (walltime * 3600) / (86400 * 30)) * nodect)
 
-        # Calculate FSx Storage (storage * ebs_price * sim_time_in_secs / (second_in_a_day * 30 days) * number of nodes
-        sim_cost["fsx_capacity"] = "%.3f" % ((fsx_storage * FSX_STORAGE_BASELINE * (walltime * 3600) / (86400 * 30)) * nodect)
+        # Calculate FSx Storage (storage * ebs_price * sim_time_in_secs / (second_in_a_day * 30 days)
+        sim_cost["fsx_capacity"] = "%.3f" % ((fsx_storage * FSX_STORAGE_BASELINE * (walltime * 3600) / (86400 * 30)))
 
         # Calculate Compute
         try:
