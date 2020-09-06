@@ -9,6 +9,7 @@
 site_name: Scale-Out Computing on AWS Knowledge Base
 theme:
   name: 'material'
+  custom_dir: 'docs/overrides'
   features:
     - tabs
 
