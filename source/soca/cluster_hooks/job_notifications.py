@@ -50,7 +50,7 @@ def send_notification(subject, email_message, job_owner_email_address):
 def find_email(job_owner):
     # Ideally we should be using python-ldap, but facing some issue importing it with PBS env as PBS py is still py2
     # Will migrate to python-ldap when pbspro supports py3 natively
-    cmd = 'ldapsearch -x -b "ou=People,dc=soca,dc=local" -LLL "(uid=' + job_owner + ')" mail | grep "mail:" | cut -d " " -f 2'
+    cmd = 'ldapsearch -x -b "ou=People,dc=soca,dc=local" -LLL "(uid='+job_owner+')" mail | grep "mail:" | cut -d " " -f 2'
     email_address = os.popen(cmd).read()
     pbs.logmsg(pbs.LOG_DEBUG, 'notify_job: Detected email for ' + job_owner + ' : ' + email_address)
     return email_address.replace('\n', '')
@@ -84,7 +84,7 @@ if ignore is False:
             Hello ''' + job_owner + ''', <br><br>
             This email is to notify you that your job <strong>''' + job_id + '''</strong> has started.<br>
             You will receive an email once your simulation is complete.
-
+    
             <h3> Job Information </h3>
             <ul>
                 <li> Job Id: ''' + job_id + '''</li>
@@ -107,14 +107,14 @@ if ignore is False:
             email_message = '''
                 Hello ''' + job_owner + ''', <br><br>
                 This email is to notify you that your job <strong>''' + job_id + '''</strong> has completed.<br>
-
+                
                 <h3> Job Information </h3>
                 <ul>
                     <li> Job Id: ''' + job_id + '''</li>
                     <li> Job Name: ''' + job_name + '''</li>
                     <li> Job Queue: ''' + job_queue + '''</li>
                 </ul>
-
+    
                 <hr>
                 <i> Automatic email, do not respond.</i>
             '''

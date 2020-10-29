@@ -9,4 +9,14 @@
   <script src="{{ url_for('static', filename='js/app.min.js') }}"></script>
 
 
+  <!-- hide left sidebar when using soca desktop app -->
+  <script>
+      var ua = navigator.userAgent;
+       if (/Soca-Desktop-App/i.test(ua)) {
+           document.getElementById("accordionSidebar").style.display = "none"
+        }
+
+  </script>
+
+
 

@@ -4,7 +4,8 @@ import ldap
 from models import db,ApiKeys
 from decorators import restricted_api, admin_api
 import errors
-
+import logging
+logger = logging.getLogger("api")
 class Sudo(Resource):
     @admin_api
     def get(self):

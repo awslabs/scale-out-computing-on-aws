@@ -17,7 +17,7 @@ import random
 import string
 import shutil
 
-logger = logging.getLogger("soca_api")
+logger = logging.getLogger("api")
 
 
 class Job(Resource):

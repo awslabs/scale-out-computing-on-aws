@@ -2,6 +2,9 @@
 title: Create your own analytics dashboard
 ---
 
+!!!danger "Pre-Requisites"
+    [You must have configure your Kibana index first](../../analytics/monitor-cluster-activity/)
+
 [On your Kibana cluster](../../analytics/monitor-cluster-activity/), click "Visualize" to create a new visualization. Below are some example to help you get started
 
 *Note: For each dashboard, you can get detailed data at user, queue, job or project level by simply using the "Filters" section*
@@ -12,15 +15,15 @@ title: Create your own analytics dashboard
     * Select "Vertical Bars" and "jobs" index
     * Y Axis (Metrics):
         * Aggregation: Sum
-        * Field: price_ondemand
+        * Field: estimated_price_ondemand
     * X Axis (Buckets):
         * Aggregation: Terms
         * Field: instance_type_used
-        * Order By: metric: Sum of price_on_demand
+        * Order By: metric: Sum of estimated_price_ondemand
     * Split Series (Buckets):
         * Sub Aggregation: Terms
         * Field: instance_type_used
-        * Order By:  metric: Sum of price_on_demand
+        * Order By:  metric: Sum of estimated_price_ondemand
 
 
 ![](../imgs/dashboard-2.png)

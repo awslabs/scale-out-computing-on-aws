@@ -8,7 +8,7 @@ from decorators import private_api
 from requests import get
 import json
 import shlex
-logger = logging.getLogger("soca_api")
+logger = logging.getLogger("api")
 
 
 class Jobs(Resource):

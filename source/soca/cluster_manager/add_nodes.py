@@ -6,6 +6,8 @@ import re
 import sys
 import uuid
 import boto3
+from botocore.exceptions import ClientError
+
 sys.path.append(os.path.dirname(__file__))
 import configuration
 from botocore import exceptions
@@ -186,18 +188,19 @@ def verify_vcpus_limit(instance_type, desired_capacity, quota_info):
         return {"message": "Job cannot start due to AWS Service limit. Max Vcpus allowed {}. Detected running Vcpus {}. Requested Vcpus for this job {}. Quota Name {}".format(max_vcpus_allowed, running_vcpus, total_vpcus_requested, quota_name), "quota_info": quota_info}
 
 
-def can_launch_capacity(instance_type, desired_capacity, image_id, subnet_id):
+def can_launch_capacity(instance_type, desired_capacity, image_id, subnet_id, security_group):
     for instance in instance_type:
         try:
             ec2.run_instances(
                 ImageId=image_id,
                 InstanceType=instance,
                 SubnetId=subnet_id,
+                SecurityGroupIds=[security_group],
                 MaxCount=int(desired_capacity),
                 MinCount=int(desired_capacity),
                 DryRun=True)
 
-        except Exception as e:
+        except ClientError as e:
             if e.response['Error'].get('Code') == 'DryRunOperation':
                 # Dry Run Succeed.
                 try:
@@ -777,7 +780,8 @@ def main(**kwargs):
         can_launch = can_launch_capacity(cfn_stack_parameters['InstanceType'],
                                          cfn_stack_parameters['DesiredCapacity'],
                                          cfn_stack_parameters['ImageId'],
-                                         cfn_stack_parameters['SubnetId'][0])
+                                         cfn_stack_parameters['SubnetId'][0],
+                                         cfn_stack_parameters['SecurityGroupId'])
 
         if can_launch is True:
             try:

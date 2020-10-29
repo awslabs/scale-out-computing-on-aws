@@ -5,7 +5,7 @@ from models import ApiKeys
 from flask import request, redirect, session, flash
 from requests import get
 import logging
-logger = logging.getLogger("api_log")
+logger = logging.getLogger("api")
 
 
 # Restricted API can only be accessed using Flask Root API key

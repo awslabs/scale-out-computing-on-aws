@@ -22,6 +22,9 @@ title: Understand backend storage
 
 /apps is an [Elastic File System](https://aws.amazon.com/efs/) partition mounted on all hosts. This partition is designed to host all your CFD/FEA/EDA/Mathematical applications. **This partition is persistent**. Avoid using this partition if your simulation is disk I/O intensive (use /scratch instead)
 
+The corresponding EFS file system is deployed with bursting Throughput mode which depends on burst credits. /apps has cron jobs that monitor the status of the cluster, scale-up and scale-down the cluster, and is also running the web application. If the cluster stays up and running for 1+ months and not much additional applications are installed under /apps, then EFS file system might run out of burst credits which could impact the web application. Starting v2.6.0, the solution deploys CloudWatch Alarms to monitor the burst credits for /apps EFS file system. When burst credits are close to be depleted, a lambda function is triggered to change the Throughput mode to provisioned at 5 MiB/sec. This increases the monthly cost of EFS by ~$30/month (for us-west-2 and us-east-1 regions). After some time, the file system would have earned enough burst credits, so the lambda function changes Throughput mode back to bursting as it is more cost effective. [Click here to learn more about EFS Throughput modes](https://docs.aws.amazon.com/efs/latest/ug/performance.html#throughput-modes)
+
+
 ## FSx
 
 Scale-Out Computing on AWS supports FSx natively. [Click here to learn how to use FSx as backend storage for your jobs](../../storage/launch-job-with-fsx/).

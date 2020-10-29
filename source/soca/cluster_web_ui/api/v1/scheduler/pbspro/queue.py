@@ -5,7 +5,7 @@ from requests import get
 import logging
 from decorators import private_api, admin_api
 import shlex
-logger = logging.getLogger("soca_api")
+logger = logging.getLogger("api")
 
 
 class Queue(Resource):

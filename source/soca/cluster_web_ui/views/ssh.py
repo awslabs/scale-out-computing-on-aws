@@ -6,7 +6,7 @@ import datetime
 from flask import send_file, render_template, Blueprint, session, redirect, request, flash
 import read_secretmanager
 import os
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("application")
 
 ssh = Blueprint('ssh', __name__, template_folder='templates')
 

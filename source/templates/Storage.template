@@ -18,9 +18,17 @@ Parameters:
 
   PrivateSubnet3:
     Type: String
+
   ClusterId:
     Type: String
 
+  EFSBurstCreditLowThreshold:
+    Type: String
+    Default: 10000000
+
+  EFSBurstCreditHighThreshold:
+    Type: String
+    Default: 2000000000000
 
 Resources:
   EFSApps:
@@ -104,6 +112,209 @@ Resources:
       SecurityGroups:
         - !Ref SchedulerSecurityGroup
         - !Ref ComputeNodeSecurityGroup
+
+
+  SNSEFSTopic:
+    Metadata:
+      cfn_nag:
+        rules_to_suppress:
+          - id: W47
+            reason: "KMS Not Required"
+    Type: AWS::SNS::Topic
+    Properties:
+      DisplayName: !Sub ${ClusterId}-EFSAlarm-SNS
+      TopicName: !Sub ${ClusterId}-EFSAlarm-SNS
+      Tags:
+        - Key: Name
+          Value: !Sub ${ClusterId}-EFSAlarm-SNS
+        - Key: soca:ClusterId
+          Value: !Ref ClusterId
+
+  SNSEFSSubscription:
+    Type: AWS::SNS::Subscription
+    Properties:
+      Protocol: lambda
+      Endpoint: !GetAtt EFSThroughputLambda.Arn
+      TopicArn: !Ref SNSEFSTopic
+
+  SNSEFSTopicPolicy:
+    Type: AWS::SNS::TopicPolicy
+    Properties:
+      Topics:
+        - !Ref SNSEFSTopic
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Action: sns:Publish
+            Resource: !Ref SNSEFSTopic
+            Principal:
+              Service:
+                - !Sub "cloudwatch.${AWS::URLSuffix}"
+            Condition:
+              ArnLike:
+                AWS:SourceArn: !Sub 'arn:${AWS::Partition}:*:*:${AWS::AccountId}:*'
+
+  EFSAppsCWAlarmLowThreshold:
+    Metadata:
+      cfn_nag:
+        rules_to_suppress:
+          - id: W28
+            reason: "Resources won't be replaced"
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmActions:
+      - !Ref SNSEFSTopic
+      AlarmName: !Sub ${ClusterId}-EFSApps-Low-Alarm
+      ComparisonOperator: LessThanOrEqualToThreshold
+      Dimensions:
+      - Name: FileSystemId
+        Value: !Ref EFSApps
+      EvaluationPeriods: 10
+      Namespace: AWS/EFS
+      MetricName: BurstCreditBalance
+      Period: 60
+      Statistic: Average
+      Threshold: !Ref EFSBurstCreditLowThreshold
+      TreatMissingData: missing
+
+  EFSAppsCWAlarmHighThreshold:
+    Metadata:
+      cfn_nag:
+        rules_to_suppress:
+          - id: W28
+            reason: "Resources won't be replaced"
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmActions:
+      - !Ref SNSEFSTopic
+      AlarmName: !Sub ${ClusterId}-EFSApps-High-Alarm
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      Dimensions:
+      - Name: FileSystemId
+        Value: !Ref EFSApps
+      EvaluationPeriods: 10
+      Namespace: AWS/EFS
+      MetricName: BurstCreditBalance
+      Period: 60
+      Statistic: Average
+      Threshold: !Ref EFSBurstCreditHighThreshold
+      TreatMissingData: missing
+
+  EFSAppsLambdaRole:
+    Metadata:
+      cfn_nag:
+        rules_to_suppress:
+          - id: W11
+            reason: "* is reduced to minimal pattern"
+
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Policies:
+        - PolicyName: EFSAppsLambdaPolicy
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:DeleteLogStream
+                  - logs:PutLogEvents
+                Resource:
+                  - !Join [ "", [ "arn:", !Ref "AWS::Partition", ":logs:", !Ref "AWS::Region", ":", !Ref  "AWS::AccountId", ":log-group:/aws/lambda/", !Join [ "-", [ !Ref ClusterId , "EFSThroughputLambda"] ], "*"] ]
+              - Effect: Allow
+                Action:
+                  - cloudwatch:GetMetricStatistics
+                Resource: "*"
+              - Effect: Allow
+                Action:
+                  - elasticfilesystem:DescribeFileSystems
+                  - elasticfilesystem:UpdateFileSystem
+                Resource:
+                  - !Join [ "", [ "arn:", !Ref "AWS::Partition", ":elasticfilesystem:", !Ref "AWS::Region", ":", !Ref  "AWS::AccountId", ":file-system/*"] ]
+
+
+  EFSThroughputLambda:
+    Type: AWS::Lambda::Function
+    Properties:
+      Description: Check EFS BurstCreditBalance and update ThroughputMode when needed
+      Environment:
+         Variables:
+            EFSBurstCreditLowThreshold:
+               Ref: EFSBurstCreditLowThreshold
+            EFSBurstCreditHighThreshold:
+               Ref: EFSBurstCreditHighThreshold
+      FunctionName: !Join [ "-", [ !Ref ClusterId, "EFSThroughputLambda"] ]
+      Handler: index.lambda_handler
+      MemorySize: 128
+      Role: !GetAtt EFSAppsLambdaRole.Arn
+      Runtime: python3.7
+      Timeout: 180
+      Tags:
+        - Key: soca:ClusterId
+          Value: !Join [ "-", [ !Ref ClusterId, !Ref "AWS::StackName"] ]
+      Code:
+        ZipFile: !Sub |
+          import json
+          import boto3
+          import datetime
+          import os
+
+          def lambda_handler(event, context):
+              cw_client = boto3.client('cloudwatch')
+              efs_client = boto3.client('efs')
+              #print("Received event: " + json.dumps(event, indent=2))
+              message = json.loads(event['Records'][0]['Sns']['Message'])
+              FileSystemId = message['Trigger']['Dimensions'][0]['value']
+              print("FilesystemID: " + FileSystemId)
+
+              now = datetime.datetime.now()
+              start_time = now - datetime.timedelta(seconds=300)
+              end_time = min(now, start_time + datetime.timedelta(seconds=300))
+              response = cw_client.get_metric_statistics(Namespace='AWS/EFS',MetricName='BurstCreditBalance',
+                      Dimensions=[{'Name': 'FileSystemId','Value': FileSystemId}],
+                      Period=60, StartTime=start_time, EndTime=end_time, Statistics=['Average'])
+              efsAverageBurstCreditBalance = response['Datapoints'][0]['Average']
+              print("EFS AverageBurstCreditBalance: " + str(efsAverageBurstCreditBalance))
+
+              response = efs_client.describe_file_systems(FileSystemId=FileSystemId)
+              ThroughputMode=response['FileSystems'][0]['ThroughputMode']
+              print("EFS ThroughputMode: " + str(ThroughputMode))
+
+              if efsAverageBurstCreditBalance < int(os.environ['EFSBurstCreditLowThreshold']):
+                  # CreditBalance is less than LowThreshold --> Change to ProvisionedThroughput
+                  if ThroughputMode == "bursting":
+                      # Update filesystem to Provisioned
+                      response = efs_client.update_file_system(
+                          FileSystemId=FileSystemId,
+                          ThroughputMode='provisioned',
+                          ProvisionedThroughputInMibps=5.0)
+                      print("Updating EFS: " + FileSystemId +" to Provisioned ThroughputMode with 5 MiB/sec")
+              elif efsAverageBurstCreditBalance > int(os.environ['EFSBurstCreditHighThreshold']):
+                  # CreditBalance is greater than HighThreshold --> Change to Bursting
+                  if ThroughputMode == "provisioned":
+                      # Update filesystem to Bursting
+                      response = efs_client.update_file_system(
+                          FileSystemId=FileSystemId,
+                          ThroughputMode='bursting')
+                      print("Updating EFS: " + FileSystemId +" to Bursting ThroughputMode")
+
+  EFSThroughputLambdaInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref EFSThroughputLambda
+      Principal: sns.amazonaws.com
 
 Outputs:
   EFSApps:

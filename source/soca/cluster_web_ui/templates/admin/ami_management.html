@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    {% include 'common/header.html' %}
+</head>
+<body id="page-top">
+<div id="wrapper">
+    {% include 'common/vertical_menu_bar.html' %}
+    <div id="content-wrapper" class="d-flex flex-column">
+        <div id="content">
+            <br>
+            <div class="container-fluid">
+                {% include 'common/horizontal_menu_bar.html' %}
+                {% if sudoers == false %}
+                    <div class="alert alert-danger" role="alert">
+                        <strong>Access denied </strong>
+                        Only users with sudo permissions can access this page
+                        <br>
+                    </div>
+                {% else %}
+                    <div id="accessok">
+                    {% with messages = get_flashed_messages(with_categories=true) %}
+                        {% if messages %}
+                            {% for category, message in messages %}
+                                <br>
+                                {% if category == "success" %}
+                                    <div class="alert alert-success">
+                                        <strong>{{ message }} </strong>
+                                    </div>
+                                {% else %}
+                                    <div class="alert alert-danger">
+                                        <strong>{{ message }} </strong>
+                                    </div>
+                                {% endif %}
+                            {% endfor %}
+                        {% endif %}
+                    {% endwith %}
+                    <div class="col-md-10">
+                       <div class="alert alert-warning">
+                        Make sure your Amazon Machine Images (AMI) are generated for your current region: <strong>{{ region_name }}</strong> <br>
+                           <a  target="_blank" href="https://awslabs.github.io/scale-out-computing-on-aws/web-interface/ceate-dcv-images">Click here to learn how to create custom images</a>
+
+                    </div>
+                    <nav>
+                        <div class="nav nav-tabs" id="nav-tab" role="tablist">
+                            <a class="nav-item nav-link active" id="nav-home-tab" data-toggle="tab" href="#nav-add"
+                               role="tab" aria-controls="nav-home" aria-selected="true">Register AMI</a>
+                            <a class="nav-item nav-link" id="nav-profile-tab" data-toggle="tab" href="#nav-delete"
+                               role="tab" aria-controls="nav-delete" aria-selected="false">Delete AMI</a>
+                        </div>
+                    </nav>
+                    <div class="tab-content" id="nav-tabContent">
+
+                        <div class="tab-pane fade show active" id="nav-add" role="tabpanel"
+                             aria-labelledby="nav-home-tab">
+                            <br>
+                            <div class="card shadow mb-4">
+                                <div class="card-header py-3">
+                                    <h6 class="m-0 font-weight-bold text-primary">Register a new Amazon Machine Image (AMI)</h6>
+                                </div>
+                                <div class="card-body">
+                                    <form action="/admin/ami_management/create" method="post">
+                                        <div class="form-group">
+                                            <label for="ami_id" data-toggle="tooltip" data-placement="top" title="Unique ID of your Amazon image. Must be a valid image, start with ami- and between 8 to 21 chars">AMI ID</label>
+                                            <input id="ami_id" placeholder="Image ID (start with ami-xxx)" class="form-control"
+                                                   type="text"
+                                                   required name="ami_id" minlength="8" maxlength="21">
+                                        </div>
+
+                                        <div class="form-group">
+                                            <label for="os" data-toggle="tooltip" data-placement="top" title="Select whether this image is Linux or Windows based" >Operating System</label>
+                                            <select class="form-control" id="os" name="os">
+                                                <option value="windows">Windows</option>
+                                                <option value="rhel7">Linux - RHEL7</option>
+                                                <option value="centos7">Linux - Centos7</option>
+                                                <option value="amazonlinux2">Linux - Amazon Linux 2</option>
+                                            </select>
+                                        </div>
+
+                                         <div class="form-group">
+                                            <label data-toggle="tooltip" data-placement="top" title="The minimum size (in GB) of the root disk for this image. Provisioning an instance with a lower EBS size will throw an error" for="root_size">Root Disk Size (in GB)</label>
+                                            <input type="number" min=0 value=30 id="root_size"
+                                                   class="form-control" type="number"
+                                                   required name="root_size">
+                                        </div>
+
+
+                                        <div class="form-group">
+                                            <label for="ami_label" data-toggle="tooltip" data-placement="top" title="Choose a friendly name for your AMI. Labels must be unique " >AMI Label</label>
+                                            <input id="ami_label" placeholder="Enter friendly AMI Name"
+                                                   class="form-control" type="text"
+                                                   required name="ami_label">
+                                        </div>
+
+                                        <div align="justify">
+                                            <input type="hidden" name="csrf_token"
+                                                   value="{{ csrf_token() }}">
+                                            <button type="submit" class="btn btn-primary btn-lg">Register AMI in SOCA
+                                            </button>
+                                        </div>
+                                    </form>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="tab-pane fade" id="nav-delete" role="tabpanel" aria-labelledby="nav-profile-tab">
+                            <br>
+                            <div class="card shadow mb-4">
+                                <div class="card-header py-3">
+                                    <h6 class="m-0 font-weight-bold text-primary">Delete an AMI</h6>
+                                </div>
+                                <div class="card-body">
+                                    <div class="alert alert-primary" role="alert">
+                                        <strong>Important </strong>
+                                        Deleting AMI from SOCA will not un-register AMI from your AWS account
+                                    </div>
+
+                                    {%  if ami_infos %}
+
+                                        <form action="/admin/ami_management/delete" method="post">
+                                            <div class="form-group">
+                                                <select class="form-control" id="ami_label" name="ami_label">
+                                                    {% for ami_label, ami_id in ami_infos.items() %}
+                                                        <option value="{{ ami_label }}"> {{ ami_label }} ({{ ami_id }})
+                                                        </option>
+                                                    {% endfor %}
+                                                </select>
+                                            </div>
+                                            <div class="form-group form-check">
+                                                <input type="checkbox" class="form-check-input" name="verif" id="verif"
+                                                       required>
+                                                <label class="form-check-label" for="verif">I am sure I want to delete this
+                                                    ami from SOCA</label>
+                                            </div>
+                                            <div align="justify">
+                                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                                <button type="submit" class="btn btn-danger btn-lg">Delete AMI</button>
+                                            </div>
+                                        </form>
+                                        {% else %}
+                                        No custom AMI found. Create one first
+                                        {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                {% endif %}
+                <a class="scroll-to-top rounded" href="#page-top">
+                    <i class="fas fa-angle-up"></i>
+                </a>
+
+                {% include 'common/footer.html' %}
+  <script>
+    $(document).ready(function() {
+        // enable tooltip
+        $(function () {
+            $('[data-toggle="tooltip"]').tooltip()
+        })})
+</script>
+</body>
+</html>

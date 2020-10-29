@@ -5,7 +5,7 @@ import ast
 import re
 import math
 
-logger = logging.getLogger("soca_api")
+logger = logging.getLogger("api")
 
 
 def get_compute_pricing(ec2_instance_type):
@@ -143,9 +143,8 @@ class AwsPrice(Resource):
         sim_cost["scratch_size"] = "%.3f" % ((scratch_size * EBS_GP2_STORAGE_BASELINE * (walltime * 3600) / (86400 * 30)) * nodect)
         sim_cost["root_size"] = "%.3f" % ((root_size * EBS_GP2_STORAGE_BASELINE * (walltime * 3600) / (86400 * 30)) * nodect)
 
-        # Calculate FSx Storage (storage * ebs_price * sim_time_in_secs / (second_in_a_day * 30 days)
+        # Calculate FSx Storage (storage * fsx_price * sim_time_in_secs / (second_in_a_day * 30 days)
         sim_cost["fsx_capacity"] = "%.3f" % (fsx_storage * FSX_STORAGE_BASELINE * (walltime * 3600) / (86400 * 30))
-
         # Calculate Compute
         try:
             sim_cost["compute"] = compute(instance_type, walltime, nodect)

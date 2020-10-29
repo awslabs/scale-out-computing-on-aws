@@ -4,7 +4,7 @@ from flask import render_template, Blueprint, request, redirect, session, flash
 from requests import get, delete
 from decorators import login_required
 
-logger = logging.getLogger("api_log")
+logger = logging.getLogger("application")
 my_api_key = Blueprint('my_api_key', __name__, template_folder='templates')
 
 @my_api_key.route("/my_api_key", methods=["GET"])

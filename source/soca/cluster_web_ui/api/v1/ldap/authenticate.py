@@ -3,7 +3,8 @@ import config
 import ldap
 import errors
 from decorators import private_api
-
+import logging
+logger = logging.getLogger("api")
 
 class Authenticate(Resource):
     @private_api

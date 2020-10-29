@@ -4,7 +4,7 @@ from decorators import login_required
 from flask import Blueprint, render_template
 import read_secretmanager
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("application")
 dashboard = Blueprint('dashboard', __name__, template_folder='templates')
 
 

@@ -7,7 +7,7 @@ import ast
 import string
 import random
 
-logger = logging.getLogger("api_log")
+logger = logging.getLogger("application")
 my_account = Blueprint('my_account', __name__, template_folder='templates')
 
 

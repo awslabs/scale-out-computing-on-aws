@@ -32,10 +32,11 @@ if __name__ == "__main__":
     try:
         from colored import fg, bg, attr
         import boto3
+        from requests import get
         from botocore.client import ClientError
         from botocore.exceptions import ProfileNotFound
     except ImportError:
-        print(" > You must have 'colored' and 'boto3' installed. Run 'pip install boto3 colored'")
+        print(" > You must have 'colored', 'boto3' and 'requests' installed. Run 'pip install boto3 colored requests'")
         exit(1)
 
     parser = argparse.ArgumentParser(description='Build & Upload SOCA CloudFormation resources.')
@@ -73,6 +74,13 @@ if __name__ == "__main__":
         print(e)
         print(" > Building locally but not uploading to S3")
 
+    # Detect Client IP
+    get_client_ip = get("https://ifconfig.co/json")
+    if get_client_ip.status_code == 200:
+        client_ip = get_client_ip.json()['ip'] + '/32'
+    else:
+        client_ip = ''
+
     build_path = os.path.dirname(os.path.realpath(__file__))
     os.chdir(build_path)
     # Make sure build ID is > 3 chars and does not start with a number
@@ -98,6 +106,8 @@ if __name__ == "__main__":
     print(" > Creating archive for build id: " + unique_id)
     make_archive('dist/' + output_prefix, 'gztar', build_folder)
 
+
+
     if s3_bucket_exists:
         print("====== Upload to S3 ======\n")
         print(" > Uploading required files ... ")
@@ -109,7 +119,7 @@ if __name__ == "__main__":
         print("\n====== Upload COMPLETE ======")
         print("\n====== Installation Instructions ======")
         print("1. Click on the following link:")
-        print("%s==> https://console.aws.amazon.com/cloudformation/home?region=%s#/stacks/create/review?&templateURL=%s&param_S3InstallBucket=%s&param_S3InstallFolder=%s%s" % (fg('light_blue'), region, template_url, bucket, output_prefix, attr('reset')))
+        print("%s==> https://console.aws.amazon.com/cloudformation/home?region=%s#/stacks/create/review?&templateURL=%s&param_S3InstallBucket=%s&param_ClientIp=%s&param_S3InstallFolder=%s%s" % (fg('light_blue'), region, template_url, bucket, client_ip, output_prefix, attr('reset')))
         print("2. The 'Install Location' parameters are pre-filled for you, fill out the rest of the parameters.")
     else:
         print("\n====== Installation Instructions ======")

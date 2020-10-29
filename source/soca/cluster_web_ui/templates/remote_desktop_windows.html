@@ -1,0 +1,539 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+
+     {% include 'common/header.html' %}
+
+</head>
+
+<body id="page-top">
+
+  <div id="wrapper">
+    {% include 'common/vertical_menu_bar.html' %}
+    <div id="content-wrapper" class="d-flex flex-column">
+
+      <div id="content">
+          <br>
+          <div class="container-fluid">
+              {% include 'common/horizontal_menu_bar.html' %}
+              {% include 'common/flashed_messages.html' %}
+              <div class="row">
+                  {% for n in range(1,max_number_of_sessions + 1) %}
+                    <div class="col-md-6">
+                          <div class="card shadow mb-4">
+                              {% if n in user_sessions.keys() %}
+                                  {% for session_number, session_data in user_sessions.items() %}
+                                      {% if session_number == n %}
+                                          <!-- Modal terminate -->
+                                              <div class="modal fade" id="terminate{{ n }}" tabindex="-1" role="dialog" aria-labelledby="exampleModalLabel" aria-hidden="true">
+                                                  <div class="modal-dialog modal-lg" role="document">
+                                                      <div class="modal-content">
+                                                          <div class="modal-header">
+                                                              <h5 class="modal-title" id="exampleModalLabel">Terminate session {{ session_data.session_name }}</h5>
+                                                              <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                                                                  <span aria-hidden="true">&times;</span>
+                                                              </button>
+                                                          </div>
+                                                          <div class="modal-body">
+                                                              <form method="get" action="/remote_desktop_windows/delete">
+                                                                  <div class="alert alert-danger">
+                                                                      Terminating a session will delete all content from C: drive<br>
+                                                                      Make sure to have uploaded your data to SOCA first to prevent data loss<br>
+                                                                      {% if terminate_session > 0 %}
+                                                                          Your session will be automatically terminated <strong>after {{ terminate_session }} hours</strong> if you do not restart it. <br>
+                                                                      {% endif %}
+                                                                      <div class="form-group form-check">
+                                                                          <input type="checkbox" class="form-check-input" name="verif" id="verif" required>
+                                                                          <label class="form-check-label" for="verif">I am sure I want to terminate this session</label>
+                                                                      </div>
+                                                                  </div>
+                                                                  <div align="center">
+                                                                      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                                                      <input type="hidden" name="session" value="{{ n }}">
+                                                                      <input type="hidden" name="action" value="terminate">
+                                                                      <button type="submit" class="btn btn-danger btn-icon-split">
+                                                                          <span class="icon text-white-50"><i class="fas fa-trash"></i></span>
+                                                                          <span style="margin-top:5px;margin-right:10px; margin-left:10px">Terminate {{ session_data.session_name }}</span>
+                                                                      </button>
+                                                                  </div>
+                                                              </form>
+                                                          </div>
+                                                      </div>
+                                                  </div>
+                                              </div><!--end  terminate  -->
+
+                                          <div class="card-header py-3">
+                                              <h6 class="m-0 font-weight-bold text-primary"><i data-toggle="tooltip" data-placement="top" title="Troubleshooting: EC2 tag is {{ session_data.tag_uuid }}, instance ID is  {{ session_data.session_instance_id }}" class="fas fa-question-circle"></i> Windows Session #{{ n }}
+                                                  {% if session_data.session_state == 'running' %}
+                                                      <div class="float-right"><button class="btn btn-secondary btn-sm" data-toggle="modal" data-target="#password{{ n }}">Get Password</button>&nbsp;<button class="btn btn-secondary btn-sm" data-toggle="modal" data-target="#schedule{{ n }}">Schedule</button>
+                                                           {% if session_data.support_hibernation == true %}
+                                                                &nbsp;<button class="btn btn-secondary btn-sm" data-toggle="modal" data-target="#hibernate{{ n }}">Hibernate</button>
+                                                            {% else %}
+                                                                &nbsp;<button class="btn btn-secondary btn-sm" data-toggle="modal" data-target="#stop{{ n }}">Stop</button>
+                                                                {% endif %}
+                                                          &nbsp;<button class="btn btn-danger btn-sm" data-toggle="modal" data-target="#terminate{{ n }}">Kill</button>
+                                                      </div>
+                                                  {% elif session_data.session_state == 'stopped' %}
+                                                      <div class="float-right"><button class="btn btn-secondary btn-sm" data-toggle="modal" data-target="#schedule{{ n }}">Schedule</button>&nbsp;<button class="btn btn-secondary btn-sm" data-toggle="modal" data-target="#resize{{ n }}">Change Hardware</button>&nbsp;<button class="btn btn-danger btn-sm" data-toggle="modal" data-target="#terminate{{ n }}">Kill</button></div>
+                                                  {% elif session_data.session_state == 'pending' %}
+                                                      <div class="float-right"><button class="btn btn-danger btn-sm" data-toggle="modal" data-target="#terminate{{ n }}">Kill</button></div>
+                                                  {% endif %}
+                                              </h6>
+                                          </div>
+                                          <div class="card-body">
+                                          <h5 >{{ session_data.session_name }}</h5>
+                                          <hr>
+                                          <!-- Modal schedule -->
+                                              <div class="modal fade" id="schedule{{ n }}" tabindex="-1" role="dialog" aria-labelledby="exampleModalLabel" aria-hidden="true">
+                                                  <div class="modal-dialog modal-lg" role="document">
+                                                      <div class="modal-content">
+                                                          <div class="modal-header">
+                                                              <h5 class="modal-title" id="exampleModalLabel">Schedule for {{ session_data.session_name }} </h5>
+                                                              <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                                                                  <span aria-hidden="true">&times;</span>
+                                                              </button>
+                                                          </div>
+                                                          <div class="modal-body">
+                                                              <div class="alert alert-primary">
+                                                                  Automatically start/stop this session based on schedule<br>
+                                                                  Your session will not be stopped during scheduled hours, even if idle.<br>
+                                                                  Outside of scheduled hours, your session will be terminated only if idle.<br>
+                                                                  The server is using <strong>{{ server_timezone_human }}</strong> timezone. Current time is <strong>{{ server_time }}</strong>
+                                                              </div>
+
+                                                              <div class="container">
+                                                                  {% for day in ["monday","tuesday","wednesday","thursday","friday","saturday","sunday"] %}
+                                                                      <div class="form-inline">
+                                                                          <div class="col-md-8">
+                                                                              <form action="/remote_desktop_windows/schedule" method="POST">
+                                                                                  <strong
+                                                                                          {% if session_data.session_schedule[day] == "0-0" %} style="color: #e02d1b"{% else %} style="color: #16bf9f" {% endif %}>{{ day | capitalize }} </strong> &nbsp;
+                                                                                  <select  class="custom-select"  id="schedule_mode" onchange="manageSchedule('{{ day }}-{{ n }}', this.value)">
+                                                                                      <option value="custom" {% if session_data.session_schedule[day] != "0-0" and  session_data.session_schedule[day] != "0-1440" %}selected{% endif %}>Custom Schedule</option>
+                                                                                      <option value="0-0" {% if session_data.session_schedule[day] == "0-0" %}selected{% endif %}>Stopped all day</option>
+                                                                                      <option value="0-1440" {% if session_data.session_schedule[day] == "0-1440" %}selected{% endif %}>Session runs all day</option>
+                                                                                  </select>
+                                                                          </div>
+                                                                      </div>
+                                                                      <div {% if session_data.session_schedule[day] == "0-0" or session_data.session_schedule[day] == "0-1440" %} style="display: none"{% endif %} id="slider-{{ day }}-{{ n }}"></div>
+                                                                      <input type="hidden" id="schedule-{{ day }}-{{ n }}" name="schedule-{{ day }}-{{ n }}" value="{{ session_data.session_schedule[day] }}">
+
+                                                                      <script>
+                                                                   $(function () {
+                                                                       $("#slider-{{day}}-{{ n }}").slider({
+                                                                           range: true,
+                                                                           min: 0,
+                                                                           max: 1440,
+                                                                           step: 30,
+                                                                           {% if session_data.session_schedule[day] == "0-0" or session_data.session_schedule[day] == "0-1440" %}
+                                                                            values: [450,1200], // ignored as if schedule is set to norun or alldays, but values must exist
+                                                                           {% else %}
+                                                                            values: [{{session_data.session_schedule[day].split("-")[0]}}, {{session_data.session_schedule[day].split("-")[1]}}],
+                                                                           {% endif %}
+                                                                    slide: function(event, ui) {
+                                                                        if ((ui.values[1] - ui.values[0]) < 5) {
+                                                                          return false;
+                                                                        }
+                                                                        var startTime = ui.values[0]
+                                                                        var endTime = ui.values[1]
+                                                                        document.getElementById("schedule-{{ day }}-{{ n }}").value = startTime + "-" + endTime;
+                                                                    },
+                                                                       }).slider("float", {
+                                                                           handle: true,
+                                                                           pips: true,
+                                                                           labels: [
+                                                                               '00', "00:30", "01:00", "01:30",
+                                                                               '02:00', "02:30", "03:00", "03:30",
+                                                                               '04:00', "04:30", "05:00", "05:30",
+                                                                               '06:00', "06:30", "07:00", "07:30",
+                                                                               '08:00', "08:30", "09:00", "09:30",
+                                                                               '10:00', "10:30", "11:00", "11:30",
+                                                                               '12:00', "12:30", "13:00", "13:30",
+                                                                               '14:00', "14:30", "15:00", "15:30",
+                                                                               '16:00', "16:30", "17:00", "17:30",
+                                                                               '18:00', "18:30", "19:00", "19:30",
+                                                                               '20:00', "20:30", "21:00", "21:30",
+                                                                               '22:00', "22:30", "23:00", "23:30",
+                                                                               '24:00']}
+                                                                               ).slider("pips", {
+                                                                           rest: "label",
+                                                                           labels: [,,,,,,"3",,,,,,"6",,,,,,"9",,,,,,"12",,,,,,"15",,,,,,"18",,,,,,"21"]});});
+                                                                      </script>
+                                                                      <br>
+                                                                  {% endfor %}
+                                                              </div>
+                                                          <br>
+
+                                                          <hr>
+
+                                                          <div align="center">
+                                                               <input type="hidden" name="session_number" value="{{ n }}">
+                                                              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+                                                               <button type="submit" class="btn btn-primary btn-icon-split">
+                                                                   <span class="icon text-white-50"><i class="far fa-clock"></i></span>
+                                                                   <span style="margin-top:5px;margin-right:10px; margin-left:10px">Save Schedule</span>
+                                                               </button>
+                                                          </div>
+                                                          </form>
+
+                                                          </div>
+                                                      </div>
+                                                  </div>
+                                              </div>  <!-- schedule -->
+                                          {% if session_data.session_state == 'pending' %}
+                                              <div class="alert alert-warning" role="alert">
+                                                  Please wait, your session is starting and will be ready within 10 minutes. <br>
+                                                  This page will automatically be refreshed when the session is active.
+                                              </div>
+
+                                          {% elif session_data.session_state == 'stopped' %}
+                                              <div class="alert alert-warning" role="alert">
+                                                  Your session is stopped. Data stored on the system is still available and you are not charged for compute time.
+                                              </div>
+                                              <div align="center">
+                                                  <a href="/remote_desktop_windows/restart?session={{ n }}" class="btn btn-success btn-icon-split">
+                                                      <span class="icon text-white-50">
+                                                          <i class="fas fa-check"></i>
+                                                      </span>
+                                                      <span class="text">Restart your session</span>
+                                                  </a>
+                                              </div>
+
+                                              <!-- Modal resize -->
+                                              <div class="modal fade" id="resize{{ n }}" tabindex="-1" role="dialog" aria-labelledby="exampleModalLabel" aria-hidden="true">
+                                                  <div class="modal-dialog modal-lg" role="document">
+                                                      <div class="modal-content">
+                                                          <div class="modal-header">
+                                                              <h5 class="modal-title" id="exampleModalLabel">Resize hardware for {{ session_data.session_name }} </h5>
+                                                              <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                                                                  <span aria-hidden="true">&times;</span>
+                                                              </button>
+                                                          </div>
+                                                          <div class="modal-body">
+                                                               {% if allow_instance_change %}
+                                                                   <div class="alert alert-warning">
+                                                                       You are currently using <strong>{{ session_data.session_instance_type }}</strong> <br>
+                                                                       Changing an instance type does not cause data loss.<br>
+                                                                       Your session will use new hardware as soon as you restart it<br>
+                                                                        <strong>Limitations</strong> <br>
+                                                                        You cannot change hardware if you have enabled Hibernation <br>
+                                                                        It's not recommended to upgrade/downgrade between non-GPUs and GPUs instances due to driver incompatibility
+                                                                   </div>
+                                                                   <br>
+                                                                   <form method="post" action="/remote_desktop_windows/modify">
+                                                                      <div class="form-group row">
+                                                                          <label for="instance_type" class="col-sm-3 col-form-label">Resize Hardware</label>
+                                                                          <div class="col-sm-9">
+                                                                              <select class="form-control" name='instance_type' id="instance_type">
+                                                                                  <option value="" disabled="disabled">-- Quick Launch 2D --</option>
+                                                                                  <option selected="true" value="m5.large">2D - Small (2 vCPUs - 8 GB ram)</option>
+                                                                                  <option value="m5.2xlarge">2D - Medium (8 vCPUs - 32 GB ram)</option>
+                                                                                  <option value="m5.4xlarge">2D - Large (16 vCPUs - 64 GB ram)</option>
+                                                                                  <option value="m5.12xlarge">2D - Extra Large (48 vCPUs - 192 GB ram)</option>
+                                                                                  <option value="m5.24xlarge">2D - XXL Large (96 vCPUs - 384 GB ram)</option>
+                                                                                  <option value="" disabled="disabled">-- Quick Launch 3D --</option>
+                                                                                  <option value="g4dn.xlarge">3D - Small (4 vCPUs - 16 GB ram - 1 T4 GPU)</option>
+                                                                                  <option value="g4dn.4xlarge">3D - Medium (16 vCPUs - 64 GB ram - 1 T4 GPU)</option>
+                                                                                  <option value="g4dn.8xlarge">3D - Large (32 vCPUs - 128 GB ram - 1 T4 GPU)</option>
+                                                                                  <option value="g4dn.16xlarge">3D - Extra Large (64 vCPUs - 256 GB ram - 1 T4 GPU)</option>
+                                                                                  <option value="" disabled="disabled">-- Specific type --</option>
+                                                                                  {%  for instance in all_instances %}
+                                                                                      <option value="{{ instance }}">{{ instance }}</option>
+                                                                                  {% endfor %}
+                                                                              </select>
+                                                                          </div>
+                                                                      </div>
+                                                                      <div align="center">
+                                                                          <hr>
+                                                                          <button type="submit"  class="btn btn-primary btn-icon-split">
+                                                                             <span class="icon text-white-50">
+                                                                                 <i class="fas fa-info-circle"></i>
+                                                                             </span>
+                                                                             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                                                             <input type="hidden" id="session_number" name="session_number" value="{{ n }}">
+                                                                             <span class="text">Change instance type</span>
+                                                                          </button>
+                                                                      </div>
+                                                                  </form>
+                                                               {% else %}
+                                                                   <div class="alert alert-warning">
+                                                                   Your cluster administrator disabled this feature.
+                                                                   </div>
+                                                               {% endif %}
+                                                          </div>
+                                                      </div>
+                                                  </div>
+                                              </div>  <!-- resize -->
+                                              {% if terminate_stopped_session > 0 %}
+                                                   <hr>
+                                                  Your session will be automatically terminated <strong>after {{ terminate_stopped_session }} hours</strong> if you do not restart it.
+                                              {% endif %}
+
+                                          {% elif session_data.session_state == 'running' %}
+                                              <h6>Option1: Browser access</h6>
+                                              <a target="_blank" href="{{ session_data.url }}?authToken={{ session_data.session_authentication_token }}#{{ session_data.session_id }}" class="btn btn-success btn-icon-split">
+                                                  <span class="icon text-white-50">
+                                                      <i class="fas fa-check"></i>
+                                                  </span>
+                                                  <span class="text">Open Session directly on a browser</span>
+                                              </a>
+                                              <br><br>
+                                              <h6>Option2: Use Native Application (best performance)</h6>
+                                              <div class="alert alert-primary" role="alert">
+                                                  Download your client <strong><a href="https://download.nice-dcv.com/" target="_blank"> here</a></strong>
+                                              </div>
+                                              <a target="_blank" href="/remote_desktop_windows/client?session={{ n }}" class="btn btn-success btn-icon-split">
+                                                <span class="icon text-white-50">
+                                                  <i class="fas fa-check"></i>
+                                                </span>
+                                                <span class="text">Download Session File</span>
+                                              </a>
+                                              {% if session_data.support_hibernation == true %}
+                                                  {% if hibernate_idle_session > 0 %}
+                                                      <hr> This session will be automatically hibernated <strong> after {{ hibernate_idle_session }} hours</strong> of idle time if you do not run it on a schedule.
+                                                  {% endif %}
+                                              {% else %}
+                                                {% if stop_idle_session > 0  %}
+                                                    <hr> This session will be automatically stopped <strong> after {{ stop_idle_session }} hours </strong> of idle time if you do not run it on a schedule.
+                                                {% endif %}
+                                              {% endif %}
+
+
+
+                                              <!-- Modal Password -->
+                                              <div class="modal fade" id="password{{ n }}" tabindex="-1" role="dialog" aria-labelledby="exampleModalLabel" aria-hidden="true">
+                                                  <div class="modal-dialog" role="document">
+                                                      <div class="modal-content">
+                                                          <div class="modal-header">
+                                                              <h5 class="modal-title" id="exampleModalLabel">Admin password for session {{ session_data.session_name }}</h5>
+                                                              <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                                                                  <span aria-hidden="true">&times;</span>
+                                                              </button>
+                                                          </div>
+                                                          <div class="modal-body">
+                                                              This password is unique to this session <br>
+                                                              <strong>Username:</strong> Administrator <br>
+                                                              <strong>Session Password:</strong> {{ session_data.session_local_admin_password }}<br>
+                                                              <hr>
+                                                              For your convenience, we also added this credential on your Desktop via <code>admin_password.txt</code>
+                                                          </div>
+                                                      </div>
+                                                  </div>
+                                              </div> <!--end  password -->
+
+                                              <!-- Modal Hibernation -->
+                                              <div class="modal fade" id="hibernate{{ n }}" tabindex="-1" role="dialog" aria-labelledby="exampleModalLabel" aria-hidden="true">
+                                                  <div class="modal-dialog modal-lg" role="document">
+                                                      <div class="modal-content">
+                                                          <div class="modal-header">
+                                                              <h5 class="modal-title" id="exampleModalLabel">Hibernate session {{ session_data.session_name }} <small><a href="https://docs.aws.amazon.com/AWSEC2/latest/WindowsGuide/Hibernate.html" target="_blank"> Documentation</a> </small></h5>
+                                                              <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                                                                  <span aria-hidden="true">&times;</span>
+                                                              </button>
+                                                          </div>
+                                                          <div class="modal-body">
+                                                              {% if session_data.support_hibernation %}
+                                                                  <div class="alert alert-warning" >
+                                                                      Hibernation will not cause any data loss<br>
+                                                                      You won't be charged for the compute time while your session is stopped<br>
+                                                                      Applications are loaded in memory and will restart automatically
+                                                                      {% if hibernate_idle_session > 0 %}
+                                                                          <br> Your session will be automatically hibernated <strong>after {{ hibernate_idle_session }} hours</strong> of idle time if you do not run it on a schedule.
+                                                                      {% endif %}
+                                                                  </div>
+                                                                  <div align="center">
+                                                                      <form method="get" action="/remote_desktop_windows/delete">
+                                                                          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                                                          <input type="hidden" name="action" value="hibernate">
+                                                                          <input type="hidden" name="session" value="{{ n }}">
+                                                                          <button type="submit" class="btn btn-danger btn-icon-split">
+                                                                              <span class="icon text-white-50"><i class="fas fa-bed"></i></span>
+                                                                              <span style="margin-top:5px;margin-right:10px; margin-left:10px">Hibernate {{ session_data.session_name }}</span>
+                                                                          </button>
+                                                                      </form>
+                                                                  </div>
+                                                              {% else %}
+                                                                  <div class="alert alert-warning">
+                                                                      Hibernation is not supported for this instance type. Use "Stop" instead.
+                                                                  </div>
+                                                              {% endif %}
+                                                          </div>
+                                                      </div>
+                                                  </div>
+                                              </div> <!--end  hibernate -->
+
+                                              <!-- Modal stop -->
+                                              <div class="modal fade" id="stop{{ n }}" tabindex="-1" role="dialog" aria-labelledby="exampleModalLabel" aria-hidden="true">
+                                                  <div class="modal-dialog modal-lg" role="document">
+                                                      <div class="modal-content">
+                                                          <div class="modal-header">
+                                                              <h5 class="modal-title" id="exampleModalLabel">Stop session {{ session_data.session_name }}</h5>
+                                                              <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                                                                  <span aria-hidden="true">&times;</span>
+                                                              </button>
+                                                          </div>
+                                                          <div class="modal-body">
+                                                              <div class="alert alert-warning">
+                                                                  Stopping an instance will not cause any data loss<br>
+                                                                  You won't be charged for the compute time while your session is stopped<br>
+                                                                  Any running application will be stopped (use "Hibernate" to preserve state when possible)
+                                                              </div>
+                                                              <div align="center">
+                                                                  <form method="get" action="/remote_desktop_windows/delete">
+                                                                      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                                                      <input type="hidden" name="action" value="stop">
+                                                                      <input type="hidden" name="session" value="{{ n }}">
+                                                                      <button type="submit" class="btn btn-danger btn-icon-split">
+                                                                          <span class="icon text-white-50"><i class="fas fa-bed"></i></span>
+                                                                          <span style="margin-top:5px;margin-right:10px; margin-left:10px">Stop {{ session_data.session_name }}</span>
+                                                                      </button>
+                                                                  </form>
+                                                              </div>
+                                                          </div>
+                                                      </div>
+                                                  </div>
+                                              </div> <!--end  stop  -->
+                                          {% endif %}
+                                      {% endif %}
+                                  {% endfor %}
+                              {% else %}
+                                  <div class="card-header py-3">
+                                      <h6 class="m-0 font-weight-bold text-primary">Windows Session #{{ n }}</h6>
+                                  </div>
+                                  <div class="card-body">
+                                  <form method="post" action="/remote_desktop_windows/create">
+                                      <div class="form-group row">
+                                        <label for="walltime" data-toggle="tooltip" data-placement="top" title="Pick a simple name to identify your graphical session" class="col-sm-4 col-form-label">Session Name</label>
+                                        <div class="col-sm-8">
+                                            <input id="session_name" class="form-control"  placeholder="Desktop{{ n }}" type="text"  name="session_name" maxlength="255">
+                                        </div>
+                                      </div>
+                                      <div class="form-group row">
+                                          <label for="disk_size" data-toggle="tooltip" data-placement="top" title="Select the size (in GB) of your main SSD disk used for C:\ partition." class="col-sm-4 col-form-label">Storage Size</label>
+                                          <div class="col-sm-8">
+                                            <input id="disk_size" value="30" min="30" class="form-control" type="number" name="disk_size">
+                                          </div>
+                                      </div>
+                                      <div class="form-group row">
+                                          <label for="instance_ami" data-toggle="tooltip" data-placement="top" title="Specify an image with pre-installed applications" class="col-sm-4 col-form-label">Software Stack</label>
+                                          <div class="col-sm-8">
+                                              <select class="form-control" name='instance_ami' id="instance_ami">
+                                                  <option selected value="base">Base (No Software)</option>
+                                                  {% for ami_label, ami_id in ami_list.items() %}
+                                                      <option value="{{ ami_id }}">{{ ami_label }} ({{ ami_id }})</option>
+                                                  {% endfor %}
+
+                                              </select>
+                                          </div>
+                                      </div>
+                                      <div class="form-group row">
+                                          <label for="instance_type" data-toggle="tooltip" data-placement="top" title="2D session does not support GPU acceleration. This type of session is good for non-intensive compute activities. 3D session provides full GPU support. This is recommended for graphic intensive operations such as 3D model rendering or post-processing." class="col-sm-4 col-form-label">Session Type</label>
+                                          <div class="col-sm-8">
+                                              <select class="form-control" name='instance_type' id="instance_type">
+                                                  <option value="" disabled="disabled">-- Quick Launch 2D --</option>
+                                                  <option selected="true" value="m5.large">2D - Small (2 vCPUs - 8 GB ram)</option>
+                                                  <option value="m5.2xlarge">2D - Medium (8 vCPUs - 32 GB ram)</option>
+                                                  <option value="m5.4xlarge">2D - Large (16 vCPUs - 64 GB ram)</option>
+                                                  <option value="m5.12xlarge">2D - Extra Large (48 vCPUs - 192 GB ram)</option>
+                                                  <option value="m5.24xlarge">2D - XXL Large (96 vCPUs - 384 GB ram)</option>
+                                                  <option value="" disabled="disabled">-- Quick Launch 3D --</option>
+                                                  <option value="g4dn.xlarge">3D - Small (4 vCPUs - 16 GB ram - 1 T4 GPU)</option>
+                                                  <option value="g4dn.4xlarge">3D - Medium (16 vCPUs - 64 GB ram - 1 T4 GPU)</option>
+                                                  <option value="g4dn.8xlarge">3D - Large (32 vCPUs - 128 GB ram - 1 T4 GPU)</option>
+                                                  <option value="g4dn.16xlarge">3D - Extra Large (64 vCPUs - 256 GB ram - 1 T4 GPU)</option>
+                                                  <option value="" disabled="disabled">-- Specific type --</option>
+                                                  {%  for instance in all_instances %}
+                                                      <option value="{{ instance }}">{{ instance }}</option>
+                                                  {% endfor %}
+                                              </select>
+                                          </div>
+                                      </div>
+                                      <div class="form-group row">
+                                          <label data-toggle="tooltip" data-placement="top" title="Hibernation saves effort in setting up the environment or applications all over again, and saves time by reducing the long startup time taken by applications. Using hibernate, you can maintain a fleet of pre-warmed instances that can get to a productive state faster without modifying your existing applications." for="hibernate" class="col-sm-4 col-form-label">Enable Hibernation</label>
+                                          <div class="col-sm-8">
+                                              <select class="form-control" name='hibernate' id="hibernate">
+                                                  <option selected value="false">No</option>
+                                                  <option value="true">Yes</option>
+                                              </select>
+                                          </div>
+                                      </div>
+
+                                    <div class="form-group row">
+                                          <label for="extra" class="col-sm-4 col-form-label">Optional</label>
+                                          <div class="col-sm-8">
+                                             <button class="btn btn-info btn-sm" type="button" data-toggle="collapse" data-target="#advancedOptions{{ n }}" aria-expanded="false">
+                                                 View Advanced Options
+                                            </button>
+                                          </div>
+                                      </div>
+
+                                      <div class="collapse" id="advancedOptions{{ n }}">
+                                          <br>
+                                          <div>
+                                               <div class="form-group">
+                                                   <input id="subnet_id" placeholder="VPC Subnet" class="form-control" type="text"  name="subnet_id">
+                                                   <small id="subnet_id" class="form-text text-muted">Launch your capacity in a specific subnet</small>
+                                               </div>
+                                          </div>
+                                          <br>
+                                      </div>
+
+                                     <div align="center">
+                                         <hr>
+                                         <button type="submit"  class="btn btn-primary btn-icon-split">
+                                             <span class="icon text-white-50">
+                                                 <i class="fas fa-info-circle"></i>
+                                             </span>
+                                             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                             <input type="hidden" id="session_number" name="session_number" value="{{ n }}">
+                                             <span class="text">Launch my Session #{{ n }}</span>
+                                         </button>
+                                     </div>
+                                  </form>
+                              {% endif %}
+                              </div>
+
+
+                          </div> <!-- card -->
+                          </div> <!-- col md 6 -->
+                {% endfor %}
+
+              </div>
+          </div>
+      </div>
+
+  </div>
+
+  <a class="scroll-to-top rounded" href="#page-top">
+    <i class="fas fa-angle-up"></i>
+  </a>
+    <script>
+    $(document).ready(function() {
+        // enable tooltip
+        $(function () {
+            $('[data-toggle="tooltip"]').tooltip()
+        })})
+
+    function manageSchedule(scheduleId, mode){
+        if (mode === "custom")
+        {
+            $("#slider-"+scheduleId).css('display', 'block');
+            var startValue = $("#slider-"+scheduleId).slider("values")[0]
+            var endValue =  $("#slider-"+scheduleId).slider("values")[1]
+            $("#slider-"+scheduleId).slider('values',0, startValue);
+            $("#slider-"+scheduleId).slider('values',1, endValue);
+            $("#schedule-"+scheduleId).val(startValue + "-" +endValue);
+        }
+        else
+        {
+             $("#slider-"+scheduleId).css('display', 'none');
+             $("#schedule-"+scheduleId).val(mode);
+        }
+    }
+    </script>
+    {% include 'common/footer.html' %}
+
+</body>
+</html>

@@ -13,7 +13,7 @@ from flask import session
 import ldap.modlist as modlist
 from datetime import datetime
 import errors
-logger = logging.getLogger("soca_api")
+logger = logging.getLogger("api")
 
 
 class Reset(Resource):

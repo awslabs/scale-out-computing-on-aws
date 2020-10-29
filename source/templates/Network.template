@@ -4,9 +4,13 @@ Parameters:
   VpcCidr:
     Type: String
     Default: 10.0.0.0/16
-    Description: VPC CIDR (/16)  Block (eg 10.0.0.0/16)
-    AllowedPattern: '((\d{1,3})\.){3}\d{1,3}/16'
+    Description: VPC CIDR block (eg 10.0.0.0/16 down to 10.0.0.0/24)
+    AllowedPattern: '((\d{1,3})\.){3}\d{1,3}/(1[6-9]|2[0-4])'
   ClusterId:
+    Type: String
+  PublicSubnetMaskBits:
+    Type: String
+  PrivateSubnetMaskBits:
     Type: String
 
 Resources:
@@ -31,7 +35,7 @@ Resources:
   PublicSubnet1:
     Type: AWS::EC2::Subnet
     Properties:
-      CidrBlock: !Select [ 0, !Cidr [ !GetAtt Vpc.CidrBlock, 6, 13]]
+      CidrBlock: !Select [ 0, !Cidr [ !GetAtt Vpc.CidrBlock, 4, !Ref PublicSubnetMaskBits ]]
       AvailabilityZone: !Select
         - 0
         - !GetAZs
@@ -46,7 +50,7 @@ Resources:
   PublicSubnet2:
     Type: AWS::EC2::Subnet
     Properties:
-      CidrBlock: !Select [ 1, !Cidr [ !GetAtt Vpc.CidrBlock, 6, 13 ]]
+      CidrBlock: !Select [ 1, !Cidr [ !GetAtt Vpc.CidrBlock, 4, !Ref PublicSubnetMaskBits ]]
       AvailabilityZone: !Select
         - 1
         - !GetAZs
@@ -61,7 +65,7 @@ Resources:
   PublicSubnet3:
     Type: AWS::EC2::Subnet
     Properties:
-      CidrBlock: !Select [ 2, !Cidr [ !GetAtt Vpc.CidrBlock, 6, 13 ]]
+      CidrBlock: !Select [ 2, !Cidr [ !GetAtt Vpc.CidrBlock, 4, !Ref PublicSubnetMaskBits ]]
       AvailabilityZone: !Select
         - 2
         - !GetAZs
@@ -73,11 +77,10 @@ Resources:
         - Key: soca:ClusterId
           Value: !Ref ClusterId
 
-
   PrivateSubnet1:
     Type: AWS::EC2::Subnet
     Properties:
-      CidrBlock: !Select [ 3, !Cidr [ !GetAtt Vpc.CidrBlock, 6 , 13 ]]
+      CidrBlock: !Select [ 1, !Cidr [ !GetAtt Vpc.CidrBlock, 4, !Ref PrivateSubnetMaskBits ]]
       AvailabilityZone: !Select
         - 0
         - !GetAZs
@@ -92,7 +95,7 @@ Resources:
   PrivateSubnet2:
     Type: AWS::EC2::Subnet
     Properties:
-      CidrBlock: !Select [ 4, !Cidr [ !GetAtt Vpc.CidrBlock, 6, 13 ]]
+      CidrBlock: !Select [ 2, !Cidr [ !GetAtt Vpc.CidrBlock, 4, !Ref PrivateSubnetMaskBits ]]
       AvailabilityZone: !Select
         - 1
         - !GetAZs
@@ -107,7 +110,7 @@ Resources:
   PrivateSubnet3:
     Type: AWS::EC2::Subnet
     Properties:
-      CidrBlock: !Select [ 5, !Cidr [ !GetAtt Vpc.CidrBlock, 6 , 13 ]]
+      CidrBlock: !Select [ 3, !Cidr [ !GetAtt Vpc.CidrBlock, 4, !Ref PrivateSubnetMaskBits ]]
       AvailabilityZone: !Select
         - 2
         - !GetAZs
@@ -124,6 +127,17 @@ Resources:
     Type: AWS::EC2::EIP
     Properties:
       Domain: vpc
+
+  EIPScheduler:
+    Type: AWS::EC2::EIP
+    Properties:
+      Domain: vpc
+      Tags:
+        - Key: Name
+          Value: !Ref ClusterId
+        - Key: soca:ClusterId
+          Value: !Ref ClusterId
+
 
   NatGateway:
     DependsOn: EIPNat
@@ -228,7 +242,6 @@ Resources:
       SubnetId: !Ref PrivateSubnet3
       RouteTableId: !Ref PrivateRouteTable
 
-
 Outputs:
   VpcId:
     Value: !Ref Vpc
@@ -246,3 +259,7 @@ Outputs:
     Value: !Ref PrivateSubnet3
   EIPNat:
     Value: !Ref EIPNat
+  SchedulerPublicIP:
+    Value: !Ref EIPScheduler
+  SchedulerPublicIPAllocation:
+    Value: !GetAtt EIPScheduler.AllocationId

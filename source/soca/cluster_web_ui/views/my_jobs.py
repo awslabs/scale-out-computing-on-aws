@@ -4,7 +4,7 @@ from flask import render_template, Blueprint, request, redirect, session, flash
 from requests import get, delete
 from decorators import login_required
 
-logger = logging.getLogger("api_log")
+logger = logging.getLogger("application")
 my_jobs = Blueprint('my_jobs', __name__, template_folder='templates')
 
 

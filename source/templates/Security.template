@@ -7,6 +7,12 @@ Parameters:
   ClientIp:
     Type: String
 
+  SchedulerPublicIP:
+    Type: String
+
+  EIPNat:
+    Type: String
+
   ClusterId:
     Type: String
 
@@ -91,6 +97,26 @@ Resources:
       CidrIp: !Ref ClientIp
       GroupId: !GetAtt SchedulerSecurityGroup.GroupId
       Description: "Allow HTTPS traffic from client IP to ELB"
+
+  SchedulerInboundRuleAllowSchedulerIPHTTPS:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      IpProtocol: tcp
+      FromPort: 443
+      ToPort: 443
+      CidrIp: !Join [ "", [ !Ref SchedulerPublicIP, "/32" ] ]
+      GroupId: !GetAtt SchedulerSecurityGroup.GroupId
+      Description: "Allow HTTPS traffic from Scheduler IP to ELB to validate DCV sessions"
+
+  SchedulerInboundRuleAllowNATIPHTTPS:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      IpProtocol: tcp
+      FromPort: 443
+      ToPort: 443
+      CidrIp: !Join [ "", [ !Ref EIPNat, "/32" ] ]
+      GroupId: !GetAtt SchedulerSecurityGroup.GroupId
+      Description: "Allow HTTPS traffic from Compute Nodes NAT IP to ELB"
 
   SchedulerInboundRuleAllowClientIPHTTP:
     Type: AWS::EC2::SecurityGroupIngress
@@ -275,7 +301,7 @@ Resources:
                   - !Sub "arn:${AWS::Partition}:ec2:*:${AWS::AccountId}:instance/*"
                 Condition:
                   "ForAllValues:ArnEqualsIfExists":
-                      "ec2:Vpc": !Sub "arn:${AWS::Partition}:ec2:${AWS::Region}:${AWS::AccountId}:vpc/${VpcId}"
+                      "ec2:Vpc": !Sub "arn:${AWS::Partition}:ec2:${AWS::Region}:*:vpc/${VpcId}"
               - Effect: Allow
                 Action:
                   - iam:PassRole
@@ -324,6 +350,7 @@ Resources:
                   - ec2:DescribeImages
                   - ec2:DescribeInstanceAttribute
                   - ec2:DescribeInstanceTypes
+                  - ec2:DescribeInstanceStatus
                   - ec2:DescribeReservedInstances
                   - ec2:DescribeSpotInstanceRequests
                   - ec2:DescribeVpcClassicLink
@@ -344,6 +371,16 @@ Resources:
                   - elasticloadbalancing:DescribeTargetGroups
                   - savingsplans:DescribeSavingsPlans
                   - servicequotas:ListServiceQuotas
+                  - ssm:ListDocuments
+                  - ssm:ListDocumentVersions
+                  - ssm:DescribeDocument
+                  - ssm:GetDocument
+                  - ssm:DescribeInstanceInformation
+                  - ssm:DescribeDocumentParameters
+                  - ssm:DescribeInstanceProperties
+                  - ssm:ListCommands
+                  - ssm:GetCommandInvocation
+                  - ssm:DescribeAutomationExecutions
                 Resource: "*"
 
         - PolicyName: SchedulerWritePermissions
@@ -385,11 +422,14 @@ Resources:
               - Effect: Allow
                 Action:
                   - ec2:RunInstances
+                  - ec2:StopInstances
+                  - ec2:StartInstances
                   - ec2:TerminateInstances
                   - ec2:CreatePlacementGroup
                   - ec2:DeletePlacementGroup
+                  - ec2:ModifyInstanceAttribute
                 Resource:
-                  - !Sub "arn:${AWS::Partition}:ec2:*:${AWS::AccountId}:subnet/*"
+                  - !Sub "arn:${AWS::Partition}:ec2:*:*:subnet/*"
                   - !Sub "arn:${AWS::Partition}:ec2:*:${AWS::AccountId}:key-pair/*"
                   - !Sub "arn:${AWS::Partition}:ec2:*:${AWS::AccountId}:instance/*"
                   - !Sub "arn:${AWS::Partition}:ec2:*::snapshot/*"
@@ -401,7 +441,28 @@ Resources:
                   - !Sub "arn:${AWS::Partition}:ec2:*::image/*"
                 Condition:
                   "ForAllValues:ArnEqualsIfExists":
-                      "ec2:Vpc": !Sub "arn:${AWS::Partition}:ec2:${AWS::Region}:${AWS::AccountId}:vpc/${VpcId}"
+                      "ec2:Vpc": !Sub "arn:${AWS::Partition}:ec2:${AWS::Region}:*:vpc/${VpcId}"
+
+              - Effect: Allow
+                Action:
+                  - ssm:SendCommand
+                Resource:
+                  - !Sub "arn:${AWS::Partition}:ec2:${AWS::Region}:${AWS::AccountId}:instance/*"
+                  - !Sub "arn:${AWS::Partition}:ssm:${AWS::Region}::document/AWS-RunPowerShellScript"
+                  - !Sub "arn:${AWS::Partition}:ssm:${AWS::Region}::document/AWS-RunShellScript"
+
+              - Effect: Allow
+                Action:
+                  - ssm:StartAutomationExecution
+                Resource:
+                  - !Join [ "", [ "arn:", !Ref "AWS::Partition", ":ssm:", ":::automation-definition/"] ]
+
+              - Effect: Allow
+                Action:
+                  - ssm:StopAutomationExecution
+                  - ssm:GetAutomationExecution
+                Resource:
+                  - !Join [ "", [ "arn:", !Ref "AWS::Partition", ":ssm:", ":::automation-execution/"] ]
 
               - Effect: Allow
                 Action:
@@ -433,6 +494,7 @@ Resources:
                   - !Join [ "", [ "arn:", !Ref "AWS::Partition", ":iam::", !Ref "AWS::AccountId", ":", "role/aws-service-role/s3.data-source.lustre.fsx.amazonaws.com/*"] ]
                   - !Join [ "", [ "arn:", !Ref "AWS::Partition", ":iam::", !Ref "AWS::AccountId", ":", "role/aws-service-role/autoscaling.amazonaws.com/*"] ]
                   - !Join [ "", [ "arn:", !Ref "AWS::Partition", ":iam::", !Ref "AWS::AccountId", ":", "role/aws-service-role/spotfleet.amazonaws.com/*"] ]
+                  - !Join [ "", [ "arn:", !Ref "AWS::Partition", ":iam::", !Ref "AWS::AccountId", ":", "role/aws-service-role/fsx.amazonaws.com/*"] ]
 
               - Effect: Allow
                 Action:
@@ -450,7 +512,7 @@ Resources:
                 Resource: "*"
                 Condition:
                   "ForAllValues:ArnEqualsIfExists":
-                      "ec2:Vpc": !Sub "arn:${AWS::Partition}:ec2:${AWS::Region}:${AWS::AccountId}:vpc/${VpcId}"
+                      "ec2:Vpc": !Sub "arn:${AWS::Partition}:ec2:${AWS::Region}:*:vpc/${VpcId}"
 
               - Effect: Allow
                 Action:
@@ -470,7 +532,7 @@ Resources:
                   - !GetAtt SpotFleetIAMRole.Arn
                 Condition:
                   "ForAllValues:ArnEqualsIfExists":
-                      "ec2:Vpc": !Sub "arn:${AWS::Partition}:ec2:${AWS::Region}:${AWS::AccountId}:vpc/${VpcId}"
+                      "ec2:Vpc": !Sub "arn:${AWS::Partition}:ec2:${AWS::Region}:*:vpc/${VpcId}"
 
 
   SchedulerIAMInstanceProfile:

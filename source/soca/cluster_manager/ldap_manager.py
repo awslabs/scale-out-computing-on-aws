@@ -227,21 +227,28 @@ if __name__ == "__main__":
 
         # Get next available group/user ID
         ldap_ids = find_ids()
-        gid = ldap_ids['next_gid']
-        uid = ldap_ids['next_uid']
+        if arg.gid is None:
+            gid = ldap_ids['next_gid']
+        else:
+            gid = int(arg.gid)
+
+        if arg.uid is None:
+            uid = ldap_ids['next_uid']
+        else:
+            uid = int(arg.uid)
 
         add_user = create_user(str(arg.username), str(arg.password), arg.admin, email, uid, gid)
         if add_user is True:
             print('Created User: ' + str(arg.username) + ' id: ' + str(uid))
         else:
-            print('Unable to create user:' + add_user)
+            print('Unable to create user:' + str(arg.username))
             sys.exit(1)
 
         add_group = create_group(str(arg.username), gid)
         if add_group is True:
             print('Created group successfully')
         else:
-            print('Unable to create group:' + add_group)
+            print('Unable to create group:' + str(arg.username))
             sys.exit(1)
 
         add_home = create_home(str(arg.username))

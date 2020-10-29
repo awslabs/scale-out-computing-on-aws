@@ -5,7 +5,7 @@ import logging
 from decorators import admin_api, private_api
 from errors import all_errors
 
-logger = logging.getLogger("soca_api")
+logger = logging.getLogger("api")
 
 
 class Users(Resource):

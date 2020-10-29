@@ -2,39 +2,19 @@
 
 source /etc/environment
 source /root/config.cfg
+export PATH=$PATH:/usr/local/bin
 AWS=$(which aws)
 REQUIRE_REBOOT=0
 echo "SOCA > BEGIN PostReboot setup"
 
+# Make sure system is clean and PBS is stopped
 # In case AMI already have PBS installed, force it to stop
 service pbs stop
-
-# Make sure system is clean and PBS is stopped
-crontab -r
 systemctl stop pbs
-
-# Install latest NVIDIA driver if GPU instance is detected
-INSTANCE_TYPE=`curl --silent  http://169.254.169.254/latest/meta-data/instance-type | cut -d. -f1`
-GPU_INSTANCE_FAMILY=(g2 g3 g4 g4dn p2 p3 p3dn)
-G4_GPUS=(g4 g4dn) #G4 instance use a different driver
-
-if [[ "${GPU_INSTANCE_FAMILY[@]}" =~ "${INSTANCE_TYPE}" ]];
-then
-    if [[ "${G4_GPUS[@]}" =~ "${INSTANCE_TYPE}" ]];
-    then
-      echo "Detected G4 instance .. installing NVIDIA Drivers"
-      $AWS s3 cp --recursive s3://ec2-linux-nvidia-drivers/g4/latest/ .
-    else
-      echo "Detected GPU instance .. installing NVIDIA driver"
-      $AWS s3 cp --recursive s3://ec2-linux-nvidia-drivers/latest/ .
-    fi
-    /bin/sh /root/NVIDIA-Linux-x86_64*.run -q -a -n -X -s
-    NVIDIAXCONFIG=$(which nvidia-xconfig)
-    $NVIDIAXCONFIG --preserve-busid --enable-all-gpus
-fi
+crontab -r
 
 # Begin DCV Customization
-if [[ "$SOCA_JOB_QUEUE" == "desktop" ]]; then
+if [[ "$SOCA_JOB_TYPE" == "dcv" ]]; then
     echo "Installing DCV"
     /bin/bash /apps/soca/$SOCA_CONFIGURATION/cluster_node_bootstrap/ComputeNodeInstallDCV.sh >> $SOCA_HOST_SYSTEM_LOG/ComputeNodeInstallDCV.log 2>&1
     if [[ $? -eq 3 ]];
@@ -110,31 +90,59 @@ if [[ "$SOCA_FSX_LUSTRE_BUCKET" != 'false' ]] || [[ "$SOCA_FSX_LUSTRE_DNS" != 'f
         echo "$SOCA_FSX_LUSTRE_DNS@tcp:/$GET_FSX_MOUNT_NAME $FSX_MOUNTPOINT lustre defaults,noatime,flock,_netdev 0 0" >> /etc/fstab
     fi
 
-    # Install Clients
+    # Install FSx for Lustre Client
     if [[ "$SOCA_BASE_OS" == "amazonlinux2" ]]; then
         sudo amazon-linux-extras install -y lustre2.10
     else
-        sudo yum -y install https://downloads.whamcloud.com/public/lustre/lustre-2.10.6/el7/client/RPMS/x86_64/kmod-lustre-client-2.10.6-1.el7.x86_64.rpm
-        sudo yum -y install https://downloads.whamcloud.com/public/lustre/lustre-2.10.6/el7/client/RPMS/x86_64/lustre-client-2.10.6-1.el7.x86_64.rpm
-        # Lustre Client 2.10 does not support newer Centos7/RHEL7 kernels so we need do downgrade kernel version to 3.10.0-957
-        # Lustre Client 2.12 does support newer kernels but can't get to work with FSx
-        KERNEL_COUNT=0
-        awk -F\' '/menuentry / {print $2}' /boot/grub2/grub.cfg  > /root/kernel_list
-        while read kernel; do
-            if [[ $kernel == *"3.10.0-957"* ]]; then
-              grub2-reboot $KERNEL_COUNT
-              REQUIRE_REBOOT=1
-           fi
-           ((KERNEL_COUNT++))
-        done < /root/kernel_list
+        kernel=$(uname -r)
+        machine=$(uname -m)
+        echo "Found kernel version: ${kernel} running on: ${machine}"
+        if [[ $kernel == *"3.10.0-957"*$machine ]]; then
+            yum -y install https://downloads.whamcloud.com/public/lustre/lustre-2.10.8/el7/client/RPMS/x86_64/kmod-lustre-client-2.10.8-1.el7.x86_64.rpm
+            yum -y install https://downloads.whamcloud.com/public/lustre/lustre-2.10.8/el7/client/RPMS/x86_64/lustre-client-2.10.8-1.el7.x86_64.rpm
+            REQUIRE_REBOOT=1
+        elif [[ $kernel == *"3.10.0-1062"*$machine ]]; then
+            wget https://fsx-lustre-client-repo-public-keys.s3.amazonaws.com/fsx-rpm-public-key.asc -O /tmp/fsx-rpm-public-key.asc
+            rpm --import /tmp/fsx-rpm-public-key.asc
+            wget https://fsx-lustre-client-repo.s3.amazonaws.com/el/7/fsx-lustre-client.repo -O /etc/yum.repos.d/aws-fsx.repo
+            sed -i 's#7#7.7#' /etc/yum.repos.d/aws-fsx.repo
+            yum clean all
+            yum install -y kmod-lustre-client lustre-client
+            REQUIRE_REBOOT=1
+        elif [[ $kernel == *"3.10.0-1127"*$machine ]]; then
+            wget https://fsx-lustre-client-repo-public-keys.s3.amazonaws.com/fsx-rpm-public-key.asc -O /tmp/fsx-rpm-public-key.asc
+            rpm --import /tmp/fsx-rpm-public-key.asc
+            wget https://fsx-lustre-client-repo.s3.amazonaws.com/el/7/fsx-lustre-client.repo -O /etc/yum.repos.d/aws-fsx.repo
+            sed -i 's#7#7.8#' /etc/yum.repos.d/aws-fsx.repo
+            yum clean all
+            yum install -y kmod-lustre-client lustre-client
+            REQUIRE_REBOOT=1
+        elif [[ $kernel == *"3.10.0-1160"*$machine ]]; then
+            wget https://fsx-lustre-client-repo-public-keys.s3.amazonaws.com/fsx-rpm-public-key.asc -O /tmp/fsx-rpm-public-key.asc
+            rpm --import /tmp/fsx-rpm-public-key.asc
+            wget https://fsx-lustre-client-repo.s3.amazonaws.com/el/7/fsx-lustre-client.repo -O /etc/yum.repos.d/aws-fsx.repo
+            yum clean all
+            yum install -y kmod-lustre-client lustre-client
+            REQUIRE_REBOOT=1
+        elif [[ $kernel == *"4.18.0-193"*$machine ]]; then
+            # FSX for Lustre on aarch64 is supported only on 4.18.0-193
+            wget https://fsx-lustre-client-repo-public-keys.s3.amazonaws.com/fsx-rpm-public-key.asc -O /tmp/fsx-rpm-public-key.asc
+            rpm --import /tmp/fsx-rpm-public-key.asc
+            wget https://fsx-lustre-client-repo.s3.amazonaws.com/centos/7/fsx-lustre-client.repo -O /etc/yum.repos.d/aws-fsx.repo
+            yum clean all
+            yum install -y kmod-lustre-client lustre-client
+            REQUIRE_REBOOT=1
+        else
+            echo "ERROR: Can't install FSx for Lustre client as kernel version: ${kernel} isn't matching expected versions: (x86_64: 3.10.0-957, -1062, -1127, -1160, aarch64: 4.18.0-193)!"
+        fi
     fi
 
 fi
 
 # Tag EBS disks manually as CFN ASG does not support it
-AWS_AVAIL_ZONE=$(curl http://169.254.169.254/latest/meta-data/placement/availability-zone)
+AWS_AVAIL_ZONE=$(curl --silent http://169.254.169.254/latest/meta-data/placement/availability-zone)
 AWS_REGION="`echo "$AWS_AVAIL_ZONE" | sed "s/[a-z]$//"`"
-AWS_INSTANCE_ID=$(curl http://169.254.169.254/latest/meta-data/instance-id)
+AWS_INSTANCE_ID=$(curl --silent http://169.254.169.254/latest/meta-data/instance-id)
 EBS_IDS=$(aws ec2 describe-volumes --filters Name=attachment.instance-id,Values="$AWS_INSTANCE_ID" --region $AWS_REGION --query "Volumes[*].[VolumeId]" --out text | tr "\n" " ")
 LOOP_EBS_TAG=0
 $AWS ec2 create-tags --resources $EBS_IDS --region $AWS_REGION --tags Key=Name,Value="EBS for $SOCA_JOB_ID" Key=soca:JobOwner,Value="$SOCA_JOB_OWNER" Key=soca:JobProject,Value="$SOCA_JOB_PROJECT" Key=Name,Value="soca-job-$SOCA_JOB_ID"  Key=soca:JobId,Value="$SOCA_JOB_ID" Key=soca:JobQueue,Value="$SOCA_JOB_QUEUE" Key=soca:ClusterId,Value="$SOCA_CONFIGURATION"
@@ -160,7 +168,7 @@ while [[ $? -ne 0 ]] && [[ $LOOP_ENI_TAG -lt 5 ]]
     $AWS ec2 create-tags --resources $ENI_IDS --region $AWS_REGION --tags Key=Name,Value="ENI for $SOCA_JOB_ID" Key=soca:JobOwner,Value="$SOCA_JOB_OWNER" Key=soca:JobProject,Value="$SOCA_JOB_PROJECT" Key=Name,Value="soca-job-$SOCA_JOB_ID"  Key=soca:JobId,Value="$SOCA_JOB_ID" Key=soca:JobQueue,Value="$SOCA_JOB_QUEUE" Key=soca:ClusterId,Value="$SOCA_CONFIGURATION"
 done
 
-
+echo "Require Reboot: $REQUIRE_REBOOT"
 if [[ $REQUIRE_REBOOT -eq 1 ]];
 then
     echo "systemctl stop pbs

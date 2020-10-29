@@ -7,7 +7,7 @@ from flask import request
 from decorators import private_api, admin_api
 import re
 import errors
-logger = logging.getLogger("soca_api")
+logger = logging.getLogger("api")
 
 
 class Group(Resource):

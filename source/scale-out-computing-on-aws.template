@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: 2010-09-09
-Description: (SO0072) - Scale-Out Computing on AWS. Template version 2.5.0
+Description: (SO0072) - Scale-Out Computing on AWS. Template version 2.6.0
 Metadata:
   AWS::CloudFormation::Interface:
     ParameterGroups:
@@ -74,9 +74,9 @@ Parameters:
   VpcCidr:
     Type: String
     Default: 10.0.0.0/16
-    Description: Choose the Cidr (/16) block you want to use for your VPC (eg 10.0.0.0/16)
-    AllowedPattern: '((\d{1,3})\.){3}\d{1,3}/16'
-    ConstraintDescription: Your VPC must use x.x.x./16 CIDR range
+    Description: Choose the Cidr block (/16 down to /24) you want to use for your VPC (eg 10.0.0.0/16 down to 10.0.0.0/24)
+    AllowedPattern: '((\d{1,3})\.){3}\d{1,3}/(1[6-9]|2[0-4])'
+    ConstraintDescription: Your VPC must use x.x.x.x/16 - x.x.x.x/24 CIDR range
 
   ClientIp:
     Type: String
@@ -121,7 +121,7 @@ Mappings:
   Info:
     Data:
       ClusterIdPrefix: soca
-      Version: 2.5.0
+      Version: 2.6.0
     User:
       centos7: centos
       amazonlinux2: ec2-user
@@ -256,6 +256,7 @@ Resources:
       Code:
         ZipFile: !Sub |
           import cfnresponse
+          import re
           '''
           Check SOCA Pre-Requisite
           '''
@@ -263,6 +264,7 @@ Resources:
           def lambda_handler(event, context):
             region = event['ResourceProperties']['Region']
             stack_name = event['ResourceProperties']['StackName']
+            clusterIdPrefix = event['ResourceProperties']['ClusterIdPrefix']
             regions_blacklist = ['us-west-1'] # only 2 AZ
 
             if region in regions_blacklist:
@@ -270,18 +272,36 @@ Resources:
               cfnresponse.send(event, context, cfnresponse.FAILED, {'error': error_message}, error_message)
               return error_message
 
+            # Strip clusterIdPrefix (soca) from front of Stackname to prevent things like "soca-soca-"
+            stack_name = re.sub(r'^' + clusterIdPrefix + r'[-]?', r'', stack_name, flags=re.IGNORECASE)
+
             if stack_name.__len__() > 20:
               error_message = 'Please use a stack name smaller than 20 characters'
               cfnresponse.send(event, context, cfnresponse.FAILED, {'error': error_message}, error_message)
               return error_message
 
-            stack_name_has_caps = any(c.isupper() for c in stack_name)
-            if stack_name_has_caps is True:
-              error_message = 'Do not use any uppercase in the stack name'
-              cfnresponse.send(event, context, cfnresponse.FAILED, {'error': error_message}, error_message)
-              return error_message
+            clusterId = clusterIdPrefix + '-' + stack_name
 
-            cfnresponse.send(event, context, cfnresponse.SUCCESS, {}, 'Pre-Requisites OK')
+            # Calculate PublicSubnetMaskPrefixBits and PrivateSubnetMaskPrefixBits
+            # Example: VpcCidr: 10.0.0.0/17 --> VPCCidrPrefixBits = 17
+            # PublicSubnetMaskPrefixBits = 4
+            # PrivateSubnetMaskPrefixBits = 2
+            # PublicSubnetMaskBits = 32 - 17 - 4 = 11 (PublicSubnetMask would be 32 - 11 = /21)
+            # Added new condition to reduce size of PublicSubnetMask to a maximum of /26
+            # PrivateSubnetMaskBits = 32 - 17 - 2 = 13 (PrivateSubnetMask would be 32 - 13 = /19)
+
+            VPCCidrPrefixBits = event['ResourceProperties']['VPCCidrPrefixBits']
+            PublicSubnetMaskPrefixBits = event['ResourceProperties']['PublicSubnetMaskPrefixBits']
+            PrivateSubnetMaskPrefixBits = event['ResourceProperties']['PrivateSubnetMaskPrefixBits']
+            PublicSubnetMaskBits = 32 - int(VPCCidrPrefixBits) - int(PublicSubnetMaskPrefixBits)
+            if PublicSubnetMaskBits > 6: PublicSubnetMaskBits = 6
+            PrivateSubnetMaskBits = 32 - int(VPCCidrPrefixBits) - int(PrivateSubnetMaskPrefixBits)
+
+            responseData = {'ClusterId': clusterId.lower(),
+                            'PublicSubnetMaskBits': PublicSubnetMaskBits,
+                            'PrivateSubnetMaskBits': PrivateSubnetMaskBits}
+
+            cfnresponse.send(event, context, cfnresponse.SUCCESS, responseData, 'Pre-Requisites OK')
 
   CheckSOCAPreRequisite:
     DependsOn: CheckPreRequisiteLambda
@@ -290,6 +310,11 @@ Resources:
       ServiceToken: !GetAtt CheckPreRequisiteLambda.Arn
       Region: !Ref "AWS::Region"
       StackName: !Ref "AWS::StackName"
+      ClusterIdPrefix: !FindInMap [ Info, Data, ClusterIdPrefix ]
+      VPCCidrPrefixBits: !Select [1, !Split [ "/", !Ref VpcCidr ]]
+      PublicSubnetMaskPrefixBits: 4
+      PrivateSubnetMaskPrefixBits: 2
+
   # ============ END PRE-REQUISITE ============ #
 
   Network:
@@ -298,8 +323,9 @@ Resources:
     Properties:
       Parameters:
         VpcCidr: !Ref VpcCidr
-        ClusterId: !Join [ "-", [ !FindInMap [ Info, Data, ClusterIdPrefix ], !Ref "AWS::StackName"] ]
-      TimeoutInMinutes: 30
+        ClusterId: !GetAtt CheckSOCAPreRequisite.ClusterId
+        PublicSubnetMaskBits: !GetAtt CheckSOCAPreRequisite.PublicSubnetMaskBits
+        PrivateSubnetMaskBits: !GetAtt CheckSOCAPreRequisite.PrivateSubnetMaskBits
       TemplateURL: !Join [ "/", [!Sub "https://s3.${AWS::URLSuffix}", !Ref S3InstallBucket, !Ref S3InstallFolder, "templates/Network.template"] ]
 
   Security:
@@ -309,9 +335,12 @@ Resources:
       Parameters:
         VpcId: !GetAtt Network.Outputs.VpcId
         ClientIp: !Ref ClientIp
-        ClusterId: !Join [ "-", [ !FindInMap [ Info, Data, ClusterIdPrefix ], !Ref "AWS::StackName"] ]
+        ClusterId: !GetAtt CheckSOCAPreRequisite.ClusterId
         S3InstallBucket: !Ref S3InstallBucket
         S3InstallFolder: !Ref S3InstallFolder
+        SchedulerPublicIP: !GetAtt Network.Outputs.SchedulerPublicIP
+        EIPNat: !GetAtt Network.Outputs.EIPNat
+
       TemplateURL: !Join [ "/", [!Sub "https://s3.${AWS::URLSuffix}", !Ref S3InstallBucket, !Ref S3InstallFolder, "templates/Security.template"] ]
       TimeoutInMinutes: 30
 
@@ -343,13 +372,15 @@ Resources:
         S3InstallFolder: !Ref S3InstallFolder
         S3Bucket: !Ref S3InstallBucket
         Version: !FindInMap [ Info, Data, Version ]
-        ClusterId: !Join [ "-", [ !FindInMap [ Info, Data, ClusterIdPrefix ], !Ref "AWS::StackName"] ]
+        ClusterId: !GetAtt CheckSOCAPreRequisite.ClusterId
         EFSDataDns: !GetAtt Storage.Outputs.EFSDataDns
         EFSAppsDns: !GetAtt Storage.Outputs.EFSAppsDns
         ImageId: !If [UseCustomAMI, !Ref CustomAMI, !FindInMap [RegionMap, !Ref "AWS::Region", !Ref BaseOS]]
         BaseOS: !Ref BaseOS
         UserName: !Ref UserName
         UserPassword: !Ref UserPassword
+        SchedulerPublicIP: !GetAtt Network.Outputs.SchedulerPublicIP
+        SchedulerPublicIPAllocation: !GetAtt Network.Outputs.SchedulerPublicIPAllocation
       TemplateURL: !Join [ "/", [!Sub "https://s3.${AWS::URLSuffix}", !Ref S3InstallBucket, !Ref S3InstallFolder, "templates/Scheduler.template"] ]
       TimeoutInMinutes: 60
 
@@ -360,9 +391,9 @@ Resources:
       Parameters:
         SchedulerSecurityGroup: !GetAtt Security.Outputs.SchedulerSecurityGroup
         PublicSubnet1: !GetAtt Network.Outputs.PublicSubnet1
-        ClusterId: !Join [ "-", [ !FindInMap [ Info, Data, ClusterIdPrefix ], !Ref "AWS::StackName"] ]
+        ClusterId: !GetAtt CheckSOCAPreRequisite.ClusterId
         ClientIp: !Ref ClientIp
-        SchedulerPublicIP: !GetAtt Scheduler.Outputs.SchedulerPublicIP
+        SchedulerPublicIP: !GetAtt Network.Outputs.SchedulerPublicIP
         EIPNat: !GetAtt Network.Outputs.EIPNat
 
       TemplateURL: !Join [ "/", [!Sub "https://s3.${AWS::URLSuffix}", !Ref S3InstallBucket, !Ref S3InstallFolder, "templates/Analytics.template"] ]
@@ -377,7 +408,7 @@ Resources:
         PublicSubnet1: !GetAtt Network.Outputs.PublicSubnet1
         PublicSubnet2: !GetAtt Network.Outputs.PublicSubnet2
         PublicSubnet3: !GetAtt Network.Outputs.PublicSubnet3
-        ClusterId: !Join [ "-", [ !FindInMap [ Info, Data, ClusterIdPrefix ], !Ref "AWS::StackName"] ]
+        ClusterId: !GetAtt CheckSOCAPreRequisite.ClusterId
         VpcId: !GetAtt Network.Outputs.VpcId
         SchedulerInstanceId: !GetAtt Scheduler.Outputs.SchedulerInstanceId
         SchedulerIAMRole: !GetAtt Security.Outputs.SchedulerIAMRole
@@ -394,7 +425,7 @@ Resources:
         SchedulerInstanceId: !GetAtt Scheduler.Outputs.SchedulerInstanceId
         SchedulerPrivateDnsName: !GetAtt Scheduler.Outputs.SchedulerPrivateDnsName
         SchedulerPrivateIP: !GetAtt Scheduler.Outputs.SchedulerPrivateIP
-        SchedulerPublicIP: !GetAtt Scheduler.Outputs.SchedulerPublicIP
+        SchedulerPublicIP: !GetAtt Network.Outputs.SchedulerPublicIP
         SchedulerSecurityGroup: !GetAtt Security.Outputs.SchedulerSecurityGroup
         ComputeNodeIAMRoleArn: !GetAtt Security.Outputs.ComputeNodeIAMRoleArn
         ComputeNodeIAMRole: !GetAtt Security.Outputs.ComputeNodeIAMRole
@@ -415,7 +446,7 @@ Resources:
         S3InstallFolder: !Ref S3InstallFolder
         Version: !FindInMap [ Info, Data, Version ]
         S3Bucket: !Ref S3InstallBucket
-        ClusterId: !Join [ "-", [ !FindInMap [ Info, Data, ClusterIdPrefix ], !Ref "AWS::StackName"] ]
+        ClusterId: !GetAtt CheckSOCAPreRequisite.ClusterId
         SSHKeyPair: !Ref SSHKeyPair
         ImageId: !If [UseCustomAMI, !Ref CustomAMI, !FindInMap [RegionMap, !Ref "AWS::Region", !Ref BaseOS]]
         ESDomainEndpoint: !GetAtt Analytics.Outputs.ESDomainEndpoint
@@ -429,7 +460,7 @@ Resources:
 
 Outputs:
   SchedulerPublicIP:
-    Value: !GetAtt Scheduler.Outputs.SchedulerPublicIP
+    Value: !GetAtt Network.Outputs.SchedulerPublicIP
   LDAPMasterUsername:
     Value: admin
   LDAPMasterPassword:
@@ -437,7 +468,7 @@ Outputs:
   AnalyticsDashboard:
     Value: !Join [ "", [ "https://", !GetAtt Analytics.Outputs.ESDomainEndpoint, "/_plugin/kibana/"]]
   ConnectionString:
-    Value: !Join [ "", [ "ssh -i ", !Ref SSHKeyPair, ".pem ", !FindInMap [ Info, User, !Ref BaseOS ], "@", !GetAtt Scheduler.Outputs.SchedulerPublicIP]]
+    Value: !Join [ "", [ "ssh -i ", !Ref SSHKeyPair, ".pem ", !FindInMap [ Info, User, !Ref BaseOS ], "@", !GetAtt Network.Outputs.SchedulerPublicIP]]
   WebUserInterface:
     Value: !Join [ "", [ "https://", !GetAtt Viewer.Outputs.LoadBalancerDNSName]]
   BaseOS:

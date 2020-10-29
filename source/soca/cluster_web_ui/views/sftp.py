@@ -2,7 +2,7 @@ import logging
 from flask import render_template, session, Blueprint
 from decorators import login_required
 import read_secretmanager
-logger = logging.getLogger("api_log")
+logger = logging.getLogger("application")
 sftp = Blueprint('sftp', __name__, template_folder='templates')
 
 

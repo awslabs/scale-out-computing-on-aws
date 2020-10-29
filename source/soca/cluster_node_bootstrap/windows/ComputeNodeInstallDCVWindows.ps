@@ -1,0 +1,79 @@
+<powershell>
+# Script triggered by cluster_web_ui/views/remote_desktop_windows.py
+# DCV parameters: https://docs.aws.amazon.com/dcv/latest/adminguide/config-param-ref.html
+
+# Stop DCV service
+# Stop-Service -Name dcvserver
+
+# Edit dcv.conf
+$Hostname = Invoke-RestMethod -uri http://169.254.169.254/latest/meta-data/hostname
+$InstanceId = Invoke-RestMethod -uri http://169.254.169.254/latest/meta-data/instance-id
+$DCVHostAltname = $Hostname.split(".")[0]
+$WindowsHostname = $env:COMPUTERNAME
+New-Item -Path "Microsoft.PowerShell.Core\Registry::\HKEY_USERS\S-1-5-18\Software\GSettings\com\nicesoftware\dcv\" -Name connectivity -Force
+New-ItemProperty -Path "Microsoft.PowerShell.Core\Registry::\HKEY_USERS\S-1-5-18\Software\GSettings\com\nicesoftware\dcv\connectivity" -Name "web-url-path" -PropertyType "String" -Value "/$DCVHostAltname" -Force
+
+# Add custom Auth
+New-Item -Path "Microsoft.PowerShell.Core\Registry::\HKEY_USERS\S-1-5-18\Software\GSettings\com\nicesoftware\dcv\" -Name security -Force
+New-ItemProperty -Path "Microsoft.PowerShell.Core\Registry::\HKEY_USERS\S-1-5-18\Software\GSettings\com\nicesoftware\dcv\security" -Name "auth-token-verifier" -PropertyType "String" -Value "https://%SOCA_SchedulerPrivateIP%/api/dcv/authenticator" -Force
+New-ItemProperty -Path "Microsoft.PowerShell.Core\Registry::\HKEY_USERS\S-1-5-18\Software\GSettings\com\nicesoftware\dcv\security" -Name "no-tls-strict" -PropertyType "DWord" -Value 1 -Force
+New-ItemProperty -Path "Microsoft.PowerShell.Core\Registry::\HKEY_USERS\S-1-5-18\Software\GSettings\com\nicesoftware\dcv\security" -Name "authentication" -PropertyType "String" -Value "system" -Force
+
+# Disable OS auto-lock
+New-ItemProperty -Path "Microsoft.PowerShell.Core\Registry::\HKEY_USERS\S-1-5-18\Software\GSettings\com\nicesoftware\dcv\security" -Name "os-auto-lock" -PropertyType "DWord" -Value 0 -Force
+
+# Disable sleep
+New-Item -Path "Microsoft.PowerShell.Core\Registry::\HKEY_USERS\S-1-5-18\Software\GSettings\com\nicesoftware\dcv\" -Name "windows" -Force
+New-ItemProperty -Path "Microsoft.PowerShell.Core\Registry::\HKEY_USERS\S-1-5-18\Software\GSettings\com\nicesoftware\dcv\security" -Name "disable-display-sleep" -PropertyType "DWord" -Value 1 -Force
+
+# Change password for Admin user
+$Password = ConvertTo-SecureString -String "%SOCA_LOCAL_ADMIN_PASSWORD%" -AsPlainText –Force
+$UserAccount = Get-LocalUser -Name "Administrator"
+$UserAccount | Set-LocalUser -Password $Password
+
+
+# Create local user and give him admin permissions
+$LocalUser = "%SOCA_LOCAL_USER%"
+$LocalUserExist = Get-LocalUser $LocalUser
+If ($LocalUserExist) {
+   Set-LocalUser $LocalUser -Password $Password
+}
+Else {
+   New-LocalUser $LocalUser -Password $Password -PasswordNeverExpires -AccountNeverExpires
+   Add-LocalGroupMember -Group "Administrators" -Member $LocalUser
+}
+
+# Change default owner for the session
+New-Item -Path "Microsoft.PowerShell.Core\Registry::\HKEY_USERS\S-1-5-18\Software\GSettings\com\nicesoftware\dcv\" -Name "session-management/automatic-console-session" -Force
+New-ItemProperty -Path "Microsoft.PowerShell.Core\Registry::\HKEY_USERS\S-1-5-18\Software\GSettings\com\nicesoftware\dcv\session-management\automatic-console-session" -Name "owner" -PropertyType "String" -Value $LocalUser -Force
+New-ItemProperty -Path "Microsoft.PowerShell.Core\Registry::\HKEY_USERS\S-1-5-18\Software\GSettings\com\nicesoftware\dcv\session-management\automatic-console-session" -Name "storage-root" -PropertyType "String" -Value "C:\session-storage" -Force
+
+# Auto Logon (managed by config.py)
+$AutoLogon = "%SOCA_WINDOWS_AUTOLOGON%"
+
+if($AutoLogon -eq "true"){
+    New-ItemProperty -Path "HKLM:\Software\Microsoft\Windows NT\CurrentVersion\Winlogon" -Name "AutoAdminLogon" -PropertyType "DWord" -Value 1 -Force
+    New-ItemProperty -Path "HKLM:\Software\Microsoft\Windows NT\CurrentVersion\Winlogon" -Name "DefaultUserName" -PropertyType "String" -Value $LocalUser -Force
+    New-ItemProperty -Path "HKLM:\Software\Microsoft\Windows NT\CurrentVersion\Winlogon" -Name "DefaultPassword" -PropertyType "String" -Value "%SOCA_LOCAL_ADMIN_PASSWORD%" -Force
+    # New-Item -Path "HKLM:\Software\Policies\Microsoft\Windows" -Name Personalization -Force
+    # cmd /c "powercfg /SETACVALUEINDEX SCHEME_CURRENT SUB_NONE CONSOLELOCK 0"
+}
+
+# Create Shortcut to SOCA web interface
+$WshShell = New-Object -comObject WScript.Shell
+$SocaShortcut = $WshShell.CreateShortcut("C:\Users\Default\Desktop\SOCA_Interface.url")
+$SocaShortcut.TargetPath = "https://%SOCA_LoadBalancerDNSName%"
+$SocaShortcut.Save()
+
+# Disable User Access Control (UAC)
+Set-ItemProperty "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System" -Name "ConsentPromptBehaviorAdmin" -Value 00000000 -Force
+
+# Disable Internet Explorer Enhanced Security Configuration
+$AdminKey = "HKLM:\SOFTWARE\Microsoft\Active Setup\Installed Components\{A509B1A7-37EF-4b3f-8CFC-4F3A74704073}"
+$UserKey = "HKLM:\SOFTWARE\Microsoft\Active Setup\Installed Components\{A509B1A8-37EF-4b3f-8CFC-4F3A74704073}"
+Set-ItemProperty -Path $AdminKey -Name "IsInstalled" -Value 0 -Force
+Set-ItemProperty -Path $UserKey -Name "IsInstalled" -Value 0 -Force
+
+# Restart Computer to validate all Windows changes. Use -Force to force reboot even if users are logged in (in case of custom AMI)
+Restart-Computer -Force
+</powershell>

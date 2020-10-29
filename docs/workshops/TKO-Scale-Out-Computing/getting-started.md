@@ -2,7 +2,7 @@
 
 ## Account
 
-You will use your Isengard-managed AWS account for this workshop.  You should log into an account with full admin privileges.
+You will use your own AWS account for this workshop.  You should log into an account with full admin privileges.
 
 ## Region
 

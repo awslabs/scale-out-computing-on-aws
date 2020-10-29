@@ -19,7 +19,7 @@ from cachetools import TTLCache
 import datetime
 import read_secretmanager
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("application")
 my_files = Blueprint('my_files', __name__, template_folder='templates')
 app = Flask(__name__)
 
@@ -293,6 +293,10 @@ def download():
     uid = request.args.get("uid", None)
     if uid is None:
         return redirect("/my_files")
+    allow_download = config.Config.ALLOW_DOWNLOAD_FROM_PORTAL
+    if allow_download is not True:
+        flash(" Download file is disabled. Please contact your SOCA cluster administrator")
+        return redirect("/my_files")
 
     files_to_download = uid.split(",")
     if len(files_to_download) == 1:
@@ -379,6 +383,10 @@ def download():
 def download_all():
     path = request.args.get("path", None)
     if path is None:
+        return redirect("/my_files")
+    allow_download = config.Config.ALLOW_DOWNLOAD_FROM_PORTAL
+    if allow_download is not True:
+        flash(" Download file is disabled. Please contact your SOCA cluster administrator")
         return redirect("/my_files")
     filesystem = {}
     try:

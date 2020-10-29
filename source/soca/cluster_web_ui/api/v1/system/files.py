@@ -7,7 +7,7 @@ import re
 import base64
 import binascii
 
-logger = logging.getLogger("soca_api")
+logger = logging.getLogger("api")
 
 
 class Files(Resource):

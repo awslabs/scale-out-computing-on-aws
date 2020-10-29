@@ -5,7 +5,7 @@ from decorators import login_required
 from flask import render_template, request, redirect, session, flash, Blueprint, current_app
 from requests import post, get
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("application")
 index = Blueprint('index', __name__, template_folder='templates')
 
 
@@ -39,6 +39,11 @@ def logout():
         session.pop(param, None)
     return redirect('/')
 
+
+@index.route('/robots.txt', methods=['GET'])
+def robots():
+    # in case SOCA is accidentally set to wide open, this prevent the website to be indexed on Search Engine
+    return "Disallow: /"
 
 @index.route('/auth', methods=['POST'])
 def authenticate():

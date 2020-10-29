@@ -14,11 +14,11 @@ SCHEDULER_ACCOUNTING=$SCHEDULER_DIRECTORY'/server_priv/accounting/'
 COMPUTE_HOST_LOG="/apps/soca/$SOCA_CONFIGURATION/cluster_node_bootstrap/logs"
 /usr/bin/aws s3 sync $SCHEDULER_ACCOUNTING $S3_BUCKET'accounting/'
 /usr/bin/aws s3 sync $SCHEDULER_SERVER_LOGS $S3_BUCKET'server_logs/'
-/usr/bin/aws s3 sync $SCHEDULER_ACCOUNTING $S3_BUCKET'sched_logs/'
+/usr/bin/aws s3 sync $SCHEDULER_SCHED_LOGS $S3_BUCKET'sched_logs/'
 /usr/bin/aws s3 sync $COMPUTE_HOST_LOG $S3_BUCKET'compute_host_logs/'
 
 find $COMPUTE_HOST_LOG/* -type d -mtime +$DATA_RETENTION -print | xargs -I {} rm -rf "{}"
 find $SCHEDULER_SERVER_LOGS -type f -mtime +$DATA_RETENTION -print | xargs -I {} rm "{}"
-find $SCHEDULER_SERVER_LOGS -type f -mtime +$DATA_RETENTION -print | xargs -I {} rm "{}"
+find $SCHEDULER_SCHED_LOGS -type f -mtime +$DATA_RETENTION -print | xargs -I {} rm "{}"
 find $SCHEDULER_ACCOUNTING -type f -mtime +$DATA_RETENTION -print | xargs -I {} rm "{}"
 

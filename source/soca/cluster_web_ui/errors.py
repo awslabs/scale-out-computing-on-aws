@@ -11,6 +11,7 @@ def all_errors(error_name, trace=False):
         "UNABLE_RETRIEVE_IDS": ["Unable to retrieve LDAP IDS due to " + str(trace), 225],
         "GROUP_DO_NOT_EXIST": ["This LDAP group does not exist", 226],
         "NO_ACTIVE_TOKEN": ["Could not find any active token for this user", 227],
+        "IMAGE_NOT_DELETED": ["Unable to delete image " + str(trace), 228],
         "CLIENT_MISSING_PARAMETER": ["Client input malformed. " + str(trace), 400],
         "CLIENT_OWN_RESOURCE": ["You cannot delete your own user/group", 400],
         "CLIENT_NOT_OWNER": ["You are not the owner of this resource", 400],
@@ -19,7 +20,8 @@ def all_errors(error_name, trace=False):
         "LDAP_SERVER_DOWN": ["LDAP server seems to be down or unreachable", 500],
         "X-SOCA-USER_MISSING": ["Unable to retrieve request owner. X-SOCA-USER must be set", 500],
         "COULD_NOT_CREATE_GROUP": ["Unable to create LDAP group. " + str(trace), 500],
-        "UNICODE_ERROR": ["Unicode error. " +str(trace), 500]
+        "UNICODE_ERROR": ["Unicode error. " +str(trace), 500],
+
     }
 
     if error_name in error_list.keys():

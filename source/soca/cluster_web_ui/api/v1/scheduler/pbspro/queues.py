@@ -4,7 +4,7 @@ from flask_restful import Resource
 import logging
 from decorators import private_api
 import shlex
-logger = logging.getLogger("soca_api")
+logger = logging.getLogger("api")
 
 
 class Queues(Resource):

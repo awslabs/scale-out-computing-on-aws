@@ -7,21 +7,57 @@
 <meta name="author" content="Mickael Crozes">
 <title>Scale-Out Computing on AWS</title>
 <link rel="shortcut icon" href={{ url_for('static', filename='img/soca_logo.ico') }} />
-
+<meta name="robots" content="noindex">
 <link href="{{ url_for('static', filename='css/icons.css') }}" rel="stylesheet">
 <link href="{{ url_for('static', filename='css/app.css') }}" rel="stylesheet">
 <link href="{{ url_for('static', filename='css/fonts.css') }}" rel="stylesheet">
 <link href="{{ url_for('static', filename='css/prism.css') }}" rel="stylesheet">
 
 <!-- Bootstrap core JavaScript-->
-<script src="{{ url_for('static', filename='vendor/jquery/jquery.min.js') }}"></script>
+<script src="{{ url_for('static', filename='vendor/jquery/jquery.js') }}"></script>
 <script src="{{ url_for('static', filename='js/popper.min.js') }}"></script>
 <script src="{{ url_for('static', filename='vendor/bootstrap/js/bootstrap.bundle.min.js') }}"></script>
 
 <!-- Page Specific -->
 
-{% if page == 'remote_desktop' or page == 'my_jobs' %}
-    <meta http-equiv="refresh" content="120">
+{% if page == 'remote_desktop' %}
+    <meta http-equiv="refresh" content="60">
+    <script src="{{ url_for('static', filename='vendor/jquery-ui/jquery-ui.js') }}"></script>
+    <link href="{{ url_for('static', filename='css/jquery-ui-lightness.css') }}" rel="stylesheet">
+    <link href="{{ url_for('static', filename='css/jquery-ui-slider-pips.css') }}" rel="stylesheet">
+    <script src="{{ url_for('static', filename='js/jquery-ui-slider-pips.js') }}"></script>
+    <style>
+    .ui-slider {
+    margin-top: 20px;
+    height: 10px;
+    position: relative;
+    border: none;
+    background: #ff9c91;
+    }
+
+    .ui-state-default, .ui-widget-content .ui-state-default, .ui-widget-header .ui-state-default {
+    background: #5f5c5c;
+    border-radius: 25px;
+    width: 15px;
+    outline: none;
+    border: 1px solid #fff;
+    position: absolute;
+    height: 15px;
+    /*top: -10px;*/
+}
+
+    .ui-slider-range {
+    background: #16bf9f;
+    border-radius: 25px;
+    outline: none;
+    border: 2px solid #fff;
+    position: absolute;
+    top: -10px;
+}
+</style>
+
+{% elif page == 'my_jobs' %}
+    <meta http-equiv="refresh" content="60">
 
 {% elif page == 'my_files' %}
     <script src="{{ url_for('static', filename='js/jquery.dataTables.min.js') }}"></script>

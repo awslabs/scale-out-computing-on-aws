@@ -5,7 +5,7 @@ import config
 import logging
 from decorators import admin_api
 from random import choice
-logger = logging.getLogger("soca_api")
+logger = logging.getLogger("api")
 
 
 class Ids(Resource):

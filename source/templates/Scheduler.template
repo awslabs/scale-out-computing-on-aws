@@ -47,6 +47,13 @@ Parameters:
   UserPassword:
     Type: String
 
+  SchedulerPublicIP:
+    Type: String
+
+  SchedulerPublicIPAllocation:
+    Type: String
+
+
 Conditions:
   UseAmazonLinux: !Equals [ !Ref BaseOS, 'amazonlinux2']
 
@@ -108,10 +115,10 @@ Resources:
             # Install awscli
             if [ "${BaseOS}" == "centos7" ] || [ "${BaseOS}" == "rhel7" ];
             then
-              EASY_INSTALL=$(which easy_install-2.7)
-              $EASY_INSTALL pip
-              PIP=$(which pip2.7)
+              yum install -y python3-pip
+              PIP=$(which pip3)
               $PIP install awscli
+              export PATH=$PATH:/usr/local/bin
             fi
 
             # Disable automatic motd update if using ALI
@@ -143,25 +150,19 @@ Resources:
             ENI_IDS=$(aws ec2 describe-network-interfaces --filters Name=attachment.instance-id,Values="$AWS_INSTANCE_ID" --region $AWS_REGION --query "NetworkInterfaces[*].[NetworkInterfaceId]" --out text | tr "\n" " ")
             $AWS ec2 create-tags --resources $ENI_IDS --region $AWS_REGION --tags Key=Name,Value="${ClusterId} Scheduler Network Adapter" "Key=soca:ClusterId,Value=${ClusterId}"
 
-            echo "@reboot /bin/aws s3 cp s3://${S3Bucket}/${S3InstallFolder}/scripts/SchedulerPostReboot.sh /root && /bin/bash /root/SchedulerPostReboot.sh ${S3Bucket} ${S3InstallFolder} ${UserName} '${UserPassword}' >> /root/PostRebootConfig.log 2>&1" | crontab -
             AWS=$(which aws)
+            echo "@reboot $AWS s3 cp s3://${S3Bucket}/${S3InstallFolder}/scripts/SchedulerPostReboot.sh /root && /bin/bash /root/SchedulerPostReboot.sh ${S3Bucket} ${S3InstallFolder} ${UserName} '${UserPassword}' >> /root/PostRebootConfig.log 2>&1" | crontab -
             $AWS s3 cp s3://${S3Bucket}/${S3InstallFolder}/scripts/config.cfg /root/
             $AWS s3 cp s3://${S3Bucket}/${S3InstallFolder}/scripts/requirements.txt /root/
             $AWS s3 cp s3://${S3Bucket}/${S3InstallFolder}/scripts/Scheduler.sh /root/
             /bin/bash /root/Scheduler.sh ${EFSDataDns} ${EFSAppsDns} >> /root/Scheduler.sh.log 2>&1
 
-
-  EIPScheduler:
+  EIPAssociationToScheduler:
     DependsOn: SchedulerEC2Host
-    Type: AWS::EC2::EIP
+    Type: AWS::EC2::EIPAssociation
     Properties:
-      Domain: vpc
+      EIP: !Ref SchedulerPublicIP
       InstanceId: !Ref SchedulerEC2Host
-      Tags:
-        - Key: Name
-          Value: !Ref ClusterId
-        - Key: soca:ClusterId
-          Value: !Ref ClusterId
 
 Outputs:
   SchedulerInstanceId:
@@ -170,5 +171,3 @@ Outputs:
     Value: !GetAtt SchedulerEC2Host.PrivateIp
   SchedulerPrivateDnsName:
     Value: !GetAtt SchedulerEC2Host.PrivateDnsName
-  SchedulerPublicIP:
-    Value: !Ref EIPScheduler

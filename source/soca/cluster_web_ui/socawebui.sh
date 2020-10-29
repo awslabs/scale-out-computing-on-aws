@@ -44,6 +44,15 @@ case "$1" in
       sleep 10
     fi
 
+    ## Create the structure if does not exist
+    if [[ ! -d "logs/" ]]; then
+      echo "First configuration: Creating logs/ folder structure, please wait 10 seconds"
+      mkdir -p logs/
+      chmod 700 logs/
+      sleep 10
+    fi
+
+
     status
         if [[ -z $status_check_process ]]; then
             echo 'Starting SOCA'
@@ -52,14 +61,24 @@ case "$1" in
                 cat /dev/urandom | tr -dc 'a-zA-Z0-9' | fold -w 32 | head -n 1 > flask_secret_key.txt
                 chmod 600 flask_secret_key.txt
             fi
+            if [[ ! -f dcv_secret_key.txt ]]; then
+                echo 'No dcv Key detected, creating new one ...'
+                # /!\ ATTENTION
+                # DCV Secret Key used to authenticate DCV sessions via /api/system/dcv_authenticator.
+                # If you delete/change this value, your existing sessions will become inaccessible and your user must re-create them
+                dd if=/dev/urandom bs=32 count=1 2>/dev/null | openssl base64 > dcv_secret_key.txt
+                chmod 600 dcv_secret_key.txt
+            fi
 
             export SOCA_FLASK_SECRET_KEY=$(cat flask_secret_key.txt)
+            export SOCA_DCV_TOKEN_SYMMETRIC_KEY=$(cat dcv_secret_key.txt)
+
             # Creating unique, random and temp credentials
             export SOCA_FLASK_FERNET_KEY=$(dd if=/dev/urandom bs=32 count=1 2>/dev/null | openssl base64)
             export SOCA_FLASK_API_ROOT_KEY=$(cat /dev/urandom | tr -dc 'a-zA-Z0-9' | fold -w 32 | head -n 1)
 
             # Launching process
-            $UWSGI_BIN --master --https $UWSGI_BIND,cert.crt,cert.key --wsgi-file $UWSGI_FILE --processes $UWSGI_PROCESSES --threads $UWSGI_THREADS --daemonize application.log --enable-threads --buffer-size $BUFFER_SIZE --check-static /apps/soca/$SOCA_CONFIGURATION/cluster_web_ui/static
+            $UWSGI_BIN --master --https $UWSGI_BIND,cert.crt,cert.key --wsgi-file $UWSGI_FILE --processes $UWSGI_PROCESSES --threads $UWSGI_THREADS --daemonize logs/uwsgi.log --enable-threads --buffer-size $BUFFER_SIZE --check-static /apps/soca/$SOCA_CONFIGURATION/cluster_web_ui/static
 
         else
            echo 'SOCA is already running with PIDs: ' $status_check_process

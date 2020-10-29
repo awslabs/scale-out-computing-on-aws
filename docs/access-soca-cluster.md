@@ -33,47 +33,6 @@ To access your Scale-Out Computing on AWS cluster using SSH protocol, simply cli
     $ ssh <USERNAME>@<PRIVATE_IP>
     ~~~
 
-## Graphical access using DCV
+## Graphical access using Windows/Linux virtual desktop
 
-To access your Scale-Out Computing on AWS cluster using a full remote desktop experience, click "Graphical Access" on the left sidebar. By default you are authorized to have 4 sessions (EC2 instances).
-
-![](imgs/access-2.png)
-
-### Session Validity
-
-You can choose how long your session will be valid. This parameter can be customized as needed
-
-![](imgs/access-6.png)
-
-
-!!!info "Terminate when idle"
-    Starting 2.5.0, HPC admins can configure idle time (`DCV_TERMINATE_IDLE_SESSION`, in hours). DCV session will automatically terminated if the session is inactive for too long.
-
-### Session type
-
-You can choose the type of session you want to deploy, depending your needs. This parameter can be customized as needed
-
-![](imgs/access-4.png)
-
-### Advanced Options
-
-Starting 2.5.0, users can choose to install DCV on their custom AMI as well as provision additional EBS volumes
-
-### Access your session
-
-After you click "Launch my session", a new "desktop" job is sent to the queue. Scale-Out Computing on AWS will then provision the capacity and install all required packages including Gnome.
-You will see an informational message asking you to wait up to 20 minutes before being able to access your remote desktop.
-
-![](imgs/access-3.png)
-
-Once your session is ready, the message will automatically be updated with the connection information
-
-![](imgs/access-7.png)
-
-You can access your session directly on your browser
-
-![](imgs/access-8.png)
-
-You can also download the NICE DCV Native Clients for Mac / Linux and Windows and access your session directly through them
-
-![](imgs/access-9.png)
+Refer to [this page to learn how to launch your own Windows/Linux session and access SOCA via your virtual desktop](../web-interface/create-virtual-desktops/)

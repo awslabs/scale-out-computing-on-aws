@@ -12,7 +12,7 @@ sys.path.append(os.path.dirname(__file__))
 import configuration
 
 
-def get_ec2_graphical_instances(cluster_id, dcv_queues):
+def get_ec2_graphical_instances(cluster_id):
     instance_list = {}
     token = True
     next_token = ''
@@ -27,15 +27,7 @@ def get_ec2_graphical_instances(cluster_id, dcv_queues):
                 },
                 {
                     'Name': 'tag:soca:NodeType',
-                    'Values': ['soca-compute-node']
-                },
-                {
-                    'Name': 'tag:soca:KeepForever',
-                    'Values': ['true', 'false']
-                },
-                {
-                    'Name': 'tag:soca:JobQueue',
-                    'Values': dcv_queues,
+                    'Values': ['dcv']
                 },
                 {
                     'Name': 'tag:soca:ClusterId',
@@ -197,7 +189,7 @@ if __name__ == "__main__":
     dcv_queues = ['desktop']
 
     listener_arn = return_alb_listener(alb_arn)
-    graphical_instances = get_ec2_graphical_instances(cluster_id, dcv_queues)
+    graphical_instances = get_ec2_graphical_instances(cluster_id)
     current_target_groups = get_current_target_groups(alb_arn)
     alb_listener_rules = get_current_listener_rules(listener_arn)
     alb_rules = alb_listener_rules['rules']

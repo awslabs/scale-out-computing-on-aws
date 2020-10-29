@@ -124,6 +124,11 @@ Under stack details, choose the stack name (do not use uppercase or it will brea
 
 ![](imgs/install-7.png)
 
+!!!warning "Marketplace AMIs"
+    If you choose to use the CentOS 7 image, [you must subscribe to CentOS 7 in the AWS Marketplace](https://aws.amazon.com/marketplace/pp/B00O7WM7QW/), to allow the installer to access the AMI during installation.
+
+This solution supports a heterogeneous environment. After installation, administrators and users can specify a custom AMI per job and queue. 
+
 !!!info "Disable Rollback on Failure if needed"
     If you face any challenge during the installation and need to do some troubleshooting, it's recommended to disable "Rollback On Failure" (under Advanced section)
 

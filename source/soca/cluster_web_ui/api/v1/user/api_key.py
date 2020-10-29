@@ -6,7 +6,8 @@ import secrets
 import config
 from decorators import restricted_api, admin_api
 import errors
-
+import logging
+logger = logging.getLogger("api")
 class ApiKey(Resource):
     @restricted_api
     def get(self):

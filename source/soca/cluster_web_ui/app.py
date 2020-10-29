@@ -18,6 +18,7 @@ from api.v1.ldap.groups import Groups
 from api.v1.ldap.authenticate import Authenticate
 from api.v1.system.files import Files
 from api.v1.system.aws_price import AwsPrice
+from api.v1.dcv.authenticator import DcvAuthenticator
 from views.index import index
 from views.ssh import ssh
 from views.sftp import sftp
@@ -26,75 +27,28 @@ from views.admin.users import admin_users
 from views.admin.queues import admin_queues
 from views.admin.groups import admin_groups
 from views.admin.applications import admin_applications
+from views.admin.ami_management import admin_ami_management
 from views.my_jobs import my_jobs
 from views.my_activity import my_activity
 from views.dashboard import dashboard
 from views.remote_desktop import remote_desktop
+from views.remote_desktop_windows import remote_desktop_windows
 from views.my_account import my_account
 from views.my_files import my_files
 from views.submit_job import submit_job
+from scheduled_tasks.clean_tmp_folders import clean_tmp_folders
+from scheduled_tasks.manage_dcv_instances_lifecycle import auto_terminate_stopped_instance, schedule_auto_start, schedule_auto_stop
 from flask_wtf.csrf import CSRFProtect
 from config import app_config
-from models import db
 from flask_swagger import swagger
 from swagger_ui import api_doc
 import config
-from apscheduler.schedulers.background import BackgroundScheduler
-import glob
-import os
+from apscheduler.jobstores.sqlalchemy import SQLAlchemyJobStore
+from flask_apscheduler import APScheduler
+#from apscheduler.schedulers.background import BackgroundScheduler
+from models import db
 
 app = Flask(__name__)
-csrf = CSRFProtect(app)
-csrf.exempt("api")
-
-# Register routes
-app.config.from_object(app_config)
-
-# Add API
-api = Api(app, decorators=[csrf.exempt])
-
-# LDAP
-api.add_resource(Sudo, '/api/ldap/sudo')
-api.add_resource(Authenticate, '/api/ldap/authenticate')
-api.add_resource(Ids, '/api/ldap/ids')
-api.add_resource(User, '/api/ldap/user')
-api.add_resource(Users, '/api/ldap/users')
-api.add_resource(Group, '/api/ldap/group')
-api.add_resource(Groups, '/api/ldap/groups')
-# Users
-api.add_resource(ApiKey, '/api/user/api_key')
-api.add_resource(Reset, '/api/user/reset_password')
-# System
-api.add_resource(Files, '/api/system/files')
-api.add_resource(AwsPrice, '/api/system/aws_price')
-# Scheduler
-api.add_resource(Job, '/api/scheduler/job')
-api.add_resource(Jobs, '/api/scheduler/jobs')
-api.add_resource(Queue, '/api/scheduler/queue')
-api.add_resource(Queues, '/api/scheduler/queues')
-
-
-
-
-
-# Register views
-app.register_blueprint(index)
-app.register_blueprint(my_api_key)
-app.register_blueprint(my_account)
-app.register_blueprint(admin_users)
-app.register_blueprint(admin_queues)
-app.register_blueprint(admin_groups)
-app.register_blueprint(admin_applications)
-app.register_blueprint(my_files)
-app.register_blueprint(submit_job)
-app.register_blueprint(ssh)
-app.register_blueprint(sftp)
-app.register_blueprint(my_jobs)
-app.register_blueprint(remote_desktop)
-app.register_blueprint(dashboard)
-app.register_blueprint(my_activity)
-
-
 
 # Custom Jinja2 filters
 
@@ -142,45 +96,142 @@ dict_config = {
             'level': 'DEBUG',
             'formatter': 'default',
             'class': 'logging.handlers.TimedRotatingFileHandler',
-            'filename': "soca_api.log",
+            'filename': "logs/application.log",
+            'when': "midnight",
+            'interval': 1,
+            'backupCount': config.Config.DAILY_BACKUP_COUNT
+        },
+        'api': {
+            'level': 'DEBUG',
+            'formatter': 'default',
+            'class': 'logging.handlers.TimedRotatingFileHandler',
+            'filename': "logs/api.log",
+            'when': "midnight",
+            'interval': 1,
+            'backupCount': config.Config.DAILY_BACKUP_COUNT
+        },
+        'scheduled_tasks': {
+            'level': 'DEBUG',
+            'formatter': 'default',
+            'class': 'logging.handlers.TimedRotatingFileHandler',
+            'filename': "logs/scheduled_tasks.log",
             'when': "midnight",
             'interval': 1,
             'backupCount': config.Config.DAILY_BACKUP_COUNT
         },
     },
     'loggers': {
-        'api_log': {
+        'application': {
             'handlers': ["default"],
             'level': 'DEBUG',
         },
+        'api': {
+            'handlers': ["api"],
+            'level': 'DEBUG',
+        },
+        'scheduled_tasks': {
+            'handlers': ["scheduled_tasks"],
+            'level': 'DEBUG',
+        }
     }
 }
 
-logger = logging.getLogger("api_log")
-logging.config.dictConfig(dict_config)
-app.logger.addHandler(logger)
 
-# Scheduled tasks
-def clean_tmp_folders():
-    directories = ["tmp/zip_downloads/*", "tmp/ssh/*"]
-    for directory in directories:
-        logger.info("Remove files inside " + directory)
-        files = glob.glob(directory)
-        for f in files:
-            os.remove(f)
+class Config(object):
+    JOBS = [
+        {
+            'id': 'auto_terminate_stopped_instance',
+            'func': auto_terminate_stopped_instance,
+            'trigger': 'interval',
+            'minutes': 30
+        },
+        {
+            'id': 'schedule_auto_start',
+            'func': schedule_auto_start,
+            'trigger': 'interval',
+            'minutes': 10
+        },
+        {
+            'id': 'schedule_auto_stop',
+            'func': schedule_auto_stop,
+            'trigger': 'interval',
+            'minutes': 5
+        },
+        {
+            'id': 'clean_tmp_folders',
+            'func': clean_tmp_folders,
+            'trigger': 'interval',
+            'hours': 1
+        }
+    ]
 
+    SCHEDULER_API_ENABLED = True
+    SESSION_SQLALCHEMY = SQLAlchemy(app)
 
-sched = BackgroundScheduler(daemon=False)
-sched.add_job(clean_tmp_folders, 'interval', hours=1)
-sched.start()
 
 with app.app_context():
+    csrf = CSRFProtect(app)
+    csrf.exempt("api")
+
+    # Register routes
+    app.config.from_object(app_config)
+
+    # Add API
+    api = Api(app, decorators=[csrf.exempt])
+
+    # LDAP
+    api.add_resource(Sudo, '/api/ldap/sudo')
+    api.add_resource(Authenticate, '/api/ldap/authenticate')
+    api.add_resource(Ids, '/api/ldap/ids')
+    api.add_resource(User, '/api/ldap/user')
+    api.add_resource(Users, '/api/ldap/users')
+    api.add_resource(Group, '/api/ldap/group')
+    api.add_resource(Groups, '/api/ldap/groups')
+    # Users
+    api.add_resource(ApiKey, '/api/user/api_key')
+    api.add_resource(Reset, '/api/user/reset_password')
+    # System
+    api.add_resource(Files, '/api/system/files')
+    api.add_resource(AwsPrice, '/api/system/aws_price')
+    api.add_resource(DcvAuthenticator, '/api/dcv/authenticator')
+    # Scheduler
+    api.add_resource(Job, '/api/scheduler/job')
+    api.add_resource(Jobs, '/api/scheduler/jobs')
+    api.add_resource(Queue, '/api/scheduler/queue')
+    api.add_resource(Queues, '/api/scheduler/queues')
+
+    # Register views
+    app.register_blueprint(index)
+    app.register_blueprint(my_api_key)
+    app.register_blueprint(my_account)
+    app.register_blueprint(admin_users)
+    app.register_blueprint(admin_queues)
+    app.register_blueprint(admin_groups)
+    app.register_blueprint(admin_applications)
+    app.register_blueprint(admin_ami_management)
+    app.register_blueprint(my_files)
+    app.register_blueprint(submit_job)
+    app.register_blueprint(ssh)
+    app.register_blueprint(sftp)
+    app.register_blueprint(my_jobs)
+    app.register_blueprint(remote_desktop)
+    app.register_blueprint(remote_desktop_windows)
+    app.register_blueprint(dashboard)
+    app.register_blueprint(my_activity)
+    logging.config.dictConfig(dict_config)
+    app.logger.addHandler(logging.getLogger("application"))
+    app.logger.addHandler(logging.getLogger("api"))
+    app.logger.addHandler(logging.getLogger("scheduled_tasks"))
+    db.app = app
     db.init_app(app)
     db.create_all()
     app_session = Session(app)
     app_session.app.session_interface.db.create_all()
-    app.config["SESSION_SQLALCHEMY"] = SQLAlchemy(app)
-    api_doc(app, config_url=config.Config.FLASK_ENDPOINT + "/api/swagger.json", url_prefix="/api/doc", title="SOCA API Documentation",)
+    app.config.from_object(Config())
+    api_doc(app, config_url=config.Config.FLASK_ENDPOINT + "/api/swagger.json", url_prefix="/api/doc", title="SOCA API Documentation")
+    scheduler = APScheduler()
+    scheduler.init_app(app)
+    scheduler.start()
 
 if __name__ == '__main__':
     app.run()

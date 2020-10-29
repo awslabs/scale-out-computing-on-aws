@@ -6,7 +6,8 @@ from requests import get, delete
 from decorators import login_required
 import datetime
 import read_secretmanager
-logger = logging.getLogger("api_log")
+
+logger = logging.getLogger("application")
 my_activity = Blueprint('my_activity', __name__, template_folder='templates')
 
 

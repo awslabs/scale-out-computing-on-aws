@@ -6,7 +6,7 @@ from decorators import private_api
 import errors
 import re
 
-logger = logging.getLogger("soca_api")
+logger = logging.getLogger("api")
 
 
 class Groups(Resource):

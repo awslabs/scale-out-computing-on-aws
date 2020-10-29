@@ -1,10 +1,11 @@
 import logging
-from flask import render_template, Blueprint, request, redirect, session, flash
+from flask import render_template, Blueprint, request, redirect, session, flash, Response
 from models import db, ApplicationProfiles
 from decorators import login_required, admin_only
 import base64
 import datetime
-logger = logging.getLogger("api_log")
+import json
+logger = logging.getLogger("application")
 admin_applications = Blueprint('admin_applications', __name__, template_folder='templates')
 
 
@@ -124,4 +125,70 @@ def delete_application():
         flash("Application deleted successfully", "success")
         return redirect("/admin/applications")
 
+
+@admin_applications.route('/admin/applications/export', methods=['post'])
+@login_required
+@admin_only
+def export_application():
+    if "app" not in request.form:
+        flash("Missing action parameter", "error")
+        return redirect("/admin/applications")
+    else:
+        check_app = ApplicationProfiles.query.filter_by(id=request.form["app"]).first()
+        if check_app:
+            output = {"Instructions:": "https://awslabs.github.io/scale-out-computing-on-aws/web-interface/import-export-application-profiles",
+                "profile_form": check_app.profile_form,
+                "profile_job": check_app.profile_job,
+                "profile_interpreter": check_app.profile_interpreter,
+                "profile_thumbnail": check_app.profile_thumbnail}
+            return Response(json.dumps(output),
+                            mimetype='application/json',
+                            headers={'Content-Disposition': "attachment;filename=soca_app_" + check_app.profile_name+".json"})
+
+        else:
+            flash("App not found")
+            return redirect("/admin/applications")
+
+
+@admin_applications.route('/admin/applications/import', methods=['post'])
+@login_required
+@admin_only
+def import_application():
+    if "name" not in request.form:
+        flash("Missing action parameter", "error")
+        return redirect("/admin/applications")
+    else:
+        app_profile = request.files['app_profile'].read()
+        try:
+            sanitize_input = json.loads(app_profile)
+        except Exception:
+            flash("This does not seems to be a valid JSON")
+            return redirect("/admin/applications")
+
+
+        required_params = ["profile_form",
+                           "profile_job",
+                           "profile_interpreter",
+                           "profile_thumbnail"]
+        for param in required_params:
+            if param not in sanitize_input.keys():
+                flash(param + " is missing on your json")
+                return redirect("/admin/applications")
+
+        try:
+            new_app_profile = ApplicationProfiles(creator=session["user"],
+                                              profile_name=request.form["name"],
+                                              profile_form=sanitize_input["profile_form"],
+                                              profile_job=sanitize_input["profile_job"],
+                                              profile_interpreter=sanitize_input["profile_interpreter"],
+                                              profile_thumbnail=sanitize_input["profile_thumbnail"],
+                                              created_on=datetime.datetime.utcnow())
+            db.session.add(new_app_profile)
+            db.session.commit()
+        except Exception as err:
+            flash("Error while creating the db entry " +str(err))
+            return redirect("/admin/applications")
+
+        flash(request.form["name"] + " imported successfully.", "success")
+        return redirect("/admin/applications")
 

@@ -6,7 +6,7 @@ from models import ApiKeys
 from decorators import login_required, admin_only
 import subprocess
 
-logger = logging.getLogger("api_log")
+logger = logging.getLogger("application")
 admin_users = Blueprint('admin_users', __name__, template_folder='templates')
 
 

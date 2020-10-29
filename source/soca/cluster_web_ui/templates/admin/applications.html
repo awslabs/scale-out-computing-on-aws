@@ -4,7 +4,7 @@
 <head>
      {% include 'common/header.html' %}
      <script src="{{ url_for('static', filename='vendor/jquery-formbuilder/form-builder.min.js') }}"></script>
-     <script src="{{ url_for('static', filename='vendor/jquery-ui/jquery-ui.min.js') }}"></script>
+     <script src="{{ url_for('static', filename='vendor/jquery-ui/jquery-ui.js') }}"></script>
     <style>
     .job_preview {
         background: #2D2D30;
@@ -59,6 +59,7 @@
                           <a class="nav-item nav-link active" id="nav-home-tab" data-toggle="tab" href="#nav-add" role="tab" aria-controls="nav-home" aria-selected="true">Create new application profile</a>
                           <a class="nav-item nav-link" id="nav-contact-tab" data-toggle="tab" href="#nav-edit" role="tab" aria-controls="nav-contact" aria-selected="false">Edit application profile</a>
                           <a class="nav-item nav-link" id="nav-contact-tab" data-toggle="tab" href="#nav-delete" role="tab" aria-controls="nav-delete" aria-selected="false">Delete application profile</a>
+                          <a class="nav-item nav-link" id="nav-contact-tab" data-toggle="tab" href="#nav-importexport" role="tab" aria-controls="nav-delete" aria-selected="false">Import/Export</a>
 
                       </div>
                   </nav>
@@ -80,6 +81,7 @@
                                           {% else %}
                                              <a class="nav-item nav-link" id="nav-contact-tab" data-toggle="tab" href="#nav-save" role="tab" aria-controls="nav-sav" aria-selected="false">Step3: Create the profile</a>
                                           {% endif %}
+
                                       </div>
                                   </nav>
 
@@ -328,6 +330,7 @@ cd $PBS_O_WORKDIR
                                       <h6 class="m-0 font-weight-bold text-primary">Delete an existing application</h6>
                                   </div>
                                   <div class="card-body">
+                                  {% if application_profiles %}
                                       <form action="/admin/applications/delete" method="post">
                                           <div class="form-group col-md-6">
                                               <label for="walltime"> Select the application to delete</label>
@@ -346,6 +349,67 @@ cd $PBS_O_WORKDIR
                                               <button type="submit" class="btn btn-danger">Delete</button>
                                           </div>
                                       </form>
+                                  {% else %}
+                                  No application profiles found. Create one first
+                                  {% endif %}
+                                  </div>
+                              </div>
+                          </div>
+
+                        <div class="tab-pane fade show" id="nav-importexport" role="tabpanel" aria-labelledby="nav-home-tab">
+                              <div class="card shadow mb-4">
+                                  <div class="card-header py-3">
+                                      <h6 class="m-0 font-weight-bold text-primary">Import/Export existing SOCA Application Profiles</h6>
+                                  </div>
+                                  <div class="card-body">
+                                   <div class="alert alert-warning">
+                                       <a  target="_blank" href="https://awslabs.github.io/scale-out-computing-on-aws/web-interface/import-export-application-profiles">Click here to learn how to Import/Export your profiles</a>
+                                  </div>
+                                  <div class="row">
+                                      <div class="col-md-6">
+                                          <h5>Export existing application profile</h5>
+                                              {% if application_profiles %}
+                                                  <form action="/admin/applications/export" method="post">
+                                                      <div class="form-group">
+                                                          <select class="form-control" name='app' id="app">
+                                                              {% for app_id, app_data in application_profiles.items() %}
+                                                                  <option value="{{app_id}}">{{  app_data.profile_name }}</option>
+                                                              {% endfor %}
+                                                          </select>
+                                                      </div>
+                                                      <div align="center">
+                                                          <input type="hidden" name="csrf_token" value="{{csrf_token()}}">
+                                                          <button type="submit" class="btn btn-primary">Export</button>
+                                                      </div>
+                                                  </form>
+                                              {% else %}
+                                              No application profiles found. Create one first
+                                              {% endif %}
+                                      </div>
+
+                                      <div class="col-md-6">
+                                          <h5>Import application profile</h5>
+
+                                   <form action="/admin/applications/import" method="post" enctype="multipart/form-data">
+                                       <div class="form-group">
+                                           <input type="text" class="form-control" name="name" id="name" placeholder="Application name" required>
+                                       </div>
+                                       <div class="form-group">
+                                        <label>Application input file (JSON)</label>
+                                        <input type="file" class="form-control-file" name="app_profile" id="app_profile" required>
+                                      </div>
+
+                                       <div align="center">
+                                           <br>
+                                              <input type="hidden" name="csrf_token" value="{{csrf_token()}}">
+                                              <button type="submit" class="btn btn-primary">Import</button>
+                                       </div>
+                                      </form>
+                                      </div>
+
+                                  </div>
+
+
                                   </div>
                               </div>
                           </div>

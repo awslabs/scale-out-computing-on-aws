@@ -4,6 +4,27 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.6.0] - 2020-10-29
+### Added
+- Users can now launch Windows instances with DCV
+- Users can now configure their DCV sessions based on their own schedule
+- Users can stop/hibernate DCV sessions
+- Users can change the hardware of their DCV sessions after the initial launch
+- Admins can create DCV AMI with pre-configured applications
+- Added support for DCV session storage. Upload/download data to SOCA directly from your DCV desktop (C:\storage-root for windows and $HOME/storage-root for linux)
+- Admins can now prevent users to download the files via the web ui
+- SOCA automatically enable/disable EFS provisioned throughput based on current I/O activity
+
+### Changed
+- Removed deprecated `soca_aws_infos` hook
+- Fixed an issue that caused the web interface to become unresponsive after an API reset
+- Users can now easily import/export application profiles
+- Fixed an issue that caused Nvidia Tesla drivers to be incorrectly installed on P3 instances
+- Manual_build.py now automatically upload the installer to your S3 bucket
+- Upgraded to PBS v20
+- Upgraded DCV to 2020.1-9012
+
+
 ## [2.5.0] - 2020-07-17
 ### Added
 - Support for Elastic MetricBeat

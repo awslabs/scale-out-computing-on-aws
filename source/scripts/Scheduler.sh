@@ -24,15 +24,12 @@ echo $SERVER_IP $SERVER_HOSTNAME $SERVER_HOSTNAME_ALT >> /etc/hosts
 
 if [[ $SOCA_BASE_OS == "rhel7" ]]
 then
-    yum install -y $(echo ${SYSTEM_PKGS[*]}) --enablerepo rhui-REGION-rhel-server-optional
-    yum install -y $(echo ${SCHEDULER_PKGS[*]}) --enablerepo rhui-REGION-rhel-server-optional
+    yum install -y $(echo ${SYSTEM_PKGS[*]} ${SCHEDULER_PKGS[*]}) --enablerepo rhui-REGION-rhel-server-optional
 else
-    yum install -y $(echo ${SYSTEM_PKGS[*]})
-    yum install -y $(echo ${SCHEDULER_PKGS[*]})
+    yum install -y $(echo ${SYSTEM_PKGS[*]} ${SCHEDULER_PKGS[*]})
 fi
 
-yum install -y $(echo ${OPENLDAP_SERVER_PKGS[*]})
-yum install -y $(echo ${SSSD_PKGS[*]})
+yum install -y $(echo ${OPENLDAP_SERVER_PKGS[*]} ${SSSD_PKGS[*]})
 
 # Mount EFS
 mkdir /apps
@@ -63,20 +60,20 @@ else
     echo "Python already installed and at correct version."
 fi
 
-# Install PBSPro if needed
+# Install OpenPBS if needed
 cd ~
-PBSPRO_INSTALLED_VERS=$(/opt/pbs/bin/qstat --version | awk {'print $NF'})
-if [[ "$PBSPRO_INSTALLED_VERS" != "$PBSPRO_VERSION" ]]
+OPENPBS_INSTALLED_VERS=$(/opt/pbs/bin/qstat --version | awk {'print $NF'})
+if [[ "$OPENPBS_INSTALLED_VERS" != "$OPENPBS_VERSION" ]]
 then
-    echo "PBSPro Not Detected, Installing PBSPro ..."
+    echo "OpenPBS Not Detected, Installing OpenPBS ..."
     cd ~
-    wget $PBSPRO_URL
-    if [[ $(md5sum $PBSPRO_TGZ | awk '{print $1}') != $PBSPRO_HASH ]];  then
-        echo -e "FATAL ERROR: Checksum for PBSPro failed. File may be compromised." > /etc/motd
+    wget $OPENPBS_URL
+    if [[ $(md5sum $OPENPBS_TGZ | awk '{print $1}') != $OPENPBS_HASH ]];  then
+        echo -e "FATAL ERROR: Checksum for OpenPBS failed. File may be compromised." > /etc/motd
         exit 1
     fi
-    tar zxvf $PBSPRO_TGZ
-    cd pbspro-$PBSPRO_VERSION
+    tar zxvf $OPENPBS_TGZ
+    cd openpbs-$OPENPBS_VERSION
     ./autogen.sh
     ./configure --prefix=/opt/pbs
     make -j6
@@ -84,7 +81,7 @@ then
     /opt/pbs/libexec/pbs_postinstall
     chmod 4755 /opt/pbs/sbin/pbs_iff /opt/pbs/sbin/pbs_rcp
 else
-    echo "PBSPro already installed, and at correct version."
+    echo "OpenPBS already installed, and at correct version."
     echo "PBS_SERVER=$SERVER_HOSTNAME_ALT
 PBS_START_SERVER=1
 PBS_START_SCHED=1
@@ -142,7 +139,7 @@ systemctl start pbs
 /opt/pbs/bin/qmgr -c "set node $SERVER_HOSTNAME_ALT queue = workq"
 /opt/pbs/bin/qmgr -c "set server flatuid=true"
 /opt/pbs/bin/qmgr -c "set server job_history_enable=1"
-/opt/pbs/bin/qmgr -c "set server job_history_duration = 00:01:00"
+/opt/pbs/bin/qmgr -c "set server job_history_duration = 01:00:00"
 /opt/pbs/bin/qmgr -c "set server scheduler_iteration = 30"
 /opt/pbs/bin/qmgr -c "set server max_concurrent_provision = 5000"
 
@@ -176,7 +173,7 @@ systemctl start pbs
 /opt/pbs/bin/qmgr -c "set queue alwayson queue_type = Execution"
 /opt/pbs/bin/qmgr -c "set queue alwayson started = True"
 /opt/pbs/bin/qmgr -c "set queue alwayson enabled = True"
-/opt/pbs/bin/qmgr -c  "set server default_queue = normal"
+/opt/pbs/bin/qmgr -c "set server default_queue = normal"
 
 # Add compute_node to list of required resource
 sed -i 's/resources: "ncpus, mem, arch, host, vnode, aoe, eoe"/resources: "ncpus, mem, arch, host, vnode, aoe, eoe, compute_node"/g' /var/spool/pbs/sched_priv/sched_config
@@ -359,13 +356,8 @@ echo "UserKnownHostsFile /dev/null" >> /etc/ssh/ssh_config
 # Source environment to reload path for Python3
 /apps/soca/$SOCA_CONFIGURATION/python/$PYTHON_VERSION/bin/pip3 install -r /root/requirements.txt
 
-# PBS hooks still run on python2 env, so some packages are required
-EASY_INSTALL=$(which easy_install-2.7)
-$EASY_INSTALL yaml python-ldap boto3
-
-# Configure NTP
+# Configure Chrony
 yum remove -y ntp
-yum install -y chrony
 mv /etc/chrony.conf  /etc/chrony.conf.original
 echo -e """
 # use the local instance NTP service, if available
@@ -400,7 +392,7 @@ systemctl enable chronyd
 echo -e  "
 * hard memlock unlimited
 * soft memlock unlimited
-" > /etc/security/limits.conf
+" >> /etc/security/limits.conf
 
 # Reboot to ensure SELINUX is disabled
 # Note: Upon reboot, SchedulerPostReboot.sh script will be executed and will finalize scheduler configuration

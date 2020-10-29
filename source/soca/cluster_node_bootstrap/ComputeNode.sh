@@ -56,10 +56,10 @@ else
     # Use Instance Store if possible.
     # When instance has more than 1 instance store, raid + mount them as /scratch
 	VOLUME_LIST=()
-	if [[ ! -z $(ls /dev/nvme[1-9]n1) ]];
+	if [[ ! -z $(ls /dev/nvme[0-9]n1) ]];
         then
         echo 'Detected Instance Store: NVME'
-        DEVICES=$(ls /dev/nvme[1-9]n1)
+        DEVICES=$(ls /dev/nvme[0-9]n1)
 
     elif [[ ! -z $(ls /dev/xvdc[a-z]) ]];
         then
@@ -88,8 +88,8 @@ else
 	    then
 	        # If only 1 instance store, mfks as ext4
 	        echo "Detected  1 NVMe device available, formatting as ext4 .."
-	        mkfs -t ext4 $DEVICES
-	        echo "$DEVICES /scratch ext4 defaults 0 0" >> /etc/fstab
+	        mkfs -t ext4 $VOLUME_LIST
+	        echo "$VOLUME_LIST /scratch ext4 defaults 0 0" >> /etc/fstab
 	    elif [[ $VOLUME_COUNT -gt 1 ]];
 	    then
 	        # if more than 1 instance store disks, raid them !
@@ -106,20 +106,20 @@ else
 fi
 
 
-# Install PBSPro if needed
+# Install OpenPBS if needed
 cd ~
-PBSPRO_INSTALLED_VERS=$(/opt/pbs/bin/qstat --version | awk {'print $NF'})
-if [[ "$PBSPRO_INSTALLED_VERS" != "$PBSPRO_VERSION" ]]
+OPENPBS_INSTALLED_VERS=$(/opt/pbs/bin/qstat --version | awk {'print $NF'})
+if [[ "$OPENPBS_INSTALLED_VERS" != "$OPENPBS_VERSION" ]]
 then
-    echo "PBSPro Not Detected, Installing PBSPro ..."
+    echo "OpenPBS Not Detected, Installing OpenPBS ..."
     cd ~
-    wget $PBSPRO_URL
-    if [[ $(md5sum $PBSPRO_TGZ | awk '{print $1}') != $PBSPRO_HASH ]];  then
-        echo -e "FATAL ERROR: Checksum for PBSPro failed. File may be compromised." > /etc/motd
+    wget $OPENPBS_URL
+    if [[ $(md5sum $OPENPBS_TGZ | awk '{print $1}') != $OPENPBS_HASH ]];  then
+        echo -e "FATAL ERROR: Checksum for OpenPBS failed. File may be compromised." > /etc/motd
         exit 1
     fi
-    tar zxvf $PBSPRO_TGZ
-    cd pbspro-$PBSPRO_VERSION
+    tar zxvf $OPENPBS_TGZ
+    cd openpbs-$OPENPBS_VERSION
     ./autogen.sh
     ./configure --prefix=/opt/pbs
     make -j6
@@ -229,14 +229,16 @@ PBS_SCP=/usr/bin/scp
 cp /var/spool/pbs/mom_priv/config /var/spool/pbs/mom_priv/config.orig
 echo -e "
 \$clienthost $SCHEDULER_HOSTNAME
+\$usecp *:/dev/null /dev/null
+\$usecp *:/data /data
 "  > /var/spool/pbs/mom_priv/config
 
-INSTANCE_TYPE=`curl --silent  http://169.254.169.254/latest/meta-data/instance-type | cut -d. -f1`
+INSTANCE_FAMILY=`curl --silent  http://169.254.169.254/latest/meta-data/instance-type | cut -d. -f1`
 
 # If GPU instance, disable NOUVEAU drivers before installing DCV as this require a reboot
 # Rest of the DCV configuration is managed by ComputeNodeInstallDCV.sh
-GPU_INSTANCE_FAMILY=(g2 g3 g4 g4dn p2 p3 p3dn)
-if [[ "${GPU_INSTANCE_FAMILY[@]}" =~ "${INSTANCE_TYPE}" ]];
+GPU_INSTANCE_FAMILY=(p2 p3 g2 g3 g4 g4dn)
+if [[ "${GPU_INSTANCE_FAMILY[@]}" =~ "${INSTANCE_FAMILY}" ]];
 then
     echo "Detected GPU instance .. disable NOUVEAU driver"
     cat << EOF | sudo tee --append /etc/modprobe.d/blacklist.conf
@@ -250,11 +252,43 @@ EOF
     sudo grub2-mkconfig -o /boot/grub2/grub.cfg
 fi
 
+# Configure Chrony
+yum remove -y ntp
+mv /etc/chrony.conf  /etc/chrony.conf.original
+echo -e """
+# use the local instance NTP service, if available
+server 169.254.169.123 prefer iburst minpoll 4 maxpoll 4
+
+# Use public servers from the pool.ntp.org project.
+# Please consider joining the pool (http://www.pool.ntp.org/join.html).
+# !!! [BEGIN] SOCA REQUIREMENT
+# You will need to open UDP egress traffic on your security group if you want to enable public pool
+#pool 2.amazon.pool.ntp.org iburst
+# !!! [END] SOCA REQUIREMENT
+# Record the rate at which the system clock gains/losses time.
+driftfile /var/lib/chrony/drift
+
+# Allow the system clock to be stepped in the first three updates
+# if its offset is larger than 1 second.
+makestep 1.0 3
+
+# Specify file containing keys for NTP authentication.
+keyfile /etc/chrony.keys
+
+# Specify directory for log files.
+logdir /var/log/chrony
+
+# save data between restarts for fast re-load
+dumponexit
+dumpdir /var/run/chrony
+""" > /etc/chrony.conf
+systemctl enable chronyd
+
 # Disable ulimit
 echo -e  "
 * hard memlock unlimited
 * soft memlock unlimited
-" > /etc/security/limits.conf
+" >> /etc/security/limits.conf
 
 
 # Reboot to disable SELINUX

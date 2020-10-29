@@ -5,7 +5,7 @@ from requests import get, post, delete, put
 from models import ApiKeys
 from decorators import login_required, admin_only
 
-logger = logging.getLogger("api_log")
+logger = logging.getLogger("application")
 admin_groups = Blueprint('admin_groups', __name__, template_folder='templates')
 
 
