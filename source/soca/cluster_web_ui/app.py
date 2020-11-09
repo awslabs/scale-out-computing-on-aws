@@ -68,7 +68,7 @@ def folder_name_truncate(folder_name):
         return folder_name
 app.jinja_env.filters['folder_name_truncate'] = folder_name_truncate
 
-@app.route("/api/swagger.json")
+@app.route("/api/doc/swagger.json")
 def spec():
     swag = swagger(app)
     swag['info']['version'] = "1.0"
@@ -228,7 +228,7 @@ with app.app_context():
     app_session = Session(app)
     app_session.app.session_interface.db.create_all()
     app.config.from_object(Config())
-    api_doc(app, config_url=config.Config.FLASK_ENDPOINT + "/api/swagger.json", url_prefix="/api/doc", title="SOCA API Documentation")
+    api_doc(app, config_url=config.Config.FLASK_ENDPOINT + "/api/doc/swagger.json", url_prefix="/api/doc", title="SOCA API Documentation")
     scheduler = APScheduler()
     scheduler.init_app(app)
     scheduler.start()
