@@ -25,15 +25,12 @@ cd ~
 # Install System required libraries
 if [[ $SOCA_BASE_OS == "rhel7" ]];
 then
-    yum install -y $(echo ${SYSTEM_PKGS[*]}) --enablerepo rhui-REGION-rhel-server-optional
-    yum install -y $(echo ${SCHEDULER_PKGS[*]}) --enablerepo rhui-REGION-rhel-server-optional
+    yum install -y $(echo ${SYSTEM_PKGS[*]} ${SCHEDULER_PKGS[*]}) --enablerepo rhui-REGION-rhel-server-optional
 else
-    yum install -y $(echo ${SYSTEM_PKGS[*]})
-    yum install -y $(echo ${SCHEDULER_PKGS[*]})
+    yum install -y $(echo ${SYSTEM_PKGS[*]} ${SCHEDULER_PKGS[*]})
 fi
 
-yum install -y $(echo ${OPENLDAP_SERVER_PKGS[*]})
-yum install -y $(echo ${SSSD_PKGS[*]})
+yum install -y $(echo ${OPENLDAP_SERVER_PKGS[*]} ${SSSD_PKGS[*]})
 
 # Configure Scratch Directory if specified by the user
 mkdir /scratch/
@@ -98,6 +95,7 @@ else
             for dev in ${VOLUME_LIST[@]} ; do dd if=/dev/zero of=$dev bs=1M count=1 ; done
             echo yes | mdadm --create -f --verbose --level=0 --raid-devices=$VOLUME_COUNT /dev/$DEVICE_NAME ${VOLUME_LIST[@]}
             mkfs -t ext4 /dev/$DEVICE_NAME
+            mdadm --detail --scan | tee -a /etc/mdadm.conf
             echo "/dev/$DEVICE_NAME /scratch ext4 defaults 0 0" >> /etc/fstab
         else
             echo "All volumes detected already have a partition or mount point and can't be used as scratch devices"
@@ -128,7 +126,7 @@ then
     chmod 4755 /opt/pbs/sbin/pbs_iff /opt/pbs/sbin/pbs_rcp
     systemctl disable pbs
 else
-    echo "PBSPro already installed, and at correct version."
+    echo "OpenPBS already installed, and at correct version."
 fi
 
 # Edit path with new scheduler/python locations
