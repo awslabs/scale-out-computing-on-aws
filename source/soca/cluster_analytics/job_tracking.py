@@ -214,7 +214,7 @@ if __name__ == "__main__":
                 try:
                     if data['job_state'].lower() == 'e':
                         ignore = False
-                        if 'resources_used.instance_type' not in data['job_data']:
+                        if 'Resource_List.instance_type' not in data['job_data']:
                             # job not done
                             ignore = True
                         else:
