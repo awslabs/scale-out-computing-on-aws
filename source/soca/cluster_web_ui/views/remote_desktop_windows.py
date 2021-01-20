@@ -46,7 +46,7 @@ def can_launch_instance(launch_parameters):
                     'Ebs': {
                         'DeleteOnTermination': True,
                         'VolumeSize': 30 if launch_parameters["disk_size"] is False else int(launch_parameters["disk_size"]),
-                        'VolumeType': 'gp2',
+                        'VolumeType': 'gp3',
                         'Encrypted': True
                     },
                 },
@@ -318,6 +318,12 @@ def create():
     user_data = user_data.replace("%SOCA_SchedulerPrivateIP%", soca_configuration['SchedulerPrivateIP'] + ":" + str(config.Config.FLASK_PORT))
     user_data = user_data.replace("%SOCA_LoadBalancerDNSName%", soca_configuration['LoadBalancerDNSName'])
     user_data = user_data.replace("%SOCA_LOCAL_USER%", session["user"])
+
+    # required for EBS tagging
+    user_data = user_data.replace("%SOCA_JOB_ID%", str(session_name))
+    user_data = user_data.replace("%SOCA_JOB_OWNER%", session["user"])
+    user_data = user_data.replace("%SOCA_JOB_PROJECT%", "dcv")
+
 
     if config.Config.DCV_WINDOWS_AUTOLOGON is True:
         user_data = user_data.replace("%SOCA_WINDOWS_AUTOLOGON%", "true")

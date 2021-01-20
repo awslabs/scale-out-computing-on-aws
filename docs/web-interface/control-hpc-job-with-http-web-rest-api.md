@@ -135,5 +135,5 @@ If the command is valid, you will receive a validation message:
 This time the output will return an error:
 
 ~~~json
-{"succes": false, "message": "Unable to retrieve Job ID (job may have terminated and is no longer in the queue)"}
+{"success": false, "message": "Unable to retrieve Job ID (job may have terminated and is no longer in the queue)"}
 ~~~

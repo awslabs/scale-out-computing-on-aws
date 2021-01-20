@@ -38,7 +38,7 @@ def main(**launch_parameters):
                                          'Ebs': {
                                              'DeleteOnTermination': True,
                                              'VolumeSize': 30 if launch_parameters["disk_size"] is False else int(launch_parameters["disk_size"]),
-                                             'VolumeType': 'gp2',
+                                             'VolumeType': 'gp3',
                                              'Encrypted': True}
                                          }]
         instance.ImageId = launch_parameters["image_id"]

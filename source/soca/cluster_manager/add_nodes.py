@@ -6,6 +6,7 @@ import re
 import sys
 import uuid
 import boto3
+from math import ceil
 from botocore.exceptions import ClientError
 
 sys.path.append(os.path.dirname(__file__))
@@ -19,6 +20,32 @@ ec2 = boto3.client('ec2')
 servicequotas = boto3.client("service-quotas")
 aligo_configuration = configuration.get_aligo_configuration()
 
+def find_running_cpus_per_instance(instance_list):
+    running_vcpus = 0
+    token = True
+    next_token = ''
+    while token is True:
+        response = ec2.describe_instances(
+            Filters=[
+                {'Name': 'instance-type', 'Values': instance_list},
+                {'Name': 'instance-state-name', 'Values': ['running', 'pending']}],
+            MaxResults=1000,
+            NextToken=next_token,
+        )
+        try:
+            next_token = response['NextToken']
+        except KeyError:
+            token = False
+        for reservation in response['Reservations']:
+            for instance in reservation['Instances']:
+                if "CpuOptions" in instance.keys():
+                    running_vcpus += instance["CpuOptions"]["CoreCount"] * 2
+                else:
+                    if 'xlarge' in instance["InstanceType"]:
+                        running_vcpus += 4
+                    else:
+                        running_vcpus += 2
+    return running_vcpus
 
 def verify_ri_saving_availabilities(instance_type, instance_type_info):
     if instance_type not in instance_type_info.keys():
@@ -60,8 +87,8 @@ def verify_ri_saving_availabilities(instance_type, instance_type_info):
             for reservation in get_ri_count["ReservedInstances"]:
                 instance_type_info[instance_type]["current_ri_purchased"] += reservation["InstanceCount"]
 
-    print("Detected {} running {} instance ".format(instance_type_info[instance_type]["current_instance_in_use"],instance_type))
-    print("Detected {} RI for {} instance ".format(instance_type_info[instance_type]["current_ri_purchased"], instance_type))
+    #print("Detected {} running {} instance ".format(instance_type_info[instance_type]["current_instance_in_use"],instance_type))
+    #print("Detected {} RI for {} instance ".format(instance_type_info[instance_type]["current_ri_purchased"], instance_type))
     return instance_type_info
 
 def verify_vcpus_limit(instance_type, desired_capacity, quota_info):
@@ -123,58 +150,13 @@ def verify_vcpus_limit(instance_type, desired_capacity, quota_info):
     if not quota_info or instance_type not in quota_info.keys():
         all_instances_available = ec2._service_model.shape_for('InstanceType').enum
         all_instances_for_quota = [instance_family for x in instances_family_allowed_in_quota for instance_family in all_instances_available if instance_family.startswith(x.rstrip().lstrip())]
-        # get all running instance
-        token = True
-        next_token = ''
-        while token is True:
-            response = ec2.describe_instances(
-                Filters=[
-                    # Describe instance as a limit of 200 filters
-                    {'Name': 'instance-type', 'Values': all_instances_for_quota[0:150]},
-                    {'Name': 'instance-state-name', 'Values': ['running', 'pending']}],
-                MaxResults=1000,
-                NextToken=next_token,
-            )
-            try:
-                next_token = response['NextToken']
-            except KeyError:
-                token = False
-            for reservation in response['Reservations']:
-                for instance in reservation['Instances']:
-                    if "CpuOptions" in instance.keys():
-                        running_vcpus += instance["CpuOptions"]["CoreCount"] * 2
-                    else:
-                        if 'xlarge' in instance["InstanceType"]:
-                            running_vcpus += 4
-                        else:
-                            running_vcpus += 2
+        required_api_calls = ceil(len(all_instances_for_quota) / 190)
+        for i in range(0, required_api_calls):
+            # DescribeInstances has a limit of 200 attributes per filter
+            instances_to_check = all_instances_for_quota[i * 190:(i + 1) * 190]
+            if instances_to_check:
+                running_vcpus += find_running_cpus_per_instance(instances_to_check)
 
-        # Describe instance as a limit of 200 filters
-        if len(all_instances_for_quota) > 150:
-            token = True
-            next_token = ''
-            while token is True:
-                response = ec2.describe_instances(
-                    Filters=[
-                        {'Name': 'instance-type', 'Values': all_instances_for_quota[150:]},
-                        {'Name': 'instance-state-name', 'Values': ['running', 'pending']}],
-                    MaxResults=1000,
-                    NextToken=next_token,
-                )
-                try:
-                    next_token = response['NextToken']
-                except KeyError:
-                    token = False
-
-                for reservation in response['Reservations']:
-                    for instance in reservation['Instances']:
-                        if "CpuOptions" in instance.keys():
-                            running_vcpus += instance["CpuOptions"]["CoreCount"] * 2
-                        else:
-                            if 'xlarge' in instance["InstanceType"]:
-                                running_vcpus += 4
-                            else:
-                                running_vcpus += 2
     else:
         running_vcpus = quota_info[instance_type]["vcpus_provisioned"]
 

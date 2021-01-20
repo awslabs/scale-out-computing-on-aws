@@ -7,33 +7,6 @@ https://awslabs.github.io/scale-out-computing-on-aws/[https://awslabs.github.io/
 
 == :rocket: How to install Scale-Out Computing on AWS
 
-=== 1-Click installer
-
-Visit https://aws.amazon.com/solutions/scale-out-computing-on-aws[https://aws.amazon.com/solutions/scale-out-computing-on-aws]
-
-:warning:1-Click installer is great for PoC or demos. For production workload, it's recommended to go with "Custom Build" instead.
-
-
-=== Custom Build
-
-. Clone this git repository
-+
-```bash
-git clone https://github.com/awslabs/scale-out-computing-on-aws
-```
-
-. Run the following command to create your build (support Python2 and Python3):
-+
-```bash
-python source/manual_build.py
-```
-
-. Output will be created under `source/dist/<build_id>`
-
-. Upload `source/dist/<build_id>` folder to your own S3 bucket
-
-. Launch CloudFormation and use `scale-out-computing-on-aws.template` as base template
-
 Refer to https://awslabs.github.io/scale-out-computing-on-aws/install-soca-cluster/[https://awslabs.github.io/scale-out-computing-on-aws/install-soca-cluster/] for installation instructions.
 
 == :pencil2: File Structure
@@ -65,7 +38,7 @@ Scale-Out Computing on AWS project consists in a collection of CloudFormation te
 
 ***
 
-Copyright 2019 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+Copyright 2021 Amazon.com, Inc. or its affiliates. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.

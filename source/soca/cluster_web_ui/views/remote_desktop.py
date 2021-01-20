@@ -54,7 +54,7 @@ def can_launch_instance(launch_parameters):
                     'Ebs': {
                         'DeleteOnTermination': True,
                         'VolumeSize': 30 if launch_parameters["disk_size"] is False else int(launch_parameters["disk_size"]),
-                        'VolumeType': 'gp2',
+                        'VolumeType': 'gp3',
                         'Encrypted': True
                     },
                 },
@@ -334,6 +334,12 @@ echo export "SOCA_INSTALL_BUCKET_FOLDER="''' + str(soca_configuration['S3Install
 echo export "SOCA_INSTANCE_TYPE=$GET_INSTANCE_TYPE" >> /etc/environment
 echo export "SOCA_HOST_SYSTEM_LOG="/apps/soca/''' + str(soca_configuration['ClusterId']) + '''/cluster_node_bootstrap/logs/desktop/''' + str(session["user"]) + '''/''' + session_name + '''/$(hostname -s)"" >> /etc/environment
 echo export "AWS_DEFAULT_REGION="'''+region+'''"" >> /etc/environment
+# Required for proper EBS tagging
+echo export "SOCA_JOB_ID="''' + str(session_name) +'''"" >> /etc/environment
+echo export "SOCA_JOB_OWNER="''' + str(session["user"]) + '''"" >> /etc/environment
+echo export "SOCA_JOB_PROJECT="dcv"" >> /etc/environment
+echo export "SOCA_JOB_QUEUE="dcv"" >> /etc/environment
+
 source /etc/environment
 AWS=$(which aws)
 # Give yum permission to the user on this specific machine

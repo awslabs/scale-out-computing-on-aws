@@ -50,10 +50,6 @@ Parameters:
   SchedulerPublicIP:
     Type: String
 
-  SchedulerPublicIPAllocation:
-    Type: String
-
-
 Conditions:
   UseAmazonLinux: !Equals [ !Ref BaseOS, 'amazonlinux2']
 
@@ -70,7 +66,7 @@ Resources:
         - DeviceName: !If [UseAmazonLinux, "/dev/xvda", "/dev/sda1"]
           Ebs:
             VolumeSize: 150
-            VolumeType: gp2
+            VolumeType: gp3
             Encrypted: true
 
       KeyName: !Ref SSHKeyPair

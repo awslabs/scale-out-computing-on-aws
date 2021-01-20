@@ -261,7 +261,7 @@ if __name__ == "__main__":
                                 
                                 # Update EBS rate for your region
                                 # EBS Formulas: https://aws.amazon.com/ebs/pricing/
-                                ebs_gp2_storage = 0.1  # $ per gb per month
+                                ebs_gp3_storage = 0.08  # $ per gb per month
                                 ebs_io1_storage = 0.125  # $ per gb per month
                                 provisionied_io = 0.065  # IOPS per month
                                 fsx_lustre = 0.000194 # GB per hour
@@ -275,14 +275,14 @@ if __name__ == "__main__":
                                 tmp['estimated_price_fsx_lustre'] = 0
 
                                 if 'root_size' in tmp.keys():
-                                    tmp['estimated_price_storage_root_size'] = ((int(tmp['root_size']) * ebs_gp2_storage * simulation_time_seconds_with_penalty) / (86400 * 30)) * tmp['nodect']
+                                    tmp['estimated_price_storage_root_size'] = ((int(tmp['root_size']) * ebs_gp3_storage * simulation_time_seconds_with_penalty) / (86400 * 30)) * tmp['nodect']
 
                                 if 'scratch_size' in tmp.keys():
                                     if 'scratch_iops' in tmp.keys():
                                         tmp['estimated_price_storage_scratch_size'] = ((int(tmp['scratch_size']) * ebs_io1_storage * simulation_time_seconds_with_penalty) / (86400 * 30)) * tmp['nodect']
                                         tmp['estimated_price_storage_scratch_iops'] = ((int(tmp['scratch_iops']) * provisionied_io * simulation_time_seconds_with_penalty) / (86400 * 30)) * tmp['nodect']
                                     else:
-                                        tmp['estimated_price_storage_scratch_size'] = ((int(tmp['scratch_size']) * ebs_gp2_storage * simulation_time_seconds_with_penalty) / (86400 * 30)) * tmp['nodect']
+                                        tmp['estimated_price_storage_scratch_size'] = ((int(tmp['scratch_size']) * ebs_gp3_storage * simulation_time_seconds_with_penalty) / (86400 * 30)) * tmp['nodect']
 
                                 if 'fsx_lustre_bucket' in tmp.keys():
                                     if tmp['fsx_lustre_bucket'] != 'false':

@@ -245,13 +245,17 @@ def index():
             try:
                 for entry in os.scandir(path):
                     if not entry.name.startswith("."):
-                        filesystem[entry.name] = {"path": path + "/" + entry.name,
-                                                  "uid": encrypt(path + "/" + entry.name, entry.stat().st_size)["message"],
-                                                  "type": "folder" if entry.is_dir() else "file",
-                                                  "st_size": convert_size(entry.stat().st_size),
-                                                  "st_size_default": entry.stat().st_size,
-                                                  "st_mtime": entry.stat().st_mtime
-                                                  }
+                        try:
+                            filesystem[entry.name] = {"path": path + "/" + entry.name,
+                                                      "uid": encrypt(path + "/" + entry.name, entry.stat().st_size)["message"],
+                                                      "type": "folder" if entry.is_dir() else "file",
+                                                      "st_size": convert_size(entry.stat().st_size),
+                                                      "st_size_default": entry.stat().st_size,
+                                                      "st_mtime": entry.stat().st_mtime
+                                                      }
+                        except Exception as err:
+                            # most likely symbolic link pointing to wrong location
+                            flash("{} returned an error and cannot be displayed: {}".format(entry.name, err))
                 cache[CACHE_FOLDER_CONTENT_PREFIX + path] = filesystem
 
             except Exception as err:

@@ -6,12 +6,13 @@ import sys
 import argparse
 from shutil import make_archive, copy, copytree
 
+
 def upload_objects(s3, bucket_name, s3_prefix, directory_name):
     try:
         my_bucket = s3.Bucket(bucket_name)
         for path, subdirs, files in os.walk(directory_name):
-            path = path.replace("\\","/")
-            directory = path.replace(directory_name,"")
+            path = path.replace("\\", "/")
+            directory = path.replace(directory_name.replace("\\", "/"), "")
             for file in files:
                 print("%s[+] Uploading %s to s3://%s/%s%s%s" % (fg('green'), os.path.join(path, file), bucket_name, s3_prefix, directory+'/'+file, attr('reset')))
                 my_bucket.upload_file(os.path.join(path, file), s3_prefix+directory+'/'+file)
@@ -24,7 +25,7 @@ def get_input(prompt):
     if sys.version_info[0] >= 3:
         response = input(prompt)
     else:
-        #Python 2
+        # Python 2
         response = raw_input(prompt)
     return response
 
@@ -33,10 +34,12 @@ if __name__ == "__main__":
         from colored import fg, bg, attr
         import boto3
         from requests import get
+        import requests.exceptions
+        import massedit
         from botocore.client import ClientError
         from botocore.exceptions import ProfileNotFound
     except ImportError:
-        print(" > You must have 'colored', 'boto3' and 'requests' installed. Run 'pip install boto3 colored requests'")
+        print(" > You must have 'massedit, 'colored', 'boto3' and 'requests' installed. Run 'pip install boto3 colored requests massedit' or 'pip install -r requirements.txt' first")
         exit(1)
 
     parser = argparse.ArgumentParser(description='Build & Upload SOCA CloudFormation resources.')
@@ -70,15 +73,19 @@ if __name__ == "__main__":
         s3.meta.client.head_bucket(Bucket=bucket)
         s3_bucket_exists = True
     except ClientError as e:
-        print(" > The bucket "+ bucket + " does not exist or you have no access.")
+        print(" > The bucket " + bucket + " does not exist or you have no access.")
         print(e)
         print(" > Building locally but not uploading to S3")
 
     # Detect Client IP
-    get_client_ip = get("https://ifconfig.co/json")
-    if get_client_ip.status_code == 200:
-        client_ip = get_client_ip.json()['ip'] + '/32'
-    else:
+    try:
+        get_client_ip = get("https://ifconfig.co/json",)
+        if get_client_ip.status_code == 200:
+            client_ip = get_client_ip.json()['ip'] + '/32'
+        else:
+            client_ip = ''
+    except requests.exceptions.RequestException as e:
+        print("Unable to determine client IP")
         client_ip = ''
 
     build_path = os.path.dirname(os.path.realpath(__file__))
@@ -104,6 +111,21 @@ if __name__ == "__main__":
         print(line.replace('%%BUCKET_NAME%%', 'your-s3-bucket-name-here').replace('%%SOLUTION_NAME%%/%%VERSION%%', 'your-s3-folder-name-here').replace('\n', ''))
 
     print(" > Creating archive for build id: " + unique_id)
+
+    # Sanitize build (remove unwanted characters, esp when you build with Cygwin)
+    wrong_chars = ["\\r", "\\^M"]
+    for path, subdirs, files in os.walk(build_folder + '/'):
+        for file in files:
+            file = build_path + "/" + build_folder + '/' + file
+            if file.endswith(".template") \
+                    or file.endswith(".sh") \
+                    or file.endswith(".cfg") \
+                    or file.endswith(".txt"):
+                for char in wrong_chars:
+                    massedit.edit_files([file],
+                                        ["re.sub(r'" + char + "', '', line)"],
+                                        dry_run=False)
+
     make_archive('dist/' + output_prefix, 'gztar', build_folder)
 
 

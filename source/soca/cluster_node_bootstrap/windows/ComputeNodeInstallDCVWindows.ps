@@ -1,7 +1,6 @@
 <powershell>
 # Script triggered by cluster_web_ui/views/remote_desktop_windows.py
 # DCV parameters: https://docs.aws.amazon.com/dcv/latest/adminguide/config-param-ref.html
-
 # Stop DCV service
 # Stop-Service -Name dcvserver
 
@@ -73,6 +72,29 @@ $AdminKey = "HKLM:\SOFTWARE\Microsoft\Active Setup\Installed Components\{A509B1A
 $UserKey = "HKLM:\SOFTWARE\Microsoft\Active Setup\Installed Components\{A509B1A8-37EF-4b3f-8CFC-4F3A74704073}"
 Set-ItemProperty -Path $AdminKey -Name "IsInstalled" -Value 0 -Force
 Set-ItemProperty -Path $UserKey -Name "IsInstalled" -Value 0 -Force
+
+# Tag EBS disks manually as CFN ASG does not support it
+Import-Module AWSPowerShell
+$tagName = New-Object Amazon.EC2.Model.Tag
+$tagName.Key = "Name"
+$tagName.Value = "soca-job-%SOCA_JOB_ID%"
+
+$tagOwner = New-Object Amazon.EC2.Model.Tag
+$tagOwner.Key = "soca:JobOwner"
+$tagOwner.Value = "%SOCA_JOB_OWNER%"
+
+$tagProject = New-Object Amazon.EC2.Model.Tag
+$tagProject.Key = "soca:JobProject"
+$tagProject.Value = "dcv"
+
+foreach($Path in (Get-Disk).Path)
+{
+    $SerialNumber = (Get-Disk -Path $Path).SerialNumber
+    if($SerialNumber -clike 'vol*'){
+        $EbsVolumeId = $SerialNumber.Substring(0,20).Replace("vol","vol-")
+        New-EC2Tag -Resource $EbsVolumeId -Tag $tagName,$tagOwner,$tagProject
+    }
+}
 
 # Restart Computer to validate all Windows changes. Use -Force to force reboot even if users are logged in (in case of custom AMI)
 Restart-Computer -Force

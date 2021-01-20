@@ -64,7 +64,7 @@ class Job(Resource):
                 return {"success": True, "message": job_info["Jobs"][job_key]}, 200
 
             except Exception as err:
-                return {"succes": False, "message": "Unable to retrieve Job ID (job may have terminated and is no longer in the queue)"}, 210
+                return {"success": False, "message": "Unable to retrieve Job ID (job may have terminated and is no longer in the queue)"}, 210
 
         except Exception as err:
             return {"success": False, "message": "Unknown error: " + str(err)}, 500
@@ -165,7 +165,7 @@ class Job(Resource):
                     return {"success": True, "message": "Your Linux command has been executed successfully. Output (if any) can be accessed on <a href='/my_files?path="+job_output_path+"'>"+job_output_path+"</a>"}, 200
 
             except subprocess.CalledProcessError as e:
-                return {"succes": False,
+                return {"success": False,
                         "message": {
                             "error": "Unable to submit the job. Please verify your script file (eg: malformed inputs, syntax error, extra space in the PBS variables ...) or refer to the 'stderr' message.",
                             "stderr": '{}'.format(e.stderr.decode(sys.getfilesystemencoding())),
@@ -174,7 +174,7 @@ class Job(Resource):
                         }, 500
 
             except Exception as err:
-                return {"succes": False, "message": {"error": "Unable to run Qsub command.",
+                return {"success": False, "message": {"error": "Unable to run Qsub command.",
                                                      "trace": str(err),
                                                      "job_script": str(payload)}}, 500
 
@@ -233,7 +233,7 @@ class Job(Resource):
                     delete_job = subprocess.check_output(shlex.split(qdel_command))
                     return {"success": True, "message": "Job deleted"}
                 except Exception as err:
-                    return {"succes": False, "message": "Unable to execute qsub command: " + str(err)}, 500
+                    return {"success": False, "message": "Unable to execute qdel command: " + str(err)}, 500
 
             except Exception as err:
                 return {"success": False, "message": "Unknown error: " + str(err)}, 500

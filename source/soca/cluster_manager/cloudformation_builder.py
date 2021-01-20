@@ -52,7 +52,7 @@ def main(**params):
         # Metadata
         t = Template()
         t.set_version("2010-09-09")
-        t.set_description("(SOCA) - Base template to deploy compute nodes. Version 2.6.0")
+        t.set_description("(SOCA) - Base template to deploy compute nodes. Version 2.6.1")
         allow_anonymous_data_collection = params["MetricCollectionAnonymous"]
         debug = False
         mip_usage = False
@@ -208,7 +208,7 @@ $AWS s3 cp s3://$SOCA_INSTALL_BUCKET/$SOCA_INSTALL_BUCKET_FOLDER/scripts/config.
                 DeviceName="/dev/xvda" if params["BaseOS"] == "amazonlinux2" else "/dev/sda1",
                 Ebs=EBSBlockDevice(
                     VolumeSize=params["RootSize"],
-                    VolumeType="gp2",
+                    VolumeType="gp3",
                     DeleteOnTermination="false" if params["KeepEbs"] is True else "true",
                     Encrypted=True))
         ]
@@ -218,7 +218,7 @@ $AWS s3 cp s3://$SOCA_INSTALL_BUCKET/$SOCA_INSTALL_BUCKET_FOLDER/scripts/config.
                     DeviceName="/dev/xvdbx",
                     Ebs=EBSBlockDevice(
                         VolumeSize=params["ScratchSize"],
-                        VolumeType="io1" if int(params["VolumeTypeIops"]) > 0 else "gp2",
+                        VolumeType="io1" if int(params["VolumeTypeIops"]) > 0 else "gp3",
                         Iops=params["VolumeTypeIops"] if int(params["VolumeTypeIops"]) > 0 else Ref("AWS::NoValue"),
                         DeleteOnTermination="false" if params["KeepEbs"] is True else "true",
                         Encrypted=True))

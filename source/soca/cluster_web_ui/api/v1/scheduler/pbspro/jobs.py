@@ -52,7 +52,7 @@ class Jobs(Resource):
                     return {"success": True, "message": job_for_user["Jobs"]}, 200
 
             except Exception as err:
-                return {"succes": False, "message": "Unable to retrieve Job ID (job may have terminated and is no longer in the queue)"}, 500
+                return {"success": False, "message": "Unable to retrieve Job ID (job may have terminated and is no longer in the queue)"}, 500
 
         except Exception as err:
             return {"success": False, "message": "Unknown error: " + str(err)}, 500
