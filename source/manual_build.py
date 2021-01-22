@@ -35,11 +35,17 @@ if __name__ == "__main__":
         import boto3
         from requests import get
         import requests.exceptions
-        import massedit
         from botocore.client import ClientError
         from botocore.exceptions import ProfileNotFound
     except ImportError:
-        print(" > You must have 'massedit, 'colored', 'boto3' and 'requests' installed. Run 'pip install boto3 colored requests massedit' or 'pip install -r requirements.txt' first")
+        print(" > You must have , 'colored', 'boto3' and 'requests' installed. Run 'pip install boto3 colored requests massedit' or 'pip install -r requirements.txt' first")
+        exit(1)
+
+    if os.name == "nt":
+        print("%sSorry, Windows builds are currently not supported. Please use a UNIX system if you want to do a custom build\n%s" % (fg('yellow'), attr('reset')))
+        print("%s=== How to install SOCA on Window s===%s" % (fg('yellow'), attr('reset')))
+        print("%s1 - Download the latest release (RELEASE-<version>.tar.gz) from https://github.com/awslabs/scale-out-computing-on-aws/releases%s" % (fg('yellow'), attr('reset')))
+        print("%s2 - Install SOCA via https://awslabs.github.io/scale-out-computing-on-aws/install-soca-cluster/#option-2-download-the-latest-release-targz%s"  % (fg('yellow'), attr('reset')))
         exit(1)
 
     parser = argparse.ArgumentParser(description='Build & Upload SOCA CloudFormation resources.')
@@ -66,16 +72,17 @@ if __name__ == "__main__":
                 session = boto3.session.Session(profile_name=args.profile)
                 s3 = session.resource('s3', region_name=region)
             except ProfileNotFound:
-                print(" > Profile %s not found. Check ~/.aws/credentials file." % args.profile)
+                print("%s> Profile %s not found. Check ~/.aws/credentials file.%s" % (fg('red'), args.profile, attr('reset')))
                 exit(1)
+
         else:
             s3 = boto3.resource('s3', region_name=region)
         s3.meta.client.head_bucket(Bucket=bucket)
         s3_bucket_exists = True
     except ClientError as e:
-        print(" > The bucket " + bucket + " does not exist or you have no access.")
-        print(e)
-        print(" > Building locally but not uploading to S3")
+        print("%s > The bucket %s does not exist or you have no access.%s" % (fg('red'), bucket, attr('reset')))
+        print("%s %s %s" % (fg('red'), e, attr('reset')))
+        print("%s> Building locally but not uploading to S3%s"  % (fg('yellow'), attr('reset')))
 
     # Detect Client IP
     try:
@@ -111,24 +118,7 @@ if __name__ == "__main__":
         print(line.replace('%%BUCKET_NAME%%', 'your-s3-bucket-name-here').replace('%%SOLUTION_NAME%%/%%VERSION%%', 'your-s3-folder-name-here').replace('\n', ''))
 
     print(" > Creating archive for build id: " + unique_id)
-
-    # Sanitize build (remove unwanted characters, esp when you build with Cygwin)
-    wrong_chars = ["\\r", "\\^M"]
-    for path, subdirs, files in os.walk(build_folder + '/'):
-        for file in files:
-            file = build_path + "/" + build_folder + '/' + file
-            if file.endswith(".template") \
-                    or file.endswith(".sh") \
-                    or file.endswith(".cfg") \
-                    or file.endswith(".txt"):
-                for char in wrong_chars:
-                    massedit.edit_files([file],
-                                        ["re.sub(r'" + char + "', '', line)"],
-                                        dry_run=False)
-
     make_archive('dist/' + output_prefix, 'gztar', build_folder)
-
-
 
     if s3_bucket_exists:
         print("====== Upload to S3 ======\n")

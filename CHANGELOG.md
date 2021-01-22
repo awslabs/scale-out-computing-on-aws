@@ -18,7 +18,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Use new gp3 volumes instead of gp2 since they're more cost effective and provide 3000 IOPS baseline
 - Removed SchedulerPublicIPAllocation from Scheduler.template as it's no longer used
 - Updated CentOS, ALI2 and RHEL76 AMIs 
-- Fixed manual builds on Windows+Cygwin environments
 
 ## [2.6.0] - 2020-10-29
 ### Added
