@@ -86,7 +86,7 @@ else
 	        # If only 1 instance store, mfks as ext4
 	        echo "Detected  1 NVMe device available, formatting as ext4 .."
 	        mkfs -t ext4 $VOLUME_LIST
-	        echo "$VOLUME_LIST /scratch ext4 defaults 0 0" >> /etc/fstab
+	        echo "$VOLUME_LIST /scratch ext4 defaults,nofail 0 0" >> /etc/fstab
 	    elif [[ $VOLUME_COUNT -gt 1 ]];
 	    then
 	        # if more than 1 instance store disks, raid them !
@@ -96,7 +96,7 @@ else
             echo yes | mdadm --create -f --verbose --level=0 --raid-devices=$VOLUME_COUNT /dev/$DEVICE_NAME ${VOLUME_LIST[@]}
             mkfs -t ext4 /dev/$DEVICE_NAME
             mdadm --detail --scan | tee -a /etc/mdadm.conf
-            echo "/dev/$DEVICE_NAME /scratch ext4 defaults 0 0" >> /etc/fstab
+            echo "/dev/$DEVICE_NAME /scratch ext4 defaults,nofail 0 0" >> /etc/fstab
         else
             echo "All volumes detected already have a partition or mount point and can't be used as scratch devices"
 	    fi
