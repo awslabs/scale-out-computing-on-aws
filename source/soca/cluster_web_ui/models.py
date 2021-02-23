@@ -110,8 +110,8 @@ class WindowsDCVSessions(db.Model):
 
 class AmiList(db.Model):
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
-    ami_id = db.Column(db.String(17), nullable=False)
-    ami_type = db.Column(db.String(7), nullable=False)
+    ami_id = db.Column(db.String(255), nullable=False)
+    ami_type = db.Column(db.String(255), nullable=False)
     ami_label = db.Column(db.Text, nullable=False)
     created_on = db.Column(db.DateTime)
     is_active = db.Column(db.Boolean, nullable=False)
