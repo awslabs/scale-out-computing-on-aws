@@ -43,7 +43,7 @@ if __name__ == "__main__":
 
     if os.name == "nt":
         print("%sSorry, Windows builds are currently not supported. Please use a UNIX system if you want to do a custom build\n%s" % (fg('yellow'), attr('reset')))
-        print("%s=== How to install SOCA on Window s===%s" % (fg('yellow'), attr('reset')))
+        print("%s=== How to install SOCA on Windows ===%s" % (fg('yellow'), attr('reset')))
         print("%s1 - Download the latest release (RELEASE-<version>.tar.gz) from https://github.com/awslabs/scale-out-computing-on-aws/releases%s" % (fg('yellow'), attr('reset')))
         print("%s2 - Install SOCA via https://awslabs.github.io/scale-out-computing-on-aws/install-soca-cluster/#option-2-download-the-latest-release-targz%s"  % (fg('yellow'), attr('reset')))
         exit(1)

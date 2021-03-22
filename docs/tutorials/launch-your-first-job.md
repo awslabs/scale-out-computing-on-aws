@@ -7,7 +7,7 @@ title: Launch your first job
     * Jobs start on average 5 minutes after submission (this value may differ depending on the number and type of compute resource you need to be provisioned). [You can reduce this cold-start by pre-configuring your AMI](../../tutorials/reduce-compute-node-launch-time-with-custom-ami/)
     * Nodes are ephemeral and tie to a given job id. If needed, [you can launch 'AlwaysOn' instances](../../tutorials/launch-always-on-instances/) that will be running 24/7.
     * If your simulation requires a lot of disk I/O, [it's recommended to use high performance SSD-NVMe](../../tutorials/integration-ec2-job-parameters/#storage) disks (using /scratch location) and not default $HOME path
-    * Use [the web-based simulator](../../job-configuration-generator/) to generate your qsub/script command.
+    * Use [the web-based simulator](../../tutorials/job-configuration-generator/) to generate your qsub/script command.
 
 !!!success "Web Based Job Submission"
     In addition of regular qsub, SOCA supports [web based job submission](../../web-interface/submit-hpc-jobs-web-based-interface/) as well as via [HTTP REST API](../../web-interface/control-hpc-job-with-http-web-rest-api/)
@@ -187,7 +187,7 @@ The web ui will also reflect this change.
 ## Examples
 
 !!!example "Job Submission Simulator"
-    Use [the web-based simulator](../../job-configuration-generator/) to generate your qsub/script command.
+    Use [the web-based simulator](../../tutorials/job-configuration-generator/) to generate your qsub/script command.
     
 !!!info "How to set a parameter"
     - In a script: #PBS -l parameter_name=parameter_value,parameter_name_2=parameter_value_2

@@ -73,7 +73,7 @@ Make sure your browser is detecting your new SSL certificate correctly.
 
 ![](../imgs/cert-9.png)
 
-Finally, [create a new DCV session](../../access-soca-cluster/#graphical-access-using-dcv) and verify the endpoint is using your new DNS name
+Finally, [create a new DCV session](../../web-interface/create-virtual-desktops/) and verify the endpoint is using your new DNS name
 
 ![](../imgs/cert-11.png)
 

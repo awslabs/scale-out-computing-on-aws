@@ -12,7 +12,12 @@ fi
 service pbs stop
 
 # Install SSM
-yum install -y https://s3.amazonaws.com/ec2-downloads-windows/SSMAgent/latest/linux_amd64/amazon-ssm-agent.rpm
+machine=$(uname -m)
+if [[ $machine == "x86_64" ]]; then
+    yum install -y $SSM_X86_64_URL
+elif [[ $machine == "aarch64" ]]; then
+    yum install -y $SSM_AARCH64_URL
+fi
 systemctl enable amazon-ssm-agent
 systemctl restart amazon-ssm-agent
 

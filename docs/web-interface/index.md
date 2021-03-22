@@ -4,7 +4,7 @@
 Scale-Out Computing on AWS includes a simple web ui designed to simplify user interactions such as:
 
 - [Start/Stop virtual desktops (Windows/Linux) sessions in 1 click](../web-interface/create-virtual-desktops/)
-- [Download private key in both PEM or PPK format](../access-soca-cluster/#ssh-access)
+- [Download private key in both PEM or PPK format](../tutorials/access-soca-cluster/#ssh-access)
 - [Check the queue and job status in real-time](../web-interface/manage-ldap-users/)
 - [Add/Remove LDAP users ](../web-interface/manage-ldap-users/)
 - [Access the analytic dashboard](../web-interface/my-activity/)

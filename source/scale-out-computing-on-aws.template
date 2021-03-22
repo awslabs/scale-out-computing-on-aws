@@ -246,6 +246,14 @@ Resources:
                   - logs:PutLogEvents
                 Resource:
                   - !Join [ "", [ "arn:", !Ref "AWS::Partition", ":logs:", !Ref "AWS::Region", ":", !Ref  "AWS::AccountId", ":log-group:/aws/lambda/", !Join [ "-", [ !FindInMap [ Info, Data, ClusterIdPrefix ], !Ref "AWS::StackName"] ], "*"] ]
+              - Effect: Allow
+                Action:
+                  - iam:ListRoles
+                Resource: "*"
+                Condition:
+                  "StringEqualsIfExists":
+                      "aws:PrincipalAccount": !Sub "${AWS::AccountId}"
+
 
   CheckPreRequisiteLambda:
     Type: AWS::Lambda::Function
@@ -264,6 +272,7 @@ Resources:
         ZipFile: !Sub |
           import cfnresponse
           import re
+          import boto3
           '''
           Check SOCA Pre-Requisite
           '''
@@ -303,10 +312,18 @@ Resources:
             PublicSubnetMaskBits = 32 - int(VPCCidrPrefixBits) - int(PublicSubnetMaskPrefixBits)
             if PublicSubnetMaskBits > 6: PublicSubnetMaskBits = 6
             PrivateSubnetMaskBits = 32 - int(VPCCidrPrefixBits) - int(PrivateSubnetMaskPrefixBits)
+            
+            iam_client = boto3.client('iam')
+            es_roles = iam_client.list_roles(PathPrefix='/aws-service-role/es.amazonaws.com')
+            if len(es_roles['Roles']) == 0:
+                CreateESServiceRole = "True"
+            else:
+                CreateESServiceRole = "False"
 
             responseData = {'ClusterId': clusterId.lower(),
                             'PublicSubnetMaskBits': PublicSubnetMaskBits,
-                            'PrivateSubnetMaskBits': PrivateSubnetMaskBits}
+                            'PrivateSubnetMaskBits': PrivateSubnetMaskBits,
+                            'CreateESServiceRole': CreateESServiceRole}
 
             cfnresponse.send(event, context, cfnresponse.SUCCESS, responseData, 'Pre-Requisites OK')
 
@@ -347,6 +364,7 @@ Resources:
         S3InstallFolder: !Ref S3InstallFolder
         SchedulerPublicIP: !GetAtt Network.Outputs.SchedulerPublicIP
         EIPNat: !GetAtt Network.Outputs.EIPNat
+        CreateESServiceRole: !GetAtt CheckSOCAPreRequisite.CreateESServiceRole
 
       TemplateURL: !Join [ "/", [!Sub "https://s3.${AWS::URLSuffix}", !Ref S3InstallBucket, !Ref S3InstallFolder, "templates/Security.template"] ]
       TimeoutInMinutes: 30
@@ -391,22 +409,23 @@ Resources:
       TimeoutInMinutes: 60
 
   Analytics:
-    DependsOn: Scheduler
+    DependsOn: Security
     Type: AWS::CloudFormation::Stack
     Properties:
       Parameters:
-        SchedulerSecurityGroup: !GetAtt Security.Outputs.SchedulerSecurityGroup
-        PublicSubnet1: !GetAtt Network.Outputs.PublicSubnet1
+        ComputeNodeSecurityGroup: !GetAtt Security.Outputs.ComputeNodeSecurityGroup
+        VpcId: !GetAtt Network.Outputs.VpcId
+        PrivateSubnet1: !GetAtt Network.Outputs.PrivateSubnet1
+        PrivateSubnet2: !GetAtt Network.Outputs.PrivateSubnet2
         ClusterId: !GetAtt CheckSOCAPreRequisite.ClusterId
-        ClientIp: !Ref ClientIp
-        SchedulerPublicIP: !GetAtt Network.Outputs.SchedulerPublicIP
-        EIPNat: !GetAtt Network.Outputs.EIPNat
 
       TemplateURL: !Join [ "/", [!Sub "https://s3.${AWS::URLSuffix}", !Ref S3InstallBucket, !Ref S3InstallFolder, "templates/Analytics.template"] ]
       TimeoutInMinutes: 30
 
   Viewer:
-    DependsOn: Analytics
+    DependsOn:
+      - Scheduler
+      - Analytics
     Type: AWS::CloudFormation::Stack
     Properties:
       Parameters:
@@ -419,6 +438,7 @@ Resources:
         SchedulerInstanceId: !GetAtt Scheduler.Outputs.SchedulerInstanceId
         SchedulerIAMRole: !GetAtt Security.Outputs.SchedulerIAMRole
         LambdaACMIAMRoleArn: !GetAtt Security.Outputs.LambdaACMIAMRoleArn
+        ESDomainIPAddresses: !GetAtt Analytics.Outputs.ESDomainIPAddresses
       TemplateURL: !Join [ "/", [!Sub "https://s3.${AWS::URLSuffix}", !Ref S3InstallBucket, !Ref S3InstallFolder, "templates/Viewer.template"] ]
       TimeoutInMinutes: 30
 
@@ -472,7 +492,7 @@ Outputs:
   LDAPMasterPassword:
     Value: /root/OpenLdapAdminPassword.txt
   AnalyticsDashboard:
-    Value: !Join [ "", [ "https://", !GetAtt Analytics.Outputs.ESDomainEndpoint, "/_plugin/kibana/"]]
+    Value: !Join [ "", [ "https://", !GetAtt Viewer.Outputs.LoadBalancerDNSName, "/_plugin/kibana/"]]
   ConnectionString:
     Value: !Join [ "", [ "ssh -i ", !Ref SSHKeyPair, ".pem ", !FindInMap [ Info, User, !Ref BaseOS ], "@", !GetAtt Network.Outputs.SchedulerPublicIP]]
   WebUserInterface:

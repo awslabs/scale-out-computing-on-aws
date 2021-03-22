@@ -22,6 +22,12 @@ Parameters:
   S3InstallFolder:
     Type: String
 
+  CreateESServiceRole:
+    Type: String
+
+Conditions:
+  CreateESServiceRoleCondition: !Equals [!Ref 'CreateESServiceRole', 'True']
+
 Resources:
   SchedulerSecurityGroup:
     Metadata:
@@ -620,6 +626,13 @@ Resources:
                   - acm:ListCertificates
                   - acm:AddTagsToCertificate
                 Resource: "*"
+
+  ESServiceLinkedRole:
+    Type: AWS::IAM::ServiceLinkedRole
+    Condition: CreateESServiceRoleCondition
+    Properties:
+      AWSServiceName: es.amazonaws.com
+      Description: 'ES Role to access resources in SOCA VPC'
 
 Outputs:
   SchedulerIAMRole:

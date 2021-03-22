@@ -6,6 +6,8 @@ title: Install your Scale-Out Computing on AWS cluster
 
 You can use the [1-Click installer for quick proof-of-concept (PoC), demo and/or development work](https://aws.amazon.com/solutions/scale-out-computing-on-aws/). This installer is hosted on an AWS controlled S3 bucket and customization is limited, so we recommend downloading building your own SOCA (see below) for your production. Always refers to the Github repository for the latest SOCA version.
 
+[1-Click Install](https://console.aws.amazon.com/cloudformation/home?region=us-east-1#/stacks/new?&templateURL=https://s3.amazonaws.com/solutions-reference/scale-out-computing-on-aws/latest/scale-out-computing-on-aws.template){: .md-button }
+
 
 ## Download Scale-Out Computing on AWS
 
@@ -73,18 +75,18 @@ Download the tarball from [https://github.com/awslabs/scale-out-computing-on-aws
 
 Go to your Amazon S3 console and click "Create Bucket"
 
-![](imgs/install-1.png)
+![](../imgs/install-1.png)
 
 Choose a name and a region then click  "Create"
 
-![](imgs/install-2.png)
+![](../imgs/install-2.png)
 
 !!! warning "Avoid un-necessary charge"
     It's recommended to create your bucket in the same region as your are planning to use Scale-Out Computing on AWS to avoid Cross-Regions charge (<a href="https://aws.amazon.com/s3/pricing/"> See Data Transfer </a>)
 
 Once your bucket is created, select it and click "Upload". Simply drag and drop your build folder  (`r6l1` in this example) to upload the content of the folder to S3.
 
-![](imgs/install-3.png)
+![](../imgs/install-3.png)
 
 !!! info
     You can use the same bucket to host multiple Scale-Out Computing on AWS clusters
@@ -94,11 +96,11 @@ Once your bucket is created, select it and click "Upload". Simply drag and drop 
 
 On your S3 bucket, click on the folder you just uploaded.
 
-![](imgs/install-4.png)
+![](../imgs/install-4.png)
 
 Your install template is located under `<S3_BUCKET_NAME>/<BUILD_ID>/scale-out-computing-on-aws.template`. Click on the object to retrieve the "Object URL"
 
-![](imgs/install-5.png)
+![](../imgs/install-5.png)
 
 !!! info "Want to use your existing AWS resources?"
     Refer to `install-with-existing-resources.template` if you want to use Scale-Out Computing on AWS with your existing resources. 
@@ -109,7 +111,7 @@ Your install template is located under `<S3_BUCKET_NAME>/<BUILD_ID>/scale-out-co
 
 Clicking on the link will open the CloudFormation console and pre-fill the **Install Location** parameters:
 
-![](imgs/install-6.png)
+![](../imgs/install-6.png)
 
 Under stack details, choose the stack name (do not use uppercase or it will break your ElasticSearch cluster). 
 
@@ -122,7 +124,7 @@ Under stack details, choose the stack name (do not use uppercase or it will brea
 
 - LDAP Parameters: Create a default LDAP user
 
-![](imgs/install-7.png)
+![](../imgs/install-7.png)
 
 !!!warning "Marketplace AMIs"
     If you choose to use the CentOS 7 image, [you must subscribe to CentOS 7 in the AWS Marketplace](https://aws.amazon.com/marketplace/pp/B00O7WM7QW/), to allow the installer to access the AMI during installation.
@@ -134,21 +136,21 @@ This solution supports a heterogeneous environment. After installation, administ
 
 Click Next two times and make sure to check "Capabilities" section. One done simply click "Create Stack". The installation procedure will take about 45 minutes.
 
-![](imgs/install-8.png)
+![](../imgs/install-8.png)
 
 !!! info "CREATE_FAILED"
     If you hit any issue during the installation, refer to the 'CREATE_FAILED' component and find the root cause by referring at "Physical ID"
-    ![](imgs/install-12.png)
+    ![](../imgs/install-12.png)
 
 ## Post Install Verifications
 
 Wait for CloudFormation stacks to be "CREATE_COMPLETE", then  select your base stack and click "Outputs"
 
-![](imgs/install-9.png)
+![](../imgs/install-9.png)
 
 Output tabs give you information about the SSH IP for the master, link to the web interface or ElasticSearch.
 
-![](imgs/install-10.png)
+![](../imgs/install-10.png)
 
 Even though Cloudformation resources are created, your environment might not be completely ready. 
 To confirm whether or not Scale-Out Computing on AWS is ready, try to SSH to the scheduler IP. If your Scale-Out Computing on AWS cluster is not ready, your SSH will be rejected as shown below:
@@ -182,7 +184,7 @@ Cluster: soca-cluster-v1
 
 At this point, you will be able to access the web interface and log in with the default LDAP user you specified at launch creation
 
-![](imgs/install-11.png)
+![](../imgs/install-11.png)
 
 ## What if SSH port (22) is blocked by your IT?
 
@@ -190,15 +192,15 @@ Scale-Out Computing on AWS supports [AWS Session Manager](https://docs.aws.amazo
 
 First, access your AWS EC2 Console and select your Scheduler instance, then click "Connect" button
 
-![](imgs/session-1.png){: style="height:250x;width:500px"}
+![](../imgs/session-1.png){: style="height:250x;width:500px"}
 
 Select "Session Manager" and click Connect
 
-![](imgs/session-2.png){: style="height:300px;width:550px"}
+![](../imgs/session-2.png){: style="height:300px;width:550px"}
 
 You now have access to a secure shell directly within your browser
 
-![](imgs/session-3.png)
+![](../imgs/session-3.png)
 
 ## Enable Termination Protection
 
@@ -244,5 +246,5 @@ When enabled, the following information is collected and sent to AWS:
 
 ## What's next ?
 
-Learn [how to access your cluster](access-soca-cluster.md), [how to submit your first job](tutorials/launch-your-first-job.md) or even [how to change your Scale-Out Computing on AWS DNS](security/update-soca-dns-ssl-certificate.md) to match your personal domain name.
+Learn [how to access your cluster](../tutorials/access-soca-cluster.md), [how to submit your first job](../tutorials/launch-your-first-job.md) or even [how to change your Scale-Out Computing on AWS DNS](../security/update-soca-dns-ssl-certificate.md) to match your personal domain name.
 

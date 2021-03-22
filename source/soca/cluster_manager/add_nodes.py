@@ -396,15 +396,21 @@ def check_config(**kwargs):
             # if placement group is True and more than 1 subnet is defined, force default to 1 subnet
             kwargs['subnet_id'] = [kwargs['subnet_id'][0]]
 
-    cpus_count_pattern = re.search(r'[.](\d+)', kwargs['instance_type'][0])
-    if cpus_count_pattern:
-        kwargs['core_count'] = int(cpus_count_pattern.group(1)) * 2
-    else:
-        if 'xlarge' in kwargs['instance_type'][0]:
-            kwargs['core_count'] = 2
+    # Check core_count and ht_support
+    try:
+        instance_attributes = ec2.describe_instance_types(InstanceTypes=[kwargs['instance_type'][0]])
+        if len(instance_attributes['InstanceTypes']) == 0:
+            error = return_message('Unable to check instance: ' + kwargs['instance_type'][0])
+        else: 
+            kwargs['core_count'] = instance_attributes['InstanceTypes'][0]['VCpuInfo']['DefaultCores']
+            if instance_attributes['InstanceTypes'][0]['VCpuInfo']['DefaultThreadsPerCore'] == 1:
+                # Set ht_support to False for instances with DefaultThreadsPerCore = 1 (e.g. graviton)
+                kwargs['ht_support'] = False
+    except ClientError as e:
+        if e.response['Error'].get('Code') == 'InvalidInstanceType':
+            error = return_message('InvalidInstanceType: ' + kwargs['instance_type'][0])
         else:
-            kwargs['core_count'] = 1
-
+            error = return_message('Unable to check instance: ' + kwargs['instance_type'][0])
 
     # Validate Spot Allocation Strategy
     mapping = {
@@ -474,21 +480,27 @@ def check_config(**kwargs):
             error = return_message('spot_price must be either "auto" or a float value"')
 
     # Validate EFA
-    if kwargs['efa_support'] not in [True, False]:
-        kwargs['efa_support'] = False
-    else:
-        if kwargs['efa_support'] is True:
-            for instance_type in kwargs['instance_type']:
-                check_efa_support = ec2.describe_instance_types(
-                    InstanceTypes=[instance_type],
-                    Filters=[
-                        {"Name": "network-info.efa-supported",
-                         "Values": ["true"]}
-                    ]
-                )
+    try:
+        if kwargs['efa_support'] not in [True, False]:
+            kwargs['efa_support'] = False
+        else:
+            if kwargs['efa_support'] is True:
+                for instance_type in kwargs['instance_type']:
+                    check_efa_support = ec2.describe_instance_types(
+                        InstanceTypes=[instance_type],
+                        Filters=[
+                            {"Name": "network-info.efa-supported",
+                             "Values": ["true"]}
+                        ]
+                    )
 
-                if len(check_efa_support["InstanceTypes"]) == 0:
-                    error = return_message('You have requested EFA support but your instance  (' + instance_type + ') does not support EFA')
+                    if len(check_efa_support["InstanceTypes"]) == 0:
+                        error = return_message('You have requested EFA support but your instance  (' + instance_type + ') does not support EFA')
+    except ClientError as e:
+        if e.response['Error'].get('Code') == 'InvalidInstanceType':
+            error = return_message('InvalidInstanceType: ' + kwargs['instance_type'])
+        else:
+            error = return_message('Unable to check EFA support for instance: ' + kwargs['instance_type'])
 
     # Validate Keep EBS
     if kwargs['keep_ebs'] not in [True, False]:

@@ -9,7 +9,7 @@ title: How to access Scale-Out Computing on AWS
 
 To access your Scale-Out Computing on AWS cluster using SSH protocol, simply click  "SSH Access" on the left sidebar and follow the instructions. Scale-Out Computing on AWS will let you download your private key either in PEM or PPK format.
 
-![](imgs/access-1.png)
+![](../imgs/access-1.png)
 
 !!!info "SSH to an instance in a Private Subnet"
     If you need to access an instance that is in a Private (non-routable) Subnet, you can use ssh-agent to do this:
@@ -35,4 +35,4 @@ To access your Scale-Out Computing on AWS cluster using SSH protocol, simply cli
 
 ## Graphical access using Windows/Linux virtual desktop
 
-Refer to [this page to learn how to launch your own Windows/Linux session and access SOCA via your virtual desktop](../web-interface/create-virtual-desktops/)
+Refer to [this page to learn how to launch your own Windows/Linux session and access SOCA via your virtual desktop](../../web-interface/create-virtual-desktops/)

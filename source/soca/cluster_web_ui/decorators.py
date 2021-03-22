@@ -132,3 +132,15 @@ def admin_only(f):
             return redirect('/login')
 
     return check_admin
+
+
+def disabled(f):
+    @wraps(f)
+    def disable_feature(*args, **kwargs):
+        if "api" in request.path:
+            return {"success": False, "message": "This API has been disabled by your Administrator"}, 401
+        else:
+            flash("Sorry this feature has been disabled by your Administrator.", "error")
+            return redirect("/")
+
+    return disable_feature

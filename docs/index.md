@@ -10,14 +10,14 @@ Scale-Out Computing on AWS is a solution that helps customers more easily deploy
 This solution is designed to provide a production ready reference implementation to be a starting point for deploying an AWS environment to run scale-out workloads, allowing you to focus on running simulations designed to solve complex computational problems.  
 ____
 ## Easy installation
-[Installation of your Scale-Out Computing on AWS cluster](install-soca-cluster/) is fully automated and managed by CloudFormation 
+[Installation of your Scale-Out Computing on AWS cluster](tutorials/install-soca-cluster/) is fully automated and managed by CloudFormation 
 
 !!!info "Did you know?"
     - You can have multiple Scale-Out Computing on AWS clusters on the same AWS account
     - Scale-Out Computing on AWS comes with a list of unique tags, making resource tracking easy for AWS Administrators
 
 ## Access your cluster in 1 click
-You can [access your Scale-Out Computing on AWS cluster](access-soca-cluster/) either using DCV (Desktop Cloud Visualization)[^1] or through SSH.
+You can [access your Scale-Out Computing on AWS cluster](tutorials/access-soca-cluster/) either using DCV (Desktop Cloud Visualization)[^1] or through SSH.
 
 [^1]: [DCV](https://docs.aws.amazon.com/dcv/latest/adminguide/what-is-dcv.html) is a remote visualization technology that enables users to easily and securely connect to graphic-intensive 3D applications hosted on a remote high-performance server.*
 
@@ -38,7 +38,7 @@ user@host$ qsub myscript.sh
 ~~~
 
 !!!info
-    - [Check our Web-Based utility to generate you submission command](job-configuration-generator/)
+    - [Check our Web-Based utility to generate you submission command](tutorials/job-configuration-generator/)
     - [Refer to this page for tutorial and examples](tutorials/launch-your-first-job/)
     - [Refer to this page to list all supported parameters](tutorials/integration-ec2-job-parameters/)
     - Jobs can also be submitted [via HTTP API](web-interface/control-hpc-job-with-http-web-rest-api/) or [via web interface](web-interface/submit-hpc-jobs-web-based-interface/)
@@ -63,8 +63,8 @@ Customers can integrate their Centos7/Rhel7/AmazonLinux2 AMI automatically by si
 ## Web User Interface
 Scale-Out Computing on AWS includes a simple web ui designed to simplify user interactions such as:
 
-- [Start/Stop DCV sessions in 1 click](access-soca-cluster/#graphical-access-using-dcv)
-- [Download private key in both PEM or PPK format](access-soca-cluster/#ssh-access)
+- [Start/Stop DCV sessions in 1 click](tutorials/access-soca-cluster/#graphical-access-using-dcv)
+- [Download private key in both PEM or PPK format](tutorials/access-soca-cluster/#ssh-access)
 - [Check the queue and job status in real-time](web-interface/manage-ldap-users/)
 - [Add/Remove LDAP users ](web-interface/manage-ldap-users/)
 - [Access the analytic dashboard](web-interface/my-activity/)

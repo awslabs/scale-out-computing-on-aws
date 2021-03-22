@@ -400,26 +400,24 @@ $AWS s3 cp s3://$SOCA_INSTALL_BUCKET/$SOCA_INSTALL_BUCKET_FOLDER/scripts/config.
 /bin/bash /apps/soca/$SOCA_CONFIGURATION/cluster_node_bootstrap/ComputeNode.sh ''' + soca_configuration['SchedulerPrivateDnsName'] + ''' >> $SOCA_HOST_SYSTEM_LOG/ComputeNode.sh.log 2>&1'''
 
 
-
-    check_hibernation_support = client_ec2.describe_instance_types(
-        InstanceTypes=[instance_type],
-        Filters=[
-            {"Name": "hibernation-supported",
-             "Values": ["true"]}]
-    )
-    logger.info("Checking in {} support Hibernation : {}".format(instance_type, check_hibernation_support))
-    if len(check_hibernation_support["InstanceTypes"]) == 0:
-        if config.Config.DCV_FORCE_INSTANCE_HIBERNATE_SUPPORT is True:
-            flash("Sorry your administrator limited <a href='https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/Hibernate.html' target='_blank'>DCV to instances that support hibernation mode</a> <br> Please choose a different type of instance.")
-            return redirect("/remote_desktop")
-        else:
-            hibernate_support = False
-    else:
-        hibernate_support = True
-
-    if parameters["hibernate"] and not hibernate_support:
-        flash("Sorry you have selected {} with hibernation support, but this instance type does not support it. Either disable hibernation support or pick a different instance type".format(instance_type), "error")
-        return redirect("/remote_desktop")
+    if parameters["hibernate"]:
+        try:
+            check_hibernation_support = client_ec2.describe_instance_types(
+                InstanceTypes=[instance_type],
+                Filters=[
+                    {"Name": "hibernation-supported",
+                     "Values": ["true"]}]
+            )
+            logger.info("Checking in {} support Hibernation : {}".format(instance_type, check_hibernation_support))
+            if len(check_hibernation_support["InstanceTypes"]) == 0:
+                if config.Config.DCV_FORCE_INSTANCE_HIBERNATE_SUPPORT is True:
+                    flash("Sorry your administrator limited <a href='https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/Hibernate.html' target='_blank'>DCV to instances that support hibernation mode</a> <br> Please choose a different type of instance.")
+                    return redirect("/remote_desktop")
+                else:
+                    flash("Sorry you have selected {} with hibernation support, but this instance type does not support it. Either disable hibernation support or pick a different instance type".format(instance_type), "error")
+                    return redirect("/remote_desktop")
+        except ClientError as e:
+            logger.error(f"Error while checking hibernation support due to {e}")
 
     launch_parameters = {"security_group_id": security_group_id,
                          "instance_profile": instance_profile,

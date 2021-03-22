@@ -40,18 +40,28 @@ then
 fi
 
 # Download and Install DCV
+echo "Install DCV"
 cd ~
-wget $DCV_URL
-if [[ $(md5sum $DCV_TGZ | awk '{print $1}') != $DCV_HASH ]];  then
-    echo -e "FATAL ERROR: Checksum for DCV failed. File may be compromised." > /etc/motd
-    exit 1
+machine=$(uname -m)
+if [[ $machine == "x86_64" ]]; then
+    wget $DCV_X86_64_URL
+    if [[ $(md5sum $DCV_X86_64_TGZ | awk '{print $1}') != $DCV_X86_64_HASH ]];  then
+        echo -e "FATAL ERROR: Checksum for DCV failed. File may be compromised." > /etc/motd
+        exit 1
+    fi
+    tar zxvf $DCV_X86_64_TGZ
+    cd nice-dcv-$DCV_X86_64_VERSION
+elif [[ $machine == "aarch64" ]]; then
+    wget $DCV_AARCH64_URL
+    if [[ $(md5sum $DCV_AARCH64_TGZ | awk '{print $1}') != $DCV_AARCH64_HASH ]];  then
+        echo -e "FATAL ERROR: Checksum for DCV failed. File may be compromised." > /etc/motd
+        exit 1
+    fi
+    tar zxvf $DCV_AARCH64_TGZ
+    cd nice-dcv-$DCV_AARCH64_VERSION
 fi
-
-# Install DCV server and Xdcv
-tar zxvf $DCV_TGZ
-cd nice-dcv-$DCV_VERSION
-rpm -ivh nice-xdcv-*.rpm --nodeps
-rpm -ivh nice-dcv-server*.rpm --nodeps
+rpm -ivh nice-xdcv-*.${machine}.rpm --nodeps
+rpm -ivh nice-dcv-server*.${machine}.rpm --nodeps
 
 # Enable DCV support for USB remotization
 yum install -y https://dl.fedoraproject.org/pub/epel/epel-release-latest-6.noarch.rpm

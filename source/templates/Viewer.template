@@ -28,6 +28,9 @@ Parameters:
   LambdaACMIAMRoleArn:
     Type: String
 
+  ESDomainIPAddresses:
+    Type: String
+
 Resources:
 
   SchedulerELBPolicy:
@@ -197,6 +200,23 @@ Resources:
         - Type: forward
           TargetGroupArn: !Ref TargetGroupSocaWebUI
 
+  ESLoadBalancerListenerRule:
+    DependsOn:
+      - HTTPSLoadBalancerListener
+      - TargetGroupES
+    Type: AWS::ElasticLoadBalancingV2::ListenerRule
+    Properties:
+      Actions:
+        - Type: forward
+          TargetGroupArn: !Ref TargetGroupES
+      Conditions:
+        - Field: path-pattern
+          PathPatternConfig:
+             Values:
+               - "/_plugin/kibana/*"
+      ListenerArn: !Ref HTTPSLoadBalancerListener
+      Priority: 1
+
   HTTPLoadBalancerListener:
     Metadata:
       cfn_nag:
@@ -232,6 +252,24 @@ Resources:
       Targets:
         - Id: !Ref SchedulerInstanceId
       HealthCheckPath: "/ping"
+
+  TargetGroupES:
+    DependsOn: LoadBalancer
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Name: !Sub ${ClusterId}-ES
+      VpcId: !Ref VpcId
+      Port: 443
+      Protocol: HTTPS
+      TargetType: ip
+      Targets:
+        - Id: !Select [0, !Split [ ",", !Ref ESDomainIPAddresses ] ]
+        - Id: !Select [1, !Split [ ",", !Ref ESDomainIPAddresses ] ]
+        - Id: !Select [2, !Split [ ",", !Ref ESDomainIPAddresses ] ]
+        - Id: !Select [3, !Split [ ",", !Ref ESDomainIPAddresses ] ]
+        - Id: !Select [4, !Split [ ",", !Ref ESDomainIPAddresses ] ]
+        - Id: !Select [5, !Split [ ",", !Ref ESDomainIPAddresses ] ]
+      HealthCheckPath: "/"
 
 Outputs:
   LoadBalancerArn:

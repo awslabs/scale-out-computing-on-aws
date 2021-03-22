@@ -8,7 +8,7 @@ Below is a list of parameters you can specify when you request your simulation t
 !!!info 
     If you don't specify them, your job will use the default values configured for your queue (see `/apps/soca/$SOCA_CONFIGURATION/cluster_manager/settings/queue_mapping.yml`)
     ____
-    You can use [the web-based simulator](../../job-configuration-generator/) to generate your qsub command very easily.
+    You can use [the web-based simulator](../job-configuration-generator/) to generate your qsub command very easily.
 
 ## Compute
 
@@ -191,12 +191,13 @@ Below is a list of parameters you can specify when you request your simulation t
 
 ##### Mount existing FSx
 
-- Description: Mount an existing FSx to all compute nodes if `fsx_lustre` points to a FSx filesystem ID
-- Example: `-l fsx_lustre=fs-xxxx`
+- Description: Mount an existing FSx to all compute nodes if `fsx_lustre` points to a FSx filesystem's DNS name
+- Example: `-l fsx_lustre=fs-xxxx.fsx.region.amazonaws.com`
 
 !!!info   
     - FSx partitions are mounted as `/fsx`. This can be changed if needed 
     - Make sure your FSx for Luster configuration is correct (use SOCA VPC and correct IAM roles)
+    - [Make sure to use the Filesytem's DNS name](../../storage/launch-job-with-fsx/#how-to-connect-to-a-permanentexisting-fsx)
 
 
 #### fsx_lustre_size

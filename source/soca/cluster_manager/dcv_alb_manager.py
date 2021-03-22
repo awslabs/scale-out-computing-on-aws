@@ -137,7 +137,7 @@ def get_current_listener_rules(listener_arn):
     rules = {}
     priority_taken = []
     for rule in elbv2_client.describe_rules(ListenerArn=listener_arn)['Rules']:
-        if rule['Priority'] != 'default':
+        if rule['Priority'] != 'default' and rule['Priority'] != '1':
             priority_taken.append(int(rule['Priority']))
             for condition in rule['Conditions']:
                 condition_list = []

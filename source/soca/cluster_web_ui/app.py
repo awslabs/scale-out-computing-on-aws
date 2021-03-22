@@ -37,6 +37,7 @@ from views.my_account import my_account
 from views.my_files import my_files
 from views.submit_job import submit_job
 from scheduled_tasks.clean_tmp_folders import clean_tmp_folders
+from scheduled_tasks.validate_db_permissions import validate_db_permissions
 from scheduled_tasks.manage_dcv_instances_lifecycle import auto_terminate_stopped_instance, schedule_auto_start, schedule_auto_stop
 from flask_wtf.csrf import CSRFProtect
 from config import app_config
@@ -47,6 +48,8 @@ from apscheduler.jobstores.sqlalchemy import SQLAlchemyJobStore
 from flask_apscheduler import APScheduler
 #from apscheduler.schedulers.background import BackgroundScheduler
 from models import db
+import os
+import stat
 
 app = Flask(__name__)
 
@@ -140,6 +143,12 @@ dict_config = {
 class Config(object):
     JOBS = [
         {
+            'id': 'validate_db_permissions',
+            'func': validate_db_permissions,
+            'trigger': 'interval',
+            'minutes': 60
+        },
+        {
             'id': 'auto_terminate_stopped_instance',
             'func': auto_terminate_stopped_instance,
             'trigger': 'interval',
@@ -225,6 +234,8 @@ with app.app_context():
     db.app = app
     db.init_app(app)
     db.create_all()
+    basedir = os.path.abspath(os.path.dirname(__file__))
+    os.chmod(os.path.join(basedir, "db.sqlite"), stat.S_IWUSR + stat.S_IRUSR)
     app_session = Session(app)
     app_session.app.session_interface.db.create_all()
     app.config.from_object(Config())
