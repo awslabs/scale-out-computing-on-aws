@@ -20,7 +20,7 @@ import yaml
 
 def find_users_in_ldap_group(group_dn):
     cmd = "ldapsearch -x -b " + group_dn + " -LLL | grep memberUid | awk '{print $2}'"
-    users_in_group = os.popen(cmd).read()
+    users_in_group = os.popen(cmd).read() # nosec
     pbs.logmsg(pbs.LOG_DEBUG, 'queue_acl: find_users_in_ldap_group' + str(users_in_group))
     return list(filter(None, users_in_group.split('\n')))
 

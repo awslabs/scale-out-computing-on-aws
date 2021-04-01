@@ -92,7 +92,7 @@ Resources:
       ToPort: 22
       CidrIp: !Ref ClientIp
       GroupId: !GetAtt SchedulerSecurityGroup.GroupId
-      Description: "Allow SSH traffic from client IP to master host"
+      Description: "Allow SSH traffic from client IP to scheduler host"
 
   SchedulerInboundRuleAllowClientIPHTTPS:
     Type: AWS::EC2::SecurityGroupIngress
@@ -142,7 +142,7 @@ Resources:
       ToPort: 65535
       SourceSecurityGroupId: !GetAtt SchedulerSecurityGroup.GroupId
       GroupId: !Ref ComputeNodeSecurityGroup
-      Description: "Allow traffic between Master agent and compute nodes"
+      Description: "Allow traffic between scheduler agent and compute nodes"
 
   ComputeNodeInboundRuleItSelf:
     Type: AWS::EC2::SecurityGroupIngress
@@ -188,7 +188,7 @@ Resources:
       ToPort: 8443
       SourceSecurityGroupId: !GetAtt SchedulerSecurityGroup.GroupId
       GroupId: !Ref SchedulerSecurityGroup
-      Description: "Allow ELB healtcheck to communicate with web ui on master host"
+      Description: "Allow ELB healtcheck to communicate with web ui on scheduler host"
 
   # Begin IAM
 

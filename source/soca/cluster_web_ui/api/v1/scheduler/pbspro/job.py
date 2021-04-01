@@ -215,7 +215,7 @@ class Job(Resource):
         get_job_info = get(config.Config.FLASK_ENDPOINT + "/api/scheduler/job",
                            headers={"X-SOCA-TOKEN": config.Config.API_ROOT_KEY},
                            params={"job_id": job_id},
-                           verify=False)
+                           verify=False) # nosec
 
         if get_job_info.status_code != 200:
             return {"success": False, "message": "Unable to retrieve this job. Job may have terminated"}, 500

@@ -9,10 +9,10 @@ title: Monitor Nodes with MetricBeat
 
 ### How to enable MetricBeat
 
-MetricBeat is disabled by default. To enable it either submit a job with `system_metrics=True` or enable this parameter at the queue level. When this feature is active, SOCA will [automatically install and configure MetricBeat](https://github.com/awslabs/scale-out-computing-on-aws/blob/master/source/soca/cluster_node_bootstrap/ComputeNodeConfigureMetrics.sh) on all compute nodes provisioned for your jobs. Edit `ComputeNodeConfigureMetrics.sh` as needed (eg: change the check period, number of process to track etc ...)
+MetricBeat is disabled by default. To enable it either submit a job with `system_metrics=True` or enable this parameter at the queue level. When this feature is active, SOCA will [automatically install and configure MetricBeat](https://github.com/awslabs/scale-out-computing-on-aws/blob/main/source/soca/cluster_node_bootstrap/ComputeNodeConfigureMetrics.sh) on all compute nodes provisioned for your jobs. Edit `ComputeNodeConfigureMetrics.sh` as needed (eg: change the check period, number of process to track etc ...)
 
 !!!note 
-    The very first job using MetricBeat will take an extra 45 secs as SOCA will perform the initial dashboard setup on Kibana. [This is a one time operation, and can be deactivated if you do not want to install MetricBeat dashboards by default](https://github.com/awslabs/scale-out-computing-on-aws/blob/master/source/soca/cluster_node_bootstrap/ComputeNodeConfigureMetrics.sh#L37-L44)
+    The very first job using MetricBeat will take an extra 45 secs as SOCA will perform the initial dashboard setup on Kibana. [This is a one time operation, and can be deactivated if you do not want to install MetricBeat dashboards by default](https://github.com/awslabs/scale-out-computing-on-aws/blob/main/source/soca/cluster_node_bootstrap/ComputeNodeConfigureMetrics.sh#L37-L44)
 
 ### Access MetricBeat data
 

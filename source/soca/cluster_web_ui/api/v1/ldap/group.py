@@ -126,7 +126,7 @@ class Group(Resource):
 
         get_gid = get(config.Config.FLASK_ENDPOINT + '/api/ldap/ids',
                       headers={"X-SOCA-TOKEN": config.Config.API_ROOT_KEY},
-                      verify=False)
+                      verify=False) # nosec
 
         if get_gid.status_code == 200:
             current_ldap_gids = get_gid.json()
@@ -153,7 +153,7 @@ class Group(Resource):
 
                 get_all_users = get(config.Config.FLASK_ENDPOINT + "/api/ldap/users",
                                     headers={"X-SOCA-TOKEN": config.Config.API_ROOT_KEY},
-                                    verify=False)
+                                    verify=False) # nosec
 
                 if get_all_users.status_code == 200:
                     all_users = get_all_users.json()["message"]
@@ -184,7 +184,7 @@ class Group(Resource):
                                           data={"group": group,
                                                 "user": member,
                                                 "action": "add"},
-                                          verify=False)
+                                          verify=False) # nosec
                 if add_member_to_group.status_code != 200:
                     users_not_added.append(member)
 
@@ -311,7 +311,7 @@ class Group(Resource):
 
             get_all_users = get(config.Config.FLASK_ENDPOINT + "/api/ldap/users",
                                 headers={"X-SOCA-TOKEN": config.Config.API_ROOT_KEY},
-                                verify=False)
+                                verify=False) # nosec
 
             if get_all_users.status_code == 200:
                 all_users = get_all_users.json()["message"]

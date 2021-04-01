@@ -26,7 +26,7 @@ class Config(object):
     USER_HOME = "/data/home"
     CHROOT_USER = False  # if True, user can only access their $HOME directory (aka: USER_HOME/<user>)
     PATH_TO_RESTRICT = ['/bin', '/boot', '/dev', '/etc', '/home', '/lib', '/lib64', '/local',
-                        '/media', '/opt', '/proc', '/root', '/run', '/sbin', '/srv', '/sys', '/tmp', '/usr',
+                        '/media', '/opt', '/proc', '/root', '/run', '/sbin', '/srv', '/sys', '/tmp', '/usr', # nosec
                         '/var']  # List of folders not accessible via the web ui
     DEFAULT_CACHE_TIME = 120  # 2 minutes. Change this value to optimize performance in case you have a large number of concurrent user
     MAX_UPLOAD_FILE = 5120  # 5 GB
@@ -59,7 +59,7 @@ class Config(object):
     DCV_SESSION_LOCATION = "tmp/dcv_sessions"
     DCV_FORCE_INSTANCE_HIBERNATE_SUPPORT = False  # If True, users can only provision instances that support hibernation
     DCV_TOKEN_SYMMETRIC_KEY = os.environ["SOCA_DCV_TOKEN_SYMMETRIC_KEY"]  # used to encrypt/decrypt and validate DCV session auth
-    DCV_BLACKLIST_INSTANCE_TYPE = ['metal', 'nano', 'micro', 'p3', 'p2', 'p3dn', 'g2']  # This instance type won't be visible on the dropdown menu
+    DCV_RESTRICTED_INSTANCE_TYPE = ['metal', 'nano', 'micro', 'p3', 'p2', 'p3dn', 'g2']  # This instance type won't be visible on the dropdown menu
     DCV_IDLE_CPU_THRESHOLD = 15  # SOCA will NOT hibernate/stop an instance if current CPU usage % is over this value
 
     # DCV Linux

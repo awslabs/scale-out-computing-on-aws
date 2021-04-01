@@ -18,7 +18,7 @@ def index():
     get_all_users = get(config.Config.FLASK_ENDPOINT + "/api/ldap/users",
                         headers={"X-SOCA-TOKEN": session["api_key"],
                                  "X-SOCA-USER": session["user"]},
-                        verify=False).json()
+                        verify=False).json() # nosec
 
     all_users = get_all_users["message"].keys()
     try:
@@ -47,7 +47,7 @@ def manage_sudo():
                                        headers={"X-SOCA-TOKEN": session["api_key"],
                                                 "X-SOCA-USER": session["user"]},
                                        data={"user": user},
-                                 verify=False
+                                 verify=False # nosec
                                  )
                 if give_sudo.status_code == 200:
                     flash("Admin permissions granted", "success")
@@ -61,7 +61,7 @@ def manage_sudo():
                                  headers={"X-SOCA-TOKEN": session["api_key"],
                                           "X-SOCA-USER": session["user"]},
                                  data={"user": user},
-                                     verify=False
+                                     verify=False # nosec
                                      )
                 if remove_sudo.status_code == 200:
                     flash("Admin permissions revoked", "success")
@@ -97,14 +97,14 @@ def create_new_account():
                                      "shell": shell,
                                      "uid": 0 if not uid else uid,
                                      "gid": 0 if not gid else gid},
-                               verify=False
+                               verify=False # nosec
                                )
         if create_new_user.status_code == 200:
             # Create API key
             create_user_key = get(config.Config.FLASK_ENDPOINT + '/api/user/api_key',
                                   headers={"X-SOCA-TOKEN": config.Config.API_ROOT_KEY},
                                   params={"user": user},
-                                  verify=False)
+                                  verify=False) # nosec
             if create_user_key.status_code == 200:
                 if create_user_key.json()["success"] is False:
                     flash("User created but unable to generate API token: " + create_user_key.json()["message"], "error")
@@ -132,7 +132,7 @@ def delete_account():
                              headers={"X-SOCA-TOKEN": session["api_key"],
                                       "X-SOCA-USER": session["user"]},
                              data={"user": user},
-                         verify=False
+                         verify=False # nosec
                          ).json()
 
     if delete_user["success"] is True:

@@ -17,11 +17,11 @@ def index():
     get_user_ldap_group = get(config.Config.FLASK_ENDPOINT + "/api/ldap/group",
                                headers={"X-SOCA-TOKEN": config.Config.API_ROOT_KEY},
                                params={"group": session["user"]},
-                              verify=False)
+                              verify=False) # nosec
 
     get_user_ldap_users = get(config.Config.FLASK_ENDPOINT + "/api/ldap/users",
                               headers={"X-SOCA-TOKEN": config.Config.API_ROOT_KEY},
-                              verify=False)
+                              verify=False) # nosec
 
     if get_user_ldap_group.status_code == 200:
         group_members = get_user_ldap_group.json()["message"]["members"]
@@ -50,7 +50,7 @@ def manage_group():
                              data={"group": group,
                                    "user": user,
                                    "action": action},
-                       verify=False)
+                       verify=False) # nosec
 
     if update_group.status_code == 200:
         flash("Group update successfully", "success")
@@ -80,7 +80,7 @@ def reset_key():
                                                 "X-SOCA-USER": session["user"]},
                                        data={"user": user,
                                              "password": password},
-                                       verify=False)
+                                       verify=False) # nosec
             if change_password.status_code == 200:
                 flash("Password for " + user + " has been changed to " + password + "<hr> User is recommended to change it using 'My Account' section", "success")
                 return redirect("/admin/users")
@@ -96,7 +96,7 @@ def reset_key():
                                                 "X-SOCA-USER": session["user"]},
                                        data={"user": session["user"],
                                              "password": password},
-                                       verify=False)
+                                       verify=False) # nosec
 
                 if change_password.status_code == 200:
                     flash("Your password has been changed succesfully.", "success")

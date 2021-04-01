@@ -8,14 +8,15 @@
 
 site_name: Scale-Out Computing on AWS Knowledge Base
 theme:
-   name: 'material'
-   palette:
-     scheme: default
-   custom_dir: 'docs/overrides'
-   features:
-     - navigation.tabs
-     - navigation.tracking
-     - navigation.sections
+  name: 'material'
+  palette:
+    scheme: default
+  custom_dir: 'docs/overrides'
+  features:
+    - navigation.tabs
+    - navigation.tracking
+    - navigation.sections
+
 
 # Repository
 repo_name: 'awslabs/scale-out-computing-on-aws'

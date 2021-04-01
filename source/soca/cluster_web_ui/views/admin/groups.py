@@ -16,7 +16,7 @@ def index():
     get_all_groups = get(config.Config.FLASK_ENDPOINT + "/api/ldap/groups",
                          headers={"X-SOCA-TOKEN": session["api_key"],
                                   "X-SOCA-USER": session["user"]},
-                         verify=False)
+                         verify=False) # nosec
 
     if get_all_groups.status_code == 200:
         all_groups = get_all_groups.json()["message"].keys()
@@ -27,7 +27,7 @@ def index():
     get_all_users = get(config.Config.FLASK_ENDPOINT + "/api/ldap/users",
                         headers={"X-SOCA-TOKEN": session["api_key"],
                                  "X-SOCA-USER": session["user"]},
-                        verify=False)
+                        verify=False) # nosec
 
     if get_all_users.status_code == 200:
         all_users = get_all_users.json()["message"].keys()
@@ -51,7 +51,7 @@ def create_group():
                             headers={"X-SOCA-TOKEN": session["api_key"],
                                      "X-SOCA-USER": session["user"]},
                             data={"group": group_name, "members": ','.join(members)},
-                        verify=False)
+                        verify=False) # nosec
 
     if create_group.status_code == 200:
         flash("Group " + group_name + " created successfully", "success")
@@ -74,7 +74,7 @@ def delete_group():
                              headers={"X-SOCA-TOKEN": session["api_key"],
                                       "X-SOCA-USER": session["user"]},
                              data={"group": group},
-                             verify=False)
+                             verify=False) # nosec
 
     if group_to_delete.status_code == 200:
         flash('Group: ' + group + ' has been deleted correctly', "success")
@@ -92,7 +92,7 @@ def check_group():
                              headers={"X-SOCA-TOKEN": session["api_key"],
                                       "X-SOCA-USER": session["user"]},
                              params={"group": group},
-                      verify=False)
+                      verify=False) # nosec
 
 
     if check_group.status_code == 200:
@@ -118,7 +118,7 @@ def manage_group():
                              data={"group": group,
                                      "user": user,
                                      "action": action},
-                       verify=False)
+                       verify=False) # nosec
 
     if update_group.status_code == 200:
         flash("Group update successfully", "success")

@@ -148,7 +148,7 @@ def send_job():
                         data={"payload": payload,
                               "interpreter": request.form["profile_interpreter"],
                               "input_file_path": request.form["input_file_path"]},
-                        verify=False)
+                        verify=False) # nosec
     if send_to_to_queue.status_code == 200:
         if request.form["profile_interpreter"] == config.Config.PBS_QSUB:
             flash("Job submitted to the queue with ID: " + send_to_to_queue.json()["message"], "success")

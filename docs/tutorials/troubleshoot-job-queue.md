@@ -56,7 +56,7 @@ If you go to your CloudFormation console, you should see  a new stack being crea
 
 ### Retrieve node logs
 
-On the master host, access `/apps/soca/$SOCA_CONFIGURATION/cluster_node_bootstrap/logs/`. This folder contains the output of all logs for all hosts provisioned by SOCA
+On the scheduler host, access `/apps/soca/$SOCA_CONFIGURATION/cluster_node_bootstrap/logs/`. This folder contains the output of all logs for all hosts provisioned by SOCA
 
 ~~~bash hl_lines="2 10 18"
 # Retrieve logs for the most recent (2 weeks) jobs

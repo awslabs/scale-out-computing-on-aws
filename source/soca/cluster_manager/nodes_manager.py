@@ -268,8 +268,8 @@ def remove_offline_nodes(hosts):
     asgs = {}
     spotfleets = {}
     for host in hosts:
-        asg_spotfleet_id=subprocess.check_output("qmgr -c 'print node " + str(host) + "' | grep asg_spotfleet_id | awk '{print $NF}'", shell=True).decode('utf-8').strip()
-        instance_id=subprocess.check_output("qmgr -c 'print node " + str(host) + "' | grep instance_id | awk '{print $NF}'", shell=True).decode('utf-8').strip()
+        asg_spotfleet_id=subprocess.check_output("qmgr -c 'print node " + str(host) + "' | grep asg_spotfleet_id | awk '{print $NF}'", shell=True).decode('utf-8').strip() # nosec
+        instance_id=subprocess.check_output("qmgr -c 'print node " + str(host) + "' | grep instance_id | awk '{print $NF}'", shell=True).decode('utf-8').strip() # nosec
         if asg_spotfleet_id.startswith('sfr-'):
             if asg_spotfleet_id not in spotfleets:
                 spotfleets[asg_spotfleet_id] = []

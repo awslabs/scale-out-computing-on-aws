@@ -120,7 +120,7 @@ Under stack details, choose the stack name (do not use uppercase or it will brea
     - Stack name is limited to 20 characters maximum (note: we automatically add soca- prefix)
     - Not supported on regions with less than 3 AZs (Northern California / us-west-1)
 
-- Environment Parameters: Choose your Linux Distribution, instance type for your master host, VPC CIDR, your IP which will be whitelisted for port 22, 80 and 443 as well as the root SSH keypair you want to use
+- Environment Parameters: Choose your Linux Distribution, instance type for your scheduler host, VPC CIDR, your IP which will be allowed to access port 22, 80 and 443 as well as the root SSH keypair you want to use
 
 - LDAP Parameters: Create a default LDAP user
 
@@ -148,7 +148,7 @@ Wait for CloudFormation stacks to be "CREATE_COMPLETE", then  select your base s
 
 ![](../imgs/install-9.png)
 
-Output tabs give you information about the SSH IP for the master, link to the web interface or ElasticSearch.
+Output tabs give you information about the SSH IP for the scheduler host, link to the web interface or ElasticSearch.
 
 ![](../imgs/install-10.png)
 

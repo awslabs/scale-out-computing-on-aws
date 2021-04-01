@@ -51,7 +51,7 @@ def find_email(job_owner):
     # Ideally we should be using python-ldap, but facing some issue importing it with PBS env as PBS py is still py2
     # Will migrate to python-ldap when pbspro supports py3 natively
     cmd = 'ldapsearch -x -b "ou=People,dc=soca,dc=local" -LLL "(uid='+job_owner+')" mail | grep "mail:" | cut -d " " -f 2'
-    email_address = os.popen(cmd).read()
+    email_address = os.popen(cmd).read() # nosec
     pbs.logmsg(pbs.LOG_DEBUG, 'notify_job: Detected email for ' + job_owner + ' : ' + email_address)
     return email_address.replace('\n', '')
 

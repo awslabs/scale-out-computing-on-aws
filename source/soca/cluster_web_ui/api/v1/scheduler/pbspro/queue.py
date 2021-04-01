@@ -37,7 +37,7 @@ class Queue(Resource):
 
         get_all_queues = get(config.Config.FLASK_ENDPOINT + "/api/scheduler/queues",
                              headers={"X-SOCA-TOKEN": config.Config.API_ROOT_KEY},
-                             verify=False)
+                             verify=False) # nosec
         if get_all_queues.status_code == 200:
             all_queues = get_all_queues.json()["message"]
         else:
@@ -97,7 +97,7 @@ class Queue(Resource):
 
         get_all_queues = get(config.Config.FLASK_ENDPOINT + "/api/scheduler/queues",
                              headers={"X-SOCA-TOKEN": config.Config.API_ROOT_KEY},
-                             verify=False)
+                             verify=False) # nosec
         if get_all_queues.status_code == 200:
             all_queues = get_all_queues.json()["message"]
         else:

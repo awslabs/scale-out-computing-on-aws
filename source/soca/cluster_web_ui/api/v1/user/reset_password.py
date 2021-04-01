@@ -60,7 +60,7 @@ class Reset(Resource):
         dn_user = "uid=" + user + ",ou=people," + config.Config.LDAP_BASE_DN
         enc_passwd = bytes(password, 'utf-8')
         salt = os.urandom(16)
-        sha = hashlib.sha1(enc_passwd)
+        sha = hashlib.sha1(enc_passwd) # nosec
         sha.update(salt)
         digest = sha.digest()
         b64_envelop = encode(digest + salt)

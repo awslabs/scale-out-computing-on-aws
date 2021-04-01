@@ -59,7 +59,7 @@ Metadata:
       S3InstallFolder:
         default: S3 folder where you uploaded the SOCA files
       SchedulerInstanceType:
-        default: Instance type for your master host
+        default: Instance type for your scheduler host
       UserName:
         default: Username for your default LDAP user
       UserPassword:
@@ -322,9 +322,9 @@ Resources:
           def lambda_handler(event, context):
             region = event['ResourceProperties']['Region']
             stack_name = event['ResourceProperties']['StackName']
-            regions_blacklist = ['us-west-1'] # only 2 AZs
+            blocked_regions = ['us-west-1'] # only 2 AZs
 
-            if region in regions_blacklist:
+            if region in blocked_regions:
               error_message = 'Sorry, this region is not yet supported by SOCA'
               cfnresponse.send(event, context, cfnresponse.FAILED, {'error': error_message}, error_message)
               return error_message
@@ -464,9 +464,9 @@ Resources:
 Outputs:
   SchedulerPublicIP:
     Value: !GetAtt Scheduler.Outputs.SchedulerPublicIP
-  LDAPMasterUsername:
+  LDAPAdminUsername:
     Value: admin
-  LDAPMasterPassword:
+  LDAPAdminPassword:
     Value: /root/OpenLdapAdminPassword.txt
   AnalyticsDashboard:
     Value: !Join [ "", [ "https://", !GetAtt Analytics.Outputs.ESDomainEndpoint, "/_plugin/kibana/"]]

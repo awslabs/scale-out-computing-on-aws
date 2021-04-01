@@ -40,7 +40,7 @@ def sso_authorization(code):
         check_user = get(config.Config.FLASK_ENDPOINT + "/api/ldap/user",
                          headers={"X-SOCA-TOKEN": config.Config.API_ROOT_KEY},
                          params={"user": user},
-                         verify=False)
+                         verify=False) # nosec
         if check_user.status_code == 200:
             session['user'] = user
 

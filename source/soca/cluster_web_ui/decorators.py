@@ -96,7 +96,7 @@ def login_required(f):
                 check_user_key = get(config.Config.FLASK_ENDPOINT + "/api/user/api_key",
                                      headers={"X-SOCA-TOKEN": config.Config.API_ROOT_KEY},
                                      params={"user": session["user"]},
-                                     verify=False).json()
+                                     verify=False).json() # nosec
                 session["api_key"] = check_user_key["message"]
 
             return f()

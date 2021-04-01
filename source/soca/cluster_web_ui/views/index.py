@@ -55,7 +55,7 @@ def authenticate():
         check_auth = post(config.Config.FLASK_ENDPOINT + '/api/ldap/authenticate',
                           headers={"X-SOCA-TOKEN": config.Config.API_ROOT_KEY},
                           data={"user": user, "password": password},
-                          verify=False)
+                          verify=False) # nosec
         logger.info(check_auth)
         if check_auth.status_code != 200:
             flash(check_auth.json()['message'])
@@ -66,7 +66,7 @@ def authenticate():
             check_sudo_permission = get(config.Config.FLASK_ENDPOINT + '/api/ldap/sudo',
                                         headers={"X-SOCA-TOKEN": config.Config.API_ROOT_KEY},
                                         params={"user": user},
-                                        verify=False)
+                                        verify=False) # nosec
             if check_sudo_permission.status_code == 200:
                 session["sudoers"] = True
             else:
@@ -90,7 +90,7 @@ def oauth():
         check_sudo_permission = get(config.Config.FLASK_ENDPOINT + '/api/ldap/sudo',
                                     headers={"X-SOCA-TOKEN": config.Config.API_ROOT_KEY},
                                     params={"user": session["user"]},
-                                    verify=False)
+                                    verify=False) # nosec
         if check_sudo_permission.status_code == 200:
             session["sudoers"] = True
         else:

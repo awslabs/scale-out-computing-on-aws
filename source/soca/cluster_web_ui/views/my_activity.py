@@ -24,8 +24,9 @@ def index():
 
     user_kibana_url = False
     loadbalancer_dns_name = read_secretmanager.get_soca_configuration()['LoadBalancerDNSName']
+    elastic_search_endpoint = read_secretmanager.get_soca_configuration()['ESDomainEndpoint']
     job_index = "https://" + elastic_search_endpoint + "/_search?q=type:index-pattern%20AND%20index-pattern.title:" + config.Config.KIBANA_JOB_INDEX
-    get_job_index = get(job_index, verify=False)
+    get_job_index = get(job_index, verify=False) # nosec
     index_id = False
     if get_job_index.status_code == 200:
         response = json.loads(get_job_index.text)

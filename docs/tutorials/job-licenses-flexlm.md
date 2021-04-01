@@ -19,20 +19,20 @@ In this page, we will see how Scale-Out Computing on AWS manages job and capacit
 Depending your configuration, you may need to edit the security groups to allow traffic to/from your license servers.
 
 !!!info "FlexLM server installed on Scheduler host"
-    No further actions are required if you have installed your FlexLM server on the scheduler host as Scale-Out Computing on AWS automatically whitelist all traffic between the scheduler and the compute nodes.
+    No further actions are required if you have installed your FlexLM server on the scheduler host as Scale-Out Computing on AWS automatically allow all traffic between the scheduler and the compute nodes.
 
 !!!warning FlexLM TCP ports
-    FlexLM configure two ports for each application (DAEMON and SERVER ports). You need to whitelist both of them.
+    FlexLM configure two ports for each application (DAEMON and SERVER ports). You need to allow both of them.
 
 **Allow traffic from your license server IP to Scale-Out Computing on AWS**
 
-Assuming my license server IP is ==10.0.15.18==, simply go to the EC2 console, locate your `Scheduler` and `ComputeNode` security groups (filter by your cluster name) associated to your Scale-Out Computing on AWS cluster and whitelist both SERVER and DAEMON ports:
+Assuming my license server IP is ==10.0.15.18==, simply go to the EC2 console, locate your `Scheduler` and `ComputeNode` security groups (filter by your cluster name) associated to your Scale-Out Computing on AWS cluster and allow both SERVER and DAEMON ports:
 
 ![](../imgs/flexlm-1.png)
 
 **Allow traffic from Scale-Out Computing on AWS to your license server**
 
-Since FlexLM use client/server protocol, you will need to authorize traffic coming from Scale-Out Computing on AWS to your license servers for both SERVER and DAEMON ports. You will need to whitelist the IP for your scheduler as well as the NAT Gateway used by the compute nodes.
+Since FlexLM use client/server protocol, you will need to authorize traffic coming from Scale-Out Computing on AWS to your license servers for both SERVER and DAEMON ports. You will need to allow the IP for your scheduler as well as the NAT Gateway used by the compute nodes.
 Your Scheduler Public IP is listed on CloudFormation, to retrieve your NAT Gateway IP, visit VPC console, select NAT Gateway and find the NAT Gateway IP associated to your Scale-Out Computing on AWS cluster.
 ![](../imgs/flexlm-2.png)
 

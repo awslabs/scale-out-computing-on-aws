@@ -200,7 +200,7 @@ def index():
         if session_state == "pending" and session_host_private_dns is not False:
             check_dcv_state = get('https://' + read_secretmanager.get_soca_configuration()['LoadBalancerDNSName'] + '/' + session_host_private_dns + '/',
                                   allow_redirects=False,
-                                  verify=False)
+                                  verify=False) # nosec
 
             logger.info("Checking {} for {} and received status {} ".format('https://' + read_secretmanager.get_soca_configuration()['LoadBalancerDNSName'] + '/' + session_host_private_dns + '/',
                                                                             session_info,
@@ -224,9 +224,9 @@ def index():
 
     max_number_of_sessions = config.Config.DCV_LINUX_SESSION_COUNT
     # List of instances not available for DCV. Adjust as needed
-    blacklist = config.Config.DCV_BLACKLIST_INSTANCE_TYPE
+    blocked_instances = config.Config.DCV_RESTRICTED_INSTANCE_TYPE
     all_instances_available = client_ec2._service_model.shape_for('InstanceType').enum
-    all_instances = [p for p in all_instances_available if not any(substr in p for substr in blacklist)]
+    all_instances = [p for p in all_instances_available if not any(substr in p for substr in blocked_instances)]
     try:
         tz = pytz.timezone(config.Config.TIMEZONE)
     except pytz.exceptions.UnknownTimeZoneError:
@@ -609,9 +609,9 @@ def modify():
         flash("Invalid new EC2 instance type", "error")
         return redirect("/remote_desktop")
 
-    blacklist = config.Config.DCV_BLACKLIST_INSTANCE_TYPE
+    blocked_instances = config.Config.DCV_RESTRICTED_INSTANCE_TYPE
     all_instances_available = client_ec2._service_model.shape_for('InstanceType').enum
-    all_instances = [p for p in all_instances_available if not any(substr in p for substr in blacklist)]
+    all_instances = [p for p in all_instances_available if not any(substr in p for substr in blocked_instances)]
     if new_instance_type not in all_instances:
         flash("This EC2 instance type is not authorized", "error")
         return redirect("/remote_desktop")

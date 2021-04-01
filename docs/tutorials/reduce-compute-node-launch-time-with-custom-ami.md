@@ -38,7 +38,7 @@ Launch a new EC2 instance using the `SOCA_INSTALL_AMI` image
     Step 3 is only required if you want to reduce the time required for your compute node to boot. You can skip this section if you just want to install your customization on your AMI and let SOCA handles PBS/Gnome/System packages installation. 
 
 #### 3.1 Pre-Install system packages
-You can pre-install the packages listed on [https://github.com/awslabs/scale-out-computing-on-aws/blob/master/source/scripts/config.cfg](https://github.com/awslabs/scale-out-computing-on-aws/blob/master/source/scripts/config.cfg). You will need to run `yum install` for:
+You can pre-install the packages listed on [https://github.com/awslabs/scale-out-computing-on-aws/blob/main/source/scripts/config.cfg](https://github.com/awslabs/scale-out-computing-on-aws/blob/main/source/scripts/config.cfg). You will need to run `yum install` for:
 
 - SYSTEM_PKGS
 - SCHEDULER_PKGS
@@ -55,13 +55,13 @@ You can pre-install the packages listed on [https://github.com/awslabs/scale-out
         - `yum install -y $(echo ${SSSD_PKGS[*]})`
     
     ____
-    [Here is an example](https://github.com/awslabs/scale-out-computing-on-aws/blob/master/source/scripts/Scheduler.sh#L34) of how you can install packages listed in an array in bash.
+    [Here is an example](https://github.com/awslabs/scale-out-computing-on-aws/blob/main/source/scripts/Scheduler.sh#L34) of how you can install packages listed in an array in bash.
 
 
 
 #### 3.2: Pre-Install the scheduler
 To reduce the launch time of your EC2 instance, it's recommended to pre-install OpenPBS. 
-First, refer to [https://github.com/awslabs/scale-out-computing-on-aws/blob/master/source/scripts/config.cfg](https://github.com/awslabs/scale-out-computing-on-aws/blob/master/source/scripts/config.cfg) and note all OpenPBS related variables as you will need to use them below (see highlighted lines):
+First, refer to [https://github.com/awslabs/scale-out-computing-on-aws/blob/main/source/scripts/config.cfg](https://github.com/awslabs/scale-out-computing-on-aws/blob/main/source/scripts/config.cfg) and note all OpenPBS related variables as you will need to use them below (see highlighted lines):
 
 ~~~bash hl_lines="5 6 7"
 # Sudo as Root
@@ -101,7 +101,7 @@ systemctl disable pbs
 
 #### 3.5: Make sure you do not have any libvirt of firewalld/iptables
 
-Post reboot, some distribution may automatically start libvirt or firewall. If that's the case you must delete them otherwise PBS won't be able to contact the master scheduler.
+Post reboot, some distribution may automatically start libvirt or firewall. If that's the case you must delete them otherwise PBS won't be able to contact the scheduler.
 To find if you have a running libvirt, run `ifconfig` and check if you have `virbr0` interface such as:
 
 ~~~bash hl_lines="20 21 22 23 24 25 26 27"

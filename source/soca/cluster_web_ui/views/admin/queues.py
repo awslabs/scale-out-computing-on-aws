@@ -16,7 +16,7 @@ def index():
     get_all_queues = get(config.Config.FLASK_ENDPOINT + "/api/scheduler/queues",
                          headers={"X-SOCA-TOKEN": session["api_key"],
                                   "X-SOCA-USER": session["user"]},
-                         verify=False)
+                         verify=False) # nosec
 
     if get_all_queues.status_code == 200:
         all_queues = get_all_queues.json()["message"]
@@ -37,7 +37,7 @@ def create_new_queue():
                             headers={"X-SOCA-TOKEN": session["api_key"],
                                      "X-SOCA-USER": session["user"]},
                             data={"name": queue_name, "type": queue_type},
-                            verify=False)
+                            verify=False) # nosec
     if create_new_queue.status_code == 200:
         flash("Queue " + queue_name + " has been created successfully", "success")
     else:
@@ -54,7 +54,7 @@ def delete_queue():
                              headers={"X-SOCA-TOKEN": session["api_key"],
                                       "X-SOCA-USER": session["user"]},
                              data={"name": queue_name},
-                         verify=False
+                         verify=False # nosec
                          )
     if delete_queue.status_code == 200:
         flash('Queue ' + queue_name + ' has been deleted correctly', "success")

@@ -45,7 +45,7 @@ Metadata:
       S3InstallFolder:
         default: S3 folder where you uploaded the SOCA files
       SchedulerInstanceType:
-        default: Instance type for your master host
+        default: Instance type for your scheduler host
       UserName:
         default: Username for your default LDAP user
       UserPassword:
@@ -90,14 +90,14 @@ Parameters:
 
   S3InstallBucket:
     Type: String
-    Default: %%BUCKET_NAME%%
+    Default: "%%BUCKET_NAME%%"
     Description: Name of your S3 Bucket where you uploaded your install files
     AllowedPattern: '(?=^.{3,63}$)(?!^(\d+\.)+\d+$)(^(([a-z0-9]|[a-z0-9][a-z0-9\-]*[a-z0-9])\.)*([a-z0-9]|[a-z0-9][a-z0-9\-]*[a-z0-9])$)'
     ConstraintDescription: You must specify the bucket NAME only (no s3:// or https://bucket.s3.amazonaws.com)
 
   S3InstallFolder:
     Type: String
-    Default: %%SOLUTION_NAME%%/%%VERSION%%
+    Default: "%%SOLUTION_NAME%%/%%VERSION%%"
     Description: Name of the S3 folder where you uploaded SOCA
 
   UserName:
@@ -281,9 +281,9 @@ Resources:
             region = event['ResourceProperties']['Region']
             stack_name = event['ResourceProperties']['StackName']
             clusterIdPrefix = event['ResourceProperties']['ClusterIdPrefix']
-            regions_blacklist = ['us-west-1'] # only 2 AZ
+            blocked_regions = ['us-west-1'] # only 2 AZ
 
-            if region in regions_blacklist:
+            if region in blocked_regions:
               error_message = 'Sorry, this region is not yet supported by SOCA'
               cfnresponse.send(event, context, cfnresponse.FAILED, {'error': error_message}, error_message)
               return error_message
@@ -487,9 +487,9 @@ Resources:
 Outputs:
   SchedulerPublicIP:
     Value: !GetAtt Network.Outputs.SchedulerPublicIP
-  LDAPMasterUsername:
+  LDAPAdminUsername:
     Value: admin
-  LDAPMasterPassword:
+  LDAPAdminPassword:
     Value: /root/OpenLdapAdminPassword.txt
   AnalyticsDashboard:
     Value: !Join [ "", [ "https://", !GetAtt Viewer.Outputs.LoadBalancerDNSName, "/_plugin/kibana/"]]

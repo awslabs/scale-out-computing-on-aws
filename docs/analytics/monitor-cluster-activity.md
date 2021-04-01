@@ -79,6 +79,6 @@ Finally, simply add your new IP under the "Condition" block, then click Submit
 
 ![](../imgs/kibana-9.png)
 
-Please note it may take up to 5 minutes for your IP to be whitelisted
+Please note it may take up to 5 minutes for your IP to be validated
 
 ###[Create your own dashboard](../../analytics/build-kibana-dashboards/)

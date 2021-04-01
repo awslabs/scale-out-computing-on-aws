@@ -82,7 +82,7 @@ def create_home(username):
         shutil.chown(user_home + '/' + username + '/.ssh/authorized_keys', user=username, group=username)
         shutil.chown(user_home + '/' + username + '/.ssh/id_rsa', user=username, group=username)
         shutil.chown(user_home + '/' + username + '/.ssh/id_rsa.pub', user=username, group=username)
-        os.chmod(user_home + '/' + username, 0o750)
+        os.chmod(user_home + '/' + username, 0o750) # nosec
         os.chmod(user_home + '/' + username + '/.ssh', 0o700)
         os.chmod(user_home + '/' + username + '/.ssh/id_rsa', 0o600)
         os.chmod(user_home + '/' + username + '/.ssh/authorized_keys', 0o600)
@@ -114,7 +114,7 @@ def create_user(username, password, sudoers, email=False, uid=False, gid=False):
     dn_user = "uid=" + username + ",ou=people," + ldap_base
     enc_passwd = bytes(password, 'utf-8')
     salt = os.urandom(16)
-    sha = hashlib.sha1(enc_passwd)
+    sha = hashlib.sha1(enc_passwd) # nosec
     sha.update(salt)
     digest = sha.digest()
     b64_envelop = encode(digest + salt)

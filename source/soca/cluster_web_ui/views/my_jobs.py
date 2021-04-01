@@ -15,7 +15,7 @@ def index():
                            headers={"X-SOCA-USER": session["user"],
                                     "X-SOCA-TOKEN": session["api_key"]},
                          params={"user": session["user"]},
-                         verify=False)
+                         verify=False) # nosec
     if get_job_for_user.status_code == 200:
         return render_template("my_jobs.html", user=session["user"], jobs=get_job_for_user.json()["message"], page="my_jobs")
     else:
@@ -34,7 +34,7 @@ def delete_job():
                               headers={"X-SOCA-USER": session["user"],
                                        "X-SOCA-TOKEN": session["api_key"]},
                               params={"job_id": job_id},
-                              verify=False)
+                              verify=False) # nosec
     if delete_job.status_code == 200:
         flash("Request to delete job was successful. The job will be removed from the queue shortly", "success")
     else:

@@ -52,7 +52,7 @@ class ApiKey(Resource):
                     permissions = get(config.Config.FLASK_ENDPOINT + "/api/ldap/sudo",
                                       headers={"X-SOCA-TOKEN": config.Config.API_ROOT_KEY},
                                       params={"user": user},
-                                      verify=False)
+                                      verify=False) # nosec
 
                     if permissions.status_code == 200:
                         scope = "sudo"

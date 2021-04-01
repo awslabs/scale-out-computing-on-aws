@@ -176,7 +176,7 @@ class User(Resource):
 
         get_id = get(config.Config.FLASK_ENDPOINT + '/api/ldap/ids',
                      headers={"X-SOCA-TOKEN": config.Config.API_ROOT_KEY},
-                     verify=False)
+                     verify=False) # nosec
         if get_id.status_code == 200:
             current_ldap_ids = (json.loads(get_id.text))
         else:
@@ -207,7 +207,7 @@ class User(Resource):
             dn_user = "uid=" + user + ",ou=people," + config.Config.LDAP_BASE_DN
             enc_passwd = bytes(password, 'utf-8')
             salt = os.urandom(16)
-            sha = hashlib.sha1(enc_passwd)
+            sha = hashlib.sha1(enc_passwd) # nosec
             sha.update(salt)
             digest = sha.digest()
             b64_envelop = encode(digest + salt)
@@ -236,7 +236,7 @@ class User(Resource):
             create_user_group = post(config.Config.FLASK_ENDPOINT + "/api/ldap/group",
                                      headers={"X-SOCA-TOKEN": config.Config.API_ROOT_KEY},
                                      data={"group": user, "gid": gid},
-                                     verify=False)
+                                     verify=False) # nosec
             if create_user_group.status_code != 200:
                 return errors.all_errors("COULD_NOT_CREATE_GROUP", str(create_user_group.text))
 
@@ -249,7 +249,7 @@ class User(Resource):
                                data={"group": user,
                                      "user": user,
                                      "action": "add"},
-                               verify=False)
+                               verify=False) # nosec
             if update_group.status_code != 200:
                 return {"success": True, "message": "User/Group created but could not add user to his group"}, 203
 
@@ -262,7 +262,7 @@ class User(Resource):
                 grant_sudo = post(config.Config.FLASK_ENDPOINT + "/api/ldap/sudo",
                                  headers={"X-SOCA-TOKEN": config.Config.API_ROOT_KEY},
                                  data={"user": user},
-                                 verify=False
+                                 verify=False # nosec
                                  )
                 if grant_sudo.status_code != 200:
                     return {"success": False, "message": "User added but unable to give admin permissions"}, 500

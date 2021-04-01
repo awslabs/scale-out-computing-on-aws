@@ -26,7 +26,7 @@ qsub -q normal -l instance_type=m5.24xlarge -- /bin/echo test
 qsub: instance_type is a restricted parameter and can't be configure by the user. Contact your HPC admin and update /apps/soca/$SOCA_CONFIGURATION/cluster_manager/settings/queue_mapping.yml
 ~~~
 
-!!!note "Need to whitelist more than one instance type/family?"
+!!!note "Need to approve more than one instance type/family?"
     [Read the documentation](../../security/manage-queue-instance-types/) if you want to limit users to a list of multiple instance types
 
 ## Prevent user to provision additional storage

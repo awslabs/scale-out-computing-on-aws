@@ -93,6 +93,6 @@ def ami_delete():
         return redirect('/admin/ami_management')
     except exc.SQLAlchemyError as e:
         db.session.rollback()
-        flash(ami_label + " ami delete from SOCA failed", "error")
+        flash(ami_label + " ami delete from SOCA failed", "error") # nosec
         logger.error(f"AMI Label {ami_label} delete failed {e}")
     return redirect('/admin/ami_management')

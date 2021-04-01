@@ -146,7 +146,7 @@ def user_has_permission(path, permission_required, type):
                     check_group_membership = get(config.Config.FLASK_ENDPOINT + "/api/ldap/group",
                                                  headers={"X-SOCA-TOKEN": config.Config.API_ROOT_KEY},
                                                  params={"group": check_folder["folder_group_name"]},
-                                                 verify=False)
+                                                 verify=False) # nosec
 
                     if check_group_membership.status_code == 200:
                         group_members = check_group_membership.json()["message"]["members"]
@@ -597,7 +597,7 @@ def editor():
         text = get(config.Config.FLASK_ENDPOINT + '/api/system/files',
                    headers={"X-SOCA-TOKEN": config.Config.API_ROOT_KEY},
                    params={"file": file_info["file_path"]},
-                   verify=False
+                   verify=False # nosec
                    )
         if text.status_code != 200:
             flash(text.json()["message"])

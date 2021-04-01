@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: 2010-09-09
-Description: (SOCA) - Deploy master host.
+Description: (SOCA) - Deploy scheduler host.
 Parameters:
   SubnetId:
     Type: AWS::EC2::Subnet::Id
