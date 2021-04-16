@@ -6,7 +6,7 @@ The goal with this lab is to evaluate the remote visualization experience using 
 
 By now your remote desktop session should be ready and you should see the following under **Your Session #1**:
 
-![](../../../imgs/access-7.png)
+![](../imgs/access-3.png)
 
 1. Click **Open Session directly on a browser** to log into the remote desktop session in your new cluster using the username and password you created in the steps above.
 

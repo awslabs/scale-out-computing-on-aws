@@ -19,7 +19,7 @@ This automated AWS CloudFormation template deploys a scale-out computing environ
 
 1. On the **Create stack** page, you should see the template URL in the **Amazon S3 URL** text box and choose **Next**.
 
-1. On the **Specify stack** details page, assign a name to your solution stack.  We recommend naming it "dvcon".
+1. On the **Specify stack** details page, assign a name to your solution stack. We recommend naming it "tutorial".
 
     !!! warning
          The stack name must be less than 20 characters and must be lower-case only.
@@ -54,9 +54,8 @@ This automated AWS CloudFormation template deploys a scale-out computing environ
 You can view the status of the stack in the AWS CloudFormation console in the **Status** column. You should see a status of `CREATE_COMPLETE` in approximately 35 minutes.
 
 By now you've learned how to deploy Scale-Out Computing on AWS in an AWS account. For the purpose of this workshop, you'll login to a pre-built setup that has the following:
-
-    * Synopsys VCS software pre-installed,
-    * A license server with valid licenses, and
-    * Workshop test case
+* Synopsys VCS software pre-installed,
+* A license server with valid licenses, and
+* Workshop test case
 
 You can now move on to the next lab. Click **Next**.

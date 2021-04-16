@@ -1,4 +1,4 @@
-# DVCon Workshop Overview
+# Synopsys Verification Tutorial Overview
 
 ## Launch a turnkey scale-out compute environment in minutes on AWS
 
