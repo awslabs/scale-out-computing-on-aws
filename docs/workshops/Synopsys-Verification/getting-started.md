@@ -8,11 +8,17 @@ At the beginning of the workshop, you will be given a **12-character access code
 
 ### Step 1. Log in
 
-Go to https://dashboard.eventengine.run, and enter the access code in the **Team Hash** field.  Click **Proceed**.
+Go to https://dashboard.eventengine.run, and enter the access code in the **Team Hash** field.  Click **Accept Terms & Login**.
 
 ![Event Engine Login](imgs/ee-login.png)
 
-### Step 2. Get Credentials
+### Step 2. Sign in with...
+
+Click on **Email One-Time Password (OTP)** and provide your email address on the next screen. Then check your email and provide the one-time password to verify access
+
+![Event Engine Login](imgs/ee-sign-in.png)
+
+### Step 3. Get Credentials
 
 1. On the **Team Dashboard**, click **SSH Key** to download the SSH Keypair PEM file.  You'll use this file later to SSH into an EC2 instance.
 
@@ -24,7 +30,7 @@ Go to https://dashboard.eventengine.run, and enter the access code in the **Team
 
 ![Event Engine Dashboard](imgs/ee-team-dashboard.png)
 
-### Step 3. Open AWS Console
+### Step 4. Open AWS Console
 
 Click **Open AWS Console**. For this workshop, you will not need the **Credentials** or **CLI Snippets**
 
