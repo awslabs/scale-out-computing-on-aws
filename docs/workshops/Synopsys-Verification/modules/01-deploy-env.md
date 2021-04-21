@@ -8,7 +8,7 @@ This automated AWS CloudFormation template deploys a scale-out computing environ
 
 1. Sign in to the AWS Management Console and click the Launch Stack link in the instructions below to launch the scale-out-computing-on-aws AWS CloudFormation template.
 
-    [**Launch Stack** <--- CLICK HERE](https://console.aws.amazon.com/cloudformation/home?region=us-west-2#/stacks/new?&templateURL=https://s3.amazonaws.com/solutions-reference/scale-out-computing-on-aws/latest/scale-out-computing-on-aws.template)
+    [**Launch Stack <--- CLICK HERE**](https://console.aws.amazon.com/cloudformation/home?region=us-west-2#/stacks/new?&templateURL=https://s3.amazonaws.com/solutions-reference/scale-out-computing-on-aws/latest/scale-out-computing-on-aws.template){target=_blank}
 
 1. Verify the launch region is **Oregon**
 

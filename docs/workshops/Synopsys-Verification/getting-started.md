@@ -8,7 +8,7 @@ At the beginning of the workshop, you will be given a **12-character access code
 
 ### Step 1. Log in
 
-Go to https://dashboard.eventengine.run, and enter the access code in the **Team Hash** field.  Click **Accept Terms & Login**.
+Go to[**Event Engine Dashboard**](https://dashboard.eventengine.run){target=_blank}, and enter the access code in the **Team Hash** field.  Click **Accept Terms & Login**.
 
 ![Event Engine Login](imgs/ee-login.png)
 
