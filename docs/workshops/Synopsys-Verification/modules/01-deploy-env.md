@@ -6,9 +6,9 @@ We want you to have hands-on experience deploying your own cluster, and in this 
 
 This automated AWS CloudFormation template deploys a scale-out computing environment in the AWS Cloud.
 
-1. Sign in to the AWS Management Console and click the Launch Stack link below to launch the scale-out-computing-on-aws AWS CloudFormation template.
+1. Sign in to the AWS Management Console and click the Launch Stack link in the instructions below to launch the scale-out-computing-on-aws AWS CloudFormation template.
 
-    [**Launch Stack**](https://console.aws.amazon.com/cloudformation/home?region=us-west-2#/stacks/new?&templateURL=https://s3.amazonaws.com/solutions-reference/scale-out-computing-on-aws/latest/scale-out-computing-on-aws.template)
+    [**Launch Stack** <--- CLICK HERE](https://console.aws.amazon.com/cloudformation/home?region=us-west-2#/stacks/new?&templateURL=https://s3.amazonaws.com/solutions-reference/scale-out-computing-on-aws/latest/scale-out-computing-on-aws.template)
 
 1. Verify the launch region is **Oregon**
 
@@ -29,15 +29,15 @@ This automated AWS CloudFormation template deploys a scale-out computing environ
     |Parameter|Default|Description
     ----------|-------|-----------
     |**Install Location**|
-    |Installer S3 Bucket|`solutions-reference`|The default AWS bucket name. Do not change this parameter unless you are using a custom installer.
-    |Installer Folder|`scale-out-computing-on-aws/latest`|The default AWS folder name. Do not change this parameter unless you are using a custom installer.
+    |Installer S3 Bucket|`solutions-reference`|The default AWS bucket name. Do not change this parameter.
+    |Installer Folder|`scale-out-computing-on-aws/latest`|The default AWS folder name. Do not change this parameter.
     |**Linux Distribution**|
     |Linux Distribution|AmazonLinux2|The preferred Linux distribution for the scheduler and compute instances.  Do not change this parameter.
     |Custom AMI|<Optional input>|If using a customized Amazon Machine Image, enter the ID. Leave this field blank.
     |**Network and Security**|
     |EC2 Instance Type for Scheduler node|m5.large|The instance type for the scheduler.  Do not change this parameter.
     |VPC Cluster CIDR|10.0.0.0/16|Choose the CIDR (/16) block for the VPC. Do not change this parameter.
-    |IP Address|See description|**REQUIRED** The public-facing IP address that is permitted to log into the environment.  You can leave it at default, but we recommend you change it to your public-facing IP address. You can find your public-facing IP address at http://checkip.amazonaws.com.  Add the /32 suffix to the IP number. 
+    |IP Address|See description|**REQUIRED** The public-facing IP address that is permitted to log into the environment.  We recommend you change it to your public-facing IP address. You can find your public-facing IP address at http://checkip.amazonaws.com then add the /32 suffix to the IP number. 
     |Key Pair Name|ee-default-keypair|**REQUIRED** Select the `ee-default-keypair` provided by the workshop.
     |**Default LDAP User**|
     |User Name|<Requires input>|**REQUIRED** Set a username for the default cluster user.
