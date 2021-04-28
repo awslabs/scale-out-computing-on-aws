@@ -1,10 +1,10 @@
 # Lab 4: Submit Batch Jobs
 
-This module provides instructions for running an example batch workload in the computing envronment created the **Deploy environment** module. The example workload is a CPU- and IO-intensive logic simulation that is found in integrated cicuit design workflows.
+This module provides instructions for running an example batch workload in the SOCA computing environment. The example workload is a CPU- and IO-intensive logic simulation that is found in integrated cicuit design workflows.
 
 ### Step 1: Submit jobs to the scheduler
 
-Next, you'll submit four jobs into the cluster, each job requesting a specific instance type. Using multiple instance types will help provide more interesting data to look at in the analytics lab.
+Next, you'll submit four jobs into the cluster, each job requests a specific instance type. Using multiple instance types will help provide more interesting data to look at in the analytics lab.
 
 1. Execute the run_tests.sh script which will submit 20 batch jobs to the queue by typing `./run_tests.sh` then hit enter. You'll observe that the PBS scheduler will report the corresponding job idsfor each of these 20 jobs. 
 
@@ -17,16 +17,17 @@ Next, you'll submit four jobs into the cluster, each job requesting a specific i
     ![](../imgs/my-job-queue.png)
 
 1. You can run the `pbsnodes -aSjL` command to see the EC2 instances that have joined the cluster. Initially, the nodes will be in **state-unknown,down** till they boot-up and join the queue.
+
     !!! note
-       The scheduler is configured to monitor the status of the queues every minute. It typically takes 5-6 minutes to launch a new EC2 instance, boot the operating system, configure it to join the cluster, and have the assigned job to start running. 
+        The scheduler is configured to monitor the status of the queues every minute. It typically takes 5-6 minutes to launch a new EC2 instance, boot the operating system, configure it to join the cluster, and have the assigned job to start running. 
 
 
 ### Step 3: Monitor test20 job
 
-1. Monitor the status of test20 job by refreshing the **My Job Queue** page in SOCA portal and look for the **Status** column for the job with test20 under **Name** column.
+1. Monitor the status of test20 job by refreshing the **My Job Queue** page in SOCA portal and look for the **Status** column for the job with `test20` under **Name** column.
 
-1. You can also monitor the job status in the terminal by typing `qstat` command.
+1. You can also monitor the status of the jobs in the terminal by typing `watch -n 10 "qstat"` command which will keep monitoring the status of the jobs every 10 seconds. You'll need to wait the **S** column represeting the status of the job correspoding to the one with `test20` under **Name** column. This job usually takes around 6 minutes to complete.
 
-1. Once the job is in the running state, look inside test20 directory for test.log and novas.fsdb by typing `ls test20/*`. Wait until test20/novas.fsdb is created as you'll need to use it in the next lab.
+1. Once the job is in the running state (**S** column changes to R in the terminal or **Status** column changes to RUNNING on **My Job Queue** page in SOCA portal), look inside test20 directory for test.log and novas.fsdb by typing `ls test20/*`. Wait until test20/novas.fsdb is created as you'll need to use it in the next lab.
  
 Click **Next** to move to the next lab.

@@ -33,6 +33,7 @@ By now your remote desktop session should be ready and you should see the follow
 1. Compile the test case by typing `make clean comp comp_verdi` then hit enter.
 
 1. You should see the test case is getting compiled and at the end should see: 
+
 ![](../imgs/compilation-performance-summary.png)
 
 You've completed this lab. Click **Next**.

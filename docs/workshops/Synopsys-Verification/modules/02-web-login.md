@@ -6,7 +6,7 @@ The goal of this module is to login to SOCA console and start a remote desktop s
 
 1. Click on the link below to login to SOCA console
 
-    [**Login to SOCA console**](https://soca-tko-viewer-1490821021.us-west-2.elb.amazonaws.com/login)
+    [**Login to SOCA console**](https://soca-tko260-viewer-1219550143.us-west-2.elb.amazonaws.com/login){target=_blank}
     
     ![SOCA Console](../imgs/soca-console-login.png)
 
@@ -38,6 +38,9 @@ Under **Linux Session #1** group:
 
 After you click **Launch my session**, the SOCA solution will create a new EC2 instance with 8 vCPUs and 32GB of memory and install all desktop required packages including Gnome. 
 
-You will see an message asking you to wait up to 20 minutes before being able to access your remote desktop, but it should take around 10 minutes to deploy the remote desktop server.
+You will see an message asking you to wait up to 10 minutes before being able to access your remote desktop.
 
-Please wait till the desktop instance is ready before moving on to the next step.  Click **Next** once the status of Linux Session #1 change and you see green button labeled **Open Session directly on a browser**.
+!!! warning
+    Please wait till the desktop instance is ready before moving on to the next step.
+
+Click **Next** once the status of Linux Session #1 changes and you see green button labeled **Open Session directly on a browser**.
