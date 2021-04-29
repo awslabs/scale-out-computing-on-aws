@@ -30,12 +30,12 @@ This automated AWS CloudFormation template deploys a scale-out computing environ
     ----------|-------|-----------
     |**Install Location**|
     |Installer S3 Bucket|`solutions-reference`|The default AWS bucket name. Do not change this parameter.
-    |Installer Folder|`scale-out-computing-on-aws/latest`|The default AWS folder name. Do not change this parameter.
+    |Installer Folder|`scale-out-computing-on-aws/v2.6.1`|The default AWS folder name. Do not change this parameter.
     |**Linux Distribution**|
     |Linux Distribution|AmazonLinux2|The preferred Linux distribution for the scheduler and compute instances.  Do not change this parameter.
     |Custom AMI|<Optional input>|If using a customized Amazon Machine Image, enter the ID. Leave this field blank.
     |**Network and Security**|
-    |EC2 Instance Type for Scheduler node|m5.large|The instance type for the scheduler.  Do not change this parameter.
+    |EC2 Instance Type for Scheduler node|m5.xlarge|The instance type for the scheduler.  Do not change this parameter.
     |VPC Cluster CIDR|10.0.0.0/16|Choose the CIDR (/16) block for the VPC. Do not change this parameter.
     |IP Address|See description|**REQUIRED** The public-facing IP address that is permitted to log into the environment.  We recommend you change it to your public-facing IP address. You can find your public-facing IP address at http://checkip.amazonaws.com then add the /32 suffix to the IP number. 
     |Key Pair Name|ee-default-keypair|**REQUIRED** Select the `ee-default-keypair` provided by the workshop.
