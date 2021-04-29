@@ -8,16 +8,18 @@ By now your remote desktop session should be ready and you should see the follow
 
 ![](../imgs/access-3.png)
 
-1. Click **Open Session directly on a browser** to log into the remote desktop session in your new cluster using the username and password you created in the steps above.
+1. Click **Open Session directly on a browser** to log into the remote desktop session in the cluster.
 
     !!! note
         You can also access the session with the NICE DCV native clients, which are available for Mac, Linux, and Windows from https://download.nice-dcv.com
 
-1. Start a new terminal session by going to **Applications → Favorites → Terminal** in the desktop manager.
+1. Start a new terminal session by going to **Applications → System Tools → Terminal** in the desktop manager.
 
 ## Step 2: Copy test case
 
-1. Copy the test case to your home directory by typing ``cp -r /data/NVDLA_export /fsx/`whoami` `` at the command prompt and hit enter
+1. Make a working directory under /fsx/`whoami` by typing ``mkdir /fsx/`whoami``` at the command prompt and hit enter
+
+1. Copy the test case to your working directory by typing ``cp -r /data/NVDLA_export /fsx/`whoami` `` at the command prompt and hit enter
 
     !!! note
         /data is a mount point for **Amazon Elastic File System** which provides a simple, scalable elastic NFS file system. /fsx is a mount point for **Amazon FSx for Lustre** which provides a Lustre file system suitable for high performance computing (HPC) workloads such as EDA
