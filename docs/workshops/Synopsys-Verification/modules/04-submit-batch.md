@@ -1,4 +1,4 @@
-# Lab 4: Submit Batch Jobs
+# Lab 4: Submit VCS Batch Jobs
 
 This module provides instructions for running an example batch workload in the SOCA computing environment. The example workload is a CPU- and IO-intensive logic simulation that is found in integrated cicuit design workflows.
 
@@ -6,14 +6,14 @@ This module provides instructions for running an example batch workload in the S
 
 Next, you'll submit four jobs into the cluster, each job requests a specific instance type. Using multiple instance types will help provide more interesting data to look at in the analytics lab.
 
-1. Execute the run_tests.sh script which will submit 20 batch jobs to the queue by typing `./run_tests.sh` then hit enter. You'll observe that the PBS scheduler will report the corresponding job idsfor each of these 20 jobs. 
+1. Execute the run_tests.sh script by typing `./run_tests.sh` then hit enter. The script is broken into two sections: The first section creates 5 compute instances each with 4 vCPUs then the second section submits 20 batch jobs to these instances. You'll observe that the PBS scheduler will report the corresponding job ids for each of these 20 jobs. 
 
-1. You can examine the run_tests.sh script by typing `cat run_tests.sh` and observe that for each test we're specifying a different instance_type. This will usually depend on the CPU and memory requirements for the corresponding test.
+1. You can examine the run_tests.sh script by typing `cat run_tests.sh`. 
 
 
 ### Step 2: Watch job status
 
-1. As soon as jobs are sent to the queue, SOCA automation scripts will create a new compute instance to execute each job. Run the `qstat` command to view the status of the jobs. You can also view job status in the web UI by clicking on **My Job Queue** in the left side navigation bar.
+1. Run the `qstat` command to view the status of the jobs. You can also view job status in the web UI by clicking on **My Job Queue** in the left side navigation bar.
     ![](../imgs/my-job-queue.png)
 
 1. You can run the `pbsnodes -aSjL` command to see the EC2 instances that have joined the cluster. Initially, the nodes will be in **state-unknown,down** till they boot-up and join the queue.
