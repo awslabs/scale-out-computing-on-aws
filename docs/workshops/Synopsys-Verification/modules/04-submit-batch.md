@@ -8,7 +8,7 @@ Next, you'll submit four jobs into the cluster, each job requests a specific ins
 
 1. Execute the run_tests.sh script by typing `./run_tests.sh` then hit enter. The script is broken into two sections: The first section creates 5 compute instances each with 4 vCPUs then the second section submits 20 batch jobs to these instances. You'll observe that the PBS scheduler will report the corresponding job ids for each of these 20 jobs. 
 
-1. You can examine the run_tests.sh script by typing `cat run_tests.sh`. 
+1. You can examine the run_tests.sh script by typing `cat run_tests.sh`. Notice that we're using Spot pricing model since the duration of these jobs are short. Also, notice that we're specifying `--terminate_when_idle 3` which would terminate the instances and remove them from the cluster 3 mins after all jobs running on the instances complete.
 
 
 ### Step 2: Watch job status
