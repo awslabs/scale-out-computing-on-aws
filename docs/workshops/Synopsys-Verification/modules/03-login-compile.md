@@ -17,7 +17,7 @@ By now your remote desktop session should be ready and you should see the follow
 
 ## Step 2: Copy test case
 
-1. Make a working directory under ``/fsx/`whoami``` by typing ``mkdir /fsx/`whoami` `` at the command prompt and hit enter
+1. Make a working directory for your user under `/fsx/` by typing ``mkdir /fsx/`whoami` `` at the command prompt and hit enter
 
 1. Copy the test case to your working directory by typing ``cp -r /data/NVDLA_export /fsx/`whoami` `` at the command prompt and hit enter
 
