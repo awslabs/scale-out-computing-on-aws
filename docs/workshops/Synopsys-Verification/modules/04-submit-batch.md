@@ -26,7 +26,7 @@ Next, you'll submit four jobs into the cluster, each job requests a specific ins
 
 1. Monitor the status of test20 job by refreshing the **My Job Queue** page in SOCA portal and look for the **Status** column for the job with `test20` under **Name** column.
 
-1. You can also monitor the status of the jobs in the terminal by typing `watch -n 10 "qstat"` command which will keep monitoring the status of the jobs every 10 seconds. You'll need to wait the **S** column represeting the status of the job correspoding to the one with `test20` under **Name** column. This job usually takes around 6 minutes to complete.
+1. You can also monitor the status of the jobs in the terminal by typing `` watch -n 10 "qstat -u `whoami`" `` command which will keep monitoring the status of the jobs every 10 seconds. You'll need to wait the **S** column represeting the status of the job correspoding to the one with `test20` under **Name** column. This job usually takes around 6 minutes to complete.
 
 1. Once the job is in the running state (**S** column changes to R in the terminal or **Status** column changes to RUNNING on **My Job Queue** page in SOCA portal), look inside test20 directory for test.log and novas.fsdb by typing `ls test20/*`. Wait until test20/novas.fsdb is created as you'll need to use it in the next lab.
  
