@@ -43,4 +43,6 @@ You will see an message asking you to wait up to 10 minutes before being able to
 !!! warning
     Please wait till the desktop instance is ready before moving on to the next step.
 
+In this lab you learned how to use SOCA web portal to create a desktop cloud visualization instance so you can access the compute cluster. 
+
 Click **Next** once the status of Linux Session #1 changes and you see green button labeled **Open Session directly on a browser**.

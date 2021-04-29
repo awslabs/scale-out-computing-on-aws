@@ -53,12 +53,12 @@ This automated AWS CloudFormation template deploys a scale-out computing environ
 
 You can view the status of the stack in the AWS CloudFormation console in the **Status** column. You should see a status of `CREATE_COMPLETE` in approximately 35 minutes.
 
-By now you've learned how to deploy Scale-Out Computing on AWS in an AWS account. For the purpose of this workshop, you'll login to a pre-built setup that has the following:
+By now you've learned how to deploy Scale-Out Computing on AWS to create a compute cluster for EDA Workloads in an AWS account. For the remaining portion of the this tutorial, you'll login to a different pre-built cluster that has the following items:
 
 * Synopsys VCS and Verdi software pre-installed,
 
 * A license server with valid licenses, and
 
-* Workshop test case
+* Test case to use for VCS and Verdi
 
 You can now move on to the next lab. Click **Next**.

@@ -48,4 +48,7 @@ Here are a few examples:
 
 ![](../../../imgs/dashboard-7.png)
 
+
+In this lab you learned how to explore the analytics dashboard in SOCA cluster.
+
 Click **Next** to move to the next lab.

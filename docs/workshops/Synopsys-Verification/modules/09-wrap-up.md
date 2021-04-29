@@ -4,7 +4,7 @@ Congratulations!  You've completed this workshop.
 
 ## Next steps
 
-1. Please complete the session survey in the mobile app.
+1. Please complete the session survey.
 
 ## Clean up
 

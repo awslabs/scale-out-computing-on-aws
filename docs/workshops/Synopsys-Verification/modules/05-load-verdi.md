@@ -26,5 +26,6 @@ This module provides instructions for loading a graphical tool to debug a design
 
 1. On the upper pane, click on **File** menu item then click on **Exit** to close Verdi. Click **Yes** on the exit confirmation question
 
+In this lab you learned how to bring up an interactive debugging application and interact with it.
 
 Click **Next** to move to the next lab.

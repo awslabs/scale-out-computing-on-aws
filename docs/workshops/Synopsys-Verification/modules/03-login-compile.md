@@ -38,4 +38,6 @@ By now your remote desktop session should be ready and you should see the follow
 
 ![](../imgs/compilation-performance-summary.png)
 
+In this lab you learned how to login to desktop cloud visualiztion instance, copied the test case we'll use to submit VCS batch job, and compiled the test case.
+
 You've completed this lab. Click **Next**.
