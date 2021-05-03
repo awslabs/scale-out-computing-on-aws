@@ -25,7 +25,7 @@ By now your remote desktop session should be ready and you should see the follow
         /data is a mount point for **Amazon Elastic File System** which provides a simple, scalable elastic NFS file system. /fsx is a mount point for **Amazon FSx for Lustre** which provides a Lustre file system suitable for high performance computing (HPC) workloads such as EDA
 
 1. Change directory to test case ``cd /fsx/`whoami`/NVDLA_export`` and hit enter
-1. Source environment settings by typing `. setup.sh` and hit enter 
+1. Source environment settings by typing `source setup.sh` and hit enter 
 
 
 ## Step 3: Compile the test case

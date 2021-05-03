@@ -19,7 +19,7 @@ This module provides instructions for loading a graphical tool to debug a design
 
 ### Step 3: Search for Signal Transition
 
-1. On the lower left pane, click on **a2accu_dst_data0[175:0]** and click **twice** on the **Search Forward** button (icon with arrow pointing to the right) to find the time where the bus changes to non-zero values and observe the timestamp 419,090,000 ps
+1. On the lower left pane, click on **mac_a2accu_dst_data0[175:0]** and click **twice** on the **Search Forward** button (icon with arrow pointing to the right) to find the time where the bus changes to non-zero values and observe the timestamp 419,090,000 ps
     ![](../imgs/verdi-signal-transition.png)
 
 ### Step 4: Exit Verdi

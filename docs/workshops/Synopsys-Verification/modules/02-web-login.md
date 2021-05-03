@@ -30,7 +30,7 @@ Follow these instructions to start a full remote desktop experience in your new 
 
 Under **Linux Session #1** group:
 
-1. Select  **CentOS 7 - x86_64 - VCS/Verdi** in the **Software Stack** dropdown menu.
+1. Select  **CentOS 7 - x86_64** in the **Software Stack** dropdown menu.
 
 1. Choose **2D - Medium (8 vCPUs - 32GB ram)** in the **Session Type** dropdown menu.
 
