@@ -14,7 +14,7 @@ This module provides instructions for loading a graphical tool to debug a design
 
 1. On the left pane, expand **+ top(top)** then expand **+ nvdla_top(NV_nvdla)** then click on **u_parition_a(NV_NVDLA_partition_a)**
 
-1. In the middle pane, click on **accu2sc_credit_size[2:0]** then hit shift and click on **mac_a2accu_data2[175:0]** then click **OK**
+1. In the middle pane, click on **accu2sc_credit_size[2:0]** then hit shift and click on **mac_a2accu_dst_data2[175:0]** then click **OK**
     ![](../imgs/verdi-signals.png)
 
 ### Step 3: Search for Signal Transition
