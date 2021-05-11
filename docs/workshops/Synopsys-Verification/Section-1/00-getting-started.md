@@ -10,13 +10,13 @@ At the beginning of the workshop, you will be given a **12-character access code
 
 Go to [**Event Engine Dashboard**](https://dashboard.eventengine.run){target=_blank}, and enter the access code in the **Team Hash** field.  Click **Accept Terms & Login**.
 
-![Event Engine Login](imgs/ee-login.png)
+![Event Engine Login](../imgs/ee-login.png)
 
 ### Step 2. Sign in with...
 
 Click on **Email One-Time Password (OTP)** and provide your email address on the next screen. Then check your email and provide the one-time password to verify access
 
-![Event Engine Login](imgs/ee-sign-in.png)
+![Event Engine Login](../imgs/ee-sign-in.png)
 
 ### Step 3. Get Credentials
 
@@ -28,12 +28,12 @@ Click on **Email One-Time Password (OTP)** and provide your email address on the
 
 1. Next, click **AWS Console** to begin the login process to the AWS account.
 
-![Event Engine Dashboard](imgs/ee-team-dashboard.png)
+![Event Engine Dashboard](../imgs/ee-team-dashboard.png)
 
 ### Step 4. Open AWS Console
 
 Click **Open AWS Console**. For this workshop, you will not need the **Credentials** or **CLI Snippets**
 
-![AWS Console](imgs/ee-open-console.png)
+![AWS Console](../imgs/ee-open-console.png)
 
 Awesome! Now that you are logged into your temporary AWS account, we can start the labs. Click **Next**.
