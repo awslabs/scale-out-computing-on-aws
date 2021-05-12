@@ -2,12 +2,16 @@
 
 ## Step 1: Open My Activity
 
-Return to the your cluster web UI and click on the **My Activity** section on the left sidebar.
+Return to the SOCA web UI and click on the **My Activity** section on the left sidebar and wait a minute for Elasticsearch Kibana dashboard to load.
 
 ![](../imgs/my-activity.png)
 
+The Elasticsearch dashboard attempts to filter the jobs view for the logged-in user. However, data is refereshed every hour from the SOCA cluster to Elasticsearch. If you see **No results match your search criteria**, delete the user filter from the search field.
 
-You should see information about recent jobs submitted to the cluster for your user. You might need to update the duration dropdown just above the chart to see older or more recent job data.
+![](../imgs/my-activity-remove-user.png)
+
+
+You should see information about recent jobs submitted to the cluster for all users. You might need to update the duration dropdown just above the chart to see older or more recent job data.
 
 ![](../imgs/analytics-jobs.png)
 
