@@ -6,7 +6,9 @@ The goal of this module is to login to SOCA console and start a remote desktop s
 
 1. Click on the link below to login to SOCA console
 
-    [**Login to SOCA console**](https://soca-tko260-viewer-1219550143.us-west-2.elb.amazonaws.com/login){target=_blank}
+    [**For North America Sessions Click Here**](https://soca-tko260-viewer-1219550143.us-west-2.elb.amazonaws.com/login){target=_blank}
+
+    [**For Israel/EMEA Sessions Click Here**](https://soca-261-frankfurt-viewer-601308495.eu-central-1.elb.amazonaws.com/login){target=_blank}
     
     ![SOCA Console](../imgs/soca-console-login.png)
 
