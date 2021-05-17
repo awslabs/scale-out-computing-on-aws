@@ -13,8 +13,13 @@ Next, you'll submit four jobs into the cluster, each job requests a specific ins
 
 ### Step 2: Watch job status
 
-1. Run the `qstat` command to view the status of the jobs. You can also view job status in the web UI by clicking on **My Job Queue** in the left side navigation bar.
+1. Run the `qstat` command to view the status of the jobs. You can also view job status by clicking on **My Job Queue** in the left side navigation bar in SOCA portal under **PROFILE** section as shown in the screen shot below.
+
     ![](../imgs/my-job-queue.png)
+
+The result should be similar to the screen shot below.
+
+    ![](../imgs/my-job-queue-status.png)
 
 1. You can run the `pbsnodes -aSjL` command to see the EC2 instances that have joined the cluster. Initially, the nodes will be in **state-unknown,down** till they boot-up and join the queue.
 
