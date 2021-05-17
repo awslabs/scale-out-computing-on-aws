@@ -19,7 +19,7 @@ Next, you'll submit four jobs into the cluster, each job requests a specific ins
 
     ![](../imgs/my-job-queue.png)
 
-    The result should be similar to the screen shot below:
+    The result should be similar to the screen shot below which is a table format showing job id, name, status, etc...:
     ![](../imgs/my-job-queue-status.png)
 
 1. You can run the `pbsnodes -aSjL` command to see the EC2 instances that have joined the cluster. Initially, the nodes will be in **state-unknown,down** till they boot-up and join the queue.
