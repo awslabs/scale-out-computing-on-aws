@@ -1,10 +1,10 @@
-# Lab 2: Login to SOCA Console and Launch Remote Desktop Session
+# Lab 2: Login to SOCA Web UI and Launch Remote Desktop Session
 
-The goal of this module is to login to SOCA console and start a remote desktop session from which you will run applications and submit jobs into the cluster.  You will use the cluster's management console to start and monitor the session.
+The goal of this module is to login to SOCA web interface and start a remote desktop session from which you will run applications and submit jobs into the cluster. You will use the cluster's management portal to start and monitor the session.
 
-## Step 1: Login to SOCA console
+## Step 1: Login to SOCA Web UI
 
-1. Click on the link below to login to SOCA console
+1. Click one of the links below depending on the session you're attending to login to corresponding SOCA web interface
 
     [**For North America Sessions Click Here**](https://soca-tko260-viewer-1219550143.us-west-2.elb.amazonaws.com/login){target=_blank}
 
@@ -12,13 +12,13 @@ The goal of this module is to login to SOCA console and start a remote desktop s
 
     [**For Asia Sessions Click Here**](http://soca-workshop-viewer-1241784048.ap-southeast-1.elb.amazonaws.com/login){target=_blank}
     
-    ![SOCA Console](../imgs/soca-console-login.png)
+    ![SOCA Web UI](../imgs/soca-console-login.png)
 
 
     !!! note 
         Your web browser will warn you about a certificate problem with the site.  To open the webpage, you need to authorize the browser to trust the self-signed security certificate.  In a production deployment, you would upload a Server Certificate to the Elastic Load Balancer endpoint.
 
-1. Log in using the web UI using the following credentials:
+1. Log in to the web UI using the following credentials:
 
     username: provided during tutorial session
 
