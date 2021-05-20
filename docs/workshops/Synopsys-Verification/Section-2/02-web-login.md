@@ -9,6 +9,8 @@ The goal of this module is to login to SOCA console and start a remote desktop s
     [**For North America Sessions Click Here**](https://soca-tko260-viewer-1219550143.us-west-2.elb.amazonaws.com/login){target=_blank}
 
     [**For Israel/EMEA Sessions Click Here**](https://soca-261-frankfurt-viewer-601308495.eu-central-1.elb.amazonaws.com/login){target=_blank}
+
+    [**For Asia Sessions Click Here**](http://soca-workshop-viewer-1241784048.ap-southeast-1.elb.amazonaws.com/login){target=_blank}
     
     ![SOCA Console](../imgs/soca-console-login.png)
 
