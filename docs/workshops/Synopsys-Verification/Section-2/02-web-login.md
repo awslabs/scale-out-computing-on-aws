@@ -6,13 +6,13 @@ The goal of this module is to login to SOCA web interface and start a remote des
 
 1. Click one of the links below depending on the session you're attending to login to corresponding SOCA web interface
 
-    [**For North America Sessions Click Here**](https://soca-tko260-viewer-1219550143.us-west-2.elb.amazonaws.com/login){target=_blank}
+    [**Click here for North America Sessions**](https://soca-tko260-viewer-1219550143.us-west-2.elb.amazonaws.com/login){target=_blank}
 
-    [**For North America - Private Session Click Here**](https://soca-vcs-viewer-1127745173.us-east-1.elb.amazonaws.com/login){target=_blank}
+    [**Click here for North America - Private Session**](https://soca-vcs-viewer-1127745173.us-east-1.elb.amazonaws.com/login){target=_blank}
 
-    [**For Israel/EMEA Sessions Click Here**](https://soca-261-frankfurt-viewer-601308495.eu-central-1.elb.amazonaws.com/login){target=_blank}
+    [**Click here for Israel/EMEA Sessions**](https://soca-261-frankfurt-viewer-601308495.eu-central-1.elb.amazonaws.com/login){target=_blank}
 
-    [**For Asia Sessions Click Here**](http://soca-workshop-viewer-1241784048.ap-southeast-1.elb.amazonaws.com/login){target=_blank}
+    [**Click here for Asia Sessions**](http://soca-workshop-viewer-1241784048.ap-southeast-1.elb.amazonaws.com/login){target=_blank}
     
     ![SOCA Web UI](../imgs/soca-console-login.png)
 
