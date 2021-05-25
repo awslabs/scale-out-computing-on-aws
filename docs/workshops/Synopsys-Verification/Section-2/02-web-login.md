@@ -8,7 +8,7 @@ The goal of this module is to login to SOCA web interface and start a remote des
 
     [**Click here for North America Sessions**](https://soca-tko260-viewer-1219550143.us-west-2.elb.amazonaws.com/login){target=_blank}
 
-    [**Click here for North America - Private Session**](https://soca-vcs-viewer-1127745173.us-east-1.elb.amazonaws.com/login){target=_blank}
+[]: # '[**Click here for North America - Private Session**](https://soca-vcs-viewer-1127745173.us-east-1.elb.amazonaws.com/login){target=_blank}'
 
     [**Click here for Israel/EMEA Sessions**](https://soca-261-frankfurt-viewer-601308495.eu-central-1.elb.amazonaws.com/login){target=_blank}
 
