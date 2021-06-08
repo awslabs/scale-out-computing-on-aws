@@ -401,7 +401,7 @@ def check_config(**kwargs):
         instance_attributes = ec2.describe_instance_types(InstanceTypes=[kwargs['instance_type'][0]])
         if len(instance_attributes['InstanceTypes']) == 0:
             error = return_message('Unable to check instance: ' + kwargs['instance_type'][0])
-        else: 
+        else:
             kwargs['core_count'] = instance_attributes['InstanceTypes'][0]['VCpuInfo']['DefaultCores']
             if instance_attributes['InstanceTypes'][0]['VCpuInfo']['DefaultThreadsPerCore'] == 1:
                 # Set ht_support to False for instances with DefaultThreadsPerCore = 1 (e.g. graviton)
@@ -422,7 +422,7 @@ def check_config(**kwargs):
             },
         "diversified":
             {
-                "ASG": "lowest-price",
+                "ASG": "diversified",
                 "SpotFleet": "diversified",
                 "accepted_values": ["diversified"]
             },
@@ -447,7 +447,7 @@ def check_config(**kwargs):
         if kwargs['spot_allocation_strategy'] not in spot_allocation_strategy_allowed:
             error = return_message('spot_allocation_strategy_allowed (' + str(kwargs['spot_allocation_strategy']) + ') must be one of the following value: ' + ', '.join(spot_allocation_strategy_allowed))
     else:
-        kwargs['spot_allocation_strategy'] = 'lowestPrice' if SpotFleet is True else 'lowest-price'
+        kwargs['spot_allocation_strategy'] = 'capacity-optimized' if SpotFleet is True else 'capacity-optimized'
 
     # Validate Spot Allocation Percentage
     if kwargs['spot_allocation_count'] is not False:
@@ -533,7 +533,7 @@ def main(**kwargs):
                                    'root_size': 10,
                                    'scratch_size': 0,
                                    'spot_allocation_count': False,
-                                   'spot_allocation_strategy': 'lowest-price',
+                                   'spot_allocation_strategy': 'capacity-optimized',
                                    'spot_price': False,
                                    'subnet_id': False,
                                    'system_metrics': False,
@@ -707,7 +707,7 @@ def main(**kwargs):
             },
             'SpotAllocationStrategy': {
                 'Key': 'spot_allocation_strategy',
-                'Default': 'lowest-price'
+                'Default': 'capacity-optimized'
             },
             'SpotFleetIAMRoleArn': {
                 'Key': None,
@@ -846,7 +846,7 @@ if __name__ == "__main__":
         if (arg.keep_forever).lower() == 'true':
             print("""
             IMPORTANT:
-            You specified --keep_forever flag. This instance will be running 24/7 until you MANUALLY terminate the Cloudformation Stack  
+            You specified --keep_forever flag. This instance will be running 24/7 until you MANUALLY terminate the Cloudformation Stack
             """)
     else:
         print('Error: ' + str(launch))
