@@ -87,7 +87,7 @@ Below is a list of parameters you can specify when you request your simulation t
 - Allowed Values: `capacity-optimized` or `lowest-price` or `diversified` (only for SpotFleet deployments)
 - Default Value: `capacity-optimized`
 - Examples:
-    - `-l spot_allocation_strategy=capacity-optimized`: AWS will provision compute nodes based on capacity availabilities
+    - `-l spot_allocation_strategy=capacity-optimized`: AWS will provision compute nodes from deepest Spot pools based on capacity availabilities
 
 
 #### spot_price
