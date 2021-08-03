@@ -19,7 +19,7 @@ Scale-Out Computing on AWS project consists in a collection of CloudFormation te
 │   ├── cluster_hooks                                   [ Scheduler Hooks ]
 │   ├── cluster_logs_management                         [ Scripts to manage cluster log rotation ]
 │   ├── cluster_manager                                 [ Scripts to control Soca cluster ]
-│   └── cluster_web_ui                                  [ Web Interface ]
+│   ├── cluster_web_ui                                  [ Web Interface ]
 │   └── cluster_node_bootstrap                          [ Script to configure compute nodes]
 ├── scripts
 │   ├── config.cfg                                      [ List of all packages to install ]
