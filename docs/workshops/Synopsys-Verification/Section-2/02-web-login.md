@@ -4,19 +4,18 @@ The goal of this module is to login to SOCA web interface and start a remote des
 
 ## Step 1: Login to SOCA Web UI
 
-1. Click one of the links below depending on the session you're attending to login to corresponding SOCA web interface
+1. Click one of the links below depending on the session you're attending to login to corresponding SOCA web interface.
 
-    [**Click here for North America Sessions**](https://soca-tko260-viewer-1219550143.us-west-2.elb.amazonaws.com/login){target=_blank}
+    Workshop sessions are not active at this time!!
 
-[]: # '[**Click here for North America - Private Session**](https://soca-vcs-viewer-1127745173.us-east-1.elb.amazonaws.com/login){target=_blank}'
-
-    [**Click here for Israel/EMEA Sessions**](https://soca-261-frankfurt-viewer-601308495.eu-central-1.elb.amazonaws.com/login){target=_blank}
-
-    [**Click here for Asia Sessions**](http://soca-workshop-viewer-1241784048.ap-southeast-1.elb.amazonaws.com/login){target=_blank}
-    
     ![SOCA Web UI](../imgs/soca-console-login.png)
 
+[]: # '[**Click here for North America Sessions**](https://soca-tko260-viewer-1219550143.us-west-2.elb.amazonaws.com/login){target=_blank}'
 
+[]: # '[**Click here for Israel/EMEA Sessions**](https://soca-261-frankfurt-viewer-601308495.eu-central-1.elb.amazonaws.com/login){target=_blank}'
+
+[]: # '[**Click here for Asia Sessions**](http://soca-workshop-viewer-1241784048.ap-southeast-1.elb.amazonaws.com/login){target=_blank}'
+    
     !!! note 
         Your web browser will warn you about a certificate problem with the site.  To open the webpage, you need to authorize the browser to trust the self-signed security certificate.  In a production deployment, you would upload a Server Certificate to the Elastic Load Balancer endpoint.
 
