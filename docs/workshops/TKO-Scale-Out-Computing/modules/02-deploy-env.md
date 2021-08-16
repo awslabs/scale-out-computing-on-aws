@@ -12,7 +12,7 @@ This automated AWS CloudFormation template deploys a scale-out computing environ
 
 1. On the **Create stack** page, you should see the template URL in the **Amazon S3 URL** text box and choose **Next**.
 
-1. On the **Specify stack** details page, assign the name **"soca"** to the stack.
+1. On the **Specify stack** details page, assign the name **"tko"** to the stack.
 
     !!! warning
          The stack name must be less than 20 characters and must be lower-case only.
@@ -29,11 +29,11 @@ This automated AWS CloudFormation template deploys a scale-out computing environ
     |Custom AMI|<Optional input>|If using a customized Amazon Machine Image, enter the ID. Leave this field blank.
     |**Network and Security**|
     |EC2 Instance Type for Scheduler node|m5.large|The instance type for the scheduler.  Do not change this parameter.
-    |VPC Cluster CIDR|110.0.0.0/16|Choose the CIDR (/16) block for the VPC. Do not change this parameter.
+    |VPC Cluster CIDR|10.0.0.0/16|Choose the CIDR (/16) block for the VPC. Do not change this parameter.
     |IP Address|0.0.0.0/0|**REQUIRED** The public-facing IP address that is permitted to log into the environment.  You can leave it at default, but we recommend you change it to your public-facing IP address. Add the /32 suffix to the IP number.
     |Key Pair Name|<Requires input>|**REQUIRED** Select your key pair.
     |**Default LDAP User**|
-    |User Name|<Requires input>|**REQUIRED** Set a username for the default cluster user.
+    |User Name|<Requires input>|**REQUIRED** Set a username for the default cluster user. This will be the administrator user for LDAP which would allow you to add other users to the cluster.
     |Password|<Requires input>|**REQUIRED** Set a password for the default cluster user. (5 characters minimum, uppercase/lowercase/digit only)
 
 1. Choose **Next**.

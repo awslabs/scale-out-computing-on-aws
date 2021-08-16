@@ -26,12 +26,12 @@ To enable this feature, you will first need to verify the project assigned to ea
     1. Click [here](https://console.aws.amazon.com/billing/home?#/account) to go to the Account page of the AWS console.
     1. Copy the twelve digit **Account Id** number located underneath the Account Settings section.
 
-1. Log back into the scheduler instance via SSH and edit the `/apps/soca/cluster_hooks/queuejob/check_project_budget.py` script and paste the AWS account ID as the value for the `aws_account_id` variable.  Save the file when done.
+1. Log back into the scheduler instance via SSH and edit the `/apps/soca/$SOCA_CONFIGURATION/cluster_hooks/queuejob/check_project_budget.py` script and paste the AWS account ID as the value for the `aws_account_id` variable. Save the file when done.
 
     ```bash hl_lines="2"
     # User Variables
     aws_account_id = '<ENTER_YOUR_AWS_ACCOUNT_ID>'
-    budget_config_file = '/apps/soca/cluster_manager/settings/project_cost_manager.txt'
+    budget_config_file = '/apps/soca/%SOCA_CONFIGURATION/cluster_manager/settings/project_cost_manager.txt'
     ```
 
 1. Enable the integration with the scheduler by running the following commands on the scheduler host:
@@ -40,14 +40,14 @@ To enable this feature, you will first need to verify the project assigned to ea
     sudo -i
     source /etc/environment
     qmgr -c "create hook check_project_budget event=queuejob"
-    qmgr -c "import hook check_project_budget application/x-python default /apps/soca/cluster_hooks/queuejob/check_project_budget.py"
+    qmgr -c "import hook check_project_budget application/x-python default /apps/soca/$SOCA_CONFIGURATION/cluster_hooks/queuejob/check_project_budget.py"
     ```
 
 ## Step 3. Test budget enforcement
 
 ### Submit a job without budget assignment
 
-1. Switch to the `admin` cluster user.
+1. Switch to the LDAP admin cluster user created in Lab 2. For example, if the username is `admin`, then the command would be: 
 
     `sudo su - admin`
 
@@ -68,16 +68,16 @@ To enable this feature, you will first need to verify the project assigned to ea
     This job will also be rejected:
 
     ```text
-    qsub: User morrmt is not assigned to any project. See /apps/soca/cluster_manager/settings/project_cost_manager.txt
+    qsub: User admin is not assigned to any project. See /apps/soca/$SOCA_CONFIGURATION/cluster_manager/settings/project_cost_manager.txt
     ```
 
-    Next, we'll associated the user with "Project 1" by adding the username to the `project_cost_manager.txt` mapping file.
+    Next, we'll associate the user with "Project 1" by adding the username to the `project_cost_manager.txt` mapping file.
 
-1. As sudo, open the `/apps/soca/cluster_manager/settings/project_cost_manager.txt` file and add "Project 1" budget and the "admin" user.
+1. As sudo, open the `/apps/soca/$SOCA_CONFIGURATION/cluster_manager/settings/project_cost_manager.txt` file and add "Project 1" budget and the "admin" user.
 
     ```hl_lines="17 18 20 21"
     # This file is used to prevent job submission when budget allocated to a project exceed your threshold
-    # This file is not used by default and must be configured manually using /apps/soca/cluster_hooks/queuejob/check_project_budget.py
+    # This file is not used by default and must be configured manually using /apps/soca/$SOCA_CONFIGURATION/cluster_hooks/queuejob/check_project_budget.py
     # Help & Documentation: https://soca.dev/tutorials/set-up-budget-project/
     #
     #

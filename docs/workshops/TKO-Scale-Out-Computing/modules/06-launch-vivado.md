@@ -21,19 +21,26 @@ By now your remote desktop session should be ready and you should see the follow
 
     ![](../imgs/vivado_launch.png)
  
-    The Vivado GUI start and show the following screen:
+    The Vivado GUI starts and shows the following screen:
 
     ![](../imgs/vivado_startup.png)
  
-## Step 2: Load sample project
+## Step 2: Create a new project project
 
 Next, load a sample workload using one of the included example projects:
 
-1. Go to the **Quick Start** section and select **Open Project**.
-1. Navigate to `/projects/mfg405/`, select the `project_1.xpr` file, and click **OK**.
-1. Double-click on **Open Block Diagram** under **IP INTEGRATOR** in the left-side navigation panel.
+1. Go to the **Quick Start** section and select **Create Project**.
+1. Wait for the wizard to initialize, then on the "Create a New Vivado Project" screen, click **Next >**
+1. On the "Project Name" screen, change the project location to `/scratch/<username>`, then click **Next >**
+1. On the "Project Type" screen, select **Example Project** , then click **Next >**
+1. On the "Select Project Template" screen, click **Next >**
+1. On the "Default board or part" screen, click **Next >**
+1. On the "Select Design Preset" screen, select **Microcontroller** , then click **Next >**
+1. On the "New Project Summary" screen, click **Finish**
+1. It should run for 15-20 minutes to create the project and include all required design files. You don't have to wait until this step completes and can move to the next lab.
+1. Double-click on **Open Block Diagram** under **IP INTEGRATOR** in the left-side navigation panel
 
-    After the design opens you should see this:
+    After the design opens you should see an image similar to this:
 
     ![](../imgs/vivado_example_project_1.png)
  

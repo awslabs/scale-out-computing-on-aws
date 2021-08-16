@@ -18,20 +18,20 @@ Once the solution has been deployed, we will configure the environment to use a 
     1. For macOS, paste the SSH command into a terminal on the Mac.  Be sure to use the full path to the private key you downloaded earlier. See the steps here in the AWS [Connecting to Your Linux Instance using SSH](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/AccessingInstancesLinux.html) page if you need assistance.
     1. For Windows, follow the instructions in the AWS [Connect to your instance using PuTTY](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/putty.html) docs.
 
-1. Once logged in, as sudo, open the file `/apps/soca/cluster_manager/settings/queue_mapping.yml` using your favorite text editor.
+1. Once logged in, type `sudo su` to become root on the scheduler instance, then open the file `/apps/soca/$SOCA_CONFIGURATION/cluster_manager/settings/queue_mapping.yml` using your favorite text editor.
     
-    Example: `sudo vi /apps/soca/cluster_manager/settings/queue_mapping.yml`
+    Example: `vi /apps/soca/$SOCA_CONFIGURATION/cluster_manager/settings/queue_mapping.yml`
 
 1. Change the the highlighted values in the file to match the example below.
 
     !!! note
         Indentation matters in this file.  Therefore, we advise against copying and pasting this entire block into the file, as this can result in malformed formatting.  Instead, please edit the value of each highlighted line individually.
 
-    ```yaml hl_lines="4 7 8 15 18 19"
+    ```yaml hl_lines="4 7 8"
     queue_type:
     compute:
         queues: ["high", "normal", "low"]
-        instance_ami: "ami-05d709335d603daac"
+        instance_ami: "ami-03f32123533983fdb"
         instance_type: "c5.large"
         ht_support: "false"
         root_size: "100"
@@ -40,15 +40,9 @@ Once the solution has been deployed, we will configure the environment to use a 
         #scratch_iops: "3600"
         #efa_support: "false"
         # .. Refer to the doc for more supported parameters
-    desktop:
-        queues: ["desktop"]
-        instance_ami: "ami-05d709335d603daac"
-        instance_type: "c5.2xlarge"
-        ht_support: "false"
-        root_size: "100"
-        base_os: "centos7"
     ```
 
-1. Save the changes to the file.
+1. Save the changes to the file. The steps above configured the AMI ID to be used when we submit jobs to the compute queues specified above.
+
 
 Keep this SSH session open; you will come back to it later.  Click the **Next** to move on to the next module.
