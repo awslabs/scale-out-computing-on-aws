@@ -41,6 +41,101 @@ If you use the native application, Click "Connection > File Storage"
 !!!note "Important"
     Although session storage is very handy, it's recommended to use traditional SFTP/SCP or [the Web UI to upload large file](../../web-interface/my-files/) to upload large files.
 
+## Share data between the cluster and on-prem and between VDI nodes using AWS Transfer Family SFTP
+
+Frequent SFTP transfers of big files done via the [Web UI](../../web-interface/my-files/) may affect performance of the head node. Also users will not be able to reach their home directories using SFTP via the head node in case the head node is not available (e.g. due to the maintenance).
+
+To address the situations, we recommend to establish a dedicated AWS Transfer SFTP endpoint for the cluster home directories of SOCA users.
+
+To establish the SFTP endpoint in the AWS Console navigate to the service "AWS Transfer Family" and press "Create server":
+
+![Create server](../imgs/sftp-transfer-01.png)
+
+Choose the "SFTP" protocol:
+
+![SFTP](../imgs/sftp-transfer-02.png)
+
+Choose "Service managed" identity provider:
+
+![Service managed](../imgs/sftp-transfer-03.png)
+
+Choose "Endpoint type" depending on your setup: pick "VPC hosted" in case you have a private deployment of SOCA and you have network connectivity with your on-prem network or if you want to control access to your public SFTP endpoint by IP with a security group. In this example we use a "Publicly accessible" endpoint:
+
+![Public endpoint](../imgs/sftp-transfer-04.png)
+
+Choose a domain - in our case "Amazon EFS":
+
+![EFS](../imgs/sftp-transfer-05.png)
+
+Configure additional details - choose "Create a new role" in the "Logging role", the rest input fields leave with their default values:
+
+![New role](../imgs/sftp-transfer-06.png)
+
+In the "Review and create" press "Create server":
+
+![Create server](../imgs/sftp-transfer-07.png)
+
+To register users allowed to access the SFTP endpoint we need to create a  IAM role for EFS access, gather the users uid, guid and their public SSH key.
+
+To create the IAM role for EFS access in the AWS Console go to "IAM > Roles" and click "Create role":
+
+![Create role](../imgs/sftp-role-01.png)
+
+Choose the "Transfer" service:
+
+![Transfer role](../imgs/sftp-role-02.png)
+
+Choose the `AmazonElasticFileSystemClientReadWriteAccess` managed policy:
+
+![sftp policy](../imgs/sftp-role-03.png)
+
+Give the role name "TransferEFSClient" and save it:
+
+![sftp policy name](../imgs/sftp-role-04.png)
+
+To get the user's "uid" and "guid" login to the SOCA's head node with SSH and execute:
+
+```bash
+id <username>
+```
+
+```bash
+id oleg
+uid=5001(oleg) gid=5001(oleg) groups=5001(oleg)
+```
+
+To get the user's public key, retrieve it from the file `/home/data/<username>/.ssh/id_rsa.pub` in the same SSH session the to SOCA's head node.
+
+Then navigate to the newly created SFTP server in the AWS Console and click "Add user":
+
+![Create server](../imgs/sftp-transfer-07.1.png)
+
+Type the user name, User ID, Group ID, choose Role "TransferEFSClient", pick the "EFSData" filesystem belonging to SOCA as the "Home directory" and type `/home/<username>` in the directory name:
+
+![Create user](../imgs/sftp-transfer-08.png)
+
+Paste the public SSH key into "SSH public keys" field:
+
+![SSH key](../imgs/sftp-transfer-09.png)
+
+To test your new SFTP endpoint grab you _private_ SSH key (e.g. via SOCA Web UI Dashboard on the page "SSH access"):
+
+![Create server](../imgs/sftp-transfer-10.png)
+
+Get the name of your SFTP endpoint in the "Endpoint details" in AWS Console:
+
+![Create server](../imgs/sftp-transfer-11.png)
+
+Use your favorite SFTP client to access the SFTP endpoint. I use sftp from OpenSSH in the example below:
+
+```bash
+sftp -i ~/Downloads/oleg_soca_privatekey.pem oleg@<sftp-endpoint>
+```
+
+You should get a successful connection and be able to transfer file between your local machine and your home directory in the cluster bypassing the SOCA's head node.
+
+You can also use the SFTP endpoint to access your cluster home directory from Windows VDI machines.
+
 ## Share data between Windows sessions
 
 Unlike Linux desktop, Windows desktops do not share a common filesystem, meaning data hosted on your Windows Session #1 are not accessible to your Windows Session #2 out of the box. 
