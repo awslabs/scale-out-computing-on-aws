@@ -36,6 +36,8 @@ Scale-Out Computing on AWS project consists in a collection of CloudFormation te
     └── Viewer.template                                 [ Manage DCV sessions ]
 ```
 
+This solution collects anonymous operational metrics to help AWS improve the quality of features of the solution. For more information, including how to disable this capability, please see the https://docs.aws.amazon.com/solutions/latest/scale-out-computing-on-aws/appendix-d.html[implementation guide,role=external,window=_blank].
+
 ***
 
 Copyright 2021 Amazon.com, Inc. or its affiliates. All Rights Reserved.
