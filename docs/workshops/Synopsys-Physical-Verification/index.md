@@ -19,7 +19,7 @@ The solution also deploys **Amazon Elastic File System (Amazon EFS)** for persis
 
 Due to time limitations for this tutorial session, you will login to a pre-deployed cluster that has been configured to have the following items:
 
-* Synopsys ICV software pre-installed,
+* Synopsys IC Validator (ICV) software pre-installed,
 * A license server with valid licenses, and
 * Test case to use for ICV
 

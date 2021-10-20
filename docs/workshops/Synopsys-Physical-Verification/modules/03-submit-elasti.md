@@ -43,6 +43,8 @@ Synopsys IC Validator (ICV) has the ability to request CPUs when it needs additi
 
 1. As the job progresses to ~ 15% Complete, it will require additional resources and will submit a new job to the cluster so it can obtain these resources dynamically. You an monitor the status of the jobs by typing `` watch -n 10 "qstat -u `whoami`" `` command in the terminal to keep monitoring the status of jobs every 10 seconds.
 
+1. Depending on resource availability in the cluster, SOCA might need to create additional instances for the new job. Once the resources become available and the job status changes to **R**, the CPU history section in the ICV dashboard would be updated to reflect the additioanl CPUs as shown below.
+
     ![](../imgs/icv-dashboard-25p.png)
 
 1. ICV will repeat this process one more time and the final ICV dashboard should be similar to the screenshot below. 
