@@ -1,10 +1,6 @@
 # Wrap-up
 
-Congratulations! You've completed this Tutotial.
-
-## Next steps
-
-1. Please complete the session survey.
+Congratulations! You've completed this Tutorial.
 
 ## Clean up
 
@@ -16,3 +12,6 @@ Congratulations! You've completed this Tutotial.
 
     ![](../imgs/confirm-kill-desktop-session.png)
 
+## Next steps
+
+1. Please complete the session survey.
