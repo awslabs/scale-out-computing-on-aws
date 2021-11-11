@@ -34,12 +34,19 @@ The idea for this lab is to show you how to validate designs before all the buil
 
 ## Step 3: black_box with ambit
 
-1. Edit the runme script to uncomment the command under #cmd3 (comment cmd1 and cmd2). This command provides for heat map generation. VUE automatically reads and creates the heat map tab in the VUE GUI. -hm --> top-cell heat map, -hm_cell --> subcell heat map
+1. Edit the runme script to uncomment the command under #cmd3 (comment cmd1 and cmd2). This command provides for heat map generation. VUE automatically reads and creates the heat map tab in the VUE GUI. 
+
+    -hm --> top-cell heat map 
+
+    -hm_cell --> subcell heat map
 
 1. Edit black_box.rs configuration file by uncommenting the following lines:
-   ambit --> this will enable ICV to read polygons till the value provided from the reference layer.
-   clip_region = false --> to consider the entire polygon which is interacting with the ambit region. By default, it is true i.e. to clip polygons till the exclude region.
-   keep_layers --> list of layers which are kept in their entirety for specified DRC black_box region cells.
+
+    ambit --> this will enable ICV to read polygons till the value provided from the reference layer.
+
+    clip_region = false --> to consider the entire polygon which is interacting with the ambit region. By default, it is true i.e. to clip polygons till the exclude region.
+
+    keep_layers --> list of layers which are kept in their entirety for specified DRC black_box region cells.
 
     ![](../imgs/icv-bbox-cmd3-config.jpg)
 
