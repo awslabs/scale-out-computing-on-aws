@@ -46,15 +46,13 @@ The idea for this lab is to show you how to validate designs before all the buil
 
     clip_region = false --> to consider the entire polygon which is interacting with the ambit region. By default, it is true i.e. to clip polygons till the exclude region.
 
-    keep_layers --> list of layers which are kept in their entirety for specified DRC black_box region cells.
-
     ![](../imgs/icv-bbox-cmd3-config.jpg)
 
 1. Run the test case by typing `./runme` then hit enter.
 
 1. After the run is completed, open ICV Workbench by typing `icvwb TOP_BB.oas`. Then click on ICV_VUE and browse to black_box_run/ORCA_TOP.vue
 
-1. Click on DRC Errors and notice there are 360 violations reported for black_box cell "SRAMLP2RW32x4" with ambit = 0.2
+1. Click on DRC Errors and notice there are **58 violations** reported for black_box cell **SRAMLP2RW32x4** with ambit = 0.2
 
     ![](../imgs/icv-bbox-cmd3-drc-errors.jpg)
 
