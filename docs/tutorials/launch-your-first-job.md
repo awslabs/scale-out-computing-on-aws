@@ -182,6 +182,22 @@ The web ui will also reflect this change.
 ![](../imgs/howtojob-14.png)  
 
 
+## How to submit and run multiple jobs on the same EC2 instance
+
+SOCA 2.7.0 includes a new queue named `job-shared` which allows multiple jobs to run on the same EC2 instance. To allow multiple jobs to run on the same instance, the jobs need to have the same values for the following four parameters:
+
+* instance_ami
+* instance_type
+* ht_support
+* spot_price
+
+If the jobs have the same values, then the jobs can run on the same EC2 instance. If some of the jobs have different values for any of these parameters, then one or more instances will be provisioned for these jobs.
+
+EC2 instance capacity for `job-shared` queue is dynamically provisioned and de-provisioned automatically similar to the `normal` queue. The provisioning is based on the total number of vCPUs (when `ht_support=true)` or the total number of cores (when `ht_support=false`) for all queued jobs. Instances are deprovisioned after all jobs running on the instance complate and the instance(s) become idle for `terminate_when_idle` minutes. `terminate_when_idle` is defined in `/apps/soca/$SOCA_CONFIGURATION/cluster_manager/queue_mapping.yml` for the `job-shared` queue.
+
+See [Examples job submissions](#examples-for-job-shared-queue) for `job-shared` queue
+
+
 * * *
 
 ## Examples
@@ -246,10 +262,10 @@ This job will use a 3 c5.18xlarge instances
 ## END PBS SETTINGS
 cd $PBS_O_WORKDIR
 cat $PBS_NODEFILE | sort | uniq > mpi_nodes
-export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/apps/openmpi/4.0.1/lib/
-export PATH=$PATH:/apps/openmpi/4.0.1/bin/
+export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/apps/soca/$SOCA_CONFIGURATION/openmpi/4.1.1/lib/
+export PATH=$PATH:/apps/soca/$SOCA_CONFIGURATION/openmpi/4.1.1/bin/
 # c5.18xlarge is 36 cores so -np is 36 * 3 hosts
-/apps/openmpi/4.0.1/bin/mpirun --hostfile mpi_nodes -np 108 script.sh > my_output.log
+/apps/soca/$SOCA_CONFIGURATION/openmpi/4.1.1/bin/mpirun --hostfile mpi_nodes -np 108 script.sh > my_output.log
 ~~~
 ***
 
@@ -461,3 +477,49 @@ export PATH=$PATH:/apps/openmpi/4.0.1/bin/
 # c5n.18xlarge is 36 cores so -np is 36 * 5
 /apps/openmpi/4.0.1/bin/mpirun --hostfile mpi_nodes -np 180 script.sh > my_output.log
 ~~~
+
+## Examples for `job-shared` queue
+
+#### Run a simple script on 96 vCPUs using on-demand c5.4xlarge instances on 'job-shared' queue
+~~~bash
+#!/bin/bash
+for i in {1..96}; do
+    qsub -q job-shared -l instance_type=c5.4xlarge -l ht_support=true -- /path/to/script.sh
+done
+~~~
+
+Since we specified `instance_type=c5.4xlarge` and `ht_support=true`, the number of instances required would be calculated as 96 vCPUs (total number of queued jobs is 96 and each job requires 1 vCPU) divided by 16 vCPUs provided by each c5.4xlarge instance. So, these queued jobs would lead to provisioning of 6 on-demand c5.4xlarge instances
+***
+
+#### Run a simple script on 96 cores using on-demand c5.4xlarge instances on 'job-shared' queue
+~~~bash
+#!/bin/bash
+for i in {1..96}; do
+    qsub -q job-shared -l instance_type=c5.4xlarge -l ht_support=false -- /path/to/script.sh
+done
+~~~
+
+Since we specified `instance_type=c5.4xlarge` and `ht_support=false`, the number of instances required would be calculated as 96 cores (total number of queued jobs is 96 and each job requires 1 core) divided by 8 cores provided by each c5.4xlarge instance. So, these queued jobs would lead to provisioning of 12 on-demand c5.4xlarge instances
+***
+
+#### Run a simple script on 96 vCPUs using Spot Fleet with c5.4xlarge or c5.9xlarge on 'job-shared' queue
+~~~bash
+#!/bin/bash
+for i in {1..96}; do
+    qsub -q job-shared -l instance_type=c5.4xlarge+c5.9xlarge -l ht_support=true -l spot_price=auto -- /path/to/script.sh
+done
+~~~
+
+Since we specified `instance_type=c5.4xlarge+c5.9xlarge`, and `spot_price=auto`, this will create a spot fleet request with two instance types c5.4xlarge and c5.9xlarge and the total required capacity would be 96. Weighted Capacity for each instance type would be automatically calculated for c5.4xlarge and c5.9xlarge based on the value of `ht_support`. In this case the weighted capacity for c5.4xlarge would be 16 and the weighted capacity for c5.9xlarge would be 36. The Spot fleet would then create a corresponding number of instances depending on instance availability.
+***
+
+#### Run a script that requires 4 cores 24 times using Spot Fleet with c5.4xlarge or c5.9xlarge on 'job-shared' queue
+~~~bash
+#!/bin/bash
+for i in {1..24}; do
+    qsub -q job-shared -l instance_type=c5.4xlarge+c5.9xlarge -l ht_support=false -l select=1:ncpus=4 -l spot_price=auto -- /path/to/four_core_script.sh
+done
+~~~
+
+Since we specified `instance_type=c5.4xlarge+c5.9xlarge`, and `spot_price=auto`, this will create a spot fleet request with two instance types c5.4xlarge and c5.9xlarge and the total required capacity would be 96 (24 jobs each requires 4 cores as ht_support is false). Weighted Capacity for each instance type would be automatically calculated for c5.4xlarge and c5.9xlarge based on the value of `ht_support`. In this case the weighted capacity for c5.4xlarge would be 8 and the weighted capacity for c5.9xlarge would be 18. The Spot fleet would then create a corresponding number of instances depending on instance availability.
+***

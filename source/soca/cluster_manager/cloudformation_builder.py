@@ -1,3 +1,16 @@
+######################################################################################################################
+#  Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.                                                #
+#                                                                                                                    #
+#  Licensed under the Apache License, Version 2.0 (the "License"). You may not use this file except in compliance    #
+#  with the License. A copy of the License is located at                                                             #
+#                                                                                                                    #
+#      http://www.apache.org/licenses/LICENSE-2.0                                                                    #
+#                                                                                                                    #
+#  or in the 'license' file accompanying this file. This file is distributed on an 'AS IS' BASIS, WITHOUT WARRANTIES #
+#  OR CONDITIONS OF ANY KIND, express or implied. See the License for the specific language governing permissions    #
+#  and limitations under the License.                                                                                #
+######################################################################################################################
+
 import os
 import sys
 
@@ -52,7 +65,7 @@ def main(**params):
         # Metadata
         t = Template()
         t.set_version("2010-09-09")
-        t.set_description("(SOCA) - Base template to deploy compute nodes. Version 2.6.1")
+        t.set_description("(SOCA) - Base template to deploy compute nodes. Version v2.7.0")
         allow_anonymous_data_collection = params["MetricCollectionAnonymous"]
         debug = False
         mip_usage = False
@@ -100,35 +113,100 @@ echo export "SOCA_INSTANCE_TYPE=$GET_INSTANCE_TYPE" >> /etc/environment
 echo export "SOCA_INSTANCE_HYPERTHREADING="''' + str(params['ThreadsPerCore']).lower() + '''"" >> /etc/environment
 echo export "SOCA_SYSTEM_METRICS="''' + str(params['SystemMetrics']).lower() + '''"" >> /etc/environment
 echo export "SOCA_ESDOMAIN_ENDPOINT="''' + str(params['ESDomainEndpoint']).lower() + '''"" >> /etc/environment
-
-
+echo export "SOCA_AUTH_PROVIDER="''' + str(params['AuthProvider']).lower() + '''"" >> /etc/environment
 echo export "SOCA_HOST_SYSTEM_LOG="/apps/soca/''' + str(params['ClusterId']) + '''/cluster_node_bootstrap/logs/''' + str(params['JobId']) + '''/$(hostname -s)"" >> /etc/environment
 echo export "AWS_STACK_ID=${AWS::StackName}" >> /etc/environment
 echo export "AWS_DEFAULT_REGION=${AWS::Region}" >> /etc/environment
 
 
 source /etc/environment
-AWS=$(which aws)
+AWS=$(command -v aws)
 
 # Give yum permission to the user on this specific machine
 echo "''' + params['JobOwner'] + ''' ALL=(ALL) /bin/yum" >> /etc/sudoers
 
+# Mount File system
 mkdir -p /apps
 mkdir -p /data
 
-# Mount EFS
-echo "''' + params['EFSDataDns'] + ''':/ /data nfs4 nfsvers=4.1,rsize=1048576,wsize=1048576,hard,timeo=600,retrans=2,noresvport 0 0" >> /etc/fstab
-echo "''' + params['EFSAppsDns'] + ''':/ /apps nfs4 nfsvers=4.1,rsize=1048576,wsize=1048576,hard,timeo=600,retrans=2,noresvport 0 0" >> /etc/fstab
-EFS_MOUNT=0
+FS_DATA_PROVIDER='''+params['FileSystemDataProvider']+'''
+FS_DATA='''+params['FileSystemData']+'''
+FS_APPS_PROVIDER='''+params['FileSystemAppsProvider']+'''
+FS_APPS='''+params['FileSystemApps']+'''
+
+if [[ "$FS_DATA_PROVIDER" == "fsx_lustre" ]] || [[ "$FS_APPS_PROVIDER" == "fsx_lustre" ]]; then
+    if [[ -z "$(rpm -qa lustre-client)" ]]; then
+        # Install FSx for Lustre Client
+        if [[ "$SOCA_BASE_OS" == "amazonlinux2" ]]; then
+            amazon-linux-extras install -y lustre2.10
+        else
+            kernel=$(uname -r)
+            machine=$(uname -m)
+            echo "Found kernel version: $kernel running on: $machine"
+            yum -y install wget
+            if [[ $kernel == *"3.10.0-957"*$machine ]]; then
+                yum -y install https://downloads.whamcloud.com/public/lustre/lustre-2.10.8/el7/client/RPMS/x86_64/kmod-lustre-client-2.10.8-1.el7.x86_64.rpm
+                yum -y install https://downloads.whamcloud.com/public/lustre/lustre-2.10.8/el7/client/RPMS/x86_64/lustre-client-2.10.8-1.el7.x86_64.rpm
+            elif [[ $kernel == *"3.10.0-1062"*$machine ]]; then
+                wget https://fsx-lustre-client-repo-public-keys.s3.amazonaws.com/fsx-rpm-public-key.asc -O /tmp/fsx-rpm-public-key.asc
+                rpm --import /tmp/fsx-rpm-public-key.asc
+                wget https://fsx-lustre-client-repo.s3.amazonaws.com/el/7/fsx-lustre-client.repo -O /etc/yum.repos.d/aws-fsx.repo
+                sed -i 's#7#7.7#' /etc/yum.repos.d/aws-fsx.repo
+                yum clean all
+                yum install -y kmod-lustre-client lustre-client
+            elif [[ $kernel == *"3.10.0-1127"*$machine ]]; then
+                wget https://fsx-lustre-client-repo-public-keys.s3.amazonaws.com/fsx-rpm-public-key.asc -O /tmp/fsx-rpm-public-key.asc
+                rpm --import /tmp/fsx-rpm-public-key.asc
+                wget https://fsx-lustre-client-repo.s3.amazonaws.com/el/7/fsx-lustre-client.repo -O /etc/yum.repos.d/aws-fsx.repo
+                sed -i 's#7#7.8#' /etc/yum.repos.d/aws-fsx.repo
+                yum clean all
+                yum install -y kmod-lustre-client lustre-client
+            elif [[ $kernel == *"3.10.0-1160"*$machine ]]; then
+                wget https://fsx-lustre-client-repo-public-keys.s3.amazonaws.com/fsx-rpm-public-key.asc -O /tmp/fsx-rpm-public-key.asc
+                rpm --import /tmp/fsx-rpm-public-key.asc
+                wget https://fsx-lustre-client-repo.s3.amazonaws.com/el/7/fsx-lustre-client.repo -O /etc/yum.repos.d/aws-fsx.repo
+                yum clean all
+                yum install -y kmod-lustre-client lustre-client
+            elif [[ $kernel == *"4.18.0-193"*$machine ]]; then
+                # FSX for Lustre on aarch64 is supported only on 4.18.0-193
+                wget https://fsx-lustre-client-repo-public-keys.s3.amazonaws.com/fsx-rpm-public-key.asc -O /tmp/fsx-rpm-public-key.asc
+                rpm --import /tmp/fsx-rpm-public-key.asc
+                wget https://fsx-lustre-client-repo.s3.amazonaws.com/centos/7/fsx-lustre-client.repo -O /etc/yum.repos.d/aws-fsx.repo
+                yum clean all
+                yum install -y kmod-lustre-client lustre-client
+            else
+                echo "ERROR: Can't install FSx for Lustre client as kernel version: $kernel isn't matching expected versions: (x86_64: 3.10.0-957, -1062, -1127, -1160, aarch64: 4.18.0-193)!"
+            fi
+        fi
+    fi
+fi
+
+if [[ "$FS_DATA_PROVIDER" == "efs" ]]; then
+    echo "$FS_DATA:/ /data nfs4 nfsvers=4.1,rsize=1048576,wsize=1048576,hard,timeo=600,retrans=2,noresvport 0 0" >> /etc/fstab
+elif [[ "$FS_DATA_PROVIDER" == "fsx_lustre" ]]; then
+    FSX_ID=$(echo $FS_DATA | cut -d. -f1)
+    FSX_DATA_MOUNT_NAME=$($AWS fsx describe-file-systems --file-system-ids $FSX_ID  --query FileSystems[].LustreConfiguration.MountName --output text)
+    echo "$FS_DATA@tcp:/$FSX_DATA_MOUNT_NAME /data lustre defaults,noatime,flock,_netdev 0 0" >> /etc/fstab
+fi
+
+if [[ "$FS_APPS_PROVIDER" == "efs" ]]; then
+    echo "$FS_APPS:/ /apps nfs4 nfsvers=4.1,rsize=1048576,wsize=1048576,hard,timeo=600,retrans=2,noresvport 0 0" >> /etc/fstab
+elif [[ "$FS_APPS_PROVIDER" == "fsx_lustre" ]]; then
+    FSX_ID=$(echo $FS_APPS | cut -d. -f1)
+    FSX_APPS_MOUNT_NAME=$($AWS fsx describe-file-systems --file-system-ids $FSX_ID  --query FileSystems[].LustreConfiguration.MountName --output text)
+    echo "$FS_APPS@tcp:/$FSX_APPS_MOUNT_NAME /apps lustre defaults,noatime,flock,_netdev 0 0" >> /etc/fstab
+fi
+
+FS_MOUNT=0
 mount -a 
-while [[ $? -ne 0 ]] && [[ $EFS_MOUNT -lt 5 ]]
-  do
+while [[ $? -ne 0 ]] && [[ $FS_MOUNT -lt 5 ]]
+do
     SLEEP_TIME=$(( RANDOM % 60 ))
-    echo "Failed to mount EFS, retrying in $SLEEP_TIME seconds and Loop $EFS_MOUNT/5..."
+    echo "Failed to mount FS, retrying in $SLEEP_TIME seconds and Loop $FS_MOUNT/5..."
     sleep $SLEEP_TIME
-    ((EFS_MOUNT++))
+    ((FS_MOUNT++))
     mount -a
-  done
+done
 
 # Configure Chrony
 yum remove -y ntp
@@ -166,10 +244,19 @@ systemctl enable chronyd
 # Prepare  Log folder
 mkdir -p $SOCA_HOST_SYSTEM_LOG
 echo "@reboot /bin/bash /apps/soca/$SOCA_CONFIGURATION/cluster_node_bootstrap/ComputeNodePostReboot.sh >> $SOCA_HOST_SYSTEM_LOG/ComputeNodePostReboot.log 2>&1" | crontab -
-$AWS s3 cp s3://$SOCA_INSTALL_BUCKET/$SOCA_INSTALL_BUCKET_FOLDER/scripts/config.cfg /root/
+cp /apps/soca/$SOCA_CONFIGURATION/cluster_node_bootstrap/config.cfg /root/
 /bin/bash /apps/soca/$SOCA_CONFIGURATION/cluster_node_bootstrap/ComputeNode.sh ''' + params['SchedulerHostname'] + ''' >> $SOCA_HOST_SYSTEM_LOG/ComputeNode.sh.log 2>&1'''
 
-        SpotFleet = True if ((params["SpotPrice"] is not False) and (int(params["DesiredCapacity"]) > 1 or len(instances_list)>1)) else False
+        # Specify the security groups to assign to the compute nodes. Max 5 per instance
+        security_groups = [params["SecurityGroupId"]]
+        if params["AdditionalSecurityGroupIds"]:
+            for sg_id in params["AdditionalSecurityGroupIds"]:
+                security_groups.append(sg_id)
+
+        # Specify the IAM instance profile to use
+        instance_profile = params["ComputeNodeInstanceProfileArn"] if params["CustomIamInstanceProfile"] is False else params["CustomIamInstanceProfile"]
+
+        SpotFleet = True if ((params["SpotPrice"] is not False) and (params["SpotAllocationCount"] is False) and (int(params["DesiredCapacity"]) > 1 or len(instances_list)>1)) else False
         ltd.EbsOptimized = True
         for instance in instances_list:
             if "t2." in instance:
@@ -184,7 +271,7 @@ $AWS s3 cp s3://$SOCA_INSTALL_BUCKET/$SOCA_INSTALL_BUCKET_FOLDER/scripts/config.
                     CoreCount=int(params["CoreCount"]),
                     ThreadsPerCore=1 if params["ThreadsPerCore"] is False else 2)
 
-        ltd.IamInstanceProfile = IamInstanceProfile(Arn=params["ComputeNodeInstanceProfileArn"])
+        ltd.IamInstanceProfile = IamInstanceProfile(Arn=instance_profile)
         ltd.KeyName = params["SSHKeyPair"]
         ltd.ImageId = params["ImageId"]
         if params["SpotPrice"] is not False and params["SpotAllocationCount"] is False:
@@ -200,7 +287,7 @@ $AWS s3 cp s3://$SOCA_INSTALL_BUCKET/$SOCA_INSTALL_BUCKET_FOLDER/scripts/config.
             InterfaceType="efa" if params["Efa"] is not False else Ref("AWS::NoValue"),
             DeleteOnTermination=True,
             DeviceIndex=0,
-            Groups=[params["SecurityGroupId"]]
+            Groups=security_groups
         )]
         ltd.UserData = Base64(Sub(UserData))
         ltd.BlockDeviceMappings = [
@@ -258,6 +345,8 @@ $AWS s3 cp s3://$SOCA_INSTALL_BUCKET/$SOCA_INSTALL_BUCKET_FOLDER/scripts/config.
             sfrcd.InstanceInterruptionBehavior = "terminate"
             if params["SpotPrice"] != "auto":
                 sfrcd.SpotPrice = str(params["SpotPrice"])
+            sfrcd.SpotMaintenanceStrategies = ec2.SpotMaintenanceStrategies(
+                    CapacityRebalance=ec2.SpotCapacityRebalance(ReplacementStrategy="launch"))
             sfrcd.TargetCapacity = params["DesiredCapacity"]
             sfrcd.Type = "maintain"
             sfltc = ec2.LaunchTemplateConfigs()
@@ -267,10 +356,16 @@ $AWS s3 cp s3://$SOCA_INSTALL_BUCKET/$SOCA_INSTALL_BUCKET_FOLDER/scripts/config.
             sfltc.LaunchTemplateSpecification = sflts
             sfltc.Overrides = []
             for subnet in params["SubnetId"]:
-                for instance in instances_list:
-                    sfltc.Overrides.append(ec2.LaunchTemplateOverrides(
-                            InstanceType = instance,
-                            SubnetId = subnet))
+                for index, instance in enumerate(instances_list):
+                    if params["WeightedCapacity"] is not False:
+                        sfltc.Overrides.append(ec2.LaunchTemplateOverrides(
+                                InstanceType = instance,
+                                SubnetId = subnet,
+                                WeightedCapacity = params["WeightedCapacity"][index]))
+                    else:
+                        sfltc.Overrides.append(ec2.LaunchTemplateOverrides(
+                                InstanceType = instance,
+                                SubnetId = subnet))
             sfrcd.LaunchTemplateConfigs = [sfltc]
             TagSpecifications = ec2.SpotFleetTagSpecification(
                 ResourceType="spot-fleet-request",
@@ -301,9 +396,15 @@ $AWS s3 cp s3://$SOCA_INSTALL_BUCKET/$SOCA_INSTALL_BUCKET_FOLDER/scripts/config.
             )
 
             asg_lt.Overrides = []
-            for instance in instances_list:
-                asg_lt.Overrides.append(LaunchTemplateOverrides(
-                    InstanceType=instance))
+            for index, instance in enumerate(instances_list):
+                if params["WeightedCapacity"] is not False:
+                    mip_usage = True
+                    asg_lt.Overrides.append(LaunchTemplateOverrides(
+                        InstanceType=instance,
+                        WeightedCapacity=str(params["WeightedCapacity"][index])))
+                else:
+                    asg_lt.Overrides.append(LaunchTemplateOverrides(
+                        InstanceType=instance))
 
             # Begin InstancesDistribution
             if params["SpotPrice"] is not False and \
@@ -336,6 +437,7 @@ $AWS s3 cp s3://$SOCA_INSTALL_BUCKET/$SOCA_INSTALL_BUCKET_FOLDER/scripts/config.
             asg.MinSize = int(params["DesiredCapacity"])
             asg.MaxSize = int(params["DesiredCapacity"])
             asg.VPCZoneIdentifier = params["SubnetId"]
+            asg.CapacityRebalance = False
 
             if params["PlacementGroup"] is True:
                 pg = PlacementGroup("ComputeNodePlacementGroup")
@@ -364,7 +466,7 @@ $AWS s3 cp s3://$SOCA_INSTALL_BUCKET/$SOCA_INSTALL_BUCKET_FOLDER/scripts/config.
                 fsx_lustre = FileSystem("FSxForLustre")
                 fsx_lustre.FileSystemType = "LUSTRE"
                 fsx_lustre.StorageCapacity = params["FSxLustreConfiguration"]["capacity"]
-                fsx_lustre.SecurityGroupIds = [params["SecurityGroupId"]]
+                fsx_lustre.SecurityGroupIds = security_groups
                 fsx_lustre.SubnetIds = params["SubnetId"]
                 fsx_lustre_configuration = LustreConfiguration()
                 fsx_lustre_configuration.DeploymentType = params["FSxLustreConfiguration"]["deployment_type"].upper()
@@ -397,7 +499,7 @@ $AWS s3 cp s3://$SOCA_INSTALL_BUCKET/$SOCA_INSTALL_BUCKET_FOLDER/scripts/config.
         # Change Mapping to No if you want to disable this
         if allow_anonymous_data_collection is True:
             metrics = CustomResourceSendAnonymousMetrics("SendAnonymousData")
-            metrics.ServiceToken = params["SolutionMetricLambda"]
+            metrics.ServiceToken = params["SolutionMetricsLambda"]
             metrics.DesiredCapacity = str(params["DesiredCapacity"])
             metrics.InstanceType = str(params["InstanceType"])
             metrics.Efa = str(params["Efa"])

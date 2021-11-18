@@ -1,24 +1,65 @@
+######################################################################################################################
+#  Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.                                                #
+#                                                                                                                    #
+#  Licensed under the Apache License, Version 2.0 (the "License"). You may not use this file except in compliance    #
+#  with the License. A copy of the License is located at                                                             #
+#                                                                                                                    #
+#      http://www.apache.org/licenses/LICENSE-2.0                                                                    #
+#                                                                                                                    #
+#  or in the 'license' file accompanying this file. This file is distributed on an 'AS IS' BASIS, WITHOUT WARRANTIES #
+#  OR CONDITIONS OF ANY KIND, express or implied. See the License for the specific language governing permissions    #
+#  and limitations under the License.                                                                                #
+######################################################################################################################
+
 import logging.config
+import os
 from flask import Flask, redirect, jsonify
 from flask_restful import Api
 from flask_session import Session
 from flask_sqlalchemy import SQLAlchemy
+from werkzeug.debug import DebuggedApplication
+
 from api.v1.scheduler.pbspro.job import Job
 from api.v1.scheduler.pbspro.jobs import Jobs
 from api.v1.scheduler.pbspro.queue import Queue
 from api.v1.scheduler.pbspro.queues import Queues
-from api.v1.ldap.sudo import Sudo
-from api.v1.ldap.ids import Ids
-from api.v1.ldap.user import User
-from api.v1.ldap.users import Users
-from api.v1.user.reset_password import Reset
-from api.v1.user.api_key import ApiKey
-from api.v1.ldap.group import Group
-from api.v1.ldap.groups import Groups
-from api.v1.ldap.authenticate import Authenticate
+
+if os.environ.get("SOCA_AUTH_PROVIDER") == "openldap":
+    from api.v1.ldap.openldap.sudo import Sudo
+    from api.v1.ldap.openldap.ids import Ids
+    from api.v1.ldap.openldap.user import User
+    from api.v1.ldap.openldap.users import Users
+    from api.v1.ldap.openldap.reset_password import Reset
+    from api.v1.user.api_key import ApiKey
+    from api.v1.ldap.openldap.group import Group
+    from api.v1.ldap.openldap.groups import Groups
+    from api.v1.ldap.openldap.authenticate import Authenticate
+else:
+    # ActiveDirectory
+    from api.v1.ldap.activedirectory.sudo import Sudo
+    from api.v1.ldap.activedirectory.ids import Ids
+    from api.v1.ldap.activedirectory.user import User
+    from api.v1.ldap.activedirectory.users import Users
+    from api.v1.ldap.activedirectory.reset_password import Reset
+    from api.v1.user.api_key import ApiKey
+    from api.v1.ldap.activedirectory.group import Group
+    from api.v1.ldap.activedirectory.groups import Groups
+    from api.v1.ldap.activedirectory.authenticate import Authenticate
+
 from api.v1.system.files import Files
 from api.v1.system.aws_price import AwsPrice
 from api.v1.dcv.authenticator import DcvAuthenticator
+from api.v1.dcv.list_desktops import ListDesktops
+from api.v1.dcv.create_linux_desktop import CreateLinuxDesktop
+from api.v1.dcv.create_windows_desktop import CreateWindowsDesktop
+from api.v1.dcv.delete_desktop import DeleteDesktop
+from api.v1.dcv.stop_desktop import StopDesktop
+from api.v1.dcv.restart_desktop import RestartDesktop
+from api.v1.dcv.modify_desktop import ModifyDesktop
+from api.v1.dcv.update_desktop_schedule import UpdateDesktopSchedule
+from api.v1.dcv.images import ListImages
+from api.v1.dcv.image import ManageImage
+
 from views.index import index
 from views.ssh import ssh
 from views.sftp import sftp
@@ -182,13 +223,17 @@ with app.app_context():
     csrf = CSRFProtect(app)
     csrf.exempt("api")
 
-    # Register routes
+    # Register configuration
     app.config.from_object(app_config)
+
+    if app_config.DEBUG is True:
+        app.debug = True
+        app.wsgi_app = DebuggedApplication(app.wsgi_app, True)
 
     # Add API
     api = Api(app, decorators=[csrf.exempt])
 
-    # LDAP
+    # Auth provider can be either openldap or active directory
     api.add_resource(Sudo, '/api/ldap/sudo')
     api.add_resource(Authenticate, '/api/ldap/authenticate')
     api.add_resource(Ids, '/api/ldap/ids')
@@ -202,12 +247,24 @@ with app.app_context():
     # System
     api.add_resource(Files, '/api/system/files')
     api.add_resource(AwsPrice, '/api/system/aws_price')
+    # DCV
     api.add_resource(DcvAuthenticator, '/api/dcv/authenticator')
+    api.add_resource(ListDesktops, '/api/dcv/desktops')
+    api.add_resource(CreateLinuxDesktop, '/api/dcv/desktop/<session_number>/linux')
+    api.add_resource(CreateWindowsDesktop, '/api/dcv/desktop/<session_number>/windows')
+    api.add_resource(DeleteDesktop, '/api/dcv/desktop/<session_number>/delete')
+    api.add_resource(StopDesktop, '/api/dcv/desktop/<session_number>/<action>')  # Action = stop or hibernate
+    api.add_resource(RestartDesktop, '/api/dcv/desktop/<session_number>/restart')
+    api.add_resource(ModifyDesktop, '/api/dcv/desktop/<session_number>/modify')
+    api.add_resource(UpdateDesktopSchedule, '/api/dcv/desktop/<session_number>/schedule')
+    api.add_resource(ListImages, '/api/dcv/images')
+    api.add_resource(ManageImage, '/api/dcv/image')
     # Scheduler
     api.add_resource(Job, '/api/scheduler/job')
     api.add_resource(Jobs, '/api/scheduler/jobs')
     api.add_resource(Queue, '/api/scheduler/queue')
     api.add_resource(Queues, '/api/scheduler/queues')
+
 
     # Register views
     app.register_blueprint(index)

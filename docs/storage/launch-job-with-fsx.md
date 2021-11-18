@@ -152,7 +152,7 @@ This command will mount a 3.6TB FSx filesystem on all nodes provisioned for your
 
 ## How to change the mountpoint
 
-By default Scale-Out Computing on AWS mounts fsx on `/fsx`. If you need to change this value, edit `scripts/ComputeNode.sh` update the value of `FSX_MOUNTPOINT`.
+By default Scale-Out Computing on AWS mounts fsx on `/fsx`. If you need to change this value, edit `/apps/soca/$SOCA_CONFIGURATION/cluster_node_bootstrap/ComputeNodePostReboot.sh` update the value of `FSX_MOUNTPOINT`.
 
 ~~~bash hl_lines="4"
 ...

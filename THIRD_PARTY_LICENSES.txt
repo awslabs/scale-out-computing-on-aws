@@ -12,8 +12,5 @@ YOUR USE OF THE EXTERNAL DEPENDENCIES IS AT YOUR SOLE RISK. IN NO EVENT WILL AMA
 ** Datatables; -- https://datatables.net/license/mit#MIT-license (MIT) v1.10.20
 ** Moment.js; -- https://github.com/moment/momentjs.com/blob/master/LICENSE (MIT) v2.26.0
 ** Monaco; -- https://github.com/microsoft/monaco-editor/blob/master/LICENSE.md (MIT) v0.19.3
-** PBSPro; -- https://github.com/openpbs/openpbs/blob/master/LICENSE (AGPLv3) v18.1.4
+** OpenPBS; -- https://github.com/openpbs/openpbs/blob/master/LICENSE (AGPLv3) v20.0.1
 ** PrismJS; -- https://github.com/PrismJS/prism/blob/master/LICENSE (MIT) v1.17.1
-
-
-

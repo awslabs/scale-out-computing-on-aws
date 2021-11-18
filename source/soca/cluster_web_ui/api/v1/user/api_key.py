@@ -1,15 +1,30 @@
+######################################################################################################################
+#  Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.                                                #
+#                                                                                                                    #
+#  Licensed under the Apache License, Version 2.0 (the "License"). You may not use this file except in compliance    #
+#  with the License. A copy of the License is located at                                                             #
+#                                                                                                                    #
+#      http://www.apache.org/licenses/LICENSE-2.0                                                                    #
+#                                                                                                                    #
+#  or in the 'license' file accompanying this file. This file is distributed on an 'AS IS' BASIS, WITHOUT WARRANTIES #
+#  OR CONDITIONS OF ANY KIND, express or implied. See the License for the specific language governing permissions    #
+#  and limitations under the License.                                                                                #
+######################################################################################################################
+
 from flask_restful import Resource, reqparse
 from models import db, ApiKeys
 from requests import get
 import datetime
 import secrets
 import config
-from decorators import restricted_api, admin_api
+from decorators import restricted_api, admin_api, retrieve_api_key
 import errors
 import logging
 logger = logging.getLogger("api")
+
+
 class ApiKey(Resource):
-    @restricted_api
+    @retrieve_api_key
     def get(self):
         """
         Retrieve API key of the user
@@ -49,25 +64,34 @@ class ApiKey(Resource):
                 return {"success": True, "message": check_existing_key.token}, 200
             else:
                 try:
-                    permissions = get(config.Config.FLASK_ENDPOINT + "/api/ldap/sudo",
-                                      headers={"X-SOCA-TOKEN": config.Config.API_ROOT_KEY},
-                                      params={"user": user},
-                                      verify=False) # nosec
+                    # Create an API key for the user if needed
+                    user_exist = get(config.Config.FLASK_ENDPOINT + "/api/ldap/user",
+                                     headers={"X-SOCA-TOKEN": config.Config.API_ROOT_KEY},
+                                     params={"user": user},
+                                     verify=False) # nosec
+                    if user_exist.status_code == 200:
+                        permissions = get(config.Config.FLASK_ENDPOINT + "/api/ldap/sudo",
+                                          headers={"X-SOCA-TOKEN": config.Config.API_ROOT_KEY},
+                                          params={"user": user},
+                                          verify=False) # nosec
 
-                    if permissions.status_code == 200:
-                        scope = "sudo"
+                        if permissions.status_code == 200:
+                            scope = "sudo"
+                        else:
+                            scope = "user"
+                        api_token = secrets.token_hex(16)
+                        new_key = ApiKeys(user=user,
+                                          token=api_token,
+                                          is_active=True,
+                                          scope=scope,
+                                          created_on=datetime.datetime.utcnow())
+                        db.session.add(new_key)
+                        db.session.commit()
+                        return {"success": True,
+                                "message": api_token}, 200
                     else:
-                        scope = "user"
-                    api_token = secrets.token_hex(16)
-                    new_key = ApiKeys(user=user,
-                                      token=api_token,
-                                      is_active=True,
-                                      scope=scope,
-                                      created_on=datetime.datetime.utcnow())
-                    db.session.add(new_key)
-                    db.session.commit()
-                    return {"success": True,
-                            "message": api_token}, 200
+                        return {"success": False,
+                                "message": "Not authorized"}, 401
 
                 except Exception as err:
                     return errors.all_errors(type(err).__name__, err)
@@ -119,4 +143,3 @@ class ApiKey(Resource):
 
         except Exception as err:
             return errors.all_errors(type(err).__name__, err)
-

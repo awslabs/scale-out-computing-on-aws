@@ -1,32 +1,45 @@
-from __future__ import division
+######################################################################################################################
+#  Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.                                                #
+#                                                                                                                    #
+#  Licensed under the Apache License, Version 2.0 (the "License"). You may not use this file except in compliance    #
+#  with the License. A copy of the License is located at                                                             #
+#                                                                                                                    #
+#      http://www.apache.org/licenses/LICENSE-2.0                                                                    #
+#                                                                                                                    #
+#  or in the 'license' file accompanying this file. This file is distributed on an 'AS IS' BASIS, WITHOUT WARRANTIES #
+#  OR CONDITIONS OF ANY KIND, express or implied. See the License for the specific language governing permissions    #
+#  and limitations under the License.                                                                                #
+######################################################################################################################
 
+from __future__ import division
 import ast
+import base64
 import datetime
 import json
 import os
 import re
 import sys
-
 import boto3
 import pytz
 import urllib3
 from elasticsearch import Elasticsearch, RequestsHttpConnection
 from elasticsearch.exceptions import NotFoundError as NotFoundError
 from requests_aws4auth import AWS4Auth
+from botocore import config as botocore_config
+
+def boto_extra_config():
+    aws_solution_user_agent = {"user_agent_extra": "AwsSolution/SO0072/v2.7.0"}
+    return botocore_config.Config(**aws_solution_user_agent)
 
 
-def get_aligo_configuration():
-    '''
-    Return general configuration parameter
-    '''
-    secretsmanager_client = boto3.client('secretsmanager')
+def get_soca_configuration():
+    secretsmanager_client = boto3.client('secretsmanager', config=boto_extra_config())
     configuration_secret_name = os.environ['SOCA_CONFIGURATION']
     response = secretsmanager_client.get_secret_value(SecretId=configuration_secret_name)
     return json.loads(response['SecretString'])
 
 
 def get_aws_pricing(ec2_instance_type):
-
     pricing = {}
     response = client.get_products(
         ServiceCode='AmazonEC2',
@@ -58,18 +71,17 @@ def get_aws_pricing(ec2_instance_type):
                             if 'Linux/UNIX (Amazon VPC)' in instance_data['description']:
                                 pricing['reserved'] = float(instance_data['pricePerUnit']['USD'])
 
-
     return pricing
 
 
-def es_entry_exist(job_id):
-    # Make sure the entry has not already been update within the last 100 days. This handle case where customers update their SOCA and reset the scheduler count
+def es_entry_exist(job_uuid,  es_index_name):
+    # Make sure the entry has not already been ingested on the ElasticSearch cluster.
+    # Job UUID is base64 encoded: <job_id>_<cluster_id>_<timestamp_when_job_completed>
     json_to_push = {
         "query": {
             "bool": {
                 "must": [
-                    {"match": {"job_id": job_id},
-                     }],
+                    {"match": {"job_uuid": job_uuid}}],
                 "filter": [
                     {"range":
                         {
@@ -83,12 +95,9 @@ def es_entry_exist(job_id):
         },
     }
     try:
-        response = es.search(index="jobs",
-                         scroll='2m',
-                         size=1000,
-                         body=json_to_push)
+        response = es.search(index=es_index_name, scroll='2m', size=1000, body=json_to_push)
     except NotFoundError:
-        print("First entry, Index doest not exist but will be created automaticall.y")
+        print("First entry, Index doest not exist but will be created automatically.")
         return False
 
     sid = response['_scroll_id']
@@ -105,14 +114,14 @@ def es_entry_exist(job_id):
         sid = response['_scroll_id']
         scroll_size = len(response['hits']['hits'])
 
+
     if existing_entries.__len__() == 0:
         return False
     else:
         return True
 
 
-def es_index_new_item(body):
-    index = "jobs"
+def es_index_new_item(body, index):
     doc_type = "item"
     add = es.index(index=index,
                    doc_type=doc_type,
@@ -125,7 +134,7 @@ def es_index_new_item(body):
 
 
 def read_file(filename):
-    print('Opening ' +filename)
+    print(f"Opening {filename}")
     try:
         log_file = open(filename, 'r')
         content = log_file.read()
@@ -137,39 +146,51 @@ def read_file(filename):
 
 
 if __name__ == "__main__":
-
-
     urllib3.disable_warnings()
-    aligo_configuration = get_aligo_configuration()
+    try:
+        soca_configuration = get_soca_configuration()
+    except Exception as err:
+        print(f"Unable to retrieve SOCA configuration due to {err}")
+        sys.exit(1)
 
     # Pricing API is only available us-east-1
-    client = boto3.client('pricing', region_name='us-east-1')
-    accounting_log_path='/var/spool/pbs/server_priv/accounting/'
-    # Change PyTZ as needed
-    tz = pytz.timezone('America/Los_Angeles')
+    client = boto3.client('pricing', region_name='us-east-1', config=boto_extra_config())
+    accounting_log_path = '/var/spool/pbs/server_priv/accounting/'
+    tz = pytz.timezone('America/Los_Angeles')     # Change PyTZ as needed
     session = boto3.Session()
     credentials = session.get_credentials()
     awsauth = AWS4Auth(credentials.access_key, credentials.secret_key, session.region_name, 'es', session_token=credentials.token)
-    es_endpoint = 'https://' + aligo_configuration['ESDomainEndpoint']
-    es = Elasticsearch([es_endpoint], port=443,
-                       http_auth=awsauth,
-                       use_ssl=True,
-                       verify_certs=True,
-                       connection_class=RequestsHttpConnection)
-
+    es_endpoint = 'https://' + soca_configuration['ESDomainEndpoint']
+    es_index_name = "soca_jobs"
+    cluster_id = os.environ.get('SOCA_CONFIGURATION', None)
+    if cluster_id is None:
+        print("SOCA_CONFIGURATION environment variable not found. Make sure to source /etc/environment before executing this script")
+        sys.exit(1)
+    try:
+        es = Elasticsearch([es_endpoint], port=443, http_auth=awsauth, use_ssl=True, verify_certs=True, connection_class=RequestsHttpConnection)
+    except Exception as err:
+        print(f"Unable to establish connection to  {es_endpoint} due to {err}")
+        sys.exit(1)
     pricing_table = {}
     management_chain_per_user = {}
     json_output = []
     output = {}
+    days_to_ingest = 3  # You can adjust this as needed if you want to replay some data. Default to last 3 days
+    last_day_to_ingest = datetime.datetime.now()
+    date_to_check = [last_day_to_ingest - datetime.timedelta(days=x) for x in range(days_to_ingest)]
 
-    # DAY_TO_INGEST = 2 --> Check today & yesterday logs. You can adjust this as needed
-    DAY_TO_INGEST = 2
-    FROM = datetime.datetime.now()
-    date_to_check = [FROM - datetime.timedelta(days=x) for x in range(DAY_TO_INGEST)]
+    # Update EBS rate for your region
+    # EBS Formulas: https://aws.amazon.com/ebs/pricing/
+    # Estimated cost provided by SOCA are esimates only. Refer to Cost Explorer for exact data
+
+    ebs_gp3_storage = 0.08  # $ per gb per month
+    ebs_io1_storage = 0.125  # $ per gb per month
+    provisionied_io = 0.065  # IOPS per month
+    fsx_lustre = 0.000194  # GB per hour
 
     for day in date_to_check:
         scheduler_log_format = day.strftime('%Y%m%d')
-        response = read_file(accounting_log_path+scheduler_log_format)
+        response = read_file(f"{accounting_log_path}{scheduler_log_format}")
         try:
             for line in response.splitlines():
                 try:
@@ -185,16 +206,12 @@ if __name__ == "__main__":
                             output[job_id].append({'utc_date': timestamp,
                                                    'job_state': job_state,
                                                    'job_id': job_id,
-                                                   'job_data': job_data
-                                                   })
-
-
+                                                   'job_data': job_data})
                         else:
                             output[job_id] = [{'utc_date': timestamp,
                                                'job_state': job_state,
                                                'job_id': job_id,
-                                               'job_data': job_data
-                                               }]
+                                               'job_data': job_data}]
                 except Exception as e:
                     exc_type, exc_obj, exc_tb = sys.exc_info()
                     fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
@@ -224,116 +241,97 @@ if __name__ == "__main__":
                             used_resources = re.findall('(\w+)=([^\s]+)', data['job_data'])
 
                             if used_resources:
-                                tmp = {'job_id': job_id}
+                                job_info = {'job_id': job_id}
                                 for res in used_resources:
                                     resource_name = res[0]
                                     resource_value = res[1]
                                     if resource_name == 'select':
                                         mpiprocs = re.search(r'mpiprocs=(\d+)', resource_value)
                                         if mpiprocs:
-                                            tmp['mpiprocs'] = int(re.search(r'mpiprocs=(\d+)', resource_value).group(1))
+                                            job_info['mpiprocs'] = int(re.search(r'mpiprocs=(\d+)', resource_value).group(1))
 
                                     if 'ppn' in resource_value:
                                         ppn = re.search(r'ppn=(\d+)', resource_value)
                                         if ppn:
-                                            tmp['ppn'] = int(re.search(r'ppn=(\d+)', resource_value).group(1))
+                                            job_info['ppn'] = int(re.search(r'ppn=(\d+)', resource_value).group(1))
 
-                                    tmp[resource_name] = int(resource_value) if resource_value.isdigit() is True else resource_value
-
-
+                                    job_info[resource_name] = int(resource_value) if resource_value.isdigit() is True else resource_value
                                 # Adding custom field to index
-                                tmp['simulation_time_seconds'] = tmp['end'] - tmp['start']
-                                tmp['simulation_time_minutes'] = float(tmp['simulation_time_seconds'] / 60)
-                                tmp['simulation_time_hours'] = float(tmp['simulation_time_minutes'] / 60)
-                                tmp['simulation_time_days'] = float(tmp['simulation_time_hours'] / 24)
-
-                                tmp['mem_kb'] = int(tmp['mem'].replace('kb', ''))
-                                tmp['vmem_kb'] = int(tmp['vmem'].replace('kb', ''))
-
-                                tmp['qtime_iso'] = (datetime.datetime.fromtimestamp(tmp['qtime'], tz).isoformat())
-                                tmp['etime_iso'] = (datetime.datetime.fromtimestamp(tmp['etime'], tz).isoformat())
-                                tmp['ctime_iso'] = (datetime.datetime.fromtimestamp(tmp['ctime'], tz).isoformat())
-                                tmp['start_iso'] = (datetime.datetime.fromtimestamp(tmp['start'], tz).isoformat())
-                                tmp['end_iso'] = (datetime.datetime.fromtimestamp(tmp['end'], tz).isoformat())
+                                job_info['soca_cluster_id'] = cluster_id
+                                job_info['simulation_time_seconds'] = job_info['end'] - job_info['start']
+                                job_info['simulation_time_minutes'] = float(job_info['simulation_time_seconds'] / 60)
+                                job_info['simulation_time_hours'] = float(job_info['simulation_time_minutes'] / 60)
+                                job_info['simulation_time_days'] = float(job_info['simulation_time_hours'] / 24)
+                                job_info['mem_kb'] = int(job_info['mem'].replace('kb', ''))
+                                job_info['vmem_kb'] = int(job_info['vmem'].replace('kb', ''))
+                                job_info['qtime_iso'] = (datetime.datetime.fromtimestamp(job_info['qtime'], tz).isoformat())
+                                job_info['etime_iso'] = (datetime.datetime.fromtimestamp(job_info['etime'], tz).isoformat())
+                                job_info['ctime_iso'] = (datetime.datetime.fromtimestamp(job_info['ctime'], tz).isoformat())
+                                job_info['start_iso'] = (datetime.datetime.fromtimestamp(job_info['start'], tz).isoformat())
+                                job_info['end_iso'] = (datetime.datetime.fromtimestamp(job_info['end'], tz).isoformat())
+                                job_info['job_uuid'] = base64.b64encode(f"{job_id}_{cluster_id}_{job_info['end_iso']}".encode("utf-8")).decode("utf-8")
 
                                 # Calculate price of the simulation
                                 # ESTIMATE ONLY. Refer to AWS Cost Explorer for exact data
-                                
-                                # Update EBS rate for your region
-                                # EBS Formulas: https://aws.amazon.com/ebs/pricing/
-                                ebs_gp3_storage = 0.08  # $ per gb per month
-                                ebs_io1_storage = 0.125  # $ per gb per month
-                                provisionied_io = 0.065  # IOPS per month
-                                fsx_lustre = 0.000194 # GB per hour
+
                                 # Note 1: This calculate the price of the simulation based on run time only.
                                 # It does not include the time for EC2 to be launched and configured, so I artificially added a 5 minutes penalty (average time for an EC2 instance to be provisioned)
                                 EC2_BOOT_DELAY = 300
-                                simulation_time_seconds_with_penalty = tmp['simulation_time_seconds'] + EC2_BOOT_DELAY
-                                tmp['estimated_price_storage_scratch_iops'] = 0
-                                tmp['estimated_price_storage_root_size'] = 0  # alwayson
-                                tmp['estimated_price_storage_scratch_size'] = 0
-                                tmp['estimated_price_fsx_lustre'] = 0
+                                simulation_time_seconds_with_penalty = job_info['simulation_time_seconds'] + EC2_BOOT_DELAY
+                                job_info['estimated_price_storage_scratch_iops'] = 0
+                                job_info['estimated_price_storage_root_size'] = 0  # alwayson
+                                job_info['estimated_price_storage_scratch_size'] = 0
+                                job_info['estimated_price_fsx_lustre'] = 0
 
-                                if 'root_size' in tmp.keys():
-                                    tmp['estimated_price_storage_root_size'] = ((int(tmp['root_size']) * ebs_gp3_storage * simulation_time_seconds_with_penalty) / (86400 * 30)) * tmp['nodect']
+                                if 'root_size' in job_info.keys():
+                                    job_info['estimated_price_storage_root_size'] = ((int(job_info['root_size']) * ebs_gp3_storage * simulation_time_seconds_with_penalty) / (86400 * 30)) * job_info['nodect']
 
-                                if 'scratch_size' in tmp.keys():
-                                    if 'scratch_iops' in tmp.keys():
-                                        tmp['estimated_price_storage_scratch_size'] = ((int(tmp['scratch_size']) * ebs_io1_storage * simulation_time_seconds_with_penalty) / (86400 * 30)) * tmp['nodect']
-                                        tmp['estimated_price_storage_scratch_iops'] = ((int(tmp['scratch_iops']) * provisionied_io * simulation_time_seconds_with_penalty) / (86400 * 30)) * tmp['nodect']
+                                if 'scratch_size' in job_info.keys():
+                                    if 'scratch_iops' in job_info.keys():
+                                        job_info['estimated_price_storage_scratch_size'] = ((int(job_info['scratch_size']) * ebs_io1_storage * simulation_time_seconds_with_penalty) / (86400 * 30)) * job_info['nodect']
+                                        job_info['estimated_price_storage_scratch_iops'] = ((int(job_info['scratch_iops']) * provisionied_io * simulation_time_seconds_with_penalty) / (86400 * 30)) * job_info['nodect']
                                     else:
-                                        tmp['estimated_price_storage_scratch_size'] = ((int(tmp['scratch_size']) * ebs_gp3_storage * simulation_time_seconds_with_penalty) / (86400 * 30)) * tmp['nodect']
+                                        job_info['estimated_price_storage_scratch_size'] = ((int(job_info['scratch_size']) * ebs_gp3_storage * simulation_time_seconds_with_penalty) / (86400 * 30)) * job_info['nodect']
 
-                                if 'fsx_lustre_bucket' in tmp.keys():
-                                    if tmp['fsx_lustre_bucket'] != 'false':
-                                        if 'fsx_lustre_size' in tmp.keys():
-                                            tmp['estimated_price_fsx_lustre'] = tmp['fsx_lustre_size'] * fsx_lustre * (simulation_time_seconds_with_penalty / 3600)
+                                if 'fsx_lustre_bucket' in job_info.keys():
+                                    if job_info['fsx_lustre_bucket'] != 'false':
+                                        if 'fsx_lustre_size' in job_info.keys():
+                                            job_info['estimated_price_fsx_lustre'] = job_info['fsx_lustre_size'] * fsx_lustre * (simulation_time_seconds_with_penalty / 3600)
                                         else:
                                             # default lustre size
-                                            tmp['estimated_price_fsx_lustre'] = 1200 * fsx_lustre * (simulation_time_seconds_with_penalty / 3600)
+                                            job_info['estimated_price_fsx_lustre'] = 1200 * fsx_lustre * (simulation_time_seconds_with_penalty / 3600)
 
-                                if tmp['instance_type'] not in pricing_table.keys():
-                                    pricing_table[tmp['instance_type']] = get_aws_pricing(tmp['instance_type'])
+                                if job_info['instance_type'] not in pricing_table.keys():
+                                    pricing_table[job_info['instance_type']] = get_aws_pricing(job_info['instance_type'])
 
-                                tmp['estimated_price_ec2_ondemand'] = simulation_time_seconds_with_penalty * (pricing_table[tmp['instance_type']]['ondemand'] / 3600) * tmp['nodect']
-                                reserved_hourly_rate = pricing_table[tmp['instance_type']]['reserved'] / 750
-                                tmp['estimated_price_ec2_reserved'] = simulation_time_seconds_with_penalty * (reserved_hourly_rate / 3600) * tmp['nodect']
+                                job_info['estimated_price_ec2_ondemand'] = simulation_time_seconds_with_penalty * (pricing_table[job_info['instance_type']]['ondemand'] / 3600) * job_info['nodect']
+                                reserved_hourly_rate = pricing_table[job_info['instance_type']]['reserved'] / 750
+                                job_info['estimated_price_ec2_reserved'] = simulation_time_seconds_with_penalty * (reserved_hourly_rate / 3600) * job_info['nodect']
 
-                                tmp['estimated_price_ondemand'] = tmp['estimated_price_ec2_ondemand'] + tmp['estimated_price_storage_root_size'] + tmp['estimated_price_storage_scratch_size'] + tmp['estimated_price_storage_scratch_iops'] + tmp['estimated_price_fsx_lustre']
-                                tmp['estimated_price_reserved'] = tmp['estimated_price_ec2_reserved'] + tmp['estimated_price_storage_root_size'] + tmp['estimated_price_storage_scratch_size'] + tmp['estimated_price_storage_scratch_iops'] + tmp['estimated_price_fsx_lustre']
+                                job_info['estimated_price_ondemand'] = job_info['estimated_price_ec2_ondemand'] + job_info['estimated_price_storage_root_size'] + job_info['estimated_price_storage_scratch_size'] + job_info['estimated_price_storage_scratch_iops'] + job_info['estimated_price_fsx_lustre']
+                                job_info['estimated_price_reserved'] = job_info['estimated_price_ec2_reserved'] + job_info['estimated_price_storage_root_size'] + job_info['estimated_price_storage_scratch_size'] + job_info['estimated_price_storage_scratch_iops'] + job_info['estimated_price_fsx_lustre']
 
-                            json_output.append(tmp)
+                                json_output.append(job_info)
                 except Exception as e:
-                    print("===========")
                     exc_type, exc_obj, exc_tb = sys.exc_info()
                     fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
-                    print('Error with ' + str(data))
-                    print ((exc_type, fname, exc_tb.tb_lineno))
-                    print('Job id: ' + str(job_id))
-                    print("===========")
+                    print(f"Error with {data} for job id {job_id} - {exc_type} - {fname} - { exc_tb.tb_lineno}")
                     exit(1)
-
 
         except Exception as e:
             exc_type, exc_obj, exc_tb = sys.exc_info()
             fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
-            print('Error')
-            print ((exc_type, fname, exc_tb.tb_lineno))
-            #print e
-            #print "Entry error:"
-            #print str(data)
-            #logger.error('Error while indexing job  ' + str(output[job_id]) + ' : ' + str((exc_type, fname, exc_tb.tb_lineno)))
+            print(f"Fatal error:  {exc_type} - {fname} - {exc_tb.tb_lineno}")
             exit(1)
 
     for entry in json_output:
-        if es_entry_exist(entry['job_id']) is False:
-            if es_index_new_item(json.dumps(entry)) is False:
-                print('Error while indexing ' + str(entry))
+        if es_entry_exist(f"{entry['job_uuid']}", es_index_name) is False:
+            if es_index_new_item(json.dumps(entry), es_index_name) is False:
+                print(f"Error while indexing {entry}")
                 exit(1)
             else:
-                print('Indexed '+str(entry))
-
+                print(f"Indexed {entry}")
         else:
-            #print 'Already Indexed' + str(entry)
+            #Already Indexed
             pass
 

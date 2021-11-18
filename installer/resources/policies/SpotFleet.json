@@ -1,0 +1,45 @@
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Action": [
+                        "ec2:DescribeImages",
+                        "ec2:DescribeSubnets",
+                        "ec2:DescribeInstanceStatus"
+                    ],
+            "Resource": "*",
+            "Effect": "Allow",
+            "Sid": "ReadOnlyPermissions"
+        },
+        {
+            "Condition": {
+                "StringEquals": {
+                    "ec2:Vpc": "arn:%%AWS_PARTITION%%:ec2:%%AWS_REGION%%:*:vpc/%%VPC_ID%%"
+                }
+            },
+            "Action": [
+                "ec2:RequestSpotInstances",
+                "ec2:TerminateInstances",
+                "ec2:CreateTags"
+            ],
+            "Resource": "arn:%%AWS_PARTITION%%:ec2:*:%%AWS_ACCOUNT_ID%%:instance/*",
+            "Effect": "Allow",
+            "Sid": "SpotPermissions"
+        },
+        {
+            "Condition": {
+                "StringEquals": {
+                    "iam:PassedToService": [
+                        "ec2.amazonaws.com",
+                        "ec2.amazonaws.com.cn"
+                    ]
+                }
+            },
+            "Action": "iam:PassRole",
+            "Resource": "%%COMPUTE_NODE_ROLE_ARN%%",
+            "Effect": "Allow",
+            "Sid": "PassRole"
+        }
+    ]
+}
+

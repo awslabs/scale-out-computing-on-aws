@@ -1,3 +1,16 @@
+######################################################################################################################
+#  Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.                                                #
+#                                                                                                                    #
+#  Licensed under the Apache License, Version 2.0 (the "License"). You may not use this file except in compliance    #
+#  with the License. A copy of the License is located at                                                             #
+#                                                                                                                    #
+#      http://www.apache.org/licenses/LICENSE-2.0                                                                    #
+#                                                                                                                    #
+#  or in the 'license' file accompanying this file. This file is distributed on an 'AS IS' BASIS, WITHOUT WARRANTIES #
+#  OR CONDITIONS OF ANY KIND, express or implied. See the License for the specific language governing permissions    #
+#  and limitations under the License.                                                                                #
+######################################################################################################################
+
 '''
 This hook reject the job if the user is not allowed to use the queue
 Doc:
@@ -19,11 +32,26 @@ import yaml
 
 
 def find_users_in_ldap_group(group_dn):
-    cmd = "ldapsearch -x -b " + group_dn + " -LLL | grep memberUid | awk '{print $2}'"
-    users_in_group = os.popen(cmd).read() # nosec
+    if os.path.isdir("/apps/soca/%SOCA_CONFIGURATION/cluster_node_bootstrap/ad_automation"):
+        pbs.logmsg(pbs.LOG_DEBUG, 'queue_acl: find_users_in_ldap_group: Detected Active Directory')
+        # Active Directory
+        with open('/apps/soca/%SOCA_CONFIGURATION/cluster_node_bootstrap/ad_automation/join_domain_user.cache', 'r') as f:
+            ad_user = f.read()
+        with open('/apps/soca/%SOCA_CONFIGURATION/cluster_node_bootstrap/ad_automation/join_domain.cache', 'r') as f:
+            ad_password = f.read()
+        with open('/apps/soca/%SOCA_CONFIGURATION/cluster_node_bootstrap/ad_automation/domain_name.cache', 'r') as f:
+            domain_name = f.read()
+        ldapsearch = 'ldapsearch -x -h ' + domain_name + ' -D "' + ad_user + '@' + domain_name + '" -w "' + ad_password + '" -b "' + group_dn + '" | grep member  | awk \'{print $2}\' | cut -d, -f1 | tr -d "CN="'
+        pbs.logmsg(pbs.LOG_DEBUG, 'queue_acl: generated ldapsearch command: ' + ldapsearch.replace(ad_password, "<REDACTED_PASSWORD>"))
+    else:
+        # OpenLdap
+        pbs.logmsg(pbs.LOG_DEBUG, 'queue_acl: find_users_in_ldap_group: Detected OpenLDAP')
+        ldapsearch = "ldapsearch -x -b " + group_dn + " -LLL | grep memberUid | awk '{print $2}'"
+        pbs.logmsg(pbs.LOG_DEBUG, 'queue_acl: generated ldapsearch command: ' + ldapsearch)
+
+    users_in_group = os.popen(ldapsearch).read() # nosec
     pbs.logmsg(pbs.LOG_DEBUG, 'queue_acl: find_users_in_ldap_group' + str(users_in_group))
     return list(filter(None, users_in_group.split('\n')))
-
 
 e = pbs.event()
 j = e.job
@@ -99,4 +127,3 @@ for doc in docs.values():
                 if job_owner in excluded_users:
                     message = job_owner + " is not authorized to use submit this job on the queue " + job_queue + ". Contact your HPC admin and update " + queue_settings_file
                     e.reject(message)
-

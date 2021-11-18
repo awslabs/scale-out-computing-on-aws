@@ -1,3 +1,16 @@
+######################################################################################################################
+#  Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.                                                #
+#                                                                                                                    #
+#  Licensed under the Apache License, Version 2.0 (the "License"). You may not use this file except in compliance    #
+#  with the License. A copy of the License is located at                                                             #
+#                                                                                                                    #
+#      http://www.apache.org/licenses/LICENSE-2.0                                                                    #
+#                                                                                                                    #
+#  or in the 'license' file accompanying this file. This file is distributed on an 'AS IS' BASIS, WITHOUT WARRANTIES #
+#  OR CONDITIONS OF ANY KIND, express or implied. See the License for the specific language governing permissions    #
+#  and limitations under the License.                                                                                #
+######################################################################################################################
+
 import logging
 import config
 from decorators import login_required
@@ -108,7 +121,10 @@ def send_job():
             if cpus_count_pattern:
                 cpu_per_system = int(cpus_count_pattern.group(1)) * 2
             else:
-                cpu_per_system = 2
+                if re.search(r'[.](xlarge)', instance_type):
+                    cpu_per_system = 2
+                else:
+                    cpu_per_system = 1
             nodect = math.ceil(int(cpus) / cpu_per_system)
 
         find_shebang = re.search(r'#!([^\s]+)', job_to_submit)

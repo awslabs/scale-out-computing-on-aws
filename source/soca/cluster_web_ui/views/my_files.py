@@ -1,3 +1,16 @@
+######################################################################################################################
+#  Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.                                                #
+#                                                                                                                    #
+#  Licensed under the Apache License, Version 2.0 (the "License"). You may not use this file except in compliance    #
+#  with the License. A copy of the License is located at                                                             #
+#                                                                                                                    #
+#      http://www.apache.org/licenses/LICENSE-2.0                                                                    #
+#                                                                                                                    #
+#  or in the 'license' file accompanying this file. This file is distributed on an 'AS IS' BASIS, WITHOUT WARRANTIES #
+#  OR CONDITIONS OF ANY KIND, express or implied. See the License for the specific language governing permissions    #
+#  and limitations under the License.                                                                                #
+######################################################################################################################
+
 import logging
 import config
 import zipfile
@@ -85,13 +98,13 @@ def demote(user_uid, user_gid):
 
 
 def user_has_permission(path, permission_required, type):
-    print("Checking " + permission_required + " for " + path + " (" + type +")")
+    logger.info("Checking " + permission_required + " for " + path + " (" + type +")")
     if type not in ["file", "folder"]:
-        print("Type must be file or folder")
+        logger.info("Type must be file or folder")
         return False
 
     if permission_required not in ["write", "read"]:
-        print("permission_required must be write or read")
+        logger.info("permission_required must be write or read")
         return False
 
     if path.startswith("//"):
@@ -151,7 +164,7 @@ def user_has_permission(path, permission_required, type):
                     if check_group_membership.status_code == 200:
                         group_members = check_group_membership.json()["message"]["members"]
                     else:
-                        print("Unable to check group membership because of " + check_group_membership.text)
+                        logger.info("Unable to check group membership because of " + check_group_membership.text)
                         group_members = []
                     cache[CACHE_GROUP_MEMBERSHIP_PREFIX + check_folder["folder_group_name"]] = group_members
                 else:
@@ -168,27 +181,27 @@ def user_has_permission(path, permission_required, type):
                     if check_folder["folder_owner"] != user_uid:
                         if user_belong_to_group is True:
                             if check_folder["group_permission"] < min_permission_level[permission_required]:
-                                print("user do not have " + permission_required + " permission for " + folder_path)
+                                logger.info("user do not have " + permission_required + " permission for " + folder_path)
                                 return False
                         else:
                             if check_folder["other_permission"] < min_permission_level[permission_required]:
-                                print("user do not have " + permission_required + " permission for " + folder_path)
+                                logger.info("user do not have " + permission_required + " permission for " + folder_path)
                                 return False
                 else:
                     # Folder chain, must have at least Execute permission
                     if check_folder["folder_owner"] != user_uid:
                         if user_belong_to_group is True:
                             if check_folder["group_permission"] < min_permission_level[permission_required]:
-                                print("user do not have " + permission_required + " permission for " + folder_path)
+                                logger.info("user do not have " + permission_required + " permission for " + folder_path)
                                 return False
                         else:
                             if (check_folder["other_permission"] < min_permission_level["execute"]):
-                                print("user do not have EXECUTE permission for " + folder_path)
+                                logger.info("user do not have EXECUTE permission for " + folder_path)
                                 return False
 
             folder_level += 1
 
-        print("Permissions valid.")
+        logger.info("Permissions valid.")
         return True
     except FileNotFoundError:
         return False
@@ -200,6 +213,7 @@ def index():
     try:
         timestamp = datetime.datetime.utcnow().strftime("%s")
         path = request.args.get("path", None)
+        logger.info(f"Accessing {path}")
         ts = request.args.get("ts", None)
         if ts is None:
             if path is None:
@@ -287,7 +301,7 @@ def index():
                                timestamp=timestamp)
     except Exception as err:
         flash("Error, this path probably does not exist. "+str(err), "error")
-        print(err)
+        logger.error(err)
         return redirect("/my_files")
 
 
@@ -446,7 +460,7 @@ def download_all():
         zipf.close()
         logger.info("Archive created")
     except Exception as err:
-        logger("Unable to create archive due to: " + str(err))
+        logger.error("Unable to create archive due to: " + str(err))
         flash("Unable to generate download link. Check the logs for more information", "error")
         return redirect("/my_files")
 
@@ -511,7 +525,7 @@ def create():
             flash("Unable to create: " + folder_path + folder_name + ". Error: " + str(err.errno), "error")
 
     except Exception as err:
-        print(err)
+        logger.error(err)
         flash("Unable to create: " + folder_path + folder_name, "error")
 
     return redirect("/my_files?path="+folder_path)
@@ -544,7 +558,7 @@ def delete():
                         os.rmdir(file_info["file_path"])
                         if CACHE_FOLDER_CONTENT_PREFIX + "/".join(file_info["file_path"].split("/")[:-1]) in cache.keys():
                             del cache[CACHE_FOLDER_CONTENT_PREFIX + "/".join(file_info["file_path"].split("/")[:-1])]
-                            print("Removing from cache: " + CACHE_FOLDER_CONTENT_PREFIX + file_info["file_path"])
+                            logger.info("Removing from cache: " + CACHE_FOLDER_CONTENT_PREFIX + file_info["file_path"])
 
                         flash("Folder removed.", "success")
                     else:
@@ -557,7 +571,7 @@ def delete():
             return redirect("/my_files?path=" + "/".join(file_info["file_path"].split("/")[:-1]))
 
         except Exception as err:
-            print(err)
+            logger.error(err)
             flash("Unable to download file. Did you remove it?", "error")
             return redirect("/my_files")
 

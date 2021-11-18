@@ -46,7 +46,7 @@
                           <ol class="breadcrumb">
                               <li class="breadcrumb-item"><a href="/my_files?ts={{ timestamp }}"><i class="fas fa-home"></i></a></li>
                               {% for path,folder_name in breadcrumb.items() %}
-                              <li class="breadcrumb-item"><a href="/my_files?path={{ path }}&ts={{ timestamp }}">{{folder_name}}</a></li>
+                              <li class="breadcrumb-item"><a href="/my_files?path={{ path | urlencode }}&ts={{ timestamp }}">{{folder_name}}</a></li>
                               {% endfor %}
 
                             {%  if is_cached == True %}
@@ -91,7 +91,7 @@
                           {% if get_all_uid_count > 0 %}
                           <div class="col-md-2">
                               <div id="div_download_all">
-                                  <a href="/my_files/download_all?path={{ path }}&ts={{ timestamp }}">
+                                  <a href="/my_files/download_all?path={{ path | urlencode }}&ts={{ timestamp }}">
                                     <button type="button" data-toggle="tooltip" data-placement="top" title="Download all {{ get_all_uid_count }} files on this folder" class="btn btn-info form-control">Download all</button>
                                   </a>
                               </div>
@@ -137,7 +137,7 @@
                  <td>
                     {% if file_data.type == "folder" %}
                         <i class="far fa-folder-open fa-lg"></i>
-                        <strong><a href="/my_files?path={{ file_data.path }}&ts={{ timestamp }}"> {{ file_name }}</a></strong>
+                        <strong><a href="/my_files?path={{ file_data.path | urlencode }}&ts={{ timestamp }}"> {{ file_name }}</a></strong>
                         <div class="float-right">
                             <a href="/my_files/delete?uid={{ file_data.uid }}"><i data-toggle="tooltip" data-placement="top" title="Delete the folder" class="fas fa-trash-alt fa-lg"  style="color: grey"></i></a>
                         </div>
@@ -283,7 +283,7 @@
                           complete: function(file, response)
                           {
                               if (this.getUploadingFiles().length === 0 && this.getQueuedFiles().length === 0) {
-                                  $('#update-div').append('<div class="alert alert-info">All operations have completed. Page will reload automatically in 5 seconds (<a href="/my_files?path={{ path }}">click here for manual reload</a>) <div>');
+                                  $('#update-div').append('<div class="alert alert-info">All operations have completed. Page will reload automatically in 5 seconds (<a href="/my_files?path={{ path | urlencode }}">click here for manual reload</a>) <div>');
                                   setTimeout(() => { location.reload(); }, 5000);
                               }
 

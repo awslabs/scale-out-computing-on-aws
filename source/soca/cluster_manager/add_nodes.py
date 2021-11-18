@@ -1,3 +1,16 @@
+######################################################################################################################
+#  Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.                                                #
+#                                                                                                                    #
+#  Licensed under the Apache License, Version 2.0 (the "License"). You may not use this file except in compliance    #
+#  with the License. A copy of the License is located at                                                             #
+#                                                                                                                    #
+#      http://www.apache.org/licenses/LICENSE-2.0                                                                    #
+#                                                                                                                    #
+#  or in the 'license' file accompanying this file. This file is distributed on an 'AS IS' BASIS, WITHOUT WARRANTIES #
+#  OR CONDITIONS OF ANY KIND, express or implied. See the License for the specific language governing permissions    #
+#  and limitations under the License.                                                                                #
+######################################################################################################################
+
 import argparse
 import ast
 import os
@@ -14,11 +27,13 @@ import configuration
 from botocore import exceptions
 import cloudformation_builder
 
-cloudformation = boto3.client('cloudformation')
-s3 = boto3.client('s3')
-ec2 = boto3.client('ec2')
-servicequotas = boto3.client("service-quotas")
-aligo_configuration = configuration.get_aligo_configuration()
+
+cloudformation = boto3.client("cloudformation", config=configuration.boto_extra_config())
+s3 = boto3.client("s3", config=configuration.boto_extra_config())
+ec2 = boto3.client("ec2", config=configuration.boto_extra_config())
+iam = boto3.client("iam", config=configuration.boto_extra_config())
+servicequotas = boto3.client("service-quotas", config=configuration.boto_extra_config())
+soca_configuration = configuration.get_soca_configuration()
 
 def find_running_cpus_per_instance(instance_list):
     running_vcpus = 0
@@ -102,7 +117,7 @@ def verify_vcpus_limit(instance_type, desired_capacity, quota_info):
         else:
             vcpus_per_instance = 2
 
-    total_vpcus_requested = vcpus_per_instance * int(desired_capacity)
+    total_vcpus_requested = vcpus_per_instance * int(desired_capacity)
     running_vcpus = 0
 
     max_vcpus_allowed = False
@@ -161,13 +176,13 @@ def verify_vcpus_limit(instance_type, desired_capacity, quota_info):
         running_vcpus = quota_info[instance_type]["vcpus_provisioned"]
 
     quota_info[instance_type] = {"max_vcpus_allowed": max_vcpus_allowed,
-                                 "vcpus_provisioned": running_vcpus + total_vpcus_requested,
+                                 "vcpus_provisioned": running_vcpus + total_vcpus_requested,
                                  "quota_name": quota_name}
 
-    if max_vcpus_allowed >= (running_vcpus + total_vpcus_requested):
+    if max_vcpus_allowed >= (running_vcpus + total_vcpus_requested):
         return {"message": True, "quota_info": quota_info}
     else:
-        return {"message": "Job cannot start due to AWS Service limit. Max Vcpus allowed {}. Detected running Vcpus {}. Requested Vcpus for this job {}. Quota Name {}".format(max_vcpus_allowed, running_vcpus, total_vpcus_requested, quota_name), "quota_info": quota_info}
+        return {"message": "Job cannot start due to AWS Service limit. Max Vcpus allowed {}. Detected running Vcpus {}. Requested Vcpus for this job {}. Quota Name {}".format(max_vcpus_allowed, running_vcpus, total_vcpus_requested, quota_name), "quota_info": quota_info}
 
 
 def can_launch_capacity(instance_type, desired_capacity, image_id, subnet_id, security_group):
@@ -212,6 +227,21 @@ def check_config(**kwargs):
 
     # Transform instance_type as list in case multiple type are specified
     kwargs['instance_type'] = kwargs['instance_type'].split("+")
+
+    # Transform weighted_capacity as a list in case multiple instance types are specified
+    # Confirm that the length of weighted_capacity list is consistent with the length of instance_type list
+    weighted_capacity=[]
+    if kwargs['weighted_capacity'] is not False:
+        for item in kwargs['weighted_capacity'].split("+"):
+            try:
+                item=int(item)
+            except ValueError:
+                error = return_message('All values specified for --weighted_capacity must be integers. Found: ' + str(item))
+            weighted_capacity.append(item)
+        kwargs['weighted_capacity'] = weighted_capacity
+        if len(kwargs['instance_type']) != len(kwargs['weighted_capacity']):
+            error = return_message('Number of --weighted_capacity entries is not consistent with --instance_type entries')
+
     # Validate terminate_when_idle
     if 'terminate_when_idle' not in kwargs.keys():
         kwargs['terminate_when_idle'] = 0
@@ -269,7 +299,6 @@ def check_config(**kwargs):
             error = return_message('Tags must be a valid dictionary')
 
     # FSx Management
-
     kwargs['fsx_lustre_configuration'] = {
         'fsx_lustre': kwargs['fsx_lustre'],
         's3_backend': False,
@@ -285,7 +314,7 @@ def check_config(**kwargs):
         fsx_deployment_type_allowed = ["scratch_1", "scratch_2", "persistent_1"]
         fsx_lustre_per_unit_throughput_allowed = [50, 100, 200]
 
-        # Default to SCRATCH_1 if incorrect value is specified
+        # Default to SCRATCH_2 if incorrect value is specified
         if kwargs["fsx_lustre_deployment_type"].lower() not in fsx_deployment_type_allowed:
                 return_message('FSx Deployment Type must be: ' + ",".join(fsx_deployment_type_allowed))
         else:
@@ -340,30 +369,26 @@ def check_config(**kwargs):
             else:
                 kwargs['fsx_lustre_configuration']['capacity'] = kwargs['fsx_lustre_size']
 
-    soca_private_subnets = [aligo_configuration['PrivateSubnet1'],
-                            aligo_configuration['PrivateSubnet2'],
-                            aligo_configuration['PrivateSubnet3']]
-
-    SpotFleet = True if (kwargs['spot_price'] is not False and (int(kwargs['desired_capacity']) > 1 or kwargs['instance_type'].__len__() > 1)) else False
+    SpotFleet = True if (kwargs['spot_price'] is not False and kwargs['spot_allocation_count'] is False and (int(kwargs['desired_capacity']) > 1 or kwargs['instance_type'].__len__() > 1)) else False
 
     if kwargs['subnet_id'] is False:
         if SpotFleet is True:
-            kwargs['subnet_id'] = soca_private_subnets
+            kwargs['subnet_id'] = soca_configuration["PrivateSubnets"]
         else:
-            kwargs['subnet_id'] = [random.choice(soca_private_subnets)]
+            kwargs['subnet_id'] = [random.choice(soca_configuration["PrivateSubnets"])]
     else:
         if isinstance(kwargs['subnet_id'], int):
             if kwargs['subnet_id'] == 2:
-                kwargs['subnet_id'] = random.sample(soca_private_subnets, 2)
+                kwargs['subnet_id'] = random.sample(soca_configuration["PrivateSubnets"], 2)
             elif kwargs['subnet_id'] == 3:
-                kwargs['subnet_id'] = random.sample(soca_private_subnets, 3)
+                kwargs['subnet_id'] = random.sample(soca_configuration["PrivateSubnets"], 3)
             else:
                 error = return_message('Approved value for subnet_id are either the actual subnet ID or 2 or 3')
         else:
             kwargs['subnet_id'] = kwargs['subnet_id'].split('+')
             for subnet in kwargs['subnet_id']:
-                if subnet not in soca_private_subnets:
-                    error = return_message('Incorrect subnet_id. Must be one of ' + ','.join(soca_private_subnets))
+                if subnet not in soca_configuration["PrivateSubnets"]:
+                    error = return_message('Incorrect subnet_id. Must be one of ' + ','.join(soca_configuration["PrivateSubnets"]))
 
     # Handle placement group logic
     if 'placement_group' not in kwargs.keys():
@@ -390,22 +415,46 @@ def check_config(**kwargs):
             # default to user specified value
             pass
 
-
     if kwargs['subnet_id'].__len__() > 1:
         if kwargs['placement_group'] is True and SpotFleet is False:
             # if placement group is True and more than 1 subnet is defined, force default to 1 subnet
             kwargs['subnet_id'] = [kwargs['subnet_id'][0]]
+
+    # Validate additional security group ids
+    if kwargs['security_groups']:
+        sgs_id = kwargs['security_groups'].split("+")
+        if sgs_id.__len__() > 4:
+            error = return_message("You can only specify a maximum of 4 additional security groups")
+        try:
+            ec2.describe_security_groups(GroupIds=sgs_id)['SecurityGroups']
+            kwargs['security_groups'] = sgs_id
+        except Exception as err:
+            error = return_message(f'Unable to validate one SG from {sgs_id} due to {err}')
+
+    # Validate custom IAM Instance Profile
+    if kwargs['instance_profile']:
+        try:
+            kwargs['instance_profile'] = iam.get_instance_profile(InstanceProfileName=kwargs['instance_profile'])["InstanceProfile"]["Arn"]
+        except Exception as err:
+            error = return_message(f"Unable to validate custom IAM instance profile {kwargs['instance_profile']} due to {err}")
 
     # Check core_count and ht_support
     try:
         instance_attributes = ec2.describe_instance_types(InstanceTypes=[kwargs['instance_type'][0]])
         if len(instance_attributes['InstanceTypes']) == 0:
             error = return_message('Unable to check instance: ' + kwargs['instance_type'][0])
-        else: 
-            kwargs['core_count'] = instance_attributes['InstanceTypes'][0]['VCpuInfo']['DefaultCores']
-            if instance_attributes['InstanceTypes'][0]['VCpuInfo']['DefaultThreadsPerCore'] == 1:
-                # Set ht_support to False for instances with DefaultThreadsPerCore = 1 (e.g. graviton)
+        else:
+            # boto3 does not return Default Cores/ThreadsPerCore T2 instances does not have DefaultCores
+            if kwargs['instance_type'][0] in ["t2.micro", "t2.nano", "t2.small"]:
                 kwargs['ht_support'] = False
+            elif kwargs['instance_type'][0] in ["t2.medium", "t2.large", "t2.xlarge", "t2.2xlarge"]:
+                # do not set ht_support. Will default to None if not explicitly set by the user
+                pass
+            else:
+                kwargs['core_count'] = instance_attributes['InstanceTypes'][0]['VCpuInfo']['DefaultCores']
+                if instance_attributes['InstanceTypes'][0]['VCpuInfo']['DefaultThreadsPerCore'] == 1:
+                    # Set ht_support to False for instances with DefaultThreadsPerCore = 1 (e.g. graviton)
+                    kwargs['ht_support'] = False
     except ClientError as e:
         if e.response['Error'].get('Code') == 'InvalidInstanceType':
             error = return_message('InvalidInstanceType: ' + kwargs['instance_type'][0])
@@ -422,7 +471,7 @@ def check_config(**kwargs):
             },
         "diversified":
             {
-                "ASG": "lowest-price",
+                "ASG": "capacity-optimized",
                 "SpotFleet": "diversified",
                 "accepted_values": ["diversified"]
             },
@@ -435,7 +484,7 @@ def check_config(**kwargs):
     }
 
     if kwargs['spot_allocation_strategy'] is not False:
-        for k,v in mapping.items():
+        for k, v in mapping.items():
             if kwargs['spot_allocation_strategy'].lower() in v["accepted_values"]:
                 if SpotFleet is True:
                     kwargs['spot_allocation_strategy'] = v["SpotFleet"]
@@ -447,7 +496,7 @@ def check_config(**kwargs):
         if kwargs['spot_allocation_strategy'] not in spot_allocation_strategy_allowed:
             error = return_message('spot_allocation_strategy_allowed (' + str(kwargs['spot_allocation_strategy']) + ') must be one of the following value: ' + ', '.join(spot_allocation_strategy_allowed))
     else:
-        kwargs['spot_allocation_strategy'] = 'lowestPrice' if SpotFleet is True else 'lowest-price'
+        kwargs['spot_allocation_strategy'] = 'capacityOptimized' if SpotFleet is True else 'capacity-optimized'
 
     # Validate Spot Allocation Percentage
     if kwargs['spot_allocation_count'] is not False:
@@ -470,7 +519,7 @@ def check_config(**kwargs):
         if kwargs['base_os'] not in base_os_allowed:
             error = return_message('base_os (' + str(kwargs['base_os']) + ') must be one of the following value: ' + ','.join(base_os_allowed))
     else:
-        kwargs['base_os'] = aligo_configuration['BaseOS']
+        kwargs['base_os'] = soca_configuration['BaseOS']
 
     # Validate Spot Price
     if kwargs['spot_price'] is not False:
@@ -520,25 +569,28 @@ def return_message(message, success=False):
 def main(**kwargs):
     try:
         # Create default value for optional parameters if needed
-        optional_job_parameters = {'anonymous_metrics': aligo_configuration["DefaultMetricCollection"],
+        optional_job_parameters = {'anonymous_metrics': soca_configuration["DefaultMetricCollection"],
                                    'force_ri': False,
                                    'base_os': False,
                                    'efa_support': False,
                                    'fsx_lustre': False,
                                    'fsx_lustre_size': False,
-                                   'fsx_lustre_deployment_type': "SCRATCH_1",
+                                   'fsx_lustre_deployment_type': "SCRATCH_2",
                                    'fsx_lustre_per_unit_throughput': 200,
                                    'ht_support': False,
                                    'keep_ebs': False,
                                    'root_size': 10,
                                    'scratch_size': 0,
+                                   'security_groups': False,
+                                   'instance_profile': False,
                                    'spot_allocation_count': False,
-                                   'spot_allocation_strategy': 'lowest-price',
+                                   'spot_allocation_strategy': 'capacity-optimized',
                                    'spot_price': False,
                                    'subnet_id': False,
                                    'system_metrics': False,
                                    'scratch_iops': 0,
-                                   'stack_uuid': str(uuid.uuid4())
+                                   'stack_uuid': str(uuid.uuid4()),
+                                   'weighted_capacity': False
                                    }
 
         for k, v in optional_job_parameters.items():
@@ -561,10 +613,10 @@ def main(**kwargs):
         tags = params['tags']
 
         if params['keep_forever'] is True:
-            cfn_stack_name = aligo_configuration['ClusterId'] + '-keepforever-' + params['queue'] + '-' + params['stack_uuid']
+            cfn_stack_name = soca_configuration['ClusterId'] + '-keepforever-' + params['queue'] + '-' + params['stack_uuid']
             tags['soca:KeepForever'] = 'true'
         else:
-            cfn_stack_name = aligo_configuration['ClusterId'] + '-job-' + str(params['job_id'])
+            cfn_stack_name = soca_configuration['ClusterId'] + '-job-' + str(params['job_id'])
             tags['soca:KeepForever'] = 'false'
 
         if int(params['terminate_when_idle']) > 0:
@@ -574,7 +626,7 @@ def main(**kwargs):
             tags['soca:NodeType'] = 'soca-compute-node'
 
         if 'soca:ClusterId' not in tags.keys():
-            tags['soca:ClusterId'] = aligo_configuration['ClusterId']
+            tags['soca:ClusterId'] = soca_configuration['ClusterId']
 
         if 'soca:JobId' not in tags.keys():
             tags['soca:JobId'] = params['job_id']
@@ -584,17 +636,21 @@ def main(**kwargs):
 
         # These parameters will be used to build the cloudformation template
         parameters_list = {
+            'AuthProvider': {
+                'Key': None,
+                'Default': soca_configuration['AuthProvider'],
+            },
             'BaseOS': {
                 'Key': 'base_os',
-                'Default': aligo_configuration['BaseOS'],
+                'Default': soca_configuration['BaseOS'],
             },
             'ClusterId': {
                 'Key': None,
-                'Default': aligo_configuration['ClusterId'],
+                'Default': soca_configuration['ClusterId'],
             },
             'ComputeNodeInstanceProfileArn': {
                 'Key': None,
-                'Default': aligo_configuration['ComputeNodeInstanceProfileArn'],
+                'Default': soca_configuration['ComputeNodeInstanceProfileArn'],
             },
             'CoreCount': {
                 'Key': 'core_count',
@@ -608,17 +664,25 @@ def main(**kwargs):
                 'Key': 'efa_support',
                 'Default': False,
             },
-            'EFSAppsDns': {
+            'FileSystemApps': {
                 'Key': None,
-                'Default': aligo_configuration['EFSAppsDns'],
+                'Default': soca_configuration['FileSystemApps'],
             },
-            'EFSDataDns': {
+            'FileSystemAppsProvider': {
                 'Key': None,
-                'Default': aligo_configuration['EFSDataDns'],
+                'Default': soca_configuration['FileSystemAppsProvider'],
+            },
+            'FileSystemData': {
+                'Key': None,
+                'Default': soca_configuration['FileSystemData'],
+            },
+            'FileSystemDataProvider': {
+                'Key': None,
+                'Default': soca_configuration['FileSystemDataProvider'],
             },
             'ESDomainEndpoint': {
                 'Key': None,
-                'Default': aligo_configuration['ESDomainEndpoint'],
+                'Default': soca_configuration['ESDomainEndpoint'],
             },
             'FSxLustreConfiguration': {
                 'Key': 'fsx_lustre_configuration',
@@ -626,7 +690,11 @@ def main(**kwargs):
             },
             'ImageId': {
                 'Key': 'instance_ami',
-                'Default': aligo_configuration['CustomAMI']
+                'Default': soca_configuration['CustomAMI']
+            },
+            'CustomIamInstanceProfile': {
+                'Key': 'instance_profile',
+                'Default': False
             },
             'InstanceType': {
                 'Key': 'instance_type',
@@ -662,9 +730,8 @@ def main(**kwargs):
             },
             'MetricCollectionAnonymous': {
                 'Key': 'anonymous_metrics',
-                'Default': aligo_configuration["DefaultMetricCollection"]
+                'Default': soca_configuration["DefaultMetricCollection"]
             },
-
             'PlacementGroup': {
                 'Key': 'placement_group',
                 'Default': True
@@ -675,31 +742,35 @@ def main(**kwargs):
             },
             'S3Bucket': {
                 'Key': None,
-                'Default': aligo_configuration['S3Bucket']
+                'Default': soca_configuration['S3Bucket']
             },
             'S3InstallFolder': {
                 'Key': None,
-                'Default': aligo_configuration['S3InstallFolder']
+                'Default': soca_configuration['S3InstallFolder']
             },
             'SchedulerPrivateDnsName': {
                 'Key': None,
-                'Default': aligo_configuration['SchedulerPrivateDnsName']
+                'Default': soca_configuration['SchedulerPrivateDnsName']
             },
             'ScratchSize': {
                 'Key': 'scratch_size',
                 'Default': 0
             },
+            'AdditionalSecurityGroupIds': {
+                'Key': 'security_groups',
+                'Default': None
+            },
             'SecurityGroupId': {
                 'Key': None,
-                'Default': aligo_configuration['ComputeNodeSecurityGroup']
+                'Default': soca_configuration['ComputeNodeSecurityGroup']
             },
             'SchedulerHostname': {
                 'Key': None,
-                'Default': aligo_configuration['SchedulerPrivateDnsName']
+                'Default': soca_configuration['SchedulerPrivateDnsName']
             },
-            'SolutionMetricLambda': {
+            'SolutionMetricsLambda': {
                 'Key': None,
-                'Default': aligo_configuration['SolutionMetricLambda']
+                'Default': soca_configuration['SolutionMetricsLambda']
             },
             'SpotAllocationCount': {
                 'Key': 'spot_allocation_count',
@@ -707,11 +778,11 @@ def main(**kwargs):
             },
             'SpotAllocationStrategy': {
                 'Key': 'spot_allocation_strategy',
-                'Default': 'lowest-price'
+                'Default': 'capacity-optimized'
             },
             'SpotFleetIAMRoleArn': {
                 'Key': None,
-                'Default': aligo_configuration['SpotFleetIAMRoleArn']
+                'Default': soca_configuration['SpotFleetIAMRoleArn']
             },
             'SpotPrice': {
                 'Key': 'spot_price',
@@ -719,7 +790,7 @@ def main(**kwargs):
             },
             'SSHKeyPair': {
                 'Key': None,
-                'Default': aligo_configuration['SSHKeyPair']
+                'Default': soca_configuration['SSHKeyPair']
             },
             'StackUUID': {
                 'Key': None,
@@ -743,11 +814,15 @@ def main(**kwargs):
             },
             'Version': {
                 'Key': None,
-                'Default': aligo_configuration['Version']
+                'Default': soca_configuration['Version']
             },
             'VolumeTypeIops': {
                 'Key': 'scratch_iops',
                 'Default': 0
+            },
+            'WeightedCapacity': {
+                'Key': 'weighted_capacity',
+                'Default': False
             }
         }
 
@@ -825,7 +900,7 @@ if __name__ == "__main__":
     parser.add_argument('--fsx_lustre', default=False, help="Mount existing FSx by providing the DNS")
     parser.add_argument('--fsx_lustre_size', default=False, help="Specify size of your FSx")
     parser.add_argument('--fsx_lustre_per_unit_throughput', default=200, help="Storage baseline if FSX type is Persistent")
-    parser.add_argument('--fsx_lustre_deployment_type', default="SCRATCH_1", help="Type of your FSx for Lustre")
+    parser.add_argument('--fsx_lustre_deployment_type', default="SCRATCH_2", help="Type of your FSx for Lustre")
     parser.add_argument('--instance_ami', required=True, nargs='?', help="AMI to use")
     parser.add_argument('--job_id', nargs='?', help="Job ID for which the capacity is being provisioned")
     parser.add_argument('--job_project', nargs='?', default=False, help="Job Owner for which the capacity is being provisioned")
@@ -838,7 +913,11 @@ if __name__ == "__main__":
     parser.add_argument('--spot_price', nargs='?', default=False, help="Spot Price")
     parser.add_argument('--keep_ebs', action='store_const', const=True, default=False, help="Do not delete EBS disk")
     parser.add_argument('--subnet_id', default=False, help='Launch capacity in a special subnet')
+    parser.add_argument('--security_groups', default=False, help='Configure additional security groups for your compute nodes')
+    parser.add_argument('--instance_profile', default=False, help='Assign a different IAM role to the compute nodes')
+
     parser.add_argument('--tags', nargs='?', help="Tags, format must be {'Key':'Value'}")
+    parser.add_argument('--weighted_capacity', default=False, nargs='?', help="Weighted capacity for EC2 instances")
 
     arg = parser.parse_args()
     launch = main(**dict(arg._get_kwargs()))
@@ -846,7 +925,7 @@ if __name__ == "__main__":
         if (arg.keep_forever).lower() == 'true':
             print("""
             IMPORTANT:
-            You specified --keep_forever flag. This instance will be running 24/7 until you MANUALLY terminate the Cloudformation Stack  
+            You specified --keep_forever flag. This instance will be running 24/7 until you MANUALLY terminate the Cloudformation Stack
             """)
     else:
         print('Error: ' + str(launch))

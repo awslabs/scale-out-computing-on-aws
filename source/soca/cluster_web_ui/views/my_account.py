@@ -1,9 +1,21 @@
+######################################################################################################################
+#  Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.                                                #
+#                                                                                                                    #
+#  Licensed under the Apache License, Version 2.0 (the "License"). You may not use this file except in compliance    #
+#  with the License. A copy of the License is located at                                                             #
+#                                                                                                                    #
+#      http://www.apache.org/licenses/LICENSE-2.0                                                                    #
+#                                                                                                                    #
+#  or in the 'license' file accompanying this file. This file is distributed on an 'AS IS' BASIS, WITHOUT WARRANTIES #
+#  OR CONDITIONS OF ANY KIND, express or implied. See the License for the specific language governing permissions    #
+#  and limitations under the License.                                                                                #
+######################################################################################################################
+
 import logging
 import config
 from flask import render_template, Blueprint, request, redirect, session, flash
 from requests import get, post, put
 from decorators import login_required
-import ast
 import string
 import random
 
@@ -14,9 +26,10 @@ my_account = Blueprint('my_account', __name__, template_folder='templates')
 @my_account.route("/my_account", methods=["GET"])
 @login_required
 def index():
+    group_name = session['user']
     get_user_ldap_group = get(config.Config.FLASK_ENDPOINT + "/api/ldap/group",
                                headers={"X-SOCA-TOKEN": config.Config.API_ROOT_KEY},
-                               params={"group": session["user"]},
+                               params={"group": group_name},
                               verify=False) # nosec
 
     get_user_ldap_users = get(config.Config.FLASK_ENDPOINT + "/api/ldap/users",
@@ -42,12 +55,12 @@ def index():
 @my_account.route('/manage_group', methods=['POST'])
 @login_required
 def manage_group():
-    group = session["user"]
+    group_name = session['user']
     user = request.form.get('user')
     action = request.form.get('action')
     update_group = put(config.Config.FLASK_ENDPOINT + "/api/ldap/group",
                        headers={"X-SOCA-TOKEN": config.Config.API_ROOT_KEY},
-                             data={"group": group,
+                             data={"group": group_name,
                                    "user": user,
                                    "action": action},
                        verify=False) # nosec
@@ -58,6 +71,7 @@ def manage_group():
         flash('Unable to update group: ' + update_group.json()["message"], "error")
 
     return redirect('/my_account')
+
 
 @my_account.route("/reset_password", methods=["POST"])
 @login_required
@@ -74,7 +88,7 @@ def reset_key():
             flash("You can not reset your own password using this tool. Please visit 'My Account' section for that", "error")
             return redirect("/admin/users")
         else:
-            password = ''.join(random.choice(string.ascii_letters + string.digits) for i in range(8))
+            password = ''.join(random.choice(string.ascii_lowercase + string.ascii_uppercase + string.digits) for i in range(25))
             change_password = post(config.Config.FLASK_ENDPOINT + '/api/user/reset_password',
                                        headers={"X-SOCA-TOKEN": session["api_key"],
                                                 "X-SOCA-USER": session["user"]},

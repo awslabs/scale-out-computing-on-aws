@@ -1,23 +1,25 @@
+######################################################################################################################
+#  Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.                                                #
+#                                                                                                                    #
+#  Licensed under the Apache License, Version 2.0 (the "License"). You may not use this file except in compliance    #
+#  with the License. A copy of the License is located at                                                             #
+#                                                                                                                    #
+#      http://www.apache.org/licenses/LICENSE-2.0                                                                    #
+#                                                                                                                    #
+#  or in the 'license' file accompanying this file. This file is distributed on an 'AS IS' BASIS, WITHOUT WARRANTIES #
+#  OR CONDITIONS OF ANY KIND, express or implied. See the License for the specific language governing permissions    #
+#  and limitations under the License.                                                                                #
+######################################################################################################################
+
 import logging
-import botocore
 import boto3
-import datetime
+import config
 from flask import render_template, Blueprint, request, redirect, session, flash
-from models import db, AmiList
 from decorators import login_required, admin_only
-from sqlalchemy import exc
-from sqlalchemy.exc import SQLAlchemyError
+from requests import delete, post, get
 
 logger = logging.getLogger("application")
 admin_ami_management = Blueprint('ami_management', __name__, template_folder='templates')
-
-
-def get_ami_info():
-    ami_info = {}
-    for session_info in AmiList.query.filter_by(is_active=True).all():
-        ami_info[session_info.ami_label] = session_info.ami_id
-    return ami_info
-
 
 def get_region():
     session = boto3.session.Session()
@@ -29,9 +31,17 @@ def get_region():
 @login_required
 @admin_only
 def index():
-    ami_infos = get_ami_info()
-    user = session['user']
-    return render_template('admin/ami_management.html', user = user, ami_infos=ami_infos, region_name=get_region())
+    logger.info(f"List all DCV images registered to SOCA")
+    list_images = get(f"{config.Config.FLASK_ENDPOINT}/api/dcv/images",
+                        headers={"X-SOCA-USER": session["user"], "X-SOCA-TOKEN": session["api_key"]},
+                        verify=False)  # nosec
+    if list_images.status_code == 200:
+        ami_infos = list_images.json()["message"]
+    else:
+        flash(f"{list_images.json()['message']} ", "error")
+        ami_infos = {}
+
+    return render_template('admin/ami_management.html', user=session["user"], ami_infos=ami_infos, region_name=get_region())
 
 
 @admin_ami_management.route('/admin/ami_management/create', methods=['POST'])
@@ -42,39 +52,18 @@ def ami_create():
     choose_os = request.form.get("os")
     ami_label = str(request.form.get("ami_label"))
     root_size = request.form.get("root_size")
-    soca_labels = get_ami_info()
-    aws_region = get_region()
-    ec2_client = boto3.client('ec2', aws_region)
-    # Register AMI to SOCA
-    if ami_label not in soca_labels.keys():
-        try:
-            ec2_response = ec2_client.describe_images(ImageIds=[ami_id],
-                                                      Filters=[{'Name': 'state', 'Values': ['available']}])
-            if (len(ec2_response["Images"]) != 0):
-                new_ami = AmiList(ami_id=ami_id,
-                                  ami_type=choose_os.lower(),
-                                  ami_label=ami_label,
-                                  is_active=True,
-                                  ami_root_disk_size=root_size,
-                                  created_on=datetime.datetime.utcnow())
-                try:
-                        db.session.add(new_ami)
-                        db.session.commit()
-                        flash(f"{ami_id} registered successfully in SOCA as {ami_label}", "success")
-                        logger.info(f"Creating AMI Label {ami_label} AMI ID {ami_id}")
-                except SQLAlchemyError as e:
-                        db.session.rollback()
-                        flash(f"{ami_id} registration not successful", "error")
-                        logger.error(f"Failed Creating AMI {ami_label} {ami_id} {e}")
-            else:
-                    flash(f"{ami_id} is not available in AWS account. If you just created it, make sure the state of the image is 'available' on the AWS console" )
-                    logger.error(f"{ami_id} is not available in AWS account")
-        except botocore.exceptions.ClientError as error:
-            flash(f"Couldn't locate {ami_id} in AWS account. Make sure you do have permission to view it", "error")
-            logger.error(f"Failed Creating AMI {ami_label} {ami_id} {error}")
+    logger.info(f"Received following parameters {request.form} to create DCV image")
+    list_images = post(f"{config.Config.FLASK_ENDPOINT}/api/dcv/image",
+                       headers={"X-SOCA-USER": session["user"], "X-SOCA-TOKEN": session["api_key"]},
+                       data={"os": choose_os,
+                             "ami_label": ami_label,
+                             "root_size": root_size,
+                             "ami_id": ami_id},
+                       verify=False)  # nosec
+    if list_images.status_code == 200:
+        flash(f"Your image {ami_label} has been registered successfully with EC2 ID: {ami_id}", "success")
     else:
-        flash (f"Label {ami_label} already in use. Please enter a unique label", "error")
-        logger.error(f"Label already in use {ami_label} {ami_id}")
+        flash(f"{list_images.json()['message']} ", "error")
     return redirect('/admin/ami_management')
 
 
@@ -83,16 +72,14 @@ def ami_create():
 @admin_only
 def ami_delete():
     ami_label = request.form.get("ami_label")
-    for session_info in AmiList.query.filter_by(ami_label=ami_label):
-        session_info.is_active = False
-        session_info.deactivated_on = datetime.datetime.utcnow()
-    try:
-        db.session.commit()
-        flash(ami_label + " ami deleted from SOCA", "success")
-        logger.info(f"AMI Label {ami_label} deleted from SOCA")
-        return redirect('/admin/ami_management')
-    except exc.SQLAlchemyError as e:
-        db.session.rollback()
-        flash(ami_label + " ami delete from SOCA failed", "error") # nosec
-        logger.error(f"AMI Label {ami_label} delete failed {e}")
-    return redirect('/admin/ami_management')
+    logger.info(f"Received following parameters {request.form} to delete DCV image")
+    delete_image = delete(f"{config.Config.FLASK_ENDPOINT}/api/dcv/image",
+                          headers={"X-SOCA-USER": session["user"], "X-SOCA-TOKEN": session["api_key"]},
+                          data={"ami_label": ami_label},
+                          verify=False)  # nosec
+    if delete_image.status_code == 200:
+        flash(f"Your image {ami_label} has been deleted successfully", "success")
+    else:
+        flash(f"{delete_image.json()['message']} ", "error")
+
+    return redirect("/admin/ami_management")

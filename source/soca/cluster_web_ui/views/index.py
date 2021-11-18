@@ -1,3 +1,15 @@
+######################################################################################################################
+#  Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.                                                #
+#                                                                                                                    #
+#  Licensed under the Apache License, Version 2.0 (the "License"). You may not use this file except in compliance    #
+#  with the License. A copy of the License is located at                                                             #
+#                                                                                                                    #
+#      http://www.apache.org/licenses/LICENSE-2.0                                                                    #
+#                                                                                                                    #
+#  or in the 'license' file accompanying this file. This file is distributed on an 'AS IS' BASIS, WITHOUT WARRANTIES #
+#  OR CONDITIONS OF ANY KIND, express or implied. See the License for the specific language governing permissions    #
+#  and limitations under the License.                                                                                #
+######################################################################################################################
 import logging
 import config
 import cognito_auth
@@ -95,7 +107,11 @@ def oauth():
             session["sudoers"] = True
         else:
             session["sudoers"] = False
-        return redirect(cognito_root_url+next_url)
+
+        if next_url:
+            return redirect(cognito_root_url+next_url)
+        else:
+            return redirect(cognito_root_url)
     else:
         if sso_auth['message'] == 'user_not_found':
             flash("This user does not seems to have an account on SOCA", "error")

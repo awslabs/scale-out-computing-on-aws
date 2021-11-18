@@ -1,10 +1,21 @@
+######################################################################################################################
+#  Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.                                                #
+#                                                                                                                    #
+#  Licensed under the Apache License, Version 2.0 (the "License"). You may not use this file except in compliance    #
+#  with the License. A copy of the License is located at                                                             #
+#                                                                                                                    #
+#      http://www.apache.org/licenses/LICENSE-2.0                                                                    #
+#                                                                                                                    #
+#  or in the 'license' file accompanying this file. This file is distributed on an 'AS IS' BASIS, WITHOUT WARRANTIES #
+#  OR CONDITIONS OF ANY KIND, express or implied. See the License for the specific language governing permissions    #
+#  and limitations under the License.                                                                                #
+######################################################################################################################
+
 import os
 import subprocess
 import sys
 import datetime
-
 import boto3
-
 sys.path.append(os.path.dirname(__file__))
 import configuration
 from ast import literal_eval
@@ -150,8 +161,8 @@ def get_scheduler_all_nodes():
                         if 'last_used_time' in data.keys():
                             pbs_hosts_free[hostname] = data['last_used_time']
                         else:
-                            # Automatically remove capacity after 1 hour if not job ran on it
-                            pbs_hosts_free[hostname] = data['last_state_change_time'] + 3600
+                            # Automatically remove capacity after 15 mins if no job ran on it
+                            pbs_hosts_free[hostname] = data['last_state_change_time'] + 900
 
                     if str(data['state']) == 'offline':
                         pbs_hosts_offline.append(hostname)
@@ -216,51 +227,91 @@ def set_hosts_offline(hosts):
 
 def remove_offline_nodes_spotfleet(spotfleets):
     for spotfleet in spotfleets.keys():
-        nodes_to_delete = []
+        hosts_to_delete = []
         instances_to_delete = []
-        for x in spotfleets[spotfleet]:
-            nodes_to_delete.append(x['host'])
-            instances_to_delete.append(x['instance_id'])
+        instance_weighted_capacity = {}
+        instance_weights = 0
+        weighted_capacity = False
+        new_target_capacity = 0
         response=ec2_client.describe_spot_fleet_requests(SpotFleetRequestIds=[spotfleet])
-        if int(response['SpotFleetRequestConfigs'][0]['SpotFleetRequestConfig']['TargetCapacity']) == len(spotfleets[spotfleet]):
-            # TargetCapacity == Number of closed hosts for this spotfleet. Delete the cloudformation stack
+        if "WeightedCapacity" in response['SpotFleetRequestConfigs'][0]['SpotFleetRequestConfig']['LaunchTemplateConfigs'][0]['Overrides'][0]:
+            weighted_capacity = True
+            print('Found WeightedCapacity in SpotFleet')
+            for item in response['SpotFleetRequestConfigs'][0]['SpotFleetRequestConfig']['LaunchTemplateConfigs'][0]['Overrides']:
+                instance_weighted_capacity[item['InstanceType']] = item['WeightedCapacity']
+        for x in spotfleets[spotfleet]:
+            hosts_to_delete.append(x['host'])
+            instances_to_delete.append(x['instance_id'])
+            if weighted_capacity:
+                instance_weights += int(instance_weighted_capacity[x['instance_type']])
+
+        fulfilled_capacity = int(response['SpotFleetRequestConfigs'][0]['SpotFleetRequestConfig']['FulfilledCapacity'])
+        target_capacity = int(response['SpotFleetRequestConfigs'][0]['SpotFleetRequestConfig']['TargetCapacity'])
+        current_capacity = min(target_capacity, fulfilled_capacity)
+        if weighted_capacity:
+            total_capacity = instance_weights
+            new_target_capacity=max(0, current_capacity - instance_weights)
+        else:
+            total_capacity = len(spotfleets[spotfleet])
+            new_target_capacity=max(0, current_capacity - len(hosts_to_delete))
+
+        if (new_target_capacity == 0) or (current_capacity == total_capacity):
+            # TargetCapacity == Total capacity for this spotfleet. Delete the cloudformation stack
             resp=ec2_client.describe_spot_fleet_instances(SpotFleetRequestId=spotfleet)
             resp=ec2_client.describe_instances(InstanceIds=[resp['ActiveInstances'][0]['InstanceId']])
             for x in resp['Reservations'][0]['Instances'][0]['Tags']:
                 if x['Key'] == 'soca:StackId':
                     cloudformation_stack = x['Value']
+            print('Terminating SpotFleet: ' + spotfleet)
             delete_stack([cloudformation_stack])
-            delete_hosts(nodes_to_delete)
-        elif response['SpotFleetRequestConfigs'][0]['ActivityStatus'] == 'fulfilled' and response['SpotFleetRequestConfigs'][0]['SpotFleetRequestState'] == 'active':
-            delete_hosts(nodes_to_delete)
+            delete_hosts(hosts_to_delete)
+        elif response['SpotFleetRequestConfigs'][0]['SpotFleetRequestState'] == 'active':
+            delete_hosts(hosts_to_delete)
             print('Terminating instances ' + ', '.join(instances_to_delete))
             resp=ec2_client.terminate_instances(InstanceIds=instances_to_delete)
-            new_target_capacity=int(response['SpotFleetRequestConfigs'][0]['SpotFleetRequestConfig']['TargetCapacity']) - len(nodes_to_delete)
             print('Updating TargetCapacity for SpotFleet: ' + spotfleet + ' to: ' + str(new_target_capacity))
             resp=ec2_client.modify_spot_fleet_request(SpotFleetRequestId=spotfleet, TargetCapacity=new_target_capacity)
 
 def remove_offline_nodes_asg(asgs):
     for asg in asgs.keys():
-        nodes_to_delete = []
+        hosts_to_delete = []
         instances_to_delete = []
-        for x in asgs[asg]:
-            nodes_to_delete.append(x['host'])
-            instances_to_delete.append(x['instance_id'])
+        instance_weighted_capacity = {}
+        instance_weights = 0
+        weighted_capacity = False
+        new_target_capacity = 0
         response=autoscaling_client.describe_auto_scaling_groups(AutoScalingGroupNames=[asg], MaxRecords=100)
-        if response['AutoScalingGroups'][0]['DesiredCapacity'] == len(asgs[asg]):
-            # DesiredCapacity == Number of closed hosts for this asg. Delete the cloudformation stack
+        if "WeightedCapacity" in response['AutoScalingGroups'][0]['MixedInstancesPolicy']['LaunchTemplate']['Overrides'][0]:
+            weighted_capacity = True
+            print('Found WeightedCapacity in ASG')
+            for item in response['AutoScalingGroups'][0]['MixedInstancesPolicy']['LaunchTemplate']['Overrides']:
+                instance_weighted_capacity[item['InstanceType']] = item['WeightedCapacity']
+        for x in asgs[asg]:
+            hosts_to_delete.append(x['host'])
+            instances_to_delete.append(x['instance_id'])
+            if weighted_capacity:
+                instance_weights += int(instance_weighted_capacity[x['instance_type']])
+
+        if weighted_capacity:
+            total_capacity = instance_weights
+            new_target_capacity = max(0, int(response['AutoScalingGroups'][0]['DesiredCapacity']) - instance_weights)
+        else:
+            total_capacity = len(asgs[asg])
+            new_target_capacity = max(0, int(response['AutoScalingGroups'][0]['DesiredCapacity']) - len(hosts_to_delete))
+
+        if (new_target_capacity == 0) or (int(response['AutoScalingGroups'][0]['DesiredCapacity']) == total_capacity):
+            # DesiredCapacity == Total capacity for this asg. Delete the cloudformation stack
             resp=ec2_client.describe_instances(InstanceIds=[response['AutoScalingGroups'][0]['Instances'][0]['InstanceId']])
             for x in resp['Reservations'][0]['Instances'][0]['Tags']:
                 if x['Key'] == 'aws:cloudformation:stack-name':
                     cloudformation_stack = x['Value']
             delete_stack([cloudformation_stack])
-            delete_hosts(nodes_to_delete)
+            delete_hosts(hosts_to_delete)
         else:
-            new_target_capacity=int(response['AutoScalingGroups'][0]['DesiredCapacity']) - len(nodes_to_delete)
             print('Updating DesiredCapacity for ASG: ' + asg + ' to: ' + str(new_target_capacity))
             resp=autoscaling_client.update_auto_scaling_group(AutoScalingGroupName=asg, MinSize=new_target_capacity, MaxSize=new_target_capacity, DesiredCapacity=new_target_capacity)
             resp=autoscaling_client.detach_instances(AutoScalingGroupName=asg, InstanceIds=instances_to_delete, ShouldDecrementDesiredCapacity=False)
-            delete_hosts(nodes_to_delete)
+            delete_hosts(hosts_to_delete)
             print('Terminating instances ' + ', '.join(instances_to_delete))
             resp=ec2_client.terminate_instances(InstanceIds=instances_to_delete)
 
@@ -270,23 +321,25 @@ def remove_offline_nodes(hosts):
     for host in hosts:
         asg_spotfleet_id=subprocess.check_output("qmgr -c 'print node " + str(host) + "' | grep asg_spotfleet_id | awk '{print $NF}'", shell=True).decode('utf-8').strip() # nosec
         instance_id=subprocess.check_output("qmgr -c 'print node " + str(host) + "' | grep instance_id | awk '{print $NF}'", shell=True).decode('utf-8').strip() # nosec
+        instance_type=subprocess.check_output("qmgr -c 'print node " + str(host) + "' | grep instance_type | awk '{print $NF}'", shell=True).decode('utf-8').strip() # nosec
         if asg_spotfleet_id.startswith('sfr-'):
             if asg_spotfleet_id not in spotfleets:
                 spotfleets[asg_spotfleet_id] = []
-            spotfleets[asg_spotfleet_id].append({'host':host, 'instance_id':instance_id})
+            spotfleets[asg_spotfleet_id].append({'host':host, 'instance_id':instance_id, 'instance_type': instance_type})
         elif asg_spotfleet_id.startswith('soca-'):
             if asg_spotfleet_id not in asgs:
                 asgs[asg_spotfleet_id] = []
-            asgs[asg_spotfleet_id].append({'host':host, 'instance_id':instance_id})
+            asgs[asg_spotfleet_id].append({'host':host, 'instance_id':instance_id, 'instance_type': instance_type})
 
     remove_offline_nodes_spotfleet(spotfleets)
     remove_offline_nodes_asg(asgs)
 
 if __name__ == "__main__":
-    aligo_configuration = configuration.get_aligo_configuration()
-    ec2_client = boto3.client('ec2')
-    cloudformation_client = boto3.client('cloudformation')
-    autoscaling_client = boto3.client('autoscaling')
+    print('\nStarting at: ' + str(datetime.datetime.now().strftime("%b-%d-%Y %H:%M:%S")))
+    soca_configuration = configuration.get_soca_configuration()
+    ec2_client = boto3.client('ec2', config=configuration.boto_extra_config())
+    cloudformation_client = boto3.client('cloudformation', config=configuration.boto_extra_config())
+    autoscaling_client = boto3.client('autoscaling', config=configuration.boto_extra_config())
 
     sbins = {'qstat': '/opt/pbs/bin/qstat',
              'qmgr': '/opt/pbs/bin/qmgr',
@@ -294,7 +347,7 @@ if __name__ == "__main__":
              }
 
     # 1 - get all running EC2 instances
-    compute_instances = get_all_compute_instances(aligo_configuration['ClusterId'])
+    compute_instances = get_all_compute_instances(soca_configuration['ClusterId'])
     # Get all current instances private DNS
     current_ec2_compute_nodes_dns = [item for sublist in [v['instances'] for k, v in compute_instances.items()] for item in sublist]
 
@@ -311,31 +364,32 @@ if __name__ == "__main__":
     cloudformation_stack_to_delete = []
 
     compute_nodes_to_set_offline = {}
-    compute_nodes_to_delete = []
+    compute_hosts_to_delete = []
     for job_id, stack_data in compute_instances.items():
         if stack_data['keep_forever'] == 'false' and stack_data['terminate_when_idle'] == '0':
             if job_id not in scheduler_jobs_in_queue:
                 print(job_id + ' NOT IN QUEUE. CAN KILL')
                 cloudformation_stack_to_delete.append(stack_data['stack_name'])
                 for host in stack_data['instances']:
-                    compute_nodes_to_delete.append(host)
+                    compute_hosts_to_delete.append(host)
         if int(stack_data['terminate_when_idle']) > 0:
             for host in stack_data['instances']:
                 if host in pbs_nodes_free.keys():
                     print('Found idle host: ' + str(host) + ' now: ' + str(int(datetime.datetime.now().timestamp())) + ' last_used_time: ' +str(pbs_nodes_free[host]) + ' terminate_when_idle: ' + str(int(stack_data['terminate_when_idle']) * 60))
                     if datetime.datetime.now().timestamp() > pbs_nodes_free[host] + int(stack_data['terminate_when_idle']) * 60:
                         compute_nodes_to_set_offline[host]=stack_data['terminate_when_idle']
+                        pbs_nodes_offline.append(host)
                         # If the ASG/SpotFleet has a single host, then delete the cloudformation stack
                         if stack_data['asg_spotfleet_id'].startswith('sfr-'):
                             response=ec2_client.describe_spot_fleet_instances(SpotFleetRequestId=stack_data['asg_spotfleet_id'], MaxResults=1000)
                             if len(response['ActiveInstances']) == 1:
                                 cloudformation_stack_to_delete.append(stack_data['stack_name'])
-                                compute_nodes_to_delete.append(host)
+                                compute_hosts_to_delete.append(host)
                         elif stack_data['asg_spotfleet_id'].startswith('soca-'):
                             response=autoscaling_client.describe_auto_scaling_groups(AutoScalingGroupNames=[stack_data['asg_spotfleet_id']], MaxRecords=100)
                             if response['AutoScalingGroups'][0]['DesiredCapacity'] == 1:
                                 cloudformation_stack_to_delete.append(stack_data['stack_name'])
-                                compute_nodes_to_delete.append(host)
+                                compute_hosts_to_delete.append(host)
 
 
     if compute_nodes_to_set_offline.__len__() > 0:
@@ -346,7 +400,7 @@ if __name__ == "__main__":
 
     if cloudformation_stack_to_delete.__len__() > 0:
         delete_stack(cloudformation_stack_to_delete)
-        delete_hosts(compute_nodes_to_delete)
+        delete_hosts(compute_hosts_to_delete)
 
     # Now clean any hosts on pbs_nodes IN DOWN STATE, not serving jobs and not in current_ec2_compute_nodes_dns (mostly KeepForever instance we previously deleted)
     legacy_host_to_delete = list(set(pbs_nodes_down) - set(current_ec2_compute_nodes_dns))
@@ -356,7 +410,7 @@ if __name__ == "__main__":
         print(legacy_host_to_delete)
         delete_hosts(legacy_host_to_delete)
 
-    compute_nodes_to_add = list((set(current_ec2_compute_nodes_dns) - set(pbs_nodes)) - set(compute_nodes_to_delete))
+    compute_nodes_to_add = list((set(current_ec2_compute_nodes_dns) - set(pbs_nodes)) - set(compute_hosts_to_delete))
 
     if compute_nodes_to_add.__len__() > 0:
         print('need to qmgr add ' +str(compute_nodes_to_add))

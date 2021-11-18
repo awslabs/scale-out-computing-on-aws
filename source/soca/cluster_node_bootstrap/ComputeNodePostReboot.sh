@@ -1,4 +1,18 @@
 #!/bin/bash -xe
+######################################################################################################################
+#  Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.                                                #
+#                                                                                                                    #
+#  Licensed under the Apache License, Version 2.0 (the "License"). You may not use this file except in compliance    #
+#  with the License. A copy of the License is located at                                                             #
+#                                                                                                                    #
+#      http://www.apache.org/licenses/LICENSE-2.0                                                                    #
+#                                                                                                                    #
+#  or in the 'license' file accompanying this file. This file is distributed on an 'AS IS' BASIS, WITHOUT WARRANTIES #
+#  OR CONDITIONS OF ANY KIND, express or implied. See the License for the specific language governing permissions    #
+#  and limitations under the License.                                                                                #
+######################################################################################################################
+
+set -x
 
 source /etc/environment
 source /root/config.cfg
@@ -24,6 +38,30 @@ if [[ "$SOCA_JOB_TYPE" == "dcv" ]]; then
     sleep 30
 fi
 # End DCV Customization
+
+# Validate user identities
+if [[ "$SOCA_AUTH_PROVIDER" == "activedirectory" ]]; then
+    # Retrieve account with join permission if available, otherwise query SecretManager
+    if [[ -f /apps/soca/$SOCA_CONFIGURATION/cluster_node_bootstrap/ad_automation/join_domain_user.cache ]]; then
+        DS_DOMAIN_ADMIN_USERNAME=$(cat /apps/soca/$SOCA_CONFIGURATION/cluster_node_bootstrap/ad_automation/join_domain_user.cache)
+    else
+        DS_DOMAIN_ADMIN_USERNAME=$($AWS secretsmanager get-secret-value --secret-id $SOCA_CONFIGURATION --query SecretString --output text | grep -oP '"DSDomainAdminUsername": \"(.*?)\"' | sed 's/"DSDomainAdminUsername": //g' | tr -d '"')
+        echo -n $DS_DOMAIN_ADMIN_USERNAME > /apps/soca/$SOCA_CONFIGURATION/cluster_node_bootstrap/ad_automation/join_domain_user.cache
+    fi
+    MAX_ATTEMPT=5
+    CURRENT_ATTEMPT=0
+    ID=$(command -v id)
+    $ID $DS_DOMAIN_ADMIN_USERNAME > /dev/null 2>&1
+    while [[ $? -ne 0 ]] && [[ $CURRENT_ATTEMPT -le $MAX_ATTEMPT ]]
+    do
+        SLEEP_TIME=$(( RANDOM % 30 ))
+        echo "User identity not resolving successfully. Retrying in $SLEEP_TIME seconds... Loop count is: $CURRENT_ATTEMPT/$MAX_ATTEMPT"
+        systemctl restart sssd
+        ((CURRENT_ATTEMPT=CURRENT_ATTEMPT+1))
+        $ID $DS_DOMAIN_ADMIN_USERNAME > /dev/null 2>&1
+    done
+fi
+# End validate user identities
 
 # Begin EFA Customization
 if [[ "$SOCA_JOB_EFA" == "true" ]]; then
@@ -69,7 +107,7 @@ if [[ "$SOCA_FSX_LUSTRE_BUCKET" != 'false' ]] || [[ "$SOCA_FSX_LUSTRE_DNS" != 'f
         echo "FSX_DNS: " $FSX_DNS
         while [[ "$CHECK_FSX_STATUS" != "AVAILABLE" ]] && [[ $LOOP_COUNT -lt 10 ]]
             do
-                echo "FSX does not seems to be on AVAILABLE status yet ... waiting 60 secs"
+                echo "FSX does not seem to be in AVAILABLE status yet ... waiting 60 secs"
                 sleep 60
                 CHECK_FSX_STATUS=$($AWS fsx describe-file-systems --file-system-ids $FSX_ID  --query FileSystems[].Lifecycle --output text)
                 echo $CHECK_FSX_STATUS
@@ -89,59 +127,61 @@ if [[ "$SOCA_FSX_LUSTRE_BUCKET" != 'false' ]] || [[ "$SOCA_FSX_LUSTRE_DNS" != 'f
         GET_FSX_MOUNT_NAME=$($AWS fsx describe-file-systems --file-system-ids $FSX_ID  --query FileSystems[].LustreConfiguration.MountName --output text)
         echo "$SOCA_FSX_LUSTRE_DNS@tcp:/$GET_FSX_MOUNT_NAME $FSX_MOUNTPOINT lustre defaults,noatime,flock,_netdev 0 0" >> /etc/fstab
     fi
-
-    # Install FSx for Lustre Client
-    if [[ "$SOCA_BASE_OS" == "amazonlinux2" ]]; then
-        sudo amazon-linux-extras install -y lustre2.10
-    else
-        kernel=$(uname -r)
-        machine=$(uname -m)
-        echo "Found kernel version: ${kernel} running on: ${machine}"
-        if [[ $kernel == *"3.10.0-957"*$machine ]]; then
-            yum -y install https://downloads.whamcloud.com/public/lustre/lustre-2.10.8/el7/client/RPMS/x86_64/kmod-lustre-client-2.10.8-1.el7.x86_64.rpm
-            yum -y install https://downloads.whamcloud.com/public/lustre/lustre-2.10.8/el7/client/RPMS/x86_64/lustre-client-2.10.8-1.el7.x86_64.rpm
-            REQUIRE_REBOOT=1
-        elif [[ $kernel == *"3.10.0-1062"*$machine ]]; then
-            wget https://fsx-lustre-client-repo-public-keys.s3.amazonaws.com/fsx-rpm-public-key.asc -O /tmp/fsx-rpm-public-key.asc
-            rpm --import /tmp/fsx-rpm-public-key.asc
-            wget https://fsx-lustre-client-repo.s3.amazonaws.com/el/7/fsx-lustre-client.repo -O /etc/yum.repos.d/aws-fsx.repo
-            sed -i 's#7#7.7#' /etc/yum.repos.d/aws-fsx.repo
-            yum clean all
-            yum install -y kmod-lustre-client lustre-client
-            REQUIRE_REBOOT=1
-        elif [[ $kernel == *"3.10.0-1127"*$machine ]]; then
-            wget https://fsx-lustre-client-repo-public-keys.s3.amazonaws.com/fsx-rpm-public-key.asc -O /tmp/fsx-rpm-public-key.asc
-            rpm --import /tmp/fsx-rpm-public-key.asc
-            wget https://fsx-lustre-client-repo.s3.amazonaws.com/el/7/fsx-lustre-client.repo -O /etc/yum.repos.d/aws-fsx.repo
-            sed -i 's#7#7.8#' /etc/yum.repos.d/aws-fsx.repo
-            yum clean all
-            yum install -y kmod-lustre-client lustre-client
-            REQUIRE_REBOOT=1
-        elif [[ $kernel == *"3.10.0-1160"*$machine ]]; then
-            wget https://fsx-lustre-client-repo-public-keys.s3.amazonaws.com/fsx-rpm-public-key.asc -O /tmp/fsx-rpm-public-key.asc
-            rpm --import /tmp/fsx-rpm-public-key.asc
-            wget https://fsx-lustre-client-repo.s3.amazonaws.com/el/7/fsx-lustre-client.repo -O /etc/yum.repos.d/aws-fsx.repo
-            yum clean all
-            yum install -y kmod-lustre-client lustre-client
-            REQUIRE_REBOOT=1
-        elif [[ $kernel == *"4.18.0-193"*$machine ]]; then
-            # FSX for Lustre on aarch64 is supported only on 4.18.0-193
-            wget https://fsx-lustre-client-repo-public-keys.s3.amazonaws.com/fsx-rpm-public-key.asc -O /tmp/fsx-rpm-public-key.asc
-            rpm --import /tmp/fsx-rpm-public-key.asc
-            wget https://fsx-lustre-client-repo.s3.amazonaws.com/centos/7/fsx-lustre-client.repo -O /etc/yum.repos.d/aws-fsx.repo
-            yum clean all
-            yum install -y kmod-lustre-client lustre-client
-            REQUIRE_REBOOT=1
+    
+    # Check if Lustre Client is already installed
+    if [[ -z "$(rpm -qa lustre-client)" ]]; then
+        # Install FSx for Lustre Client
+        if [[ "$SOCA_BASE_OS" == "amazonlinux2" ]]; then
+            sudo amazon-linux-extras install -y lustre2.10
         else
-            echo "ERROR: Can't install FSx for Lustre client as kernel version: ${kernel} isn't matching expected versions: (x86_64: 3.10.0-957, -1062, -1127, -1160, aarch64: 4.18.0-193)!"
+            kernel=$(uname -r)
+            machine=$(uname -m)
+            echo "Found kernel version: ${kernel} running on: ${machine}"
+            if [[ $kernel == *"3.10.0-957"*$machine ]]; then
+                yum -y install https://downloads.whamcloud.com/public/lustre/lustre-2.10.8/el7/client/RPMS/x86_64/kmod-lustre-client-2.10.8-1.el7.x86_64.rpm
+                yum -y install https://downloads.whamcloud.com/public/lustre/lustre-2.10.8/el7/client/RPMS/x86_64/lustre-client-2.10.8-1.el7.x86_64.rpm
+                REQUIRE_REBOOT=1
+            elif [[ $kernel == *"3.10.0-1062"*$machine ]]; then
+                wget https://fsx-lustre-client-repo-public-keys.s3.amazonaws.com/fsx-rpm-public-key.asc -O /tmp/fsx-rpm-public-key.asc
+                rpm --import /tmp/fsx-rpm-public-key.asc
+                wget https://fsx-lustre-client-repo.s3.amazonaws.com/el/7/fsx-lustre-client.repo -O /etc/yum.repos.d/aws-fsx.repo
+                sed -i 's#7#7.7#' /etc/yum.repos.d/aws-fsx.repo
+                yum clean all
+                yum install -y kmod-lustre-client lustre-client
+                REQUIRE_REBOOT=1
+            elif [[ $kernel == *"3.10.0-1127"*$machine ]]; then
+                wget https://fsx-lustre-client-repo-public-keys.s3.amazonaws.com/fsx-rpm-public-key.asc -O /tmp/fsx-rpm-public-key.asc
+                rpm --import /tmp/fsx-rpm-public-key.asc
+                wget https://fsx-lustre-client-repo.s3.amazonaws.com/el/7/fsx-lustre-client.repo -O /etc/yum.repos.d/aws-fsx.repo
+                sed -i 's#7#7.8#' /etc/yum.repos.d/aws-fsx.repo
+                yum clean all
+                yum install -y kmod-lustre-client lustre-client
+                REQUIRE_REBOOT=1
+            elif [[ $kernel == *"3.10.0-1160"*$machine ]]; then
+                wget https://fsx-lustre-client-repo-public-keys.s3.amazonaws.com/fsx-rpm-public-key.asc -O /tmp/fsx-rpm-public-key.asc
+                rpm --import /tmp/fsx-rpm-public-key.asc
+                wget https://fsx-lustre-client-repo.s3.amazonaws.com/el/7/fsx-lustre-client.repo -O /etc/yum.repos.d/aws-fsx.repo
+                yum clean all
+                yum install -y kmod-lustre-client lustre-client
+                REQUIRE_REBOOT=1
+            elif [[ $kernel == *"4.18.0-193"*$machine ]]; then
+                # FSX for Lustre on aarch64 is supported only on 4.18.0-193
+                wget https://fsx-lustre-client-repo-public-keys.s3.amazonaws.com/fsx-rpm-public-key.asc -O /tmp/fsx-rpm-public-key.asc
+                rpm --import /tmp/fsx-rpm-public-key.asc
+                wget https://fsx-lustre-client-repo.s3.amazonaws.com/centos/7/fsx-lustre-client.repo -O /etc/yum.repos.d/aws-fsx.repo
+                yum clean all
+                yum install -y kmod-lustre-client lustre-client
+                REQUIRE_REBOOT=1
+            else
+                echo "ERROR: Can't install FSx for Lustre client as kernel version: ${kernel} isn't matching expected versions: (x86_64: 3.10.0-957, -1062, -1127, -1160, aarch64: 4.18.0-193)!"
+            fi
         fi
     fi
-
 fi
 
 # Tag EBS disks manually as CFN ASG does not support it
 AWS_AVAIL_ZONE=$(curl --silent http://169.254.169.254/latest/meta-data/placement/availability-zone)
-AWS_REGION="`echo "$AWS_AVAIL_ZONE" | sed "s/[a-z]$//"`"
+AWS_REGION=$(echo "$AWS_AVAIL_ZONE" | sed "s/[a-z]$//")
 AWS_INSTANCE_ID=$(curl --silent http://169.254.169.254/latest/meta-data/instance-id)
 EBS_IDS=$(aws ec2 describe-volumes --filters Name=attachment.instance-id,Values="$AWS_INSTANCE_ID" --region $AWS_REGION --query "Volumes[*].[VolumeId]" --out text | tr "\n" " ")
 LOOP_EBS_TAG=0
@@ -176,12 +216,11 @@ source /etc/environment
 DCVGLADMIN=\$(which dcvgladmin)
 \$DCVGLADMIN enable >> /root/enable_dcvgladmin.log 2>&1
 # Disable HyperThreading
-if [[ \"\$SOCA_INSTANCE_HYPERTHREADING\" == \"false\" ]];
-then
-  echo \"Disabling Hyperthreading\" >> \$SOCA_HOST_SYSTEM_LOG/ComputeNodePostReboot.log
-  for cpunum in \$(cat /sys/devices/system/cpu/cpu*/topology/thread_siblings_list | cut -s -d, -f2- | tr ',' '\n' | sort -un);
-    do
-      echo 0 > /sys/devices/system/cpu/cpu\$cpunum/online;
+if [[ \"\$SOCA_INSTANCE_HYPERTHREADING\" == \"false\" ]]; then
+    echo \"Disabling Hyperthreading\" >> \$SOCA_HOST_SYSTEM_LOG/ComputeNodePostReboot.log
+    for cpunum in \$(awk -F'[,-]' '{print \$2}' /sys/devices/system/cpu/cpu*/topology/thread_siblings_list | sort -un);
+    do 
+        echo 0 > /sys/devices/system/cpu/cpu\$cpunum/online;
     done
 fi
 # Make Scratch FS accessible by everyone. ACL still applies at folder level
@@ -215,13 +254,12 @@ else
     fi
 
     # Disable HyperThreading
-    if [[ $SOCA_INSTANCE_HYPERTHREADING == "false" ]];
-    then
+    if [[ $SOCA_INSTANCE_HYPERTHREADING == "false" ]]; then
         echo "Disabling Hyperthreading"  >> $SOCA_HOST_SYSTEM_LOG/ComputeNodePostReboot.log
-        for cpunum in $(cat /sys/devices/system/cpu/cpu*/topology/thread_siblings_list | cut -s -d, -f2- | tr ',' '\n' | sort -un);
-            do
-                echo 0 > /sys/devices/system/cpu/cpu$cpunum/online;
-            done
+        for cpunum in $(awk -F'[,-]' '{print $2}' /sys/devices/system/cpu/cpu*/topology/thread_siblings_list | sort -un);
+        do
+            echo 0 > /sys/devices/system/cpu/cpu$cpunum/online;
+        done
     fi
 
     # Begin USER Customization

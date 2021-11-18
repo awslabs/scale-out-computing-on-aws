@@ -1,15 +1,35 @@
+######################################################################################################################
+#  Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.                                                #
+#                                                                                                                    #
+#  Licensed under the Apache License, Version 2.0 (the "License"). You may not use this file except in compliance    #
+#  with the License. A copy of the License is located at                                                             #
+#                                                                                                                    #
+#      http://www.apache.org/licenses/LICENSE-2.0                                                                    #
+#                                                                                                                    #
+#  or in the 'license' file accompanying this file. This file is distributed on an 'AS IS' BASIS, WITHOUT WARRANTIES #
+#  OR CONDITIONS OF ANY KIND, express or implied. See the License for the specific language governing permissions    #
+#  and limitations under the License.                                                                                #
+######################################################################################################################
+
 import os
 from datetime import timedelta
 import secrets
 from cryptography.fernet import Fernet
+from botocore import config as botocore_config
+import read_secretmanager
 
 basedir = os.path.abspath(os.path.dirname(__file__))
 
 
+def boto_extra_config():
+    aws_solution_user_agent = {"user_agent_extra": "AwsSolution/SO0072/v2.7.0"}
+    return botocore_config.Config(**aws_solution_user_agent)
+
 class Config(object):
+    soca_config = read_secretmanager.get_soca_configuration()
+
     # APP
     DEBUG = False
-    TESTING = False
     USE_PERMANENT_SESSION = True
     PERMANENT_SESSION_LIFETIME = timedelta(days=1)
     SESSION_TYPE = "sqlalchemy"
@@ -35,7 +55,7 @@ class Config(object):
     MAX_SIZE_ONLINE_PREVIEW = 150000000  # in bytes (150mb by default), maximum size of file that can be visualized via the web editor
     MAX_ARCHIVE_SIZE = 150000000  # in bytes (150mb by default), maximum size of archive generated when downloading multiple files at once
     DAILY_BACKUP_COUNT = 15  # Keep 15 latest daily backups
-    KIBANA_JOB_INDEX = "job*"  # Default index to look for /my_activity. Change it something more specific if using more than 1 index with name ~ "job*"
+    KIBANA_JOB_INDEX = "soca-jobs*"  # Default index to look for /my_activity. Change it something more specific if using more than 1 index with name ~ "job*"
 
     # UWSGI SETTINGS
     FLASK_HOST = "127.0.0.1"
@@ -51,7 +71,7 @@ class Config(object):
     COGNITO_APP_SECRET = "<YOUR_APP_SECRET>"
     COGNITO_APP_ID = "<YOUR_APP_ID>"
     COGNITO_ROOT_URL = "<YOUR_WEB_URL>"
-    COGNITO_CALLBACK_URL= "<YOUR_CALLBACK_URL>"
+    COGNITO_CALLBACK_URL = "<YOUR_CALLBACK_URL>"
 
     # DCV General
     DCV_AUTH_DIR = "/var/run/dcvsimpleextauth"
@@ -65,9 +85,9 @@ class Config(object):
     # DCV Linux
     DCV_LINUX_SESSION_COUNT = 4
     DCV_LINUX_ALLOW_INSTANCE_CHANGE = True  # Allow user to change their instance type if their DCV session is stopped
-    DCV_LINUX_HIBERNATE_IDLE_SESSION = 1  # In hours. Windows DCV sessions will be hibernated to save cost if there is no active connection within the time specified. 0 to disable
-    DCV_LINUX_STOP_IDLE_SESSION = 1  # In hours. Windows DCV sessions will be stopped to save cost if there is no active connection within the time specified. 0 to disable
-    DCV_LINUX_TERMINATE_STOPPED_SESSION = 0  # In hours. Stopped Windows DCV will be permanently terminated if user won't restart it within the time specified. 0 to disable
+    DCV_LINUX_HIBERNATE_IDLE_SESSION = 1  # In hours. Linux DCV sessions will be hibernated to save cost if there is no active connection within the time specified. 0 to disable
+    DCV_LINUX_STOP_IDLE_SESSION = 1  # In hours. Linux DCV sessions will be stopped to save cost if there is no active connection within the time specified. 0 to disable
+    DCV_LINUX_TERMINATE_STOPPED_SESSION = 0  # In hours. Stopped Linux DCV will be permanently terminated if user won't restart it within the time specified. 0 to disable
     DCV_LINUX_DEFAULT_SCHEDULE_START = 480  # 8 AM
     DCV_LINUX_DEFAULT_SCHEDULE_STOP = 1140  # 7PM
 
@@ -80,39 +100,78 @@ class Config(object):
     DCV_WINDOWS_AUTOLOGON = True  # enable or disable autologon. If disabled user will have to manually input Windows password
     DCV_WINDOWS_DEFAULT_SCHEDULE_START = 480  # 8 AM
     DCV_WINDOWS_DEFAULT_SCHEDULE_STOP = 1140  # 7PM
-    DCV_WINDOWS_AMI = {"graphics": {"us-east-1": "ami-035a352d4d53371dc",
-                                    "us-east-2": "ami-0e513ab3dde457471",
-                                    "us-west-1": "ami-0a7cc05863d8c367c",
-                                    "us-west-2": "ami-08ec961045e722c40",
-                                    "eu-central-1": "ami-0da51c48c5e5f8e0e",
-                                    "eu-west-1": "ami-0edc64da5375c6c34",
-                                    "eu-west-2": "ami-027221529e78599f9",
-                                    "eu-west-3": "ami-03453f73099c2010b",
-                                    "ap-southeast-1": "ami-0e14ff207c0bd2e5d",
-                                    "ap-southeast-2": "ami-0717865967421051e",
-                                    "ap-northeast-2": "ami-05876cd44f021253d",
-                                    "ap-northeast-1": "ami-0a9fb743d72e209ca",
-                                    "ap-south-1": "ami-09c1d03de366041a4"},
-                       "non-graphics": {"us-east-1": "ami-021660b17250fbc9b",
-                                        "us-east-2": "ami-03d379fd8144e0be7",
-                                        "us-west-1": "ami-0b1004c6b09ece7e7",
-                                        "us-west-2": "ami-0e7e8e1d3f5f5d731",
-                                        "eu-central-1": "ami-0cc92c26fe29f163a",
-                                        "eu-west-1": "ami-039ab4fa2e97f7bf2",
-                                        "eu-west-2": "ami-0d29c4ac068195b68",
-                                        "eu-west-3": "ami-079ec05d5cb6e88cf",
-                                        "ap-southeast-1": "ami-039280ee1e354d8dd",
-                                        "ap-southeast-2": "ami-0eb1dd92d2dd137e9",
-                                        "ap-northeast-2": "ami-09a9fe0bfb14bebb5",
-                                        "ap-northeast-1": "ami-0101345c4c334941c",
-                                        "ap-south-1": "ami-08e852f6df553818a"}}
-    # LDAP
-    LDAP_HOST = "127.0.0.1"
-    LDAP_BASE_DN = "dc=soca,dc=local"
-    LDAP_ADMIN_PASSWORD_FILE = "/root/OpenLdapAdminPassword.txt"
-    LDAP_ADMIN_USERNAME_FILE = "/root/OpenLdapAdminUsername.txt"
-    ROOT_DN = 'CN=' + open(LDAP_ADMIN_USERNAME_FILE, 'r').read().rstrip().lstrip() + ',' + LDAP_BASE_DN
-    ROOT_PW = open(LDAP_ADMIN_PASSWORD_FILE, 'r').read().rstrip().lstrip()
+    DCV_WINDOWS_AMI = {
+        "graphics-amd": {
+            'us-east-1': 'ami-09e9fc6b0563179e0',
+            'ca-central-1': 'ami-02ce5abc7648ae028',
+             'us-east-2': 'ami-0e9dffe211d55ea3d',
+             'us-west-2': 'ami-0ca9facae744b755d',
+             'eu-west-1': 'ami-0b79b4e3a40bdf60e',
+             'eu-west-2': 'ami-049344b657f4fb45c',
+             'eu-central-1': 'ami-01f877801cd06f23f',
+             'ap-northeast-1': 'ami-0f73f5c42d0a2a659'
+        },
+        "graphics": {
+            # Nvidia
+            'us-east-1': 'ami-0feb4b3151fb93b8e',
+             'ca-central-1': 'ami-01a3418587fbf46cb',
+             'us-east-2': 'ami-08dbaa5a7a0d66dd8',
+             'us-west-1': 'ami-044ba431fff097d34',
+             'us-west-2': 'ami-05f7fcc83babd18eb',
+             'eu-west-1': 'ami-0d0fcc08444568042',
+             'eu-west-2': 'ami-0567a305f99abe138',
+             'eu-west-3': 'ami-0df87cbfbf5e29a6d',
+             'eu-central-1': 'ami-042ee7fefd2fbce6c',
+             'eu-north-1': 'ami-095afbb53221a2d16',
+             'ap-northeast-1': 'ami-04bcb220c319e2d0a',
+             'ap-northeast-2': 'ami-0af10927eaebde20b',
+             'ap-southeast-1': 'ami-068263e9c9ca3d9dc',
+             'ap-southeast-2': 'ami-07ce6711013585e48',
+             'ap-south-1': 'ami-0d4304f1bb621ae46',
+             'sa-east-1': 'ami-0c297587e3093aa24'
+        },
+        "non-graphics": {
+             "us-east-1": "ami-0d9299304a5e3cfea",
+             "ca-central-1": "ami-072dfac76bbba7a11",
+             "us-east-2": "ami-08ad93b85eb93fc5c",
+             "us-west-1": "ami-084e38470f6754074",
+             "us-west-2": "ami-0dab9e46b5aa47961",
+             "eu-west-1": "ami-01f10101bddf8ecb8",
+             "eu-west-2": "ami-0c57e129d10d47c39",
+             "eu-west-3": "ami-0433843d3f015e124",
+             "eu-central-1": "ami-01d59b9c6a0031789",
+             "eu-north-1": "ami-04994358f2a0bd112",
+             "ap-northeast-1": "ami-0cebe66543ec56ce2",
+             "ap-northeast-2": "ami-0825e91c25df5a3a1",
+             "ap-southeast-1": "ami-08e0bf49e1b2bbd6c",
+             "ap-southeast-2": "ami-0058a6d6659ce124f",
+             "ap-south-1": "ami-074192a64ff10aa67",
+             "sa-east-1": "ami-02938726ac94b1cea",
+        }
+    }
+
+    SOCA_AUTH_PROVIDER = os.environ.get("SOCA_AUTH_PROVIDER")
+    if SOCA_AUTH_PROVIDER == "openldap":
+        # LDAP
+        LDAP_HOST = soca_config["LdapHost"]
+        LDAP_BASE_DN = soca_config["LdapBase"]
+        LDAP_ADMIN_PASSWORD_FILE = "/root/OpenLdapAdminPassword.txt"
+        LDAP_ADMIN_USERNAME_FILE = "/root/OpenLdapAdminUsername.txt"
+        ROOT_DN = 'CN=' + open(LDAP_ADMIN_USERNAME_FILE, 'r').read().rstrip().lstrip() + ',' + LDAP_BASE_DN
+        ROOT_PW = open(LDAP_ADMIN_PASSWORD_FILE, 'r').read().rstrip().lstrip()
+    else:
+        DOMAIN_NAME = soca_config["DSDomainName"]
+        DIRECTORY_SERVICE_ID = soca_config["DSDirectoryId"]
+        ROOT_USER = soca_config["DSDomainAdminUsername"]
+        ROOT_PW = soca_config["DSDomainAdminPassword"]
+        LDAP_BASE = soca_config["DSDomainBase"]
+        NETBIOS = soca_config["DSDomainNetbios"]
+        DIRECTORY_SERVICE_RESET_LAMBDA_ARN = soca_config["DSResetLambdaFunctionArn"]
+        SUDOERS_GROUP = "AWS Delegated Administrators"
+        SUDOERS_GROUP_DN = f"CN={SUDOERS_GROUP},OU=AWS Delegated Groups,{LDAP_BASE}"
+        # With AD, user and group share the same OU (Domain Users).
+        # To identify group/user, group associated to "user" will be named "user<GROUP_NAME_SUFFIX>"
+    GROUP_NAME_SUFFIX = "socagroup"
 
     # PBS
     PBS_QSTAT = "/opt/pbs/bin/qstat"

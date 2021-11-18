@@ -1,4 +1,16 @@
 #!/usr/bin/bash
+######################################################################################################################
+#  Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.                                                #
+#                                                                                                                    #
+#  Licensed under the Apache License, Version 2.0 (the "License"). You may not use this file except in compliance    #
+#  with the License. A copy of the License is located at                                                             #
+#                                                                                                                    #
+#      http://www.apache.org/licenses/LICENSE-2.0                                                                    #
+#                                                                                                                    #
+#  or in the 'license' file accompanying this file. This file is distributed on an 'AS IS' BASIS, WITHOUT WARRANTIES #
+#  OR CONDITIONS OF ANY KIND, express or implied. See the License for the specific language governing permissions    #
+#  and limitations under the License.                                                                                #
+######################################################################################################################
 
 ##
 #
@@ -54,36 +66,45 @@ case "$1" in
 
 
     status
-        if [[ -z $status_check_process ]]; then
-            echo 'Starting SOCA'
-            if [[ ! -f flask_secret_key.txt ]]; then
-                echo 'No Flask Key detected, creating new one ...'
-                cat /dev/urandom | tr -dc 'a-zA-Z0-9' | fold -w 32 | head -n 1 > flask_secret_key.txt
-                chmod 600 flask_secret_key.txt
-            fi
-            if [[ ! -f dcv_secret_key.txt ]]; then
-                echo 'No dcv Key detected, creating new one ...'
-                # /!\ ATTENTION
-                # DCV Secret Key used to authenticate DCV sessions via /api/system/dcv_authenticator.
-                # If you delete/change this value, your existing sessions will become inaccessible and your user must re-create them
-                dd if=/dev/urandom bs=32 count=1 2>/dev/null | openssl base64 > dcv_secret_key.txt
-                chmod 600 dcv_secret_key.txt
-            fi
-
-            export SOCA_FLASK_SECRET_KEY=$(cat flask_secret_key.txt)
-            export SOCA_DCV_TOKEN_SYMMETRIC_KEY=$(cat dcv_secret_key.txt)
-
-            # Creating unique, random and temp credentials
-            export SOCA_FLASK_FERNET_KEY=$(dd if=/dev/urandom bs=32 count=1 2>/dev/null | openssl base64)
-            export SOCA_FLASK_API_ROOT_KEY=$(cat /dev/urandom | tr -dc 'a-zA-Z0-9' | fold -w 32 | head -n 1)
-
-            # Launching process
-            $UWSGI_BIN --master --https $UWSGI_BIND,cert.crt,cert.key --wsgi-file $UWSGI_FILE --processes $UWSGI_PROCESSES --threads $UWSGI_THREADS --daemonize logs/uwsgi.log --enable-threads --buffer-size $BUFFER_SIZE --check-static /apps/soca/$SOCA_CONFIGURATION/cluster_web_ui/static
-
-        else
-           echo 'SOCA is already running with PIDs: ' $status_check_process
-           echo 'Run "socawebui.sh stop" first.'
+    mkdir -p keys
+    chmod 600 keys
+    if [[ -z $status_check_process ]]; then
+        echo 'Starting SOCA'
+        if [[ ! -f keys/flask_secret_key.txt ]]; then
+            echo 'No Flask Key detected, creating new one ...'
+            cat /dev/urandom | tr -dc 'a-zA-Z0-9' | fold -w 32 | head -n 1 > keys/flask_secret_key.txt
+            chmod 600 keys/flask_secret_key.txt
         fi
+        if [[ ! -f keys/dcv_secret_key.txt ]]; then
+            echo 'No dcv Key detected, creating new one ...'
+            # /!\ ATTENTION
+            # DCV Secret Key used to authenticate DCV sessions via /api/system/dcv_authenticator.
+            # If you delete/change this value, your existing sessions will become inaccessible and your user must re-create them
+            dd if=/dev/urandom bs=32 count=1 2>/dev/null | openssl base64 > keys/dcv_secret_key.txt
+            chmod 600 keys/dcv_secret_key.txt
+        fi
+
+        export SOCA_FLASK_SECRET_KEY=$(cat keys/flask_secret_key.txt)
+        export SOCA_DCV_TOKEN_SYMMETRIC_KEY=$(cat keys/dcv_secret_key.txt)
+
+        # Creating unique, random and temp credentials
+        export SOCA_FLASK_FERNET_KEY=$(dd if=/dev/urandom bs=32 count=1 2>/dev/null | openssl base64)
+        cat /dev/urandom | tr -dc 'a-zA-Z0-9' | fold -w 32 | head -n 1 > keys/admin_api_key.txt
+        chmod 600 keys/admin_api_key.txt
+        export SOCA_FLASK_API_ROOT_KEY=$(cat keys/admin_api_key.txt)
+
+        # Changing user password when using activedirectory is managed by a separate lambda to prevent giving scheduler role permission to execute aws ds reset-user-password
+        if [[ "$SOCA_AUTH_PROVIDER" == "activedirectory" ]]; then
+          export SOCA_DS_RESET_PW_LAMBDA=$(cat /root/LambdaActiveDirectoryPasswordResetArn)
+        fi
+
+        # Launching process
+        $UWSGI_BIN --master --https $UWSGI_BIND,cert.crt,cert.key --wsgi-file $UWSGI_FILE --processes $UWSGI_PROCESSES --threads $UWSGI_THREADS --daemonize logs/uwsgi.log --enable-threads --buffer-size $BUFFER_SIZE --check-static /apps/soca/$SOCA_CONFIGURATION/cluster_web_ui/static
+
+    else
+       echo 'SOCA is already running with PIDs: ' $status_check_process
+        echo 'Run "socawebui.sh stop" first.'
+    fi
 
     ;;
     ## STOP

@@ -83,10 +83,10 @@ Scale-Out Computing on AWS also supports AWS Budget and [let you create budgets]
 Lastly, Scale-Out Computing on AWS let you create queue ACLs or instance restriction at a queue level. [Refer to this link for all best practices in order to control your HPC cost on AWS and prevent overspend](budget/prevent-overspend-hpc-cost-on-aws-soca/).
 
 ## Detailed Cluster Analytics 
-Scale-Out Computing on AWS [includes ElasticSearch and automatically ingest job and hosts data](analytics/monitor-cluster-activity/) in real-time for accurate visualization of your cluster activity.
+Scale-Out Computing on AWS [includes OpenSearch (formerly Elasticsearch) and automatically ingest job and hosts data](analytics/monitor-cluster-activity/) in real-time for accurate visualization of your cluster activity.
 
 !!!success "Don't know where to start?"
-    Scale-Out Computing on AWS [includes dashboard examples](analytics/build-kibana-dashboards/) if you are not familiar with ElasticSearch or Kibana.
+    Scale-Out Computing on AWS [includes dashboard examples](analytics/build-kibana-dashboards/) if you are not familiar with OpenSearch (formerly Elasticsearch) or Kibana.
     
 ## 100% Customizable
 Scale-Out Computing on AWS is built entirely on top of AWS and can be customized by users as needed. Most of the logic is based of CloudFormation templates, shell scripts and python code.

@@ -1,9 +1,23 @@
+######################################################################################################################
+#  Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.                                                #
+#                                                                                                                    #
+#  Licensed under the Apache License, Version 2.0 (the "License"). You may not use this file except in compliance    #
+#  with the License. A copy of the License is located at                                                             #
+#                                                                                                                    #
+#      http://www.apache.org/licenses/LICENSE-2.0                                                                    #
+#                                                                                                                    #
+#  or in the 'license' file accompanying this file. This file is distributed on an 'AS IS' BASIS, WITHOUT WARRANTIES #
+#  OR CONDITIONS OF ANY KIND, express or implied. See the License for the specific language governing permissions    #
+#  and limitations under the License.                                                                                #
+######################################################################################################################
+
 import config
 from cryptography.fernet import Fernet
 from flask_restful import Resource, reqparse
 from flask import request
 import logging
 from flask import Response
+import read_secretmanager
 import base64
 import ast
 import errors
@@ -26,17 +40,27 @@ def decrypt(encrypted_text):
 class DcvAuthenticator(Resource):
     def post(self):
         """
-        Authenticate DCV sessions
+        Authenticate a DCV desktop via authToken
         ---
         tags:
-          - System
+          - DCV
+        parameters:
+          - in: body
+            name: body
+            schema:
+              required:
+                - authenticationToken
+              properties:
+                authenticationToken:
+                  type: string
+                  description: DCV auth token
         responses:
           200:
             description: Pair of user/token is valid
           401:
             description: Invalid user/token pair
         """
-        logger.info("DCV Auth")
+        logger.info("DCV Authentication")
         parser = reqparse.RequestParser()
         parser.add_argument('sessionId', type=str, location='form')
         parser.add_argument('authenticationToken', type=str, location='form')
@@ -92,7 +116,16 @@ class DcvAuthenticator(Resource):
                 error = True
 
         if error is False and user is not False:
-            xml_response = '<auth result="yes"><username>' + user +'</username></auth>'
+            if session_info["system"].lower() == "windows":
+                soca_config = read_secretmanager.get_soca_configuration()
+                if soca_config["AuthProvider"] == "activedirectory":
+                    xml_response = f'<auth result="yes"><username>{soca_config["DSDomainNetbios"]}\\{user}</username></auth>'
+                else:
+                    xml_response = '<auth result="yes"><username>' + user + '</username></auth>'
+
+            else:
+                xml_response = '<auth result="yes"><username>' + user +'</username></auth>'
+
             status = 200
             logger.info("Successfully authenticated session")
         else:

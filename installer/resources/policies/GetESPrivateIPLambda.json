@@ -1,0 +1,30 @@
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Action": [
+                        "logs:CreateLogGroup",
+                        "logs:CreateLogStream",
+                        "logs:DeleteLogStream",
+                        "logs:PutLogEvents"
+                    ],
+            "Resource": "arn:%%AWS_PARTITION%%:logs:%%AWS_REGION%%:%%AWS_ACCOUNT_ID%%:log-group:/aws/lambda/%%CLUSTER_ID%%*GetESPrivateIPLambda*",
+            "Effect": "Allow",
+            "Sid": "CloudWatchLogsPermissions"
+        },
+        {
+            "Action": [
+                "ec2:DescribeNetworkInterfaces"
+            ],
+            "Resource": "*",
+            "Effect": "Allow",
+            "Condition": {
+                "ForAllValues:ArnEqualsIfExists": {
+                    "ec2:Vpc": "arn:%%AWS_PARTITION%%:ec2:%%AWS_REGION%%:*:vpc/%%VPC_ID%%"
+                }
+            },            
+            "Sid": "DescribeNetworkInterfaces"
+        }
+    ]
+}
+

@@ -1,3 +1,16 @@
+######################################################################################################################
+#  Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.                                                #
+#                                                                                                                    #
+#  Licensed under the Apache License, Version 2.0 (the "License"). You may not use this file except in compliance    #
+#  with the License. A copy of the License is located at                                                             #
+#                                                                                                                    #
+#      http://www.apache.org/licenses/LICENSE-2.0                                                                    #
+#                                                                                                                    #
+#  or in the 'license' file accompanying this file. This file is distributed on an 'AS IS' BASIS, WITHOUT WARRANTIES #
+#  OR CONDITIONS OF ANY KIND, express or implied. See the License for the specific language governing permissions    #
+#  and limitations under the License.                                                                                #
+######################################################################################################################
+
 '''
 Update ses_sender_email with your SES user. https://awslabs.github.io/scale-out-computing-on-aws/tutorials/job-start-stop-email-notification/ for help
 If SES verified your domain, you can use any address @yourdomain
@@ -23,6 +36,9 @@ import socket
 import re
 import os
 
+# User Variables - Change them
+ses_sender_email = '<SES_SENDER_EMAIL_ADDRESS_HERE>'
+ses_region = '<YOUR_SES_REGION_HERE>'
 
 def send_notification(subject, email_message, job_owner_email_address):
     try:
@@ -50,15 +66,29 @@ def send_notification(subject, email_message, job_owner_email_address):
 def find_email(job_owner):
     # Ideally we should be using python-ldap, but facing some issue importing it with PBS env as PBS py is still py2
     # Will migrate to python-ldap when pbspro supports py3 natively
-    cmd = 'ldapsearch -x -b "ou=People,dc=soca,dc=local" -LLL "(uid='+job_owner+')" mail | grep "mail:" | cut -d " " -f 2'
-    email_address = os.popen(cmd).read() # nosec
+    if os.path.isdir("/apps/soca/%SOCA_CONFIGURATION/cluster_node_bootstrap/ad_automation"):
+        pbs.logmsg(pbs.LOG_DEBUG, 'queue_acl: find_users_in_ldap_group: Detected Active Directory')
+        # Active Directory
+        with open('/apps/soca/%SOCA_CONFIGURATION/cluster_node_bootstrap/ad_automation/join_domain_user.cache', 'r') as f:
+            ad_user = f.read()
+        with open('/apps/soca/%SOCA_CONFIGURATION/cluster_node_bootstrap/ad_automation/join_domain.cache', 'r') as f:
+            ad_password = f.read()
+        with open('/apps/soca/%SOCA_CONFIGURATION/cluster_node_bootstrap/ad_automation/domain_name.cache', 'r') as f:
+            domain_name = f.read()
+            search_base = "DC="+",DC=".join(domain_name.split("."))
+
+        get_email = 'ldapsearch -x -h "' + domain_name + '" -D "' + ad_user + '@' + domain_name + '" -w "' + ad_password + '" -b "' + search_base + '" "cn=' + job_owner + '" | grep "mail:" | cut -d " " -f2'
+        pbs.logmsg(pbs.LOG_DEBUG, 'notify_job_status: generated get_email command: ' + get_email.replace(ad_password, "<REDACTED_PASSWORD>"))
+    else:
+        # OpenLdap
+        pbs.logmsg(pbs.LOG_DEBUG, 'queue_acl: find_users_in_ldap_group: Detected OpenLDAP')
+        get_email = 'ldapsearch -x -LLL uid=' + job_owner + ' | grep "mail:" | cut -d " " -f2'
+        pbs.logmsg(pbs.LOG_DEBUG, 'notify_job_status: generated get_email command: ' + get_email)
+
+    email_address = os.popen(get_email).read() # nosec
     pbs.logmsg(pbs.LOG_DEBUG, 'notify_job: Detected email for ' + job_owner + ' : ' + email_address)
     return email_address.replace('\n', '')
 
-
-# User Variables
-ses_sender_email = '<SES_SENDER_EMAIL_ADDRESS_HERE>'
-ses_region = '<YOUR_SES_REGION_HERE>'
 
 # Begin Logic
 pbs.logmsg(pbs.LOG_DEBUG, 'notify_job_status: Start')

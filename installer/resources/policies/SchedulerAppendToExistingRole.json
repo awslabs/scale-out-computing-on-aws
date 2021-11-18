@@ -1,0 +1,60 @@
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Action": [
+                "elasticloadbalancing:DeleteRule"
+            ],
+            "Resource": "arn:%%AWS_PARTITION%%:elasticloadbalancing:%%AWS_REGION%%:%%AWS_ACCOUNT_ID%%:listener-rule/app/%%CLUSTER_ID%%*/*/*",
+            "Effect": "Allow"
+        },
+        {
+            "Action": [
+                "elasticloadbalancing:CreateRule"
+            ],
+            "Resource": "arn:%%AWS_PARTITION%%:elasticloadbalancing:%%AWS_REGION%%:%%AWS_ACCOUNT_ID%%:listener/app/%%CLUSTER_ID%%*/*/*",
+            "Effect": "Allow"
+        },
+       {
+            "Condition": {
+                "StringLikeIfExists": {
+                    "autoscaling:LaunchConfigurationName": "%%CLUSTER_ID%%*"
+                }
+            },
+            "Action": [
+                "autoscaling:UpdateAutoScalingGroup",
+                "autoscaling:DeleteAutoScalingGroup",
+                "autoscaling:CreateAutoScalingGroup",
+                "autoscaling:DetachInstances",
+                "ec2:DeleteLaunchTemplate",
+                "ec2:CreateLaunchTemplate",
+                "fsx:CreateDataRepositoryTask"
+            ],
+            "Resource": "*",
+            "Effect": "Allow"
+        },
+        {
+            "Action": [
+                "lambda:InvokeFunction"
+            ],
+            "Resource": [
+                "arn:%%AWS_PARTITION%%:lambda:%%AWS_REGION%%:%%AWS_ACCOUNT_ID%%:function:%%CLUSTER_ID%%-*"
+            ],
+            "Effect": "Allow"
+        },
+        {
+            "Condition": {
+                "StringLike": {
+                    "aws:ResourceTag/soca:ClusterId": "%%CLUSTER_ID%%*"
+                }
+            },
+            "Action": [
+                "fsx:DeleteFileSystem"
+            ],
+            "Resource": [
+                "arn:%%AWS_PARTITION%%:fsx:%%AWS_REGION%%:%%AWS_ACCOUNT_ID%%:file-system/*"
+            ],
+            "Effect": "Allow"
+        }
+    ]
+}

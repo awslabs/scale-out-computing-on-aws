@@ -50,6 +50,13 @@
                                   <h6 class="m-0 font-weight-bold text-primary">Add New User</h6>
                               </div>
                               <div class="card-body">
+                              {%  if directory == "activedirectory" %}
+                                   <div class="alert alert-primary" role="alert">
+                                        <strong>Important: Active Directory</strong> <br>
+                                       Creating an user on Active Directory can take up to 1 minute. Do not refresh the page while SOCA is creating a new account.
+                                   </div>
+                              {% endif %}
+
                                   <form action="/admin/create_user" method="post"
                                     oninput='password_verif.setCustomValidity(password_verif.value != password.value ? "Passwords do not match." : "")'>
                                       <div class="form-group">

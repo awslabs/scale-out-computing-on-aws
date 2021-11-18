@@ -1,3 +1,16 @@
+######################################################################################################################
+#  Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.                                                #
+#                                                                                                                    #
+#  Licensed under the Apache License, Version 2.0 (the "License"). You may not use this file except in compliance    #
+#  with the License. A copy of the License is located at                                                             #
+#                                                                                                                    #
+#      http://www.apache.org/licenses/LICENSE-2.0                                                                    #
+#                                                                                                                    #
+#  or in the 'license' file accompanying this file. This file is distributed on an 'AS IS' BASIS, WITHOUT WARRANTIES #
+#  OR CONDITIONS OF ANY KIND, express or implied. See the License for the specific language governing permissions    #
+#  and limitations under the License.                                                                                #
+######################################################################################################################
+
 import config
 import subprocess
 from flask import request
@@ -7,6 +20,7 @@ import base64
 from decorators import private_api
 from requests import get
 import json
+import ast
 import shlex
 import sys
 import errors
@@ -56,7 +70,13 @@ class Job(Resource):
             try:
                 get_job_info = subprocess.check_output(shlex.split(qstat_command))
                 try:
-                    job_info = json.loads(((get_job_info.decode('utf-8')).rstrip().lstrip()))
+                    sanitize_input = get_job_info.decode("utf-8")
+                    for match in re.findall('"project":(\d+),', sanitize_input, re.MULTILINE):
+                        # Clear case where project starts with digits to prevent leading zero errors
+                        print(f'Detected "project":{match}, > Will be replaced to prevent int leading zero error')
+                        sanitize_input = sanitize_input.replace(f'"project":{match},', f'"project":"{match}",')
+
+                    job_info = ast.literal_eval(sanitize_input)
                 except Exception as err:
                     return {"success": False, "message": "Unable to retrieve this job. Job may have terminated. Error: " + str(job_info)}, 210
 
@@ -142,18 +162,19 @@ class Job(Resource):
                     job_output_path = args['input_file_path']
                 else:
                     # create new job directory if needed
+                    group_ownership = f"{request_user}{config.Config.GROUP_NAME_SUFFIX}"
                     job_output_folder = config.Config.USER_HOME + "/" + request_user + "/soca_job_output/"
                     job_output_path = job_output_folder + sanitized_job_name + "_" + str(random_id)
                     os.makedirs(job_output_path)
                     os.chmod(job_output_folder, 0o700)
-                    shutil.chown(job_output_folder, user=request_user, group=request_user)
-                    shutil.chown(job_output_path, user=request_user, group=request_user)
+                    shutil.chown(job_output_folder, user=request_user, group=group_ownership)
+                    shutil.chown(job_output_path, user=request_user, group=group_ownership)
                     os.chmod(job_output_path, 0o700)
 
                 os.chdir(job_output_path)
                 with open(job_submit_file, "w") as text_file:
                     text_file.write(payload)
-                shutil.chown(job_output_path + "/" + job_submit_file, user=request_user, group=request_user)
+                shutil.chown(job_output_path + "/" + job_submit_file, user=request_user, group=group_ownership)
                 os.chmod(job_output_path + "/"+job_submit_file, 0o700)
                 submit_job_command = interpreter + " " + job_submit_file
 
@@ -206,10 +227,10 @@ class Job(Resource):
             description: Backend error
         """
         parser = reqparse.RequestParser()
-        parser.add_argument('job_id', type=str, location='args')
+        parser.add_argument('job_id', type=str, location='form')
         args = parser.parse_args()
         job_id = args['job_id']
-        if job_id is None:
+        if job_id is None or job_id == "":
             return errors.all_errors("CLIENT_MISSING_PARAMETER", "job_id (str) parameter is required")
 
         get_job_info = get(config.Config.FLASK_ENDPOINT + "/api/scheduler/job",

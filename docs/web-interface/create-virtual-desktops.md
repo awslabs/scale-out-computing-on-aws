@@ -148,7 +148,7 @@ TIMEZONE = "UTC"  # Change to match your local timezone if needed. See https://e
 
 DCV_FORCE_INSTANCE_HIBERNATE_SUPPORT = False  # If True, users can only provision instances that support hibernation
 DCV_TOKEN_SYMMETRIC_KEY = os.environ["SOCA_DCV_TOKEN_SYMMETRIC_KEY"]  # used to encrypt/decrypt and validate DCV session auth
-DCV_BLACKLIST_INSTANCE_TYPE = ['metal', 'nano', 'micro', 'p3', 'p2']  # This instance type won't be visible on the dropdown menu
+DCV_RESTRICTED_INSTANCE_TYPE = ['metal', 'nano', 'micro', 'p3', 'p2']  # This instance type won't be visible on the dropdown menu
 DCV_IDLE_CPU_THRESHOLD = 15  # SOCA will NOT hibernate/stop an instance if current CPU usage % is over this value
 ALLOW_DOWNLOAD_FROM_PORTAL = True  # Give user ability to download files from the web portal
 

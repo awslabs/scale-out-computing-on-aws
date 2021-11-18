@@ -2,11 +2,11 @@
 
 ## Step 1: Open My Activity
 
-Return to the SOCA web UI and click on the **My Activity** section on the left sidebar and wait a minute for Elasticsearch Kibana dashboard to load.
+Return to the SOCA web UI and click on the **My Activity** section on the left sidebar and wait a minute for OpenSearch (formerly Elasticsearch) Kibana dashboard to load.
 
 ![](../imgs/my-activity.png)
 
-The Elasticsearch dashboard attempts to filter the jobs view for the logged-in user. However, data is refereshed every hour from the SOCA cluster to Elasticsearch. If you see **No results match your search criteria**, delete the user filter from the search field.
+The OpenSearch (formerly Elasticsearch) dashboard attempts to filter the jobs view for the logged-in user. However, data is refereshed every hour from the SOCA cluster to OpenSearch (formerly Elasticsearch). If you see **No results match your search criteria**, delete the user filter from the search field.
 
 ![](../imgs/my-activity-remove-user.png)
 
@@ -23,7 +23,7 @@ If you click on the small arrow to the left of the date/time, you'll see all met
 
 ## Step 2: Explore Cluster Dashboard
 
-Above the chart click on the three-horizontal bars (a.k.a hamburger button) next to Elasticsearch Discover label.
+Above the chart click on the three-horizontal bars (a.k.a hamburger button) next to OpenSearch (formerly Elasticsearch) Discover label.
 
 ![](../imgs/analytics-menu.png)
 

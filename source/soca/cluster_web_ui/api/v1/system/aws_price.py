@@ -1,10 +1,23 @@
+######################################################################################################################
+#  Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.                                                #
+#                                                                                                                    #
+#  Licensed under the Apache License, Version 2.0 (the "License"). You may not use this file except in compliance    #
+#  with the License. A copy of the License is located at                                                             #
+#                                                                                                                    #
+#      http://www.apache.org/licenses/LICENSE-2.0                                                                    #
+#                                                                                                                    #
+#  or in the 'license' file accompanying this file. This file is distributed on an 'AS IS' BASIS, WITHOUT WARRANTIES #
+#  OR CONDITIONS OF ANY KIND, express or implied. See the License for the specific language governing permissions    #
+#  and limitations under the License.                                                                                #
+######################################################################################################################
+
 from flask_restful import Resource, reqparse
 import logging
 import boto3
 import ast
 import re
 import math
-
+import config
 logger = logging.getLogger("api")
 
 
@@ -30,7 +43,7 @@ def get_compute_pricing(ec2_instance_type):
                       "us-west-2":  "USW2-",
                       "sa-east-1":  "SAE1-",
     }
-    client_pricing = boto3.client("pricing", region_name="us-east-1")
+    client_pricing = boto3.client("pricing", region_name="us-east-1", config=config.boto_extra_config())
     session = boto3.session.Session()
     region = session.region_name
     response = client_pricing.get_products(
@@ -136,7 +149,10 @@ class AwsPrice(Resource):
             if cpus_count_pattern:
                 cpu_per_system = int(cpus_count_pattern.group(1)) * 2
             else:
-                cpu_per_system = 2
+                if re.search(r'[.](xlarge)', instance_type):
+                    cpu_per_system = 2
+                else:
+                    cpu_per_system = 1
             nodect = math.ceil(int(cpus) / cpu_per_system)
 
         # Calculate EBS Storage (storage * ebs_price * sim_time_in_secs / (walltime_seconds * 30 days) * number of nodes

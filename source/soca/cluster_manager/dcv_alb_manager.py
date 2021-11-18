@@ -1,3 +1,16 @@
+######################################################################################################################
+#  Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.                                                #
+#                                                                                                                    #
+#  Licensed under the Apache License, Version 2.0 (the "License"). You may not use this file except in compliance    #
+#  with the License. A copy of the License is located at                                                             #
+#                                                                                                                    #
+#      http://www.apache.org/licenses/LICENSE-2.0                                                                    #
+#                                                                                                                    #
+#  or in the 'license' file accompanying this file. This file is distributed on an 'AS IS' BASIS, WITHOUT WARRANTIES #
+#  OR CONDITIONS OF ANY KIND, express or implied. See the License for the specific language governing permissions    #
+#  and limitations under the License.                                                                                #
+######################################################################################################################
+
 '''
 This Script Manage ALB rules for DCV hosts
 '''
@@ -5,9 +18,7 @@ This Script Manage ALB rules for DCV hosts
 import os
 import random
 import sys
-
 import boto3
-
 sys.path.append(os.path.dirname(__file__))
 import configuration
 
@@ -180,12 +191,12 @@ def return_alb_listener(alb_arn):
 
 
 if __name__ == "__main__":
-    aligo_configuration = configuration.get_aligo_configuration()
-    cluster_id = aligo_configuration['ClusterId']
-    vpc_id = aligo_configuration['VpcId']
-    alb_arn = aligo_configuration['LoadBalancerArn']
-    elbv2_client = boto3.client('elbv2')
-    ec2_client = boto3.client('ec2')
+    soca_configuration = configuration.get_soca_configuration()
+    cluster_id = soca_configuration['ClusterId']
+    vpc_id = soca_configuration['VpcId']
+    alb_arn = soca_configuration['LoadBalancerArn']
+    elbv2_client = boto3.client('elbv2', config=configuration.boto_extra_config())
+    ec2_client = boto3.client('ec2', config=configuration.boto_extra_config())
     dcv_queues = ['desktop']
 
     listener_arn = return_alb_listener(alb_arn)

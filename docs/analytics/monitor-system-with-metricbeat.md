@@ -16,7 +16,7 @@ MetricBeat is disabled by default. To enable it either submit a job with `system
 
 ### Access MetricBeat data
 
-MetricBeat is automatically integrated with your ElasticSearch cluster. Click 'Dashboard' and search for "MetricBeat System"
+MetricBeat is automatically integrated with your OpenSearch (formerly Elasticsearch) cluster. Click 'Dashboard' and search for "MetricBeat System"
 
 ![](../imgs/metricbeat-1.png)
 

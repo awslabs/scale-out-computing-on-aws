@@ -55,7 +55,7 @@ You can pre-install the packages listed on [https://github.com/awslabs/scale-out
         - `yum install -y $(echo ${SSSD_PKGS[*]})`
     
     ____
-    [Here is an example](https://github.com/awslabs/scale-out-computing-on-aws/blob/main/source/scripts/Scheduler.sh#L34) of how you can install packages listed in an array in bash.
+    [Here is an example](https://github.com/awslabs/scale-out-computing-on-aws/blob/main/source/scripts/Scheduler.sh#L27) of how you can install packages listed in an array in bash.
 
 
 
@@ -142,7 +142,10 @@ brctl delbr virbr0
 
 Then, make sure you do not have iptables (`iptables -L`) running. If needed, disable `firewalld` by running `/bin/systemctl disable firewalld`
 
-   
+#### 3.6: Create soca_preinstalled_packages.log
+ 
+Create an empty file located at /root/soca_preinstalled_packages.log for example, run `touch /root/soca_preinstalled_packages.log`. This would enable compute node initialization scripts to skip the installation of all the required packages since these are now pre-installed in the AMI.
+
 
 ### Step 4: Create your AMI
 Once you are done, go back to EC2 console, locate your instance and click "Actions > Image > Create Image"

@@ -3,6 +3,14 @@ __pycache__/
 *.py[cod]
 *$py.class
 
+# SOCA Specific
+installer/resources/src/venv*
+installer/dist*
+installer/resources/src/installer_history.txt
+installer/resources/src/cdk.context.json
+installer/resources/src/cdk.out/
+installer/resources/src/envs/
+
 # C extensions
 *.so
 
@@ -116,3 +124,9 @@ cfg.tmp.json
 # OS generated files #
 .DS_Store
 .DS_Store?
+
+# VScode
+.vscode/
+
+# Node
+**/node_modules/**

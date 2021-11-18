@@ -1,0 +1,53 @@
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Action": [
+                "s3:GetObject",
+                "s3:ListBucket"
+            ],
+            "Resource": [
+                "arn:%%AWS_PARTITION%%:s3:::dcv-license.%%AWS_REGION%%/*",
+                "arn:%%AWS_PARTITION%%:s3:::ec2-linux-nvidia-drivers/*",
+                "arn:%%AWS_PARTITION%%:s3:::ec2-linux-nvidia-drivers",
+                "arn:%%AWS_PARTITION%%:s3:::nvidia-gaming/*",
+                "arn:%%AWS_PARTITION%%:s3:::nvidia-gaming-drivers",
+                "arn:%%AWS_PARTITION%%:s3:::ec2-amd-linux-drivers/*",
+                "arn:%%AWS_PARTITION%%:s3:::ec2-amd-linux-drivers"
+            ],
+            "Effect": "Allow"
+        },
+        {
+            "Action": [
+                "ses:SendEmail"
+            ],
+            "Resource": [
+                "arn:%%AWS_PARTITION%%:ses:*:%%AWS_ACCOUNT_ID%%:identity*"
+            ],
+            "Effect": "Allow"
+        },
+        {
+            "Action": [
+                "ec2:CreateTags"
+            ],
+            "Resource": [
+                "arn:%%AWS_PARTITION%%:ec2:*:%%AWS_ACCOUNT_ID%%:volume/*",
+                "arn:%%AWS_PARTITION%%:ec2:*:%%AWS_ACCOUNT_ID%%:network-interface/*"
+            ],
+            "Effect": "Allow"
+        },
+        {
+            "Action": [
+                "ec2:DescribeVolumes",
+                "ec2:DescribeNetworkInterfaces",
+                "fsx:CreateDataRepositoryTask",
+                "fsx:DescribeFileSystems",
+                "tag:GetResources",
+                "tag:GetTagValues",
+                "tag:GetTagKeys"
+            ],
+            "Resource": "*",
+            "Effect": "Allow"
+        }
+    ]
+}

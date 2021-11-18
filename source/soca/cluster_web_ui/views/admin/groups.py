@@ -1,10 +1,22 @@
+######################################################################################################################
+#  Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.                                                #
+#                                                                                                                    #
+#  Licensed under the Apache License, Version 2.0 (the "License"). You may not use this file except in compliance    #
+#  with the License. A copy of the License is located at                                                             #
+#                                                                                                                    #
+#      http://www.apache.org/licenses/LICENSE-2.0                                                                    #
+#                                                                                                                    #
+#  or in the 'license' file accompanying this file. This file is distributed on an 'AS IS' BASIS, WITHOUT WARRANTIES #
+#  OR CONDITIONS OF ANY KIND, express or implied. See the License for the specific language governing permissions    #
+#  and limitations under the License.                                                                                #
+######################################################################################################################
+
 import logging
 import config
 from flask import render_template, Blueprint, request, redirect, session, flash
 from requests import get, post, delete, put
 from models import ApiKeys
 from decorators import login_required, admin_only
-
 logger = logging.getLogger("application")
 admin_groups = Blueprint('admin_groups', __name__, template_folder='templates')
 
@@ -70,6 +82,7 @@ def delete_group():
         flash("You cannot delete your own group.", "error")
         return redirect('/admin/groups')
 
+
     group_to_delete = delete(config.Config.FLASK_ENDPOINT + "/api/ldap/group",
                              headers={"X-SOCA-TOKEN": session["api_key"],
                                       "X-SOCA-USER": session["user"]},
@@ -82,6 +95,7 @@ def delete_group():
         flash('Could not delete group: ' + group + '. Check trace: ' + str(group_to_delete.text), "error")
 
     return redirect('/admin/groups')
+
 
 @admin_groups.route('/admin/check_group', methods=['POST'])
 @login_required

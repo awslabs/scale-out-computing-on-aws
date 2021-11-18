@@ -1,3 +1,16 @@
+######################################################################################################################
+#  Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.                                                #
+#                                                                                                                    #
+#  Licensed under the Apache License, Version 2.0 (the "License"). You may not use this file except in compliance    #
+#  with the License. A copy of the License is located at                                                             #
+#                                                                                                                    #
+#      http://www.apache.org/licenses/LICENSE-2.0                                                                    #
+#                                                                                                                    #
+#  or in the 'license' file accompanying this file. This file is distributed on an 'AS IS' BASIS, WITHOUT WARRANTIES #
+#  OR CONDITIONS OF ANY KIND, express or implied. See the License for the specific language governing permissions    #
+#  and limitations under the License.                                                                                #
+######################################################################################################################
+
 import logging
 import config
 from flask import render_template, Blueprint, request, redirect, session, flash
@@ -5,7 +18,7 @@ from requests import get, post, delete
 from models import ApiKeys
 from decorators import login_required, admin_only
 import subprocess
-
+import os
 logger = logging.getLogger("application")
 admin_users = Blueprint('admin_users', __name__, template_folder='templates')
 
@@ -27,7 +40,10 @@ def index():
     except Exception as err:
         logger.error("Unable to retrieve shells installed on the system")
         all_shells = ["/bin/bash"]
-    return render_template('admin/users.html', user=session['user'], all_users=sorted(all_users), all_shells=all_shells)
+    return render_template('admin/users.html', user=session['user'],
+                           all_users=sorted(all_users),
+                           all_shells=all_shells,
+                           directory=os.environ.get("SOCA_AUTH_PROVIDER"))
 
 
 @admin_users.route('/admin/manage_sudo', methods=['POST'])
@@ -99,6 +115,7 @@ def create_new_account():
                                      "gid": 0 if not gid else gid},
                                verify=False # nosec
                                )
+
         if create_new_user.status_code == 200:
             # Create API key
             create_user_key = get(config.Config.FLASK_ENDPOINT + '/api/user/api_key',

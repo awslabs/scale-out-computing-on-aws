@@ -1,4 +1,16 @@
 #!/bin/bash -xe
+######################################################################################################################
+#  Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.                                                #
+#                                                                                                                    #
+#  Licensed under the Apache License, Version 2.0 (the "License"). You may not use this file except in compliance    #
+#  with the License. A copy of the License is located at                                                             #
+#                                                                                                                    #
+#      http://www.apache.org/licenses/LICENSE-2.0                                                                    #
+#                                                                                                                    #
+#  or in the 'license' file accompanying this file. This file is distributed on an 'AS IS' BASIS, WITHOUT WARRANTIES #
+#  OR CONDITIONS OF ANY KIND, express or implied. See the License for the specific language governing permissions    #
+#  and limitations under the License.                                                                                #
+######################################################################################################################
 
 # Make sure to update your ELK Access Policy if you do not use the default environment and have configured multiple NAT gateway
 
@@ -12,8 +24,7 @@ SYSTEM_CHECK_PERIOD="3m"  # check system (network, cpus, memory, process) every 
 FS_CHECK_PERIOD="3m" # check filesystem every 3 minutes
 PROCESS_COUNT_TO_TRACK=15 # how many process do you want to return on the web ui
 
-if [[ $SOCA_SYSTEM_METRICS == "true" ]];
-then
+if [[ $SOCA_SYSTEM_METRICS == "true" ]]; then
   echo "Installing and configuring MetricBeat"
   wget $METRICBEAT_URL
   if [[ $(md5sum $METRICBEAST_RPM | awk '{print $1}') != $METRICBEAT_HASH ]];  then
@@ -22,7 +33,7 @@ then
   fi
 
   sudo rpm -vi $METRICBEAST_RPM
-  METRICBEAT=$(which metricbeat)
+  METRICBEAT=$(command -v metricbeat)
 
   # Copy custom SOCA configuration file
   cp /apps/soca/$SOCA_CONFIGURATION/cluster_analytics/metricbeat/system.yml /etc/metricbeat/modules.d/
@@ -34,8 +45,7 @@ then
   # $METRICBEAT module enable aws
 
   # First deployment only. Initialize the dashboard (this will take 2 or 3 minutes max, and it's one time thing)
-  if [[ ! -f "/apps/soca/$SOCA_CONFIGURATION/cluster_analytics/metricbeat/.dashboard_initialized" ]];
-  then
+  if [[ ! -f "/apps/soca/$SOCA_CONFIGURATION/cluster_analytics/metricbeat/.dashboard_initialized" ]]; then
     echo "No dashboard configured, first installation detected"
     $METRICBEAT setup --dashboards -E "setup.kibana.host='https://$SOCA_ESDOMAIN_ENDPOINT:443/_plugin/kibana'" \
     -E "output.elasticsearch.hosts=['https://$SOCA_ESDOMAIN_ENDPOINT:443']" \
@@ -53,7 +63,6 @@ then
       -E "fields.job_project='$SOCA_JOB_PROJECT'" \
       -E "fields.job_queue='$SOCA_JOB_QUEUE'" \
       -E "tags=['$SOCA_JOB_ID','$SOCA_JOB_OWNER','$SOCA_JOB_NAME','$SOCA_JOB_PROJECT', '$SOCA_JOB_QUEUE']" &
-
 else
   echo "MetricBeat disabled for this run "
 fi

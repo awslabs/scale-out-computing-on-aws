@@ -1,0 +1,169 @@
+Config:
+  version: "v2.7.0" # version automatically populated as part of RELEASE-PIPELINE.sh (see github_release.py)
+  termination_protection: True # Enable (recommended) or Disable Cloudformation Stack termination protection
+  entry_points_subnets: "Public" # Public (recommended) or Private. In public mode the scheduler and ELB are deployed on PublicSubnets and assigned Public IPS. In Private mode scheduler and ELB are deployed in private subnets. In both case compute nodes and ElasticSearch/EFS/FSxL are deployed in private subnets. Public does not means your cluster will be accessible to everyone by default, access to your cluster is still protected by security groups
+
+  # Configure your Network parameters below (CIDR range is configured interactively --vpc-cidr
+  network:
+    nat_gateways: 1 # Number of NAT gateways to create. Must be equal or lower to the numbers of public subnets
+    max_azs: 3 # Number of AZs to use. We will deploy the same number of private and public subnets. Must be greater than 2
+    vpc_flow_logs: True # Enable VPC flow logs for GuardDuty or network debug. Set to False if you don't need them.
+    use_vpc_endpoints: False # Enable / Disable creation of VPC endpoints for various services (listed under vpc_interface_endpoints)
+    vpc_gateway_endpoints:
+    - s3
+    vpc_interface_endpoints: # use_vpc_endpoints must be set to True. For list of services:  https://docs.aws.amazon.com/cdk/api/latest/python/aws_cdk.aws_ec2/InterfaceVpcEndpointAwsService.html
+    - cloudformation
+    - ec2
+    - ec2messages
+    - elasticfilesystem
+    - elasticloadbalancing
+    - logs
+    - monitoring
+    - secretsmanager
+    - sns
+    - ssm
+    - ssmmessages
+
+  # Configure your Storage options below
+  storage:
+    data:
+      provider: "efs" # efs or fsx_lustre
+      kms_key_id: False # Specify your own CMK to encrypt EFS or FSx_Lustre file system. If set to False encryption will be managed by the default AWS key
+      efs:
+        throughput_mode: "bursting" # https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-efs-filesystem.html#cfn-efs-filesystem-throughputmode
+        performance_mode: "generalPurpose" # https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-efs-filesystem.html#cfn-efs-filesystem-performancemode
+        encrypted: True # https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-efs-filesystem.html#cfn-efs-filesystem-encrypted
+        transition_to_ia: "AFTER_30_DAYS" # https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-efs-filesystem-lifecyclepolicy.html
+        deletion_policy: "NO_RETAIN" # RETAIN will preserve the EFS even if you delete the stack. Any other value will delete EFS if you delete the CFN stack
+      fsx_lustre:
+         deployment_type: "SCRATCH_2" # Allowed values: PERSISTENT_1 | SCRATCH_1 | SCRATCH_2. https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-fsx-filesystem-lustreconfiguration.html#cfn-fsx-filesystem-lustreconfiguration-deploymenttype
+         drive_cache_type: "NONE" # Allowed values: NONE | READ. Required when storage_type is HDD. https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-fsx-filesystem-lustreconfiguration.html#cfn-fsx-filesystem-lustreconfiguration-drivecachetype
+         per_unit_storage_throughput: 50 # Allowed values: 12, 40 for HDD, 50, 100, 200 for SSD. Required for the PERSISTENT_1 deployment_type. https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-fsx-filesystem-lustreconfiguration.html#cfn-fsx-filesystem-lustreconfiguration-perunitstoragethroughput
+         storage_capacity: 1200 # For SCRATCH_2 and PERSISTENT_1 types, valid values are 1,200, 2,400, then continuing in increments of 2,400 GiB. For SCRATCH_1 deployment types, valid values are 1,200, 2,400, 3,600, then continuing in increments of 3,600 GiB. https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-fsx-filesystem.html#cfn-fsx-filesystem-storagecapacity
+         storage_type: "SSD" # Allowed values: SSD or HDD. https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-fsx-filesystem.html#cfn-fsx-filesystem-storagetype
+
+    apps:
+      provider: "efs" # efs or fsx_lustre
+      kms_key_id: False # Specify your own CMK to encrypt EFS or FSx_Lustre file system. If set to False encryption will be managed by the default AWS key
+      efs:
+         throughput_mode: "bursting" # https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-efs-filesystem.html#cfn-efs-filesystem-throughputmode
+         performance_mode: "generalPurpose" # https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-efs-filesystem.html#cfn-efs-filesystem-performancemode
+         encrypted: True # Select whether or not you want to encrypt the filesystem
+         deletion_policy: "NO_RETAIN" # RETAIN will preserve the EFS even if you delete the stack. Any other value will delete EFS if you delete the CFN stack
+      fsx_lustre:
+         deployment_type: "PERSISTENT_1" # Allowed values: PERSISTENT_1 | SCRATCH_1 | SCRATCH_2. https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-fsx-filesystem-lustreconfiguration.html#cfn-fsx-filesystem-lustreconfiguration-deploymenttype
+         drive_cache_type: "NONE" # Allowed values: NONE | READ. Required when storage_type is HDD. https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-fsx-filesystem-lustreconfiguration.html#cfn-fsx-filesystem-lustreconfiguration-drivecachetype
+         per_unit_storage_throughput: 50 # Allowed values: 12, 40 for HDD, 50, 100, 200 for SSD. Required for the PERSISTENT_1 deployment_type. https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-fsx-filesystem-lustreconfiguration.html#cfn-fsx-filesystem-lustreconfiguration-perunitstoragethroughput
+         storage_capacity: 1200 # For SCRATCH_2 and PERSISTENT_1 types, valid values are 1,200, 2,400, then continuing in increments of 2,400 GiB. For SCRATCH_1 deployment types, valid values are 1,200, 2,400, 3,600, then continuing in increments of 3,600 GiB. https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-fsx-filesystem.html#cfn-fsx-filesystem-storagecapacity
+         storage_type: "SSD" # Allowed values: SSD or HDD. https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-fsx-filesystem.html#cfn-fsx-filesystem-storagetype
+
+  # Configure your EC2 instance used as scheduler host below
+  scheduler:
+    instance_type: "m5.large" # default instance type
+    volume_size: 200 # Size of the EBS root disk
+
+  # Configure your AWS ElasticSearch/Kibana options below
+  elasticsearch:
+      data_node_instance_type: "m5.large.elasticsearch" # instance type for elasticsearch data nodes
+      data_nodes: 2  # number of data nodes for elasticsearch
+      ebs_volume_size: 100  # ebs volume size attached to data nodes
+      deletion_policy: "NO_RETAIN"  # RETAIN will preserve the ES even if you delete the stack. Any other value will delete ES if you delete the CFN stack
+
+  # Configure your AWS Secrets Manager options below
+  secretsmanager:
+    kms_key_id: False # (Experimental) Specify your own CMK to encrypt your Secret manager. If set to False encryption will be managed by the default AWS key
+
+  # Configure your AWS Backup options below
+  backups:
+    delete_after: 7 # (Experimental) In Days, choose backup retention period
+
+  # Configure your Directory options below
+  directoryservice:
+    provider: "openldap" # openldap (recommended) or activedirectory (Experimental)
+    openldap:
+      name: "soca.local" # base DN for your OpenLDAP. SOCA will create 3 OUs: People, Group and Sudoers. Edit source/scripts/Scheduler.sh if you need to edit these OUs
+    activedirectory:
+      name: "soca.local" # https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-directoryservice-microsoftad.html#cfn-directoryservice-microsoftad-name
+      short_name: "SOCA" # https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-directoryservice-microsoftad.html#cfn-directoryservice-microsoftad-shortname
+      edition: "Standard" # https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-directoryservice-microsoftad.html#cfn-directoryservice-microsoftad-edition
+
+RegionMap:
+  af-south-1:
+    amazonlinux2: ami-0c6e605ab94c1af57
+    centos7: ami-0b761332115c38669
+  ap-east-1:
+    amazonlinux2: ami-d60844a7
+    centos7: ami-09611bd6fa5dd0e3d
+    rhel7: ami-1a453e6b
+  ap-northeast-1:
+    amazonlinux2: ami-01748a72bed07727c
+    centos7: ami-0ddea5e0f69c193a4
+    rhel7: ami-0e3e6ca71a19ccf06
+  ap-northeast-2:
+    amazonlinux2: ami-0094965d55b3bb1ff
+    centos7: ami-0e4214f08b51e23cc
+    rhel7: ami-0f84aff229263c1fc
+  ap-south-1:
+    amazonlinux2: ami-04b1ddd35fd71475a
+    centos7: ami-0ffc7af9c06de0077
+    rhel7: ami-0b105c57e305d9064
+  ap-southeast-1:
+    amazonlinux2: ami-00b8d9cb8a7161e41
+    centos7: ami-0adfdaea54d40922b
+    rhel7: ami-031290b4bd9eaa715
+  ap-southeast-2:
+    amazonlinux2: ami-06ce513624b435a22
+    centos7: ami-03d56f451ca110e99
+    rhel7: ami-06d2821bfc76dcda3
+  ca-central-1:
+    amazonlinux2: ami-0c3e7f50c89a372ae
+    centos7: ami-0a7c5b189b6460115
+    rhel7: ami-0a43efe505004e592
+  eu-central-1:
+    amazonlinux2: ami-03c3a7e4263fd998c
+    centos7: ami-08b6d44b4f6f7b279
+    rhel7: ami-0fc86555914f6a9f2
+  eu-north-1:
+    amazonlinux2: ami-02cb52d7ba9887a93
+    centos7: ami-0358414bac2039369
+    rhel7: ami-8833bbf6
+  eu-south-1:
+    amazonlinux2: ami-080807541452b0410
+    centos7: ami-0fe3899b62205176a
+    rhel7: ami-004f2ac6013e4fcfb
+  eu-west-1:
+    amazonlinux2: ami-01720b5f421cf0179
+    centos7: ami-04f5641b0d178a27a
+    rhel7: ami-04c89a19fea29f1f0
+  eu-west-2:
+    amazonlinux2: ami-0e80a462ede03e653
+    centos7: ami-0b22fcaf3564fb0c9
+    rhel7: ami-06fe0c124aedcef5f
+  eu-west-3:
+    amazonlinux2: ami-00798d7180f25aac2
+    centos7: ami-072ec828dae86abe5
+    rhel7: ami-08295de7534115935
+  me-south-1:
+    amazonlinux2: ami-0032aa87bb75498ea
+    centos7: ami-0ac17dcdd6f6f4eb6
+    rhel7: ami-0e845cba4071a4a1a
+  sa-east-1:
+    amazonlinux2: ami-022082b7f1da62478
+    centos7: ami-02334c45dd95ca1fc
+    rhel7: ami-06efd558d6a5fb959
+  us-east-1:
+    amazonlinux2: ami-0be2609ba883822ec
+    centos7: ami-00e87074e52e6c9f9
+    rhel7: ami-08a7d2bfef687328f
+  us-east-2:
+    amazonlinux2: ami-0a0ad6b70e61be944
+    centos7: ami-00f8e2c955f7ffa9b
+    rhel7: ami-0e166e72fda655c63
+  us-west-1:
+    amazonlinux2: ami-03130878b60947df3
+    centos7: ami-08d2d8b00f270d03b
+    rhel7: ami-056efb42b219f9abb
+  us-west-2:
+    amazonlinux2: ami-0a36eb8fadc976275
+    centos7: ami-0686851c4e7b1a8e1
+    rhel7: ami-02deb4589e0f0d95e

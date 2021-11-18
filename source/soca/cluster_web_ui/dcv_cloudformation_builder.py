@@ -1,3 +1,16 @@
+######################################################################################################################
+#  Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.                                                #
+#                                                                                                                    #
+#  Licensed under the Apache License, Version 2.0 (the "License"). You may not use this file except in compliance    #
+#  with the License. A copy of the License is located at                                                             #
+#                                                                                                                    #
+#      http://www.apache.org/licenses/LICENSE-2.0                                                                    #
+#                                                                                                                    #
+#  or in the 'license' file accompanying this file. This file is distributed on an 'AS IS' BASIS, WITHOUT WARRANTIES #
+#  OR CONDITIONS OF ANY KIND, express or implied. See the License for the specific language governing permissions    #
+#  and limitations under the License.                                                                                #
+######################################################################################################################
+
 import os
 import sys
 import random
@@ -30,7 +43,7 @@ def main(**launch_parameters):
     try:
         t = Template()
         t.set_version("2010-09-09")
-        t.set_description("(SOCA) - Base template to deploy DCV nodes")
+        t.set_description("(SOCA) - Base template to deploy DCV nodes  version v2.7.0")
         allow_anonymous_data_collection = launch_parameters["DefaultMetricCollection"]
         # Launch Actual Capacity
         instance = ec2.Instance(str(launch_parameters["session_name"]))
@@ -46,7 +59,7 @@ def main(**launch_parameters):
         if launch_parameters["hibernate"] is True:
             instance.HibernationOptions = ec2.HibernationOptions(Configured=True)
         instance.InstanceType = launch_parameters["instance_type"]
-        instance.SubnetId = random.choice(launch_parameters["soca_private_subnets"]) if len(launch_parameters["soca_private_subnets"]) > 1 else launch_parameters["soca_private_subnets"][0]
+        instance.SubnetId = random.choice(launch_parameters["soca_private_subnets"]) if launch_parameters["subnet_id"] is None else launch_parameters["subnet_id"]
         instance.IamInstanceProfile = launch_parameters["ComputeNodeInstanceProfileArn"].split("instance-profile/")[-1]
         instance.UserData = Base64(Sub((launch_parameters["user_data"])))
         instance.Tags = base_Tags(
@@ -65,7 +78,7 @@ def main(**launch_parameters):
         # Change Mapping to No if you want to disable this
         if allow_anonymous_data_collection is True:
             metrics = CustomResourceSendAnonymousMetrics("SendAnonymousData")
-            metrics.ServiceToken = launch_parameters["SolutionMetricLambda"]
+            metrics.ServiceToken = launch_parameters["SolutionMetricsLambda"]
             metrics.DesiredCapacity = "1"
             metrics.InstanceType = str(launch_parameters["instance_type"])
             metrics.Efa = "false"

@@ -117,7 +117,6 @@
                                                                           </div>
                                                                       </div>
                                                                       <div {% if session_data.session_schedule[day] == "0-0" or session_data.session_schedule[day] == "0-1440" %} style="display: none"{% endif %} id="slider-{{ day }}-{{ n }}"></div>
-                                                                      <input type="hidden" id="schedule-{{ day }}-{{ n }}" name="schedule-{{ day }}-{{ n }}" value="{{ session_data.session_schedule[day] }}">
 
                                                                       <script>
                                                                    $(function () {
@@ -161,6 +160,8 @@
                                                                            labels: [,,,,,,"3",,,,,,"6",,,,,,"9",,,,,,"12",,,,,,"15",,,,,,"18",,,,,,"21"]});});
                                                                       </script>
                                                                       <br>
+                                                                   <input type="hidden" id="schedule-{{ day }}-{{ n }}" name="{{ day }}" value="{{ session_data.session_schedule[day] }}">
+
                                                                   {% endfor %}
                                                               </div>
                                                           <br>
@@ -273,7 +274,12 @@
 
                                           {% elif session_data.session_state == 'running' %}
                                               <h6>Option1: Browser access</h6>
-                                              <a target="_blank" href="{{ session_data.url }}?authToken={{ session_data.session_authentication_token }}#{{ session_data.session_id }}" class="btn btn-success btn-icon-split">
+                                              {% if auth_provider == 'openldap' %}
+                                                <a target="_blank" href="{{ session_data.url }}?authToken={{ session_data.session_authentication_token }}#{{ session_data.session_id }}" class="btn btn-success btn-icon-split">
+                                              {% else %}
+                                                  <!-- ad -->
+                                                  <a target="_blank" href="{{ session_data.url }}?username={{ netbios }}\{{ user }}#{{ session_data.session_id }}" class="btn btn-success btn-icon-split">
+                                              {% endif %}
                                                   <span class="icon text-white-50">
                                                       <i class="fas fa-check"></i>
                                                   </span>

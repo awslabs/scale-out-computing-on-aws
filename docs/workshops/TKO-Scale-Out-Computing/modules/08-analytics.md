@@ -11,7 +11,7 @@ Return to the your cluster web UI and click on the **Analytics** section on the 
 
 By default, job information is ingested by the analytics system on an hourly basis.
 
-1. Log back into the **scheduler host** via SSH as `ec2-user` and run the follow command to force immediate ingestion into ElasticSearch:
+1. Log back into the **scheduler host** via SSH as `ec2-user` and run the follow command to force immediate ingestion into OpenSearch (formerly Elasticsearch):
 
     ```bash
     source /etc/environment; /apps/soca/$SOCA_CONFIGURATION/python/latest/bin/python3 /apps/soca/$SOCA_CONFIGURATION/cluster_analytics/job_tracking.py
@@ -55,7 +55,7 @@ Once your indexes are configured, go to Kibana, select "Discover" tab to start v
 | ------------------------ | ----------- | ---------- | 
 | Kibana Index Name       | pbsnodes         | jobs        | 
 | Data ingestion       | /apps/soca/cluster_analytics/cluster_nodes_tracking.py         | /apps/soca/cluster_analytics/job_tracking.py        | 
-| Recurrence     | 1 minute         | 1 hour **(note: job must be terminated to be shown on ElasticSearch)**       | 
+| Recurrence     | 1 minute         | 1 hour **(note: job must be terminated to be shown on OpenSearch (formerly Elasticsearch))**       | 
 | Data uploaded         | Host Info (status of provisioned host, lifecycle, memory, cpu etc ..)         | Job Info (allocated hardware, licenses, simulation cost, job owner, instance type ...)        | 
 | Timestamp Key   | Use "timestamp" when you create the index for the first time         | use "start_iso" when you create the index for the first time        | 
 
