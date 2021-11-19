@@ -12,7 +12,6 @@ Refer to [https://awslabs.github.io/scale-out-computing-on-aws/tutorials/install
 Scale-Out Computing on AWS project consists in a collection of CloudFormation templates, Shell scripts and Python code.
 ```bash
 .
-├── scale-out-computing-on-aws.template                 [ Soca Primary Template ]
 ├── soca
 │   ├── cluster_analytics                               [ Scripts to ingest cluster/job data into ELK ]
 │   ├── cluster_hooks                                   [ Scheduler Hooks ]
