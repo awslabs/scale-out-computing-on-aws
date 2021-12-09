@@ -22,7 +22,7 @@ basedir = os.path.abspath(os.path.dirname(__file__))
 
 
 def boto_extra_config():
-    aws_solution_user_agent = {"user_agent_extra": "AwsSolution/SO0072/v2.7.0"}
+    aws_solution_user_agent = {"user_agent_extra": "AwsSolution/SO0072/__VERSION__"}
     return botocore_config.Config(**aws_solution_user_agent)
 
 class Config(object):
@@ -88,8 +88,17 @@ class Config(object):
     DCV_LINUX_HIBERNATE_IDLE_SESSION = 1  # In hours. Linux DCV sessions will be hibernated to save cost if there is no active connection within the time specified. 0 to disable
     DCV_LINUX_STOP_IDLE_SESSION = 1  # In hours. Linux DCV sessions will be stopped to save cost if there is no active connection within the time specified. 0 to disable
     DCV_LINUX_TERMINATE_STOPPED_SESSION = 0  # In hours. Stopped Linux DCV will be permanently terminated if user won't restart it within the time specified. 0 to disable
-    DCV_LINUX_DEFAULT_SCHEDULE_START = 480  # 8 AM
-    DCV_LINUX_DEFAULT_SCHEDULE_STOP = 1140  # 7PM
+    DCV_LINUX_DEFAULT_SCHEDULE = {
+        "weekdays": {
+            "start": 480,  # Default Schedule - Start 8 AM (8*60) mon-fri
+            "stop": 1140  # Default Schedule - Stop if idle after 7 PM (19*60) mon-fri
+        },
+        "weekend": {
+            "start": 0,  # Default Schedule - Stopped by default sat-sun
+            "stop": 0  # Default Schedule - Stopped by default sat-sun
+        }
+    }
+
 
     # DCV Windows
     DCV_WINDOWS_SESSION_COUNT = 4
@@ -98,8 +107,16 @@ class Config(object):
     DCV_WINDOWS_STOP_IDLE_SESSION = 1  # In hours. Windows DCV sessions will be stopped to save cost if there is no active connection within the time specified. 0 to disable
     DCV_WINDOWS_TERMINATE_STOPPED_SESSION = 0  # In hours. Stopped Windows DCV will be permanently terminated if user won't restart it within the time specified. 0 to disable
     DCV_WINDOWS_AUTOLOGON = True  # enable or disable autologon. If disabled user will have to manually input Windows password
-    DCV_WINDOWS_DEFAULT_SCHEDULE_START = 480  # 8 AM
-    DCV_WINDOWS_DEFAULT_SCHEDULE_STOP = 1140  # 7PM
+    DCV_WINDOWS_DEFAULT_SCHEDULE = {
+        "weekdays": {
+            "start": 480,  # Default Schedule - Start 8 AM (8*60) mon-fri
+            "stop": 1140  # Default Schedule - Stop if idle after 7 PM (19*60) mon-fri
+        },
+        "weekend": {
+            "start": 0,  # Default Schedule - Stopped by default sat-sun
+            "stop": 0  # Default Schedule - Stopped by default sat-sun
+        }
+    }
     DCV_WINDOWS_AMI = {
         "graphics-amd": {
             'us-east-1': 'ami-09e9fc6b0563179e0',

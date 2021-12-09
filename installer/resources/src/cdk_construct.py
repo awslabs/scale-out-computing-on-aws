@@ -526,7 +526,7 @@ class SOCAInstall(cdk.Stack):
                                                                lifecycle_policies=[efs.CfnFileSystem.LifecyclePolicyProperty(transition_to_ia=install_props.Config.storage.data.efs.transition_to_ia)],
                                                                performance_mode=install_props.Config.storage.data.efs.performance_mode)
             if install_props.Config.storage.data.efs.deletion_policy.upper() == "RETAIN":
-                self.soca_resources["fs_apps"].cfn_options.deletion_policy = cdk.CfnDeletionPolicy.RETAIN
+                self.soca_resources["fs_data"].cfn_options.deletion_policy = cdk.CfnDeletionPolicy.RETAIN
 
         # Create the mount targets for /data
         if install_props.Config.storage.data.provider == "efs" and not user_specified_variables.fs_data:
@@ -650,6 +650,7 @@ class SOCAInstall(cdk.Stack):
                                  "%%CLUSTER_ID%%": user_specified_variables.cluster_id,
                                  "%%S3_BUCKET%%": user_specified_variables.bucket,
                                  "%%AWS_REGION%%": core.Aws.REGION,
+                                 "%%SOCA_VERSION%%": "2.7.0",
                                  "%%COMPUTE_NODE_ARN%%": self.soca_resources["compute_node_role"].role_arn,
                                  "%%FS_DATA_PROVIDER%%": install_props.Config.storage.data.provider if not user_specified_variables.fs_data_provider else user_specified_variables.fs_data_provider,
                                  "%%FS_APPS_PROVIDER%%": install_props.Config.storage.apps.provider if not user_specified_variables.fs_apps_provider else user_specified_variables.fs_apps_provider,
@@ -691,7 +692,7 @@ class SOCAInstall(cdk.Stack):
                                                                  availability_zone=vpc_subnets.availability_zones,
                                                                  machine_image=ec2.MachineImage.generic_linux({
                                                                        user_specified_variables.region: self.soca_resources["ami_id"]}),
-                                                                 instance_type=ec2.InstanceType("m5.large"),
+                                                                 instance_type=ec2.InstanceType(str(install_props.Config.scheduler.instance_type)),
                                                                  key_name=user_specified_variables.ssh_keypair,
                                                                  vpc=self.soca_resources["vpc"],
                                                                  block_devices=[ec2.BlockDevice(

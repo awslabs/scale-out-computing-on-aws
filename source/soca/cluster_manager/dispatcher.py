@@ -375,8 +375,8 @@ if __name__ == "__main__":
     # Variables
     queue_parameter_values = {}
     queues = False
-    queues_only_parameters = ["allowed_users", "excluded_users", "excluded_instance_types", "allowed_instance_types", "restricted_parameters"]
-    backlist_job_resources = ["select", "ncpus", "ngpus", "place", "nodect", "queues", "compute_node", "stack_id", "max_running_jobs", "max_provisioned_instances"] # dispatcher cannot edit these job values
+    queues_only_parameters = ["allowed_users", "excluded_users", "excluded_instance_types", "allowed_instance_types", "restricted_parameters", "allowed_security_group_ids", "allowed_instance_profiles"]
+    restricted_job_resources = ["select", "ncpus", "ngpus", "place", "nodect", "queues", "compute_node", "stack_id", "max_running_jobs", "max_provisioned_instances", "scaling_mode"] # dispatcher cannot edit these job values
     asg_name = None
     fair_share_running_job_malus = -60
     fair_share_start_score = 100
@@ -1021,9 +1021,9 @@ if __name__ == "__main__":
                             # Append new resource to job resource for better tracking
                             # Ignore queue resources which are not configurable at job level
                             try:
-                                alter_job_res = ' '.join('-l {}={}'.format(key, value) for key, value in job_parameter_values.items() if key not in backlist_job_resources)
+                                alter_job_res = ' '.join('-l {}={}'.format(key, value) for key, value in job_parameter_values.items() if key not in restricted_job_resources)
                             except Exception as err:
-                                logpush("Unable to edit job with qalter command. Please edit the backlist_job_resource if the parameter is not a valid scheduler resource")
+                                logpush("Unable to edit job with qalter command. Please edit the restricted_job_resources if the parameter is not a valid scheduler resource")
 
                             run_command([system_cmds['qalter']] + alter_job_res.split() + [str(job_id)], "call")
                             desired_capacity = int(job_required_resource['nodect'])
