@@ -234,8 +234,8 @@ class CreateWindowsDesktop(Resource):
                     else:
                         image_id = dcv_windows_ami["non-graphics"][region]
             else:
-                if not args["image_id"].startswith("ami-"):
-                    return errors.all_errors("DCV_LAUNCH_ERROR", f"AMI {args['image_id']} does not seems to be valid. Must start with ami-<id>")
+                if not args["instance_ami"].startswith("ami-"):
+                    return errors.all_errors("DCV_LAUNCH_ERROR", f"AMI {args['instance_ami']} does not seems to be valid. Must start with ami-<id>")
                 else:
                     if validate_ec2_image(args["instance_ami"]) is False:
                         return errors.all_errors("DCV_LAUNCH_ERROR",
