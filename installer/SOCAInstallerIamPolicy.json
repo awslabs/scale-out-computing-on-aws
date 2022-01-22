@@ -138,10 +138,13 @@
                 "ssm:deleteParameter",
                 "s3:createBucket",
                 "ecr:createRepository",
-                "ecr:deleteRepository",
                 "s3:PutEncryptionConfiguration",
                 "s3:PutBucketVersioning",
-                "s3:PutBucketPublicAccessBlock"
+                "s3:PutBucketPublicAccessBlock",
+                "ecr:DescribeRepositories",
+                "s3:PutBucketPolicy",
+                "ssm:GetParameters",
+                "ssm:GetParameter"
             ],
             "Resource": "*"
         },
@@ -196,7 +199,9 @@
                 "route53resolver:DeleteResolverEndpoint",
                 "route53resolver:DeleteResolverRule",
                 "route53resolver:DisassociateResolverRule",
-                "secretsmanager:DeleteSecret"
+                "secretsmanager:DeleteSecret",
+                "s3:DeleteBucketPolicy",
+                "ecr:deleteRepository"
             ],
             "Resource": "*"
         }
