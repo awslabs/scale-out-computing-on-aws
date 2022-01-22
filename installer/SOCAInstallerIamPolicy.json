@@ -144,7 +144,10 @@
                 "ecr:DescribeRepositories",
                 "s3:PutBucketPolicy",
                 "ssm:GetParameters",
-                "ssm:GetParameter"
+                "ssm:GetParameter",
+                "iam:CreateServiceLinkedRole",
+                "ec2:DescribeAccountAttributes",
+                "es:CreateServiceLinkedRole"
             ],
             "Resource": "*"
         },
