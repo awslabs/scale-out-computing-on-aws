@@ -135,7 +135,10 @@
                 "secretsmanager:TagResource",
                 "sts:DecodeAuthorizationMessage",
                 "ssm:PutParameter",
-                "s3:createBucket"
+                "ssm:deleteParameter",
+                "s3:createBucket",
+                "ecr:createRepository",
+                "s3:setbucketencryption"
             ],
             "Resource": "*"
         },
