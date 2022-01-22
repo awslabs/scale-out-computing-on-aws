@@ -139,7 +139,8 @@
                 "s3:createBucket",
                 "ecr:createRepository",
                 "ecr:deleteRepository",
-                "s3:PutEncryptionConfiguration"
+                "s3:PutEncryptionConfiguration",
+                "s3:PutBucketVersioning"
             ],
             "Resource": "*"
         },
