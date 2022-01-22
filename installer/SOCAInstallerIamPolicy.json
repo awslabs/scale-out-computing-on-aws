@@ -204,7 +204,8 @@
                 "route53resolver:DisassociateResolverRule",
                 "secretsmanager:DeleteSecret",
                 "s3:DeleteBucketPolicy",
-                "ecr:deleteRepository"
+                "ecr:deleteRepository",
+                "iam:DeleteServiceLinkedRole"
             ],
             "Resource": "*"
         }
