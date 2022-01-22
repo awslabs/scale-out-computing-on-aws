@@ -140,7 +140,8 @@
                 "ecr:createRepository",
                 "ecr:deleteRepository",
                 "s3:PutEncryptionConfiguration",
-                "s3:PutBucketVersioning"
+                "s3:PutBucketVersioning",
+                "s3:PutBucketPublicAccessBlock"
             ],
             "Resource": "*"
         },
