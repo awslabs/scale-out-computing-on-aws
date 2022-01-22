@@ -133,7 +133,9 @@
                 "s3:ListBucket",
                 "secretsmanager:CreateSecret",
                 "secretsmanager:TagResource",
-                "sts:DecodeAuthorizationMessage"
+                "sts:DecodeAuthorizationMessage",
+                "ssm:PutParameter",
+                "s3:createBucket"
             ],
             "Resource": "*"
         },
