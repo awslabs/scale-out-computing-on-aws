@@ -40,6 +40,8 @@ echo $SERVER_IP $SERVER_HOSTNAME $SERVER_HOSTNAME_ALT >> /etc/hosts
 # Install Epel repo
 if [[ $SOCA_BASE_OS == "amazonlinux2" ]]; then
   sudo amazon-linux-extras install -y epel
+  sudo yum groupinstall "Development Tools" -y
+  curl -sL https://rpm.nodesource.com/setup_16.x | sudo bash -
 elif [[ $SOCA_BASE_OS == "centos7" ]]; then
   yum -y install epel-release
 else
