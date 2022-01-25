@@ -13,12 +13,12 @@ Scale-Out Computing on AWS project consists in a collection of CloudFormation te
 ```bash
 .
 ├── soca
-│   ├── cluster_analytics                               [ Scripts to ingest cluster/job data into ELK ]
-│   ├── cluster_hooks                                   [ Scheduler Hooks ]
-│   ├── cluster_logs_management                         [ Scripts to manage cluster log rotation ]
-│   ├── cluster_manager                                 [ Scripts to control Soca cluster ]
-│   ├── cluster_web_ui                                  [ Web Interface ]
-│   └── cluster_node_bootstrap                          [ Script to configure compute nodes]
+│   ├── cluster_analytics                               [ Scripts to ingest cluster/job data into ELK ]
+│   ├── cluster_hooks                                   [ Scheduler Hooks ]
+│   ├── cluster_logs_management                         [ Scripts to manage cluster log rotation ]
+│   ├── cluster_manager                                 [ Scripts to control Soca cluster ]
+│   ├── cluster_web_ui                                  [ Web Interface ]
+│   └── cluster_node_bootstrap                          [ Script to configure compute nodes]
 └── scripts
    ├── config.cfg                                      [ List of all packages to install ]
    ├── Scheduler.sh                                    [ Configure Schedule Node ]
@@ -30,7 +30,7 @@ This solution collects anonymous operational metrics to help AWS improve the qua
 
 ***
 
-Copyright 2021 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+Copyright 2022 Amazon.com, Inc. or its affiliates. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.

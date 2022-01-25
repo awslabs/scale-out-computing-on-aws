@@ -158,11 +158,11 @@ class Job(Resource):
                 random_id = ''.join(random.choice(string.ascii_letters + string.digits) for i in range(10))
                 job_submit_file = "job_submit_" + str(random_id) + ".sh"
 
+                group_ownership = f"{request_user}{config.Config.GROUP_NAME_SUFFIX}"
                 if args['input_file_path']:
                     job_output_path = args['input_file_path']
                 else:
                     # create new job directory if needed
-                    group_ownership = f"{request_user}{config.Config.GROUP_NAME_SUFFIX}"
                     job_output_folder = config.Config.USER_HOME + "/" + request_user + "/soca_job_output/"
                     job_output_path = job_output_folder + sanitized_job_name + "_" + str(random_id)
                     os.makedirs(job_output_path)

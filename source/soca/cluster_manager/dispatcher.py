@@ -708,7 +708,10 @@ if __name__ == "__main__":
                                         if resource['ResourceType'] == 'AWS::EC2::SpotFleet':
                                             spotfleet = resource['PhysicalResourceId']
                                             response=ec2.describe_spot_fleet_requests(SpotFleetRequestIds=[spotfleet])
-                                            new_target_capacity=int(response['SpotFleetRequestConfigs'][0]['SpotFleetRequestConfig']['TargetCapacity']) + hash_cpu_ct
+                                            fulfilled_capacity = int(response['SpotFleetRequestConfigs'][0]['SpotFleetRequestConfig']['FulfilledCapacity'])
+                                            target_capacity = int(response['SpotFleetRequestConfigs'][0]['SpotFleetRequestConfig']['TargetCapacity'])
+                                            current_capacity = max(target_capacity, fulfilled_capacity)
+                                            new_target_capacity = current_capacity + hash_cpu_ct
                                             spot_fleet_activity_status = response['SpotFleetRequestConfigs'][0]['ActivityStatus']
                                             spot_fleet_request_state = response['SpotFleetRequestConfigs'][0]['SpotFleetRequestState']
                                             if (spot_fleet_activity_status == 'fulfilled' or spot_fleet_activity_status == 'pending_fulfillment') and spot_fleet_request_state == 'active':

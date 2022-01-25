@@ -23,9 +23,16 @@ if [[ $# -lt 2 ]]; then
 fi
 
 # Install SSM
-yum install -y https://s3.amazonaws.com/ec2-downloads-windows/SSMAgent/latest/linux_amd64/amazon-ssm-agent.rpm
-systemctl enable amazon-ssm-agent
-systemctl restart amazon-ssm-agent
+machine=$(uname -m)
+if ! systemctl status amazon-ssm-agent; then
+    if [[ $machine == "x86_64" ]]; then
+        yum install -y $SSM_X86_64_URL
+    elif [[ $machine == "aarch64" ]]; then
+        yum install -y $SSM_AARCH64_URL
+    fi
+    systemctl enable amazon-ssm-agent || true
+    systemctl restart amazon-ssm-agent
+fi
 
 mkdir -p /apps/soca/$SOCA_CONFIGURATION
 FS_DATA_PROVIDER=$1
@@ -37,22 +44,26 @@ SERVER_HOSTNAME=$(hostname)
 SERVER_HOSTNAME_ALT=$(echo $SERVER_HOSTNAME | cut -d. -f1)
 echo $SERVER_IP $SERVER_HOSTNAME $SERVER_HOSTNAME_ALT >> /etc/hosts
 
-# Install Epel repo
-if [[ $SOCA_BASE_OS == "amazonlinux2" ]]; then
-  sudo amazon-linux-extras install -y epel
-elif [[ $SOCA_BASE_OS == "centos7" ]]; then
-  yum -y install epel-release
-else
-  # rhel7
-  yum -y install https://dl.fedoraproject.org/pub/epel/epel-release-latest-7.noarch.rpm
-fi
-
+# Install System required libraries / EPEL
 if [[ $SOCA_BASE_OS == "rhel7" ]]; then
-    yum install -y $(echo ${SYSTEM_PKGS[*]} ${SCHEDULER_PKGS[*]}) --enablerepo rhui-REGION-rhel-server-optional
+  # RHEL7
+  curl "$EPEL_URL" -o $EPEL_RPM
+  if [[ $(md5sum "$EPEL_RPM" | awk '{print $1}') != "$EPEL_HASH" ]];  then
+      echo -e "FATAL ERROR: Checksum for EPEL failed. File may be compromised." > /etc/motd
+      exit 1
+  fi
+  yum -y install $EPEL_RPM
+  yum install -y $(echo ${SYSTEM_PKGS[*]} ${SCHEDULER_PKGS[*]}) --enablerepo rhui-REGION-rhel-server-optional
+elif [[ $SOCA_BASE_OS == "centos7" ]]; then
+  # CentOS
+  yum -y install epel-release
+  yum install -y $(echo ${SYSTEM_PKGS[*]} ${SCHEDULER_PKGS[*]})
 else
-    yum install -y $(echo ${SYSTEM_PKGS[*]} ${SCHEDULER_PKGS[*]})
+  # AL2
+  amazon-linux-extras install -y epel
+  yum update --security
+  yum install -y $(echo ${SYSTEM_PKGS[*]} ${SCHEDULER_PKGS[*]})
 fi
-
 yum install -y $(echo ${OPENLDAP_SERVER_PKGS[*]} ${SSSD_PKGS[*]})
 
 # Mount File system
@@ -63,7 +74,7 @@ if [[ "$FS_DATA_PROVIDER" == "fsx_lustre" ]] || [[ "$FS_APPS_PROVIDER" == "fsx_l
     if [[ -z "$(rpm -qa lustre-client)" ]]; then
         # Install FSx for Lustre Client
         if [[ "$SOCA_BASE_OS" == "amazonlinux2" ]]; then
-            sudo amazon-linux-extras install -y lustre2.10
+            amazon-linux-extras install -y lustre2.10
         else
             kernel=$(uname -r)
             machine=$(uname -m)

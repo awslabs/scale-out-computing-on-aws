@@ -44,13 +44,18 @@ cd ~
 
 # Check if we're using a customized AMI
 if [[ ! -f /root/soca_preinstalled_packages.log ]]; then
-    # Install System required libraries
+    # Install System required libraries / EPEL
     if [[ $SOCA_BASE_OS == "rhel7" ]]; then
-        yum -y install https://dl.fedoraproject.org/pub/epel/epel-release-latest-7.noarch.rpm
-        yum install -y $(echo ${SYSTEM_PKGS[*]} ${SCHEDULER_PKGS[*]}) --enablerepo rhui-REGION-rhel-server-optional
+      curl "$EPEL_URL" -o $EPEL_RPM
+      if [[ $(md5sum "$EPEL_RPM" | awk '{print $1}') != "$EPEL_HASH" ]];  then
+          echo -e "FATAL ERROR: Checksum for EPEL failed. File may be compromised." > /etc/motd
+          exit 1
+      fi
+      yum -y install $EPEL_RPM
+      yum install -y $(echo ${SYSTEM_PKGS[*]} ${SCHEDULER_PKGS[*]}) --enablerepo rhui-REGION-rhel-server-optional
     elif [[ $SOCA_BASE_OS == "centos7" ]]; then
-        yum -y install epel-release
-        yum install -y $(echo ${SYSTEM_PKGS[*]} ${SCHEDULER_PKGS[*]})
+      yum -y install epel-release
+      yum install -y $(echo ${SYSTEM_PKGS[*]} ${SCHEDULER_PKGS[*]})
     else
       # AL2
       sudo amazon-linux-extras install -y epel

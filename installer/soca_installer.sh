@@ -77,25 +77,19 @@ if [[ -n $VIRTUAL_ENV ]]; then
 else
   # Check if Python Virtual environment exist
   # If not, create the venv and install required python libraries
-  if [[ ! -d $PYTHON_VENV ]]; then
+  if [[ ! -e $PYTHON_VENV/bin/activate ]]; then
       echo "No Python virtual environment found. Creating one ..."
+      rm -rf $PYTHON_VENV
       $PYTHON -m venv $PYTHON_VENV
       # shellcheck disable=SC1090
       . "$PYTHON_VENV/bin/activate"
-      echo "Installing/upgrading required dependencies (this can take a couple of minutes)"
-      if [[ $QUIET_MODE = "true" ]]; then
-        pip3 install --upgrade pip --quiet
-        pip3 install -r resources/src/requirements.txt --quiet
-      else
-        pip3 install --upgrade pip
-        pip3 install -r resources/src/requirements.txt
-      fi
   else
     # Load Python environment
     echo "Loading Python Virtual Environment"
     source "$PYTHON_VENV/bin/activate"
   fi
 fi
+make resources/src/.requirements_installed
 
 # Install local NodeJS environment and CDK
 if [[ ! -d $NVM_DIR ]]; then

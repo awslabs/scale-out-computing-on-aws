@@ -495,7 +495,7 @@ if __name__ == "__main__":
     os.chdir(install_directory)
 
     # Append Solution ID to Boto3 Construct
-    aws_solution_user_agent = {"user_agent_extra": "AwsSolution/SO0072/v2.7.0"}
+    aws_solution_user_agent = {"user_agent_extra": "AwsSolution/SO0072/2.7.0"}
     boto_extra_config = config.Config(**aws_solution_user_agent)
 
     print(f"""

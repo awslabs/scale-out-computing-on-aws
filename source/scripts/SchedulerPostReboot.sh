@@ -302,11 +302,30 @@ fi
 IFS="-" read name sanitized_cluster_name <<< "echo $SOCA_CONFIGURATION"
 sed -i "s/__SOCA_CLUSTER__NAME__/$sanitized_cluster_name/g" /apps/soca/$SOCA_CONFIGURATION/cluster_web_ui/templates/common/horizontal_menu_bar.html
 
-# Start Web UI
+# Install NodeJS/NPM if needed
+if [[ ! $(command -v npm) ]];
+then
+  echo "npm not detected, installing it ... "
+  export NVM_DIR="/root/nvm/$(date +%s)/.nvm"
+  mkdir -p $NVM_DIR
+  echo "Downloading $NVM_URL"
+  wget "$NVM_URL"
+  if [[ $(md5sum $NVM_INSTALL_SCRIPT | awk '{print $1}') != $NVM_HASH ]];  then
+        echo -e "FATAL ERROR: Checksum for NVM failed. File may be compromised." > /etc/motd
+        exit 1
+  fi
+  chmod +x $NVM_INSTALL_SCRIPT
+  /bin/bash $NVM_INSTALL_SCRIPT
+  source "$NVM_DIR/nvm.sh"  # This loads nvm
+  # shellcheck disable=SC1090
+  source "$NVM_DIR/bash_completion"
+  nvm install node
+fi
 
-# Install required node module
+# Install required Node module
 npm install --prefix /apps/soca/"$SOCA_CONFIGURATION"/cluster_web_ui/static monaco-editor@0.24.0
 
+# Start Web UI
 chmod +x /apps/soca/"$SOCA_CONFIGURATION"/cluster_web_ui/socawebui.sh
 /apps/soca/"$SOCA_CONFIGURATION"/cluster_web_ui/socawebui.sh start
 

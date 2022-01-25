@@ -390,6 +390,7 @@ class SOCAInstall(cdk.Stack):
             self.soca_resources["scheduler_role"] = iam.Role(self, "SchedulerRole", description="IAM role assigned to the scheduler host", assumed_by=iam.CompositePrincipal(iam.ServicePrincipal(principals_suffix["ssm"]), iam.ServicePrincipal(principals_suffix["ec2"])))
             self.soca_resources["compute_node_role"] = iam.Role(self, "ComputeNodeRole", description="IAM role assigned to the compute nodes", assumed_by=iam.CompositePrincipal(iam.ServicePrincipal(principals_suffix["ssm"]), iam.ServicePrincipal(principals_suffix["ec2"])))
             self.soca_resources["spot_fleet_role"] = iam.Role(self, "SpotFleetRole", description="IAM role to manage SpotFleet requests", assumed_by=iam.ServicePrincipal(principals_suffix["spotfleet"]))
+            self.soca_resources["spot_fleet_role"].add_managed_policy(iam.ManagedPolicy.from_aws_managed_policy_name("service-role/AmazonEC2SpotFleetTaggingRole"))
             self.soca_resources["compute_node_instance_profile"] = iam.CfnInstanceProfile(self, "ComputeNodeInstanceProfile", roles=[self.soca_resources["compute_node_role"].role_name])
         else:
             # Reference existing Scheduler/ComputeNode/SpotFleet roles
