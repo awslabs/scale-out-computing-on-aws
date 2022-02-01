@@ -174,6 +174,7 @@ def create():
                                 "disk_size": request.form["disk_size"],
                                 "session_name": request.form["session_name"],
                                 "instance_ami": request.form["instance_ami"],
+                                "subnet_id": request.form["subnet_id"],
                                 "hibernate": request.form["hibernate"]},
                           verify=False)  # nosec
     if create_desktop.status_code == 200:

@@ -62,7 +62,7 @@ def can_launch_instance(launch_parameters):
             SecurityGroupIds=[launch_parameters["security_group_id"]],
             InstanceType=launch_parameters["instance_type"],
             IamInstanceProfile={'Arn': launch_parameters["instance_profile"]},
-            SubnetId=random.choice(launch_parameters["soca_private_subnets"]) if launch_parameters["subnet_id"] is None else launch_parameters["subnet_id"],
+            SubnetId=random.choice(launch_parameters["soca_private_subnets"]) if not launch_parameters["subnet_id"] else launch_parameters["subnet_id"],
             UserData=launch_parameters["user_data"],
             ImageId=launch_parameters["image_id"],
             DryRun=True,
@@ -153,6 +153,9 @@ class CreateLinuxDesktop(Resource):
         parser.add_argument("hibernate", type=str, location='form')
         args = parser.parse_args()
         logger.info(f"Received parameter for new Linux DCV session: {args}")
+
+        if not args["subnet_id"]:
+            args["subnet_id"] = False
 
         if session_number is None:
             return errors.all_errors('CLIENT_MISSING_PARAMETER', "session_number not found in URL. Endpoint is /api/dcv/desktop/<session_number>/linux")

@@ -64,7 +64,7 @@ def can_launch_instance(launch_parameters):
             SecurityGroupIds=[launch_parameters["security_group_id"]],
             InstanceType=launch_parameters["instance_type"],
             IamInstanceProfile={'Arn': launch_parameters["instance_profile"]},
-            SubnetId=random.choice(launch_parameters["soca_private_subnets"]) if launch_parameters["subnet_id"] is None else launch_parameters["subnet_id"],
+            SubnetId=random.choice(launch_parameters["soca_private_subnets"]) if not launch_parameters["subnet_id"] else launch_parameters["subnet_id"],
             UserData=launch_parameters["user_data"],
             ImageId=launch_parameters["image_id"],
             DryRun=True,
@@ -160,7 +160,8 @@ class CreateWindowsDesktop(Resource):
             user = request.headers.get("X-SOCA-USER")
             if user is None:
                 return errors.all_errors("X-SOCA-USER_MISSING")
-
+            if not args["subnet_id"]:
+                args["subnet_id"] = False
             if not args["hibernate"]:
                 args["hibernate"] = False
             elif args["hibernate"].lower() == "false":

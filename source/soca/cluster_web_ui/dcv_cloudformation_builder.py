@@ -59,7 +59,7 @@ def main(**launch_parameters):
         if launch_parameters["hibernate"] is True:
             instance.HibernationOptions = ec2.HibernationOptions(Configured=True)
         instance.InstanceType = launch_parameters["instance_type"]
-        instance.SubnetId = random.choice(launch_parameters["soca_private_subnets"]) if launch_parameters["subnet_id"] is None else launch_parameters["subnet_id"]
+        instance.SubnetId = random.choice(launch_parameters["soca_private_subnets"]) if not launch_parameters["subnet_id"] else launch_parameters["subnet_id"]
         instance.IamInstanceProfile = launch_parameters["ComputeNodeInstanceProfileArn"].split("instance-profile/")[-1]
         instance.UserData = Base64(Sub((launch_parameters["user_data"])))
         instance.Tags = base_Tags(

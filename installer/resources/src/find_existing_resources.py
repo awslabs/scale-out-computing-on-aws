@@ -154,9 +154,9 @@ class FindExistingResource:
             max_results = 50
             while token is True:
                 if not next_token:
-                    all_subnets = self.ec2.describe_subnets(MaxResults=max_results, Filters=[{'Name': 'vpc-id', 'Values': [vpc_id]}])
+                    all_subnets = self.ec2.describe_subnets(MaxResults=max_results, Filters=[{'Name': 'vpc-id', 'Values': [vpc_id]}, {'Name': 'ipv6-native', 'Values': ['false']}])
                 else:
-                    all_subnets = self.ec2.describe_subnets(Filters=[{'Name': 'vpc-id', 'Values': [vpc_id]}], MaxResults=max_results, NextToken=next_token)
+                    all_subnets = self.ec2.describe_subnets(Filters=[{'Name': 'vpc-id', 'Values': [vpc_id]}, {'Name': 'ipv6-native', 'Values': ['false']}], MaxResults=max_results, NextToken=next_token)
                 try:
                     next_token = all_subnets['Token']
                 except KeyError:
