@@ -341,12 +341,12 @@ def get_install_parameters():
                 directory_service = FindExistingResource(install_parameters["region"],
                                                          install_parameters["client_ip"]).find_directory_services(install_parameters["vpc_id"])
                 if directory_service["success"] is True:
-                    install_parameters["directory_service_ds_user"] = get_input(f"Username of a domain user with  admin permissions?", None, None, str)
-                    install_parameters["directory_service_ds_user_password"] = get_input(f"Password of the domain user with admin permissions", None, None, str)
-                    install_parameters["directory_service"] = directory_service["message"]["id"]
+                    install_parameters["directory_service_user"] = get_input(f"Username of a domain user with  admin permissions?", None, None, str)
+                    install_parameters["directory_service_user_password"] = get_input(f"Password of the domain user with admin permissions", None, None, str)
+                    install_parameters["directory_service_id"] = directory_service["message"]["id"]
                     install_parameters["directory_service_shortname"] = directory_service["message"]["netbios"]
                     install_parameters["directory_service_name"] = directory_service["message"]["name"]
-                    install_parameters["directory_service_dns"] = directory_service["message"]["dns"]
+                    install_parameters["directory_service_dns"] = '"' + ' '.join(directory_service["message"]["dns"]) + '"' ####CHANGE
                 else:
                     print(f"{fg('red')}Error: {directory_service['message']} {attr('reset')}")
                     sys.exit(1)
@@ -695,8 +695,8 @@ if __name__ == "__main__":
     # Log command in history book
     with open("installer_history.txt", "a+") as f:
         f.write(f"""\n==== [{datetime.datetime.utcnow()}] ====
-{cmd.replace(install_parameters['ldap_password'], '<REDACTED_PASSWORD>')}
-{str(install_parameters).replace(install_parameters['ldap_password'], '<REDACTED_PASSWORD>')}
+{cmd.replace(install_parameters['ldap_password'], '<REDACTED_PASSWORD>').replace(install_parameters['directory_service_user_password'], '<REDACTED_PASSWORD>')}
+{str(install_parameters).replace(install_parameters['ldap_password'], '<REDACTED_PASSWORD>').replace(install_parameters['directory_service_user_password'], '<REDACTED_PASSWORD>')}
 =============================""")
 
     # First, Bootstrap the environment. This will create a staging S3 bucket if needed
