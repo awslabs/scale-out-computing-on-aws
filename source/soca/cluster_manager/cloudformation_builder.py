@@ -263,7 +263,7 @@ cp /apps/soca/$SOCA_CONFIGURATION/cluster_node_bootstrap/config.cfg /root/
                 ltd.EbsOptimized = False
 
             # metal + t2 does not support CpuOptions
-            unsupported = ["t2.", "metal"]
+            unsupported = ["t2.", "metal", "hpc6a."]
             if all(itype not in instance for itype in unsupported) and (SpotFleet is False or len(instances_list) == 1):
                 # Spotfleet with multiple instance types doesn't support CpuOptions
                 # So we can't add CpuOptions if SpotPrice is specified and when multiple instances are specified
