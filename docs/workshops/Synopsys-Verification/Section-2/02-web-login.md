@@ -6,6 +6,8 @@ The goal of this module is to login to SOCA web interface and start a remote des
 
 1. Click one of the links below depending on the session you're attending to login to corresponding SOCA web interface
 
+   Workshop sessions are not active at this time!!
+
 []: # '[**Click here for North America Sessions**](https://soca-tko260-viewer-1219550143.us-west-2.elb.amazonaws.com/login){target=_blank}'
 
 []: # '[**Click here for North America - Private Session**](https://soca-vcs-viewer-1127745173.us-east-1.elb.amazonaws.com/login){target=_blank}'
