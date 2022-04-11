@@ -4,6 +4,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.7.1] - 2022-02-15
+### Changed
+- NodeJS/npm is now managed via NVM (#64: Contributor @cfsnate)
+- Fixed IAM policies required to install SOCA and added support for cdk boostrap (#64: Contributor @cfsnate)
+- More consistent way to install EPEL repository across distros
+- Better way to install SSM on the Scheduler host (similar to what we are already doing with ComputeNodes)
+- Updated remote job submission to fix error with group ownership when using a remote input file
+- DCV desktops now honor correct subnet when specified
+- Fix issue causing installer to crash when using IPv6-only VPC subnets
+- Fix logger issue on DCV instance lifecycle (#67, contributor @tammy-ruby-cherry)
+
 ## [2.7.0] - 2021-11-18
 ### Added
 - SOCA installer is managed by CDK (https://aws.amazon.com/cdk/)

@@ -651,7 +651,7 @@ class SOCAInstall(cdk.Stack):
                                  "%%CLUSTER_ID%%": user_specified_variables.cluster_id,
                                  "%%S3_BUCKET%%": user_specified_variables.bucket,
                                  "%%AWS_REGION%%": core.Aws.REGION,
-                                 "%%SOCA_VERSION%%": "2.7.0",
+                                 "%%SOCA_VERSION%%": "2.7.1",
                                  "%%COMPUTE_NODE_ARN%%": self.soca_resources["compute_node_role"].role_arn,
                                  "%%FS_DATA_PROVIDER%%": install_props.Config.storage.data.provider if not user_specified_variables.fs_data_provider else user_specified_variables.fs_data_provider,
                                  "%%FS_APPS_PROVIDER%%": install_props.Config.storage.apps.provider if not user_specified_variables.fs_apps_provider else user_specified_variables.fs_apps_provider,
