@@ -65,7 +65,7 @@ def main(**params):
         # Metadata
         t = Template()
         t.set_version("2010-09-09")
-        t.set_description("(SOCA) - Base template to deploy compute nodes. Version 2.7.1")
+        t.set_description("(SOCA) - Base template to deploy compute nodes. Version 2.7.2")
         allow_anonymous_data_collection = params["MetricCollectionAnonymous"]
         debug = False
         mip_usage = False

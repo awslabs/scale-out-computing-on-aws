@@ -28,7 +28,7 @@ from requests_aws4auth import AWS4Auth
 from botocore import config as botocore_config
 
 def boto_extra_config():
-    aws_solution_user_agent = {"user_agent_extra": "AwsSolution/SO0072/2.7.1"}
+    aws_solution_user_agent = {"user_agent_extra": "AwsSolution/SO0072/2.7.2"}
     return botocore_config.Config(**aws_solution_user_agent)
 
 

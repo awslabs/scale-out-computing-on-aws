@@ -319,7 +319,7 @@ then
   source "$NVM_DIR/nvm.sh"  # This loads nvm
   # shellcheck disable=SC1090
   source "$NVM_DIR/bash_completion"
-  nvm install node
+  nvm install v8.7.0
 fi
 
 # Install required Node module

@@ -1,5 +1,5 @@
 Config:
-  version: "2.7.1" # version automatically populated as part of RELEASE-PIPELINE.sh (see github_release.py)
+  version: "2.7.2" # version automatically populated as part of RELEASE-PIPELINE.sh (see github_release.py)
   termination_protection: True # Enable (recommended) or Disable Cloudformation Stack termination protection
   entry_points_subnets: "Public" # Public (recommended) or Private. In public mode the scheduler and ELB are deployed on PublicSubnets and assigned Public IPS. In Private mode scheduler and ELB are deployed in private subnets. In both case compute nodes and ElasticSearch/EFS/FSxL are deployed in private subnets. Public does not means your cluster will be accessible to everyone by default, access to your cluster is still protected by security groups
 
