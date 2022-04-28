@@ -53,7 +53,7 @@ if [[ $SOCA_BASE_OS == "rhel7" ]]; then
       exit 1
   fi
   yum -y install $EPEL_RPM
-  yum install -y $(echo ${SYSTEM_PKGS[*]} ${SCHEDULER_PKGS[*]}) --enablerepo rhui-REGION-rhel-server-optional
+  yum install -y $(echo ${SYSTEM_PKGS[*]} ${SCHEDULER_PKGS[*]}) --enablerepo rhel-7-server-rhui-optional-rpms
 elif [[ $SOCA_BASE_OS == "centos7" ]]; then
   # CentOS
   yum -y install epel-release

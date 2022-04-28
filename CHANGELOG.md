@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [2.7.2] - 2022-04-25
 ### Changed
 - Fix node version to v8.7.0 (later versions need updated versions of GLIBC that are not available for AL2/CentOS7/RHEL7)
+- Update RHEL7 AMI IDs to RHEL7.9
+- Update AL2 AMI IDs 
 
 ## [2.7.1] - 2022-02-15
 ### Changed
