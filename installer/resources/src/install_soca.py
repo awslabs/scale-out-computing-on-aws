@@ -143,14 +143,14 @@ def check_bucket_permission(bucket):
 
 def default_ldap_user_password():
     # Manage primary LDAP user/password
-    restricted_chars = ["'", "\"", "=", ";", ",", " ", "$", "`", "~"]
+    restricted_chars = ["'", "\"", "=", ";", ",", "$", "`", "~", "%", " "]
     password_regex = "^(?:(?=.*[a-z])(?:(?=.*[A-Z])(?=.*[\d\W])|(?=.*\W)(?=.*\d))|(?=.*\W)(?=.*[A-Z])(?=.*\d)).{8,}$"
     if args.ldap_password_file is None:
         install_parameters["ldap_password"] = get_input(f"[Step 4/{total_install_phases}] {install_phases[4]}", args.ldap_password, None, str, hide=True)
         while not re.match(password_regex, install_parameters["ldap_password"]) \
                 or install_parameters["ldap_user"].lower() in install_parameters["ldap_password"].lower() \
                 or [element for element in restricted_chars if (element in install_parameters["ldap_password"])]:
-            print(f"{fg('red')} LDAP password must have 1 uppercase, 1 lowercase, 1 digit and be 8 chars min and cannot contain your username or {''.join(restricted_chars)}{attr('reset')}")
+            print(f"{fg('red')} LDAP password must have 1 uppercase, 1 lowercase, 1 digit and be 8 chars min.\n LDAP password cannot contain your username, white space, or any of the following special characters {''.join(restricted_chars)}{attr('reset')}")
             install_parameters["ldap_password"] = get_input(f"[Step 4/{total_install_phases}] {install_phases[4]}", None, None, str, hide=True)
 
         if not args.ldap_password:
