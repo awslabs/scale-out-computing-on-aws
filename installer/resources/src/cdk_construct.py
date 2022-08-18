@@ -176,8 +176,6 @@ class SOCAInstall(cdk.Stack):
                                             subnet_type=ec2.SubnetType.PRIVATE)
                 ]
             }
-            if install_props.Config.network.vpc_flow_logs:
-                vpc_params['flow_logs'] = [ec2.FlowLogOptions()]
             self.soca_resources["vpc"] = ec2.Vpc(self, "SOCAVpc", **vpc_params)
             core.Tags.of(self.soca_resources["vpc"]).add("Name", f"{user_specified_variables.cluster_id}-VPC")
         else:

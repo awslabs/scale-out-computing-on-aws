@@ -7,7 +7,6 @@ Config:
   network:
     nat_gateways: 1 # Number of NAT gateways to create. Must be equal or lower to the numbers of public subnets
     max_azs: 3 # Number of AZs to use. We will deploy the same number of private and public subnets. Must be greater than 2
-    vpc_flow_logs: True # Enable VPC flow logs for GuardDuty or network debug. Set to False if you don't need them.
     use_vpc_endpoints: False # Enable / Disable creation of VPC endpoints for various services (listed under vpc_interface_endpoints)
     vpc_gateway_endpoints:
     - s3
