@@ -117,23 +117,31 @@ class FindExistingResource:
             max_results = 50
             while token is True:
                 if not next_token:
-                    all_ds = self.ds.describe_directories(MaxResults=max_results)
+                    all_ds = self.ds.describe_directories(Limit=max_results)
                 else:
-                    all_ds = self.ds.describe_directories(MaxResults=max_results, NextToken=next_token)
+                    all_ds = self.ds.describe_directories(Limit=max_results, NextToken=next_token)
                 try:
                     next_token = all_ds['Token']
                 except KeyError:
                     token = False
 
                 for directory in all_ds["DirectoryDescriptions"]:
-                    if directory["VpcSettings"]["VpcId"] == vpc_id:
-                        ds[count] = {"id": directory["DirectoryId"],
-                                     "name": directory["Name"],
-                                     "netbios": directory["ShortName"],
-                                     "dns": directory["DnsIpAddrs"],
-                                     "description": f"{directory['Name']} (Domain: {directory['ShortName']}, Id: {directory['DirectoryId']})"}
-                        count += 1
-            [print("    {:2} > {}".format(key, value["description"])) for key, value in ds.items()]
+                    if directory["Type"] == "ADConnector":
+                        if directory["ConnectSettings"]["VpcId"] == vpc_id:
+                            ds[count] = {"id": directory["DirectoryId"],
+                                        "name": directory["Name"],
+                                        "netbios": directory["ShortName"],
+                                        "dns": directory["DnsIpAddrs"],
+                                        "description": f"{directory['Name']} (Domain: {directory['ShortName']}, Id: {directory['DirectoryId']})"}
+                            count += 1
+                    else:
+                        if directory["VpcSettings"]["VpcId"] == vpc_id:
+                            ds[count] = {"id": directory["DirectoryId"],
+                                        "name": directory["Name"],
+                                        "netbios": directory["ShortName"],
+                                        "dns": directory["DnsIpAddrs"],
+                                        "description": f"{directory['Name']} (Domain: {directory['ShortName']}, Id: {directory['DirectoryId']})"}
+                            count += 1            [print("    {:2} > {}".format(key, value["description"])) for key, value in ds.items()]
             allowed_choices = list(ds.keys())
             choice = get_input(f"Choose the directory you want to use?", None, allowed_choices, int)
             return {"success": True, "message": ds[choice]}
