@@ -11,17 +11,18 @@
 #  and limitations under the License.                                                                                #
 ######################################################################################################################
 
-import config
-from flask_restful import Resource
 import logging
-from decorators import admin_api, restricted_api, private_api
-from models import db, AmiList
+
 import boto3
+import config
+from decorators import admin_api, private_api, restricted_api
+from flask_restful import Resource
+from models import AmiList, db
 
 logger = logging.getLogger("api")
 session = boto3.session.Session()
 aws_region = session.region_name
-ec2_client = boto3.client('ec2', aws_region, config=config.boto_extra_config())
+ec2_client = boto3.client("ec2", aws_region, config=config.boto_extra_config())
 
 
 class ListImages(Resource):

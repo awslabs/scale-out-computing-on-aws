@@ -11,13 +11,14 @@
 #  and limitations under the License.                                                                                #
 ######################################################################################################################
 
-import config
-import ldap
-from flask_restful import Resource
 import logging
-from decorators import private_api
-import errors
 import re
+
+import config
+import errors
+import ldap
+from decorators import private_api
+from flask_restful import Resource
 
 logger = logging.getLogger("api")
 
@@ -44,13 +45,13 @@ class Groups(Resource):
         all_ldap_groups = {}
         group_search_base = "ou=Group," + base_dn
         group_search_scope = ldap.SCOPE_SUBTREE
-        group_filter = 'cn=*'
+        group_filter = "cn=*"
         try:
-            con = ldap.initialize('ldap://{}'.format(ldap_host))
+            con = ldap.initialize("ldap://{}".format(ldap_host))
             groups = con.search_s(group_search_base, group_search_scope, group_filter, ["cn", "memberUid"])
             for group in groups:
                 group_base = group[0]
-                group_name = group[1]['cn'][0].decode('utf-8')
+                group_name = group[1]["cn"][0].decode("utf-8")
                 members = []
                 if "memberUid" in group[1].keys():
                     for member in group[1]["memberUid"]:

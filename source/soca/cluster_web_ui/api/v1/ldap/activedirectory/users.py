@@ -11,12 +11,13 @@
 #  and limitations under the License.                                                                                #
 ######################################################################################################################
 
+import logging
+
 import config
 import ldap
-from flask_restful import Resource
-import logging
 from decorators import admin_api, private_api
 from errors import all_errors
+from flask_restful import Resource
 
 logger = logging.getLogger("api")
 

@@ -11,19 +11,20 @@
 #  and limitations under the License.                                                                                #
 ######################################################################################################################
 
-import config
+import ast
+import base64
+import json
+import logging
+import re
+import shlex
 import subprocess
 
-import ast
-import re
+import config
+from decorators import private_api
 from flask import request
 from flask_restful import Resource, reqparse
-import logging
-import base64
-from decorators import private_api
 from requests import get
-import json
-import shlex
+
 logger = logging.getLogger("api")
 
 
@@ -42,9 +43,9 @@ class Jobs(Resource):
             description: Backend error
         """
         parser = reqparse.RequestParser()
-        parser.add_argument('user', type=str, location='args')
+        parser.add_argument("user", type=str, location="args")
         args = parser.parse_args()
-        user = args['user']
+        user = args["user"]
 
         try:
             qstat_command = config.Config.PBS_QSTAT + " -f -Fjson"
@@ -61,7 +62,10 @@ class Jobs(Resource):
                 except Exception as err:
                     logger.error(f"Unable to query get_job_info due to {err} with job data {get_job_info}")
 
-                    return {"success": False, "message": f"Unable to retrieve this job. Job may have terminated. Error {err}"}, 500
+                    return {
+                        "success": False,
+                        "message": f"Unable to retrieve this job. Job may have terminated. Error {err}",
+                    }, 500
 
                 if user is None:
                     return {"success": True, "message": job_info["Jobs"] if "Jobs" in job_info.keys() else {}}, 200
@@ -77,8 +81,10 @@ class Jobs(Resource):
 
             except Exception as err:
                 logger.error(f"Unable to retrieve Job ID due to {err}")
-                return {"success": False, "message": "Unable to retrieve Job ID (job may have terminated and is no longer in the queue)"}, 500
+                return {
+                    "success": False,
+                    "message": "Unable to retrieve Job ID (job may have terminated and is no longer in the queue)",
+                }, 500
 
         except Exception as err:
             return {"success": False, "message": "Unknown error: " + str(err)}, 500
-

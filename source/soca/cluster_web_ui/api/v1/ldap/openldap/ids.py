@@ -11,13 +11,15 @@
 #  and limitations under the License.                                                                                #
 ######################################################################################################################
 
-import ldap
-import errors
-from flask_restful import Resource
-import config
 import logging
-from decorators import admin_api
 from random import choice
+
+import config
+import errors
+import ldap
+from decorators import admin_api
+from flask_restful import Resource
+
 logger = logging.getLogger("api")
 
 
@@ -41,8 +43,10 @@ class Ids(Resource):
         gid_in_use = []
         try:
             conn = ldap.initialize("ldap://" + config.Config.LDAP_HOST)
-            user_res = conn.search_s(config.Config.LDAP_BASE_DN, ldap.SCOPE_SUBTREE, 'objectClass=Group', ["uidNumber"])
-            group_res = conn.search_s(config.Config.LDAP_BASE_DN, ldap.SCOPE_SUBTREE, 'objectClass=posixGroup', ["gidNumber"])
+            user_res = conn.search_s(config.Config.LDAP_BASE_DN, ldap.SCOPE_SUBTREE, "objectClass=Group", ["uidNumber"])
+            group_res = conn.search_s(
+                config.Config.LDAP_BASE_DN, ldap.SCOPE_SUBTREE, "objectClass=posixGroup", ["gidNumber"]
+            )
 
         except Exception as err:
             return errors.all_errors(type(err).__name__, err)
@@ -52,19 +56,19 @@ class Ids(Resource):
         MAX_IDS = 65533  # 65534 is for "nobody" and 65535 is reserved
 
         for uid in user_res:
-            uid_temp = int(uid[1].get('uidNumber')[0])
+            uid_temp = int(uid[1].get("uidNumber")[0])
             uid_in_use.append(uid_temp)
 
         for gid in group_res:
-            gid_temp = int(gid[1].get('gidNumber')[0])
+            gid_temp = int(gid[1].get("gidNumber")[0])
             gid_in_use.append(gid_temp)
 
-        return {"success": True,
-                "message": {
-                    "proposed_uid": choice([i for i in range(UID, MAX_IDS) if i not in uid_in_use]),
-                    "proposed_gid": choice([i for i in range(GID, MAX_IDS) if i not in gid_in_use]),
-                    "uid_in_use": uid_in_use,
-                    "gid_in_use": gid_in_use}
-                }, 200
-
-
+        return {
+            "success": True,
+            "message": {
+                "proposed_uid": choice([i for i in range(UID, MAX_IDS) if i not in uid_in_use]),
+                "proposed_gid": choice([i for i in range(GID, MAX_IDS) if i not in gid_in_use]),
+                "uid_in_use": uid_in_use,
+                "gid_in_use": gid_in_use,
+            },
+        }, 200

@@ -11,13 +11,14 @@
 #  and limitations under the License.                                                                                #
 ######################################################################################################################
 
-import config
-import ldap
-from flask_restful import Resource
 import logging
-from decorators import private_api
-import errors
 import re
+
+import config
+import errors
+import ldap
+from decorators import private_api
+from flask_restful import Resource
 
 logger = logging.getLogger("api")
 
@@ -51,7 +52,7 @@ class Groups(Resource):
             for group in groups:
                 logger.info(f"Detected {group}")
                 group_base = group[0]
-                group_name = group[1]['cn'][0].decode('utf-8')
+                group_name = group[1]["cn"][0].decode("utf-8")
                 members = []
                 if "member" in group[1].keys():
                     for member in group[1]["member"]:

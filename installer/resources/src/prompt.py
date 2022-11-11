@@ -11,11 +11,13 @@
 #  and limitations under the License.                                                                                #
 ######################################################################################################################
 
-import sys
-from colored import fg, bg, attr
 import getpass
+import sys
 
-def get_input(prompt, specified_value=None, expected_answers=None, expected_type=int, hide=False, color='misty_rose_3'):
+from colored import attr, bg, fg
+
+
+def get_input(prompt, specified_value=None, expected_answers=None, expected_type=int, hide=False, color="misty_rose_3"):
     if expected_answers is None:
         expected_answers = []
     response = None
@@ -23,7 +25,9 @@ def get_input(prompt, specified_value=None, expected_answers=None, expected_type
         # Value specified, validating user provided input
         if expected_answers:
             if specified_value not in expected_answers:
-                print(f"{fg('red')}{specified_value} is an invalid choice. Choose something from {expected_answers}{attr('reset')}")
+                print(
+                    f"{fg('red')}{specified_value} is an invalid choice. Choose something from {expected_answers}{attr('reset')}"
+                )
                 sys.exit(1)
         return specified_value
 
@@ -50,10 +54,11 @@ def get_input(prompt, specified_value=None, expected_answers=None, expected_type
             except ValueError:
                 print(f"Sorry, expected answer is something from {expected_answers}")
 
-
             if expected_answers:
                 if response not in expected_answers:
-                    print(f"{fg('red')}{response} is an invalid choice. Choose something from {expected_answers}{attr('reset')}")
+                    print(
+                        f"{fg('red')}{response} is an invalid choice. Choose something from {expected_answers}{attr('reset')}"
+                    )
                     response = None
 
     return response

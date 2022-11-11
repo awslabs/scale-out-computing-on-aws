@@ -11,19 +11,20 @@
 #  and limitations under the License.                                                                                #
 ######################################################################################################################
 
-import config
-from cryptography.fernet import Fernet
-from flask_restful import Resource, reqparse
-from flask import request
-from requests import get
 import logging
 from datetime import datetime
-import read_secretmanager
-from decorators import private_api
-from botocore.exceptions import ClientError
+
 import boto3
+import config
 import errors
-from models import db, LinuxDCVSessions, WindowsDCVSessions
+import read_secretmanager
+from botocore.exceptions import ClientError
+from cryptography.fernet import Fernet
+from decorators import private_api
+from flask import request
+from flask_restful import Resource, reqparse
+from models import LinuxDCVSessions, WindowsDCVSessions, db
+from requests import get
 
 logger = logging.getLogger("api")
 client_ec2 = boto3.client("ec2", config=config.boto_extra_config())
@@ -60,14 +61,14 @@ class UpdateDesktopSchedule(Resource):
             description: Invalid user/token pair
         """
         parser = reqparse.RequestParser()
-        parser.add_argument("os", type=str, location='form')
-        parser.add_argument("monday", type=str, location='form')
-        parser.add_argument("tuesday", type=str, location='form')
-        parser.add_argument("wednesday", type=str, location='form')
-        parser.add_argument("thursday", type=str, location='form')
-        parser.add_argument("friday", type=str, location='form')
-        parser.add_argument("saturday", type=str, location='form')
-        parser.add_argument("sunday", type=str, location='form')
+        parser.add_argument("os", type=str, location="form")
+        parser.add_argument("monday", type=str, location="form")
+        parser.add_argument("tuesday", type=str, location="form")
+        parser.add_argument("wednesday", type=str, location="form")
+        parser.add_argument("thursday", type=str, location="form")
+        parser.add_argument("friday", type=str, location="form")
+        parser.add_argument("saturday", type=str, location="form")
+        parser.add_argument("sunday", type=str, location="form")
 
         args = parser.parse_args()
         logger.info(f"Received parameter for updating schedule DCV desktop: {args}")
@@ -77,22 +78,24 @@ class UpdateDesktopSchedule(Resource):
             return errors.all_errors("X-SOCA-USER_MISSING")
 
         if session_number is None:
-            return errors.all_errors('CLIENT_MISSING_PARAMETER',
-                                     "session_number not found in URL. Endpoint is /api/dcv/desktop/<session_number>/schedule")
+            return errors.all_errors(
+                "CLIENT_MISSING_PARAMETER",
+                "session_number not found in URL. Endpoint is /api/dcv/desktop/<session_number>/schedule",
+            )
         else:
             args["session_number"] = str(session_number)
 
         if args["os"] is None:
-            return errors.all_errors('CLIENT_MISSING_PARAMETER', "os (str) is required.")
+            return errors.all_errors("CLIENT_MISSING_PARAMETER", "os (str) is required.")
 
         if args["os"].lower() not in ["linux", "windows"]:
-            return errors.all_errors('CLIENT_MISSING_PARAMETER', "os must be linux or windows")
+            return errors.all_errors("CLIENT_MISSING_PARAMETER", "os must be linux or windows")
 
         week_days = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]
         schedule = {}
         for day in week_days:
             if day is None:
-                return errors.all_errors('CLIENT_MISSING_PARAMETER', f"{day} (str) is required.")
+                return errors.all_errors("CLIENT_MISSING_PARAMETER", f"{day} (str) is required.")
             else:
                 schedule_value = args[day].split("-")
                 if len(schedule_value) == 2:
@@ -100,24 +103,42 @@ class UpdateDesktopSchedule(Resource):
                         start_time = int(schedule_value[0])
                         end_time = int(schedule_value[1])
                         if end_time < start_time:
-                            return errors.all_errors("DCV_SCHEDULE_ERROR", f"End time for {day} ({end_time}) must be greater than start time ({start_time})")
+                            return errors.all_errors(
+                                "DCV_SCHEDULE_ERROR",
+                                f"End time for {day} ({end_time}) must be greater than start time ({start_time})",
+                            )
                         elif end_time > 1440:
-                            return errors.all_errors("DCV_SCHEDULE_ERROR", f"End time for {day} ({end_time}) ) cannot be greater than 1440 (12PM)")
+                            return errors.all_errors(
+                                "DCV_SCHEDULE_ERROR",
+                                f"End time for {day} ({end_time}) ) cannot be greater than 1440 (12PM)",
+                            )
                         elif start_time < 0:
-                            return errors.all_errors("DCV_SCHEDULE_ERROR", f"Start time for {day} ({start_time}) ) must be greater than 0 (12AM)")
+                            return errors.all_errors(
+                                "DCV_SCHEDULE_ERROR",
+                                f"Start time for {day} ({start_time}) ) must be greater than 0 (12AM)",
+                            )
                         elif start_time == end_time:
                             schedule[day] = "0-0"  # no run
                         else:
                             schedule[day] = f"{start_time}-{end_time}"
                     except ValueError:
-                        return errors.all_errors("DCV_SCHEDULE_ERROR",f"Schedule must use number1-number2 format where number1 and number2 are valid integer and not {schedule_value}")
+                        return errors.all_errors(
+                            "DCV_SCHEDULE_ERROR",
+                            f"Schedule must use number1-number2 format where number1 and number2 are valid integer and not {schedule_value}",
+                        )
                 else:
-                    return errors.all_errors("DCV_SCHEDULE_ERROR", f"Schedule values must be number1-number2 format and not {schedule_value}")
+                    return errors.all_errors(
+                        "DCV_SCHEDULE_ERROR", f"Schedule values must be number1-number2 format and not {schedule_value}"
+                    )
 
         if args["os"].lower() == "linux":
-            check_session = LinuxDCVSessions.query.filter_by(user=user, session_number=args['session_number'], is_active=True).first()
+            check_session = LinuxDCVSessions.query.filter_by(
+                user=user, session_number=args["session_number"], is_active=True
+            ).first()
         else:
-            check_session = WindowsDCVSessions.query.filter_by(user=user, session_number=args["session_number"], is_active=True).first()
+            check_session = WindowsDCVSessions.query.filter_by(
+                user=user, session_number=args["session_number"], is_active=True
+            ).first()
 
         if check_session:
             session_name = check_session.session_name
@@ -138,4 +159,6 @@ class UpdateDesktopSchedule(Resource):
             db.session.commit()
             return {"success": True, "message": f"Schedule has been updated correctly for {session_name}"}, 200
         else:
-            return errors.all_errors('DCV_RESTART_ERROR', f"Unable to retrieve this session. It's possible your session has been deleted.")
+            return errors.all_errors(
+                "DCV_RESTART_ERROR", f"Unable to retrieve this session. It's possible your session has been deleted."
+            )

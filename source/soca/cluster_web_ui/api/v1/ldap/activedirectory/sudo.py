@@ -11,14 +11,17 @@
 #  and limitations under the License.                                                                                #
 ######################################################################################################################
 
-from flask_restful import Resource, reqparse
-import config
-import ldap
-from models import db,ApiKeys
-from decorators import restricted_api, admin_api
-import errors
 import logging
+
+import config
+import errors
+import ldap
+from decorators import admin_api, restricted_api
+from flask_restful import Resource, reqparse
+from models import ApiKeys, db
+
 logger = logging.getLogger("api")
+
 
 class Sudo(Resource):
     @admin_api
@@ -48,7 +51,7 @@ class Sudo(Resource):
             description: Malformed client input
         """
         parser = reqparse.RequestParser()
-        parser.add_argument('user', type=str, location='args')
+        parser.add_argument("user", type=str, location="args")
         args = parser.parse_args()
         user = args["user"]
         if user is None:
@@ -63,7 +66,9 @@ class Sudo(Resource):
             user_search_base = f"CN={user},OU=Users,OU={config.Config.NETBIOS},{config.Config.LDAP_BASE}"
             sudoers_group = config.Config.SUDOERS_GROUP
             filter_criteria = f"(&(objectClass=group)(member={user_search_base}))"
-            for dn, entry in conn.search_s(config.Config.LDAP_BASE, ldap.SCOPE_SUBTREE, filter_criteria, ["cn", "member"]):
+            for dn, entry in conn.search_s(
+                config.Config.LDAP_BASE, ldap.SCOPE_SUBTREE, filter_criteria, ["cn", "member"]
+            ):
                 if isinstance(entry, dict):
                     logger.info(f"Checking {sudoers_group}: {dn}, {entry}")
                     if "cn" in entry.keys():
@@ -73,8 +78,8 @@ class Sudo(Resource):
                                 for users in entry["member"]:
                                     logger.info(f"Detected sudo permission for {users}")
                                     if user_search_base.lower() == users.lower().decode("utf-8"):
-                                        return {'success': True, 'message': "User has SUDO permissions."}, 200
-            return {'success': False, 'message': "User does not have SUDO permissions."}, 222
+                                        return {"success": True, "message": "User has SUDO permissions."}, 200
+            return {"success": False, "message": "User does not have SUDO permissions."}, 222
 
         except Exception as err:
             return errors.all_errors(type(err).__name__, err)
@@ -109,7 +114,7 @@ class Sudo(Resource):
             description: Malformed client input
         """
         parser = reqparse.RequestParser()
-        parser.add_argument('user', type=str, location='form')
+        parser.add_argument("user", type=str, location="form")
         args = parser.parse_args()
         user = args["user"]
         if user is None:
@@ -120,7 +125,7 @@ class Sudo(Resource):
         sudoers_group = config.Config.SUDOERS_GROUP_DN
         dn_user = f"cn={user},ou=Users,OU={config.Config.NETBIOS},{config.Config.LDAP_BASE}"
         logger.info(f"Adding SUDO permission for {dn_user}")
-        mod_attrs = [(ldap.MOD_ADD, 'member', [dn_user.encode("utf-8")])]
+        mod_attrs = [(ldap.MOD_ADD, "member", [dn_user.encode("utf-8")])]
         try:
             conn.modify_s(sudoers_group, mod_attrs)
             change_user_key_scope = ApiKeys.query.filter_by(user=user, is_active=True).all()
@@ -158,9 +163,9 @@ class Sudo(Resource):
             description: Invalid user/token pair
           400:
             description: Malformed client input
-         """
+        """
         parser = reqparse.RequestParser()
-        parser.add_argument('user', type=str, location='form')
+        parser.add_argument("user", type=str, location="form")
         args = parser.parse_args()
         user = args["user"]
         if user is None:
@@ -171,7 +176,7 @@ class Sudo(Resource):
         sudoers_group = config.Config.SUDOERS_GROUP_DN
         dn_user = f"cn={user},ou=Users,OU={config.Config.NETBIOS},{config.Config.LDAP_BASE}"
         logger.info(f"Revoking sudo permission for {dn_user}")
-        mod_attrs = [(ldap.MOD_DELETE, 'member', [dn_user.encode("utf-8")])]
+        mod_attrs = [(ldap.MOD_DELETE, "member", [dn_user.encode("utf-8")])]
         try:
             conn.modify_s(sudoers_group, mod_attrs)
             change_user_key_scope = ApiKeys.query.filter_by(user=user, is_active=True).all()

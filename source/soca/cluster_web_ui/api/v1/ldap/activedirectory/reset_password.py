@@ -12,15 +12,17 @@
 ######################################################################################################################
 
 import hashlib
+import json
+import logging
 import os
 import re
-import config
-from flask_restful import Resource, reqparse
-import logging
-from decorators import private_api, admin_api
-import errors
+
 import boto3
-import json
+import config
+import errors
+from decorators import admin_api, private_api
+from flask_restful import Resource, reqparse
+
 logger = logging.getLogger("api")
 
 
@@ -70,16 +72,23 @@ class Reset(Resource):
             return errors.all_errors("DS_PASSWORD_COMPLEXITY_ERROR")
         lambda_client = boto3.client("lambda", config=config.boto_extra_config())
         if user is None or password is None:
-            return errors.all_errors("CLIENT_MISSING_PARAMETER", "user (str) and password (str) parameters are required")
+            return errors.all_errors(
+                "CLIENT_MISSING_PARAMETER", "user (str) and password (str) parameters are required"
+            )
 
         ds_password_reset_lambda_arn = config.Config.DIRECTORY_SERVICE_RESET_LAMBDA_ARN
         if not ds_password_reset_lambda_arn:
             return errors.all_errors("MISSING_DS_RESET_LAMBDA")
 
         try:
-            response = lambda_client.invoke(FunctionName=ds_password_reset_lambda_arn,
-                Payload=json.dumps({"Username": user, "Password": password, "DirectoryServiceId": config.Config.DIRECTORY_SERVICE_ID}, indent=2).encode("utf-8"))
-            logger.info(str(response['Payload'].read()))
+            response = lambda_client.invoke(
+                FunctionName=ds_password_reset_lambda_arn,
+                Payload=json.dumps(
+                    {"Username": user, "Password": password, "DirectoryServiceId": config.Config.DIRECTORY_SERVICE_ID},
+                    indent=2,
+                ).encode("utf-8"),
+            )
+            logger.info(str(response["Payload"].read()))
             return {"success": True, "message": "Password updated correctly."}, 200
 
         except Exception as err:

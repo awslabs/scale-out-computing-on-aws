@@ -11,22 +11,23 @@
 #  and limitations under the License.                                                                                #
 ######################################################################################################################
 
-import config
-from cryptography.fernet import Fernet
-from flask_restful import Resource, reqparse
-from flask import request
-from requests import get
-import logging
-from datetime import datetime
-import json
-import read_secretmanager
-from decorators import private_api
 import base64
-import boto3
+import json
+import logging
 import os
 import sys
+from datetime import datetime
+
+import boto3
+import config
 import errors
-from models import db, LinuxDCVSessions, WindowsDCVSessions
+import read_secretmanager
+from cryptography.fernet import Fernet
+from decorators import private_api
+from flask import request
+from flask_restful import Resource, reqparse
+from models import LinuxDCVSessions, WindowsDCVSessions, db
+from requests import get
 
 logger = logging.getLogger("api")
 client_ec2 = boto3.client("ec2", config=config.boto_extra_config())
@@ -42,39 +43,30 @@ def encrypt(message):
 def get_host_info(tag_uuid, cluster_id, operating_system):
     host_info = {}
     token = True
-    next_token = ''
+    next_token = ""
     while token is True:
         response = client_ec2.describe_instances(
             Filters=[
-                {
-                    'Name': 'tag:soca:DCVSessionUUID',
-                    'Values': [tag_uuid]
-                },
-                {
-                    "Name": "tag:soca:ClusterId",
-                    "Values": [cluster_id]
-                },
-                {
-                    "Name": "tag:soca:DCVSystem",
-                    "Values": [operating_system]
-                }
+                {"Name": "tag:soca:DCVSessionUUID", "Values": [tag_uuid]},
+                {"Name": "tag:soca:ClusterId", "Values": [cluster_id]},
+                {"Name": "tag:soca:DCVSystem", "Values": [operating_system]},
             ],
             MaxResults=1000,
             NextToken=next_token,
         )
 
         try:
-            next_token = response['NextToken']
+            next_token = response["NextToken"]
         except KeyError:
             token = False
 
-        for reservation in response['Reservations']:
-            for instance in reservation['Instances']:
-                if instance['PrivateDnsName'].split('.')[0]:
-                    host_info["private_dns"] = instance['PrivateDnsName'].split('.')[0]
-                    host_info["private_ip"] = instance['PrivateIpAddress']
-                    host_info["instance_id"] = instance['InstanceId']
-                    host_info["status"] = instance['State']['Name']
+        for reservation in response["Reservations"]:
+            for instance in reservation["Instances"]:
+                if instance["PrivateDnsName"].split(".")[0]:
+                    host_info["private_dns"] = instance["PrivateDnsName"].split(".")[0]
+                    host_info["private_ip"] = instance["PrivateIpAddress"]
+                    host_info["instance_id"] = instance["InstanceId"]
+                    host_info["status"] = instance["State"]["Name"]
 
     return host_info
 
@@ -116,10 +108,10 @@ class ListDesktops(Resource):
             description: Invalid user/token pair
         """
         parser = reqparse.RequestParser()
-        parser.add_argument("os", type=str, location='args')
-        parser.add_argument("is_active", type=str, location='args')
-        parser.add_argument("session_number", type=str, location='args')
-        parser.add_argument("state", type=str, location='args')
+        parser.add_argument("os", type=str, location="args")
+        parser.add_argument("is_active", type=str, location="args")
+        parser.add_argument("session_number", type=str, location="args")
+        parser.add_argument("state", type=str, location="args")
         args = parser.parse_args()
         logger.info(f"Received parameter for listing DCV desktop: {args}")
 
@@ -128,7 +120,7 @@ class ListDesktops(Resource):
             return errors.all_errors("X-SOCA-USER_MISSING")
 
         if args["os"] is None or args["is_active"] is None:
-            return errors.all_errors('CLIENT_MISSING_PARAMETER', "os (str), is_active (str)  are required.")
+            return errors.all_errors("CLIENT_MISSING_PARAMETER", "os (str), is_active (str)  are required.")
 
         if args["os"] not in ["windows", "linux"]:
             return errors.all_errors("CLIENT_INVALID_PARAMETER", "os (str) must be windows or linux")
@@ -145,7 +137,7 @@ class ListDesktops(Resource):
                 all_dcv_sessions = all_dcv_sessions.filter(WindowsDCVSessions.session_state == args["state"])
             if args["session_number"] is not None:
                 all_dcv_sessions = all_dcv_sessions.filter(WindowsDCVSessions.session_number == args["session_number"])
-            all_dcv_sessions = all_dcv_sessions.filter(WindowsDCVSessions.is_active==is_active)
+            all_dcv_sessions = all_dcv_sessions.filter(WindowsDCVSessions.is_active == is_active)
 
         else:
             all_dcv_sessions = LinuxDCVSessions.query.filter(LinuxDCVSessions.user == user)
@@ -153,7 +145,7 @@ class ListDesktops(Resource):
                 all_dcv_sessions = all_dcv_sessions.filter(LinuxDCVSessions.session_state == args["state"])
             if args["session_number"] is not None:
                 all_dcv_sessions = all_dcv_sessions.filter(LinuxDCVSessions.session_number == args["session_number"])
-            all_dcv_sessions = all_dcv_sessions.filter(LinuxDCVSessions.is_active==is_active)
+            all_dcv_sessions = all_dcv_sessions.filter(LinuxDCVSessions.is_active == is_active)
 
         logger.info(f"Checking {args['os']} desktops for {user}")
         user_sessions = {}
@@ -165,7 +157,9 @@ class ListDesktops(Resource):
                 session_name = session_info.session_name
                 session_host_private_dns = session_info.session_host_private_dns
                 session_token = session_info.session_token
-                session_local_admin_password = session_info.session_local_admin_password if args["os"] == "windows" else None
+                session_local_admin_password = (
+                    session_info.session_local_admin_password if args["os"] == "windows" else None
+                )
                 if args["os"].lower() != "windows":
                     session_linux_distribution = session_info.session_linux_distribution
                 session_instance_type = session_info.session_instance_type
@@ -174,26 +168,36 @@ class ListDesktops(Resource):
                 dcv_authentication_token = session_info.dcv_authentication_token
                 session_id = session_info.session_id
 
-                session_schedule = {"monday": f"{session_info.schedule_monday_start}-{session_info.schedule_monday_stop}",
-                                    "tuesday": f"{session_info.schedule_tuesday_start}-{session_info.schedule_tuesday_stop}",
-                                    "wednesday": f"{session_info.schedule_wednesday_start}-{session_info.schedule_wednesday_stop}",
-                                    "thursday": f"{session_info.schedule_thursday_start}-{session_info.schedule_thursday_stop}",
-                                    "friday": f"{session_info.schedule_friday_start}-{session_info.schedule_friday_stop}",
-                                    "saturday": f"{session_info.schedule_saturday_start}-{session_info.schedule_saturday_stop}",
-                                    "sunday": f"{session_info.schedule_sunday_start}-{session_info.schedule_sunday_stop}"}
+                session_schedule = {
+                    "monday": f"{session_info.schedule_monday_start}-{session_info.schedule_monday_stop}",
+                    "tuesday": f"{session_info.schedule_tuesday_start}-{session_info.schedule_tuesday_stop}",
+                    "wednesday": f"{session_info.schedule_wednesday_start}-{session_info.schedule_wednesday_stop}",
+                    "thursday": f"{session_info.schedule_thursday_start}-{session_info.schedule_thursday_stop}",
+                    "friday": f"{session_info.schedule_friday_start}-{session_info.schedule_friday_stop}",
+                    "saturday": f"{session_info.schedule_saturday_start}-{session_info.schedule_saturday_stop}",
+                    "sunday": f"{session_info.schedule_sunday_start}-{session_info.schedule_sunday_stop}",
+                }
 
                 stack_name = f"{read_secretmanager.get_soca_configuration()['ClusterId']}-{session_name}-{user}"
                 if args["os"].lower() == "windows":
-                    host_info = get_host_info(tag_uuid, read_secretmanager.get_soca_configuration()["ClusterId"], "windows")
+                    host_info = get_host_info(
+                        tag_uuid, read_secretmanager.get_soca_configuration()["ClusterId"], "windows"
+                    )
                 else:
-                    host_info = get_host_info(tag_uuid, read_secretmanager.get_soca_configuration()["ClusterId"], session_linux_distribution)
+                    host_info = get_host_info(
+                        tag_uuid, read_secretmanager.get_soca_configuration()["ClusterId"], session_linux_distribution
+                    )
 
                 logger.info(f"Host Info {host_info}")
                 if not host_info:
                     try:
                         check_stack = client_cfn.describe_stacks(StackName=stack_name)
                         logger.info(f"Host Info check_stack {check_stack}")
-                        if check_stack['Stacks'][0]['StackStatus'] in ['CREATE_FAILED', 'ROLLBACK_COMPLETE', 'ROLLBACK_FAILED']:
+                        if check_stack["Stacks"][0]["StackStatus"] in [
+                            "CREATE_FAILED",
+                            "ROLLBACK_COMPLETE",
+                            "ROLLBACK_FAILED",
+                        ]:
                             logger.info(f"Host Info DEACTIVATE")
                             # no host detected, session no longer active
                             session_info.is_active = False
@@ -211,10 +215,14 @@ class ListDesktops(Resource):
                         session_info.session_host_private_ip = host_info["private_ip"]
                         session_info.session_instance_id = host_info["instance_id"]
 
-                        authentication_data = json.dumps({"system": "windows" if args["os"].lower() == "windows" else session_linux_distribution,
-                                                          "session_instance_id": host_info["instance_id"],
-                                                          "session_token": session_token,
-                                                          "session_user": user})
+                        authentication_data = json.dumps(
+                            {
+                                "system": "windows" if args["os"].lower() == "windows" else session_linux_distribution,
+                                "session_instance_id": host_info["instance_id"],
+                                "session_token": session_token,
+                                "session_user": user,
+                            }
+                        )
                         session_authentication_token = base64.b64encode(encrypt(authentication_data)).decode("utf-8")
                         session_info.dcv_authentication_token = session_authentication_token
                         db.session.commit()
@@ -223,7 +231,11 @@ class ListDesktops(Resource):
                     try:
                         check_stack = client_cfn.describe_stacks(StackName=stack_name)
                         logger.info(f"Host Info check_stack {check_stack}")
-                        if check_stack['Stacks'][0]['StackStatus'] in ['CREATE_FAILED', 'ROLLBACK_COMPLETE', 'ROLLBACK_FAILED']:
+                        if check_stack["Stacks"][0]["StackStatus"] in [
+                            "CREATE_FAILED",
+                            "ROLLBACK_COMPLETE",
+                            "ROLLBACK_FAILED",
+                        ]:
                             logger.info(f"Host Info DEACTIVATE")
                             # no host detected, session no longer active
                             session_info.is_active = False
@@ -242,33 +254,44 @@ class ListDesktops(Resource):
                         db.session.commit()
 
                 if session_state == "pending" and session_host_private_dns is not False:
-                    check_dcv_state = get(f"https://{read_secretmanager.get_soca_configuration()['LoadBalancerDNSName']}/{session_host_private_dns}/",
-                                          allow_redirects=False,
-                                          verify=False)  # nosec
+                    check_dcv_state = get(
+                        f"https://{read_secretmanager.get_soca_configuration()['LoadBalancerDNSName']}/{session_host_private_dns}/",
+                        allow_redirects=False,
+                        verify=False,
+                    )  # nosec
 
-                    logger.info("Checking {} for {} and received status {} ".format('https://' + read_secretmanager.get_soca_configuration()['LoadBalancerDNSName'] + '/' + session_host_private_dns + '/',
+                    logger.info(
+                        "Checking {} for {} and received status {} ".format(
+                            "https://"
+                            + read_secretmanager.get_soca_configuration()["LoadBalancerDNSName"]
+                            + "/"
+                            + session_host_private_dns
+                            + "/",
                             session_info,
-                            check_dcv_state.status_code))
+                            check_dcv_state.status_code,
+                        )
+                    )
 
                     if check_dcv_state.status_code == 200:
                         session_info.session_state = "running"
                         db.session.commit()
 
                 user_sessions[session_number] = {
-                        "url": f"https://{read_secretmanager.get_soca_configuration()['LoadBalancerDNSName']}/{session_host_private_dns}/",
-                        "session_local_admin_password": session_local_admin_password,
-                        "session_state": session_state,
-                        "session_authentication_token": dcv_authentication_token,
-                        "session_id": session_id,
-                        "session_name": session_name,
-                        "session_instance_id": session_instance_id,
-                        "session_instance_type": session_instance_type,
-                        "tag_uuid": tag_uuid,
-                        "support_hibernation": support_hibernation,
-                        "session_schedule": session_schedule,
-                        "connection_string": f"https://{read_secretmanager.get_soca_configuration()['LoadBalancerDNSName']}/{session_host_private_dns}/?authToken={dcv_authentication_token}#{session_id}"}
+                    "url": f"https://{read_secretmanager.get_soca_configuration()['LoadBalancerDNSName']}/{session_host_private_dns}/",
+                    "session_local_admin_password": session_local_admin_password,
+                    "session_state": session_state,
+                    "session_authentication_token": dcv_authentication_token,
+                    "session_id": session_id,
+                    "session_name": session_name,
+                    "session_instance_id": session_instance_id,
+                    "session_instance_type": session_instance_type,
+                    "tag_uuid": tag_uuid,
+                    "support_hibernation": support_hibernation,
+                    "session_schedule": session_schedule,
+                    "connection_string": f"https://{read_secretmanager.get_soca_configuration()['LoadBalancerDNSName']}/{session_host_private_dns}/?authToken={dcv_authentication_token}#{session_id}",
+                }
 
-                #logger.info(user_sessions)
+                # logger.info(user_sessions)
             except Exception as err:
                 exc_type, exc_obj, exc_tb = sys.exc_info()
                 fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
@@ -276,6 +299,3 @@ class ListDesktops(Resource):
                 return errors.all_errors(type(err).__name__, err)
 
         return {"success": True, "message": user_sessions}, 200
-
-
-

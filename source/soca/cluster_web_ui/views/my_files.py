@@ -11,29 +11,39 @@
 #  and limitations under the License.                                                                                #
 ######################################################################################################################
 
-import logging
-import config
-import zipfile
-from decorators import login_required
-from flask import render_template, request, redirect, session, flash, Blueprint, send_file, after_this_request
+import base64
+import datetime
 import errno
+import grp
+import json
+import logging
 import math
 import os
-import base64
-from requests import get
-from cryptography.fernet import Fernet, InvalidToken, InvalidSignature
-import json
 import pwd
+import zipfile
 from collections import OrderedDict
-import grp
-from flask import Flask
-from werkzeug.utils import secure_filename
-from cachetools import TTLCache
-import datetime
+
+import config
 import read_secretmanager
+from cachetools import TTLCache
+from cryptography.fernet import Fernet, InvalidSignature, InvalidToken
+from decorators import login_required
+from flask import (
+    Blueprint,
+    Flask,
+    after_this_request,
+    flash,
+    redirect,
+    render_template,
+    request,
+    send_file,
+    session,
+)
+from requests import get
+from werkzeug.utils import secure_filename
 
 logger = logging.getLogger("application")
-my_files = Blueprint('my_files', __name__, template_folder='templates')
+my_files = Blueprint("my_files", __name__, template_folder="templates")
 app = Flask(__name__)
 
 # Set up caching
@@ -67,9 +77,7 @@ def encrypt(file_path, file_size):
     try:
         key = config.Config.SOCA_DATA_SHARING_SYMMETRIC_KEY
         cipher_suite = Fernet(key)
-        payload = {"file_owner": session["user"],
-                   "file_path": file_path,
-                   "file_size": file_size}
+        payload = {"file_owner": session["user"], "file_path": file_path, "file_size": file_size}
         encrypted_text = cipher_suite.encrypt(json.dumps(payload).encode("utf-8"))
         return {"success": True, "message": encrypted_text.decode()}
     except Exception as err:
@@ -94,11 +102,12 @@ def demote(user_uid, user_gid):
     def set_ids():
         os.setgid(user_gid)
         os.setuid(user_uid)
+
     return set_ids
 
 
 def user_has_permission(path, permission_required, type):
-    logger.info("Checking " + permission_required + " for " + path + " (" + type +")")
+    logger.info("Checking " + permission_required + " for " + path + " (" + type + ")")
     if type not in ["file", "folder"]:
         logger.info("Type must be file or folder")
         return False
@@ -119,10 +128,11 @@ def user_has_permission(path, permission_required, type):
         if path.lower().startswith(restricted_path.lower()):
             return False
 
-    min_permission_level = {"write": 6,  # Read+Write
-                            "read": 5,  # Read+Execute
-                            "execute": 1,  # Min permission to be able to CD into directory
-                            }
+    min_permission_level = {
+        "write": 6,  # Read+Write
+        "read": 5,  # Read+Execute
+        "execute": 1,  # Min permission to be able to CD into directory
+    }
 
     user_uid = pwd.getpwnam(session["user"]).pw_uid
 
@@ -156,10 +166,12 @@ def user_has_permission(path, permission_required, type):
                     check_folder = cache[CACHE_FOLDER_PERMISSION_PREFIX + folder_path]
 
                 if CACHE_GROUP_MEMBERSHIP_PREFIX + check_folder["folder_group_name"] not in cache.keys():
-                    check_group_membership = get(config.Config.FLASK_ENDPOINT + "/api/ldap/group",
-                                                 headers={"X-SOCA-TOKEN": config.Config.API_ROOT_KEY},
-                                                 params={"group": check_folder["folder_group_name"]},
-                                                 verify=False) # nosec
+                    check_group_membership = get(
+                        config.Config.FLASK_ENDPOINT + "/api/ldap/group",
+                        headers={"X-SOCA-TOKEN": config.Config.API_ROOT_KEY},
+                        params={"group": check_folder["folder_group_name"]},
+                        verify=False,
+                    )  # nosec
 
                     if check_group_membership.status_code == 200:
                         group_members = check_group_membership.json()["message"]["members"]
@@ -181,21 +193,27 @@ def user_has_permission(path, permission_required, type):
                     if check_folder["folder_owner"] != user_uid:
                         if user_belong_to_group is True:
                             if check_folder["group_permission"] < min_permission_level[permission_required]:
-                                logger.info("user do not have " + permission_required + " permission for " + folder_path)
+                                logger.info(
+                                    "user do not have " + permission_required + " permission for " + folder_path
+                                )
                                 return False
                         else:
                             if check_folder["other_permission"] < min_permission_level[permission_required]:
-                                logger.info("user do not have " + permission_required + " permission for " + folder_path)
+                                logger.info(
+                                    "user do not have " + permission_required + " permission for " + folder_path
+                                )
                                 return False
                 else:
                     # Folder chain, must have at least Execute permission
                     if check_folder["folder_owner"] != user_uid:
                         if user_belong_to_group is True:
                             if check_folder["group_permission"] < min_permission_level[permission_required]:
-                                logger.info("user do not have " + permission_required + " permission for " + folder_path)
+                                logger.info(
+                                    "user do not have " + permission_required + " permission for " + folder_path
+                                )
                                 return False
                         else:
-                            if (check_folder["other_permission"] < min_permission_level["execute"]):
+                            if check_folder["other_permission"] < min_permission_level["execute"]:
                                 logger.info("user do not have EXECUTE permission for " + folder_path)
                                 return False
 
@@ -207,7 +225,7 @@ def user_has_permission(path, permission_required, type):
         return False
 
 
-@my_files.route('/my_files', methods=['GET'])
+@my_files.route("/my_files", methods=["GET"])
 @login_required
 def index():
     try:
@@ -217,9 +235,9 @@ def index():
         ts = request.args.get("ts", None)
         if ts is None:
             if path is None:
-                return redirect("/my_files?ts="+timestamp)
+                return redirect("/my_files?ts=" + timestamp)
             else:
-                return redirect("/my_files?path="+path+"&ts=" + timestamp)
+                return redirect("/my_files?path=" + path + "&ts=" + timestamp)
 
         filesystem = {}
         breadcrumb = {}
@@ -237,10 +255,15 @@ def index():
 
         if user_has_permission(path, "read", "folder") is False:
             if path == config.Config.USER_HOME + "/" + session["user"]:
-                flash("We cannot access to your own home directory. Please ask a admin to rollback your folder ACLs to 750")
+                flash(
+                    "We cannot access to your own home directory. Please ask a admin to rollback your folder ACLs to 750"
+                )
                 return redirect("/")
             else:
-                flash("You are not authorized to access this location and/or this path is restricted by the HPC admin. If you recently changed the permissions, please allow up to 10 minutes for sync.", "error")
+                flash(
+                    "You are not authorized to access this location and/or this path is restricted by the HPC admin. If you recently changed the permissions, please allow up to 10 minutes for sync.",
+                    "error",
+                )
                 return redirect("/my_files")
 
         # Build breadcrumb
@@ -249,7 +272,7 @@ def index():
             if level == "":
                 breadcrumb["/"] = "root"
             else:
-                breadcrumb["/".join(path.split('/')[:count])] = level
+                breadcrumb["/".join(path.split("/")[:count])] = level
 
             count += 1
 
@@ -260,13 +283,14 @@ def index():
                 for entry in os.scandir(path):
                     if not entry.name.startswith("."):
                         try:
-                            filesystem[entry.name] = {"path": path + "/" + entry.name,
-                                                      "uid": encrypt(path + "/" + entry.name, entry.stat().st_size)["message"],
-                                                      "type": "folder" if entry.is_dir() else "file",
-                                                      "st_size": convert_size(entry.stat().st_size),
-                                                      "st_size_default": entry.stat().st_size,
-                                                      "st_mtime": entry.stat().st_mtime
-                                                      }
+                            filesystem[entry.name] = {
+                                "path": path + "/" + entry.name,
+                                "uid": encrypt(path + "/" + entry.name, entry.stat().st_size)["message"],
+                                "type": "folder" if entry.is_dir() else "file",
+                                "st_size": convert_size(entry.stat().st_size),
+                                "st_size_default": entry.stat().st_size,
+                                "st_mtime": entry.stat().st_mtime,
+                            }
                         except Exception as err:
                             # most likely symbolic link pointing to wrong location
                             flash("{} returned an error and cannot be displayed: {}".format(entry.name, err))
@@ -274,38 +298,44 @@ def index():
 
             except Exception as err:
                 if err.errno == errno.EPERM:
-                    flash("Sorry we could not access this location due to a permission error. If you recently changed the permissions, please allow up to 10 minutes for sync.", "error")
+                    flash(
+                        "Sorry we could not access this location due to a permission error. If you recently changed the permissions, please allow up to 10 minutes for sync.",
+                        "error",
+                    )
                 elif err.errno == errno.ENOENT:
                     flash("Could not locate the directory. Did you delete it ?", "error")
                 else:
-                    flash("Could not locate the directory: " + str (err), "error")
+                    flash("Could not locate the directory: " + str(err), "error")
                 return redirect("/my_files")
         else:
             is_cached = True
             filesystem = cache[CACHE_FOLDER_CONTENT_PREFIX + path]
 
-        get_all_uid = [file_info['uid'] for file_info in filesystem.values() if file_info["type"] == "file"]
+        get_all_uid = [file_info["uid"] for file_info in filesystem.values() if file_info["type"] == "file"]
 
-        return render_template('my_files.html', user=session["user"],
-                               filesystem=OrderedDict(sorted(filesystem.items(), key=lambda t: t[0].lower())),
-                               get_all_uid=base64.b64encode(",".join(get_all_uid).encode()).decode(),
-                               get_all_uid_count=len(get_all_uid),
-                               breadcrumb=breadcrumb,
-                               max_upload_size=config.Config.MAX_UPLOAD_FILE,
-                               max_upload_timeout=config.Config.MAX_UPLOAD_TIMEOUT,
-                               max_online_preview=config.Config.MAX_SIZE_ONLINE_PREVIEW,
-                               default_cache_time=config.Config.DEFAULT_CACHE_TIME,
-                               path=path,
-                               page="my_files",
-                               is_cached=is_cached,
-                               timestamp=timestamp)
+        return render_template(
+            "my_files.html",
+            user=session["user"],
+            filesystem=OrderedDict(sorted(filesystem.items(), key=lambda t: t[0].lower())),
+            get_all_uid=base64.b64encode(",".join(get_all_uid).encode()).decode(),
+            get_all_uid_count=len(get_all_uid),
+            breadcrumb=breadcrumb,
+            max_upload_size=config.Config.MAX_UPLOAD_FILE,
+            max_upload_timeout=config.Config.MAX_UPLOAD_TIMEOUT,
+            max_online_preview=config.Config.MAX_SIZE_ONLINE_PREVIEW,
+            default_cache_time=config.Config.DEFAULT_CACHE_TIME,
+            path=path,
+            page="my_files",
+            is_cached=is_cached,
+            timestamp=timestamp,
+        )
     except Exception as err:
-        flash("Error, this path probably does not exist. "+str(err), "error")
+        flash("Error, this path probably does not exist. " + str(err), "error")
         logger.error(err)
         return redirect("/my_files")
 
 
-@my_files.route('/my_files/download', methods=['GET'])
+@my_files.route("/my_files/download", methods=["GET"])
 @login_required
 def download():
     uid = request.args.get("uid", None)
@@ -322,15 +352,19 @@ def download():
         if file_information["success"] is True:
             file_info = json.loads(file_information["message"])
             if user_has_permission(file_info["file_path"], "read", "file") is False:
-                flash(" You are not authorized to download this file or this file is no longer available on the filesystem")
+                flash(
+                    " You are not authorized to download this file or this file is no longer available on the filesystem"
+                )
                 return redirect("/my_files")
 
             current_user = session["user"]
             if current_user == file_info["file_owner"]:
                 try:
-                    return send_file(file_info["file_path"],
-                                     as_attachment=True,
-                                     attachment_filename=file_info["file_path"].split("/")[-1])
+                    return send_file(
+                        file_info["file_path"],
+                        as_attachment=True,
+                        attachment_filename=file_info["file_path"].split("/")[-1],
+                    )
                 except Exception as err:
                     flash("Unable to download file. Did you remove it?", "error")
                     return redirect("/my_files")
@@ -350,7 +384,9 @@ def download():
             if file_information["success"] is True:
                 file_info = json.loads(file_information["message"])
                 if user_has_permission(file_info["file_path"], "read", "file") is False:
-                    flash("You are not authorized to download this file or this file is no longer available on the filesystem")
+                    flash(
+                        "You are not authorized to download this file or this file is no longer available on the filesystem"
+                    )
                     return redirect("/my_files")
 
                 current_user = session["user"]
@@ -360,21 +396,41 @@ def download():
                     total_files = total_files + 1
 
         if total_size > config.Config.MAX_ARCHIVE_SIZE:
-            flash("Sorry, the maximum archive size is {:.2f} MB. Your archive was {:.2f} MB. To avoid this issue, you can create a smaller archive, download files individually, use SFTP or edit the maximum archive size authorized.".format(config.Config.MAX_ARCHIVE_SIZE/1024/1024, total_size/1024/1024), "error")
+            flash(
+                "Sorry, the maximum archive size is {:.2f} MB. Your archive was {:.2f} MB. To avoid this issue, you can create a smaller archive, download files individually, use SFTP or edit the maximum archive size authorized.".format(
+                    config.Config.MAX_ARCHIVE_SIZE / 1024 / 1024, total_size / 1024 / 1024
+                ),
+                "error",
+            )
             return redirect("/my_files")
 
         # Limit HTTP payload size
         if total_files > 45:
-            flash("Sorry, you cannot download more than 45 files in a single call. Your archive contained {} files".format(total_files), "error")
+            flash(
+                "Sorry, you cannot download more than 45 files in a single call. Your archive contained {} files".format(
+                    total_files
+                ),
+                "error",
+            )
             return redirect("/my_files")
 
         if valid_file_path.__len__() == 0:
             return redirect("/my_files")
 
         ts = datetime.datetime.utcnow().strftime("%s")
-        archive_name = "/apps/soca/" + read_secretmanager.get_soca_configuration()["ClusterId"] + "/cluster_web_ui/tmp/zip_downloads/SOCA_Download_" + session["user"] + "_" + ts + ".zip"
-        zipf = zipfile.ZipFile(archive_name, 'w', zipfile.ZIP_DEFLATED)
-        logger.info("About to create archive: " + str(archive_name) + " with the following files: " +str(valid_file_path))
+        archive_name = (
+            "/apps/soca/"
+            + read_secretmanager.get_soca_configuration()["ClusterId"]
+            + "/cluster_web_ui/tmp/zip_downloads/SOCA_Download_"
+            + session["user"]
+            + "_"
+            + ts
+            + ".zip"
+        )
+        zipf = zipfile.ZipFile(archive_name, "w", zipfile.ZIP_DEFLATED)
+        logger.info(
+            "About to create archive: " + str(archive_name) + " with the following files: " + str(valid_file_path)
+        )
         try:
             for file_to_zip in valid_file_path:
                 zipf.write(file_to_zip)
@@ -386,17 +442,16 @@ def download():
             return redirect("/my_files")
 
         if os.path.exists(archive_name):
-            return send_file(archive_name,
-                             mimetype='zip',
-                             attachment_filename=archive_name.split("/")[-1],
-                             as_attachment=True)
+            return send_file(
+                archive_name, mimetype="zip", attachment_filename=archive_name.split("/")[-1], as_attachment=True
+            )
         else:
             flash("Unable to locate  the download archive, please try again", "error")
             logger.error("Unable to locate " + str(archive_name))
             return redirect("/my_files")
 
 
-@my_files.route('/my_files/download_all', methods=['GET'])
+@my_files.route("/my_files/download_all", methods=["GET"])
 @login_required
 def download_all():
     path = request.args.get("path", None)
@@ -414,17 +469,21 @@ def download_all():
                     # Ignore folder. We only include files
                     pass
                 else:
-                    filesystem[entry.name] = {"path": path + "/" + entry.name,
-                                              "uid": encrypt(path + "/" + entry.name, entry.stat().st_size)["message"],
-                                              "type": "file",
-                                              "st_size": convert_size(entry.stat().st_size),
-                                              "st_size_default": entry.stat().st_size,
-                                              "st_mtime": entry.stat().st_mtime
-                                              }
+                    filesystem[entry.name] = {
+                        "path": path + "/" + entry.name,
+                        "uid": encrypt(path + "/" + entry.name, entry.stat().st_size)["message"],
+                        "type": "file",
+                        "st_size": convert_size(entry.stat().st_size),
+                        "st_size_default": entry.stat().st_size,
+                        "st_mtime": entry.stat().st_mtime,
+                    }
 
     except Exception as err:
         if err.errno == errno.EPERM:
-            flash("Sorry we could not access this location due to a permission error. If you recently changed the permissions, please allow up to 10 minutes for sync.","error")
+            flash(
+                "Sorry we could not access this location due to a permission error. If you recently changed the permissions, please allow up to 10 minutes for sync.",
+                "error",
+            )
         elif err.errno == errno.ENOENT:
             flash("Could not locate the directory. Did you delete it ?", "error")
         else:
@@ -436,7 +495,9 @@ def download_all():
     total_files = 0
     for file_name, file_info in filesystem.items():
         if user_has_permission(file_info["path"], "read", "file") is False:
-            flash("You are not authorized to download some files (double check if your user own ALL files in this directory).")
+            flash(
+                "You are not authorized to download some files (double check if your user own ALL files in this directory)."
+            )
             return redirect("/my_files")
 
         valid_file_path.append(file_info["path"])
@@ -444,15 +505,28 @@ def download_all():
         total_files = total_files + 1
 
     if total_size > config.Config.MAX_ARCHIVE_SIZE:
-        flash("Sorry, the maximum archive size is {:.2f} MB. Your archive was {:.2f} MB. To avoid this issue, you can create a smaller archive, download files individually, use SFTP or edit the maximum archive size authorized.".format(config.Config.MAX_ARCHIVE_SIZE/1024/1024, total_size/1024/1024), "error")
+        flash(
+            "Sorry, the maximum archive size is {:.2f} MB. Your archive was {:.2f} MB. To avoid this issue, you can create a smaller archive, download files individually, use SFTP or edit the maximum archive size authorized.".format(
+                config.Config.MAX_ARCHIVE_SIZE / 1024 / 1024, total_size / 1024 / 1024
+            ),
+            "error",
+        )
         return redirect("/my_files")
 
     if valid_file_path.__len__() == 0:
         return redirect("/my_files")
 
     ts = datetime.datetime.utcnow().strftime("%s")
-    archive_name = "/apps/soca/" + read_secretmanager.get_soca_configuration()["ClusterId"] + "/cluster_web_ui/tmp/zip_downloads/SOCA_Download_" + session["user"] + "_" + ts + ".zip"
-    zipf = zipfile.ZipFile(archive_name, 'w', zipfile.ZIP_DEFLATED)
+    archive_name = (
+        "/apps/soca/"
+        + read_secretmanager.get_soca_configuration()["ClusterId"]
+        + "/cluster_web_ui/tmp/zip_downloads/SOCA_Download_"
+        + session["user"]
+        + "_"
+        + ts
+        + ".zip"
+    )
+    zipf = zipfile.ZipFile(archive_name, "w", zipfile.ZIP_DEFLATED)
     logger.info("About to create archive: " + str(archive_name) + " with the following files: " + str(valid_file_path))
     try:
         for file_to_zip in valid_file_path:
@@ -465,18 +539,16 @@ def download_all():
         return redirect("/my_files")
 
     if os.path.exists(archive_name):
-        return send_file(archive_name,
-                         mimetype='zip',
-                         attachment_filename=archive_name.split("/")[-1],
-                         as_attachment=True)
+        return send_file(
+            archive_name, mimetype="zip", attachment_filename=archive_name.split("/")[-1], as_attachment=True
+        )
     else:
         flash("Unable to locate  the download archive, please try again", "error")
         logger.error("Unable to locate " + str(archive_name))
         return redirect("/my_files")
 
 
-
-@my_files.route('/my_files/upload', methods=['POST'])
+@my_files.route("/my_files/upload", methods=["POST"])
 @login_required
 def upload():
     path = request.form["path"]
@@ -484,7 +556,9 @@ def upload():
     if not file_list:
         return redirect("/my_files")
     if user_has_permission(path, "write", "folder") is False:
-        flash("You are not authorized to upload in this location. If you recently changed the permissions, please allow up to 10 minutes for sync")
+        flash(
+            "You are not authorized to upload in this location. If you recently changed the permissions, please allow up to 10 minutes for sync"
+        )
         return "Unauthorized", 401
     for file in file_list:
         try:
@@ -498,7 +572,7 @@ def upload():
     return "Success", 200
 
 
-@my_files.route('/my_files/create_folder', methods=['POST'])
+@my_files.route("/my_files/create_folder", methods=["POST"])
 @login_required
 def create():
     if "folder_name" not in request.form.keys() or "path" not in request.form.keys():
@@ -509,8 +583,11 @@ def create():
         folder_to_create = folder_path + folder_name
 
         if user_has_permission(folder_path, "write", "folder") is False:
-            flash("You do not have write permission on this folder. If you recently changed the permissions, please allow up to 10 minutes for sync.", "error")
-            return redirect("/my_files?path="+folder_path)
+            flash(
+                "You do not have write permission on this folder. If you recently changed the permissions, please allow up to 10 minutes for sync.",
+                "error",
+            )
+            return redirect("/my_files?path=" + folder_path)
 
         access_right = 0o750
         os.makedirs(folder_to_create, access_right)
@@ -528,10 +605,10 @@ def create():
         logger.error(err)
         flash("Unable to create: " + folder_path + folder_name, "error")
 
-    return redirect("/my_files?path="+folder_path)
+    return redirect("/my_files?path=" + folder_path)
 
 
-@my_files.route('/my_files/delete', methods=['GET'])
+@my_files.route("/my_files/delete", methods=["GET"])
 @login_required
 def delete():
     uid = request.args.get("uid", None)
@@ -549,20 +626,29 @@ def delete():
                         del cache[CACHE_FOLDER_CONTENT_PREFIX + "/".join(file_info["file_path"].split("/")[:-1])]
                     flash("File removed", "success")
                 else:
-                    flash("You do not have the permission to delete this file. If you recently changed the permissions, please allow up to 10 minutes for sync.", "error")
+                    flash(
+                        "You do not have the permission to delete this file. If you recently changed the permissions, please allow up to 10 minutes for sync.",
+                        "error",
+                    )
 
             elif os.path.isdir(file_info["file_path"]):
-                files_in_folder = [f for f in os.listdir(file_info["file_path"]) if not f.startswith('.')]
+                files_in_folder = [f for f in os.listdir(file_info["file_path"]) if not f.startswith(".")]
                 if files_in_folder.__len__() == 0:
                     if user_has_permission(file_info["file_path"], "write", "folder") is True:
                         os.rmdir(file_info["file_path"])
-                        if CACHE_FOLDER_CONTENT_PREFIX + "/".join(file_info["file_path"].split("/")[:-1]) in cache.keys():
+                        if (
+                            CACHE_FOLDER_CONTENT_PREFIX + "/".join(file_info["file_path"].split("/")[:-1])
+                            in cache.keys()
+                        ):
                             del cache[CACHE_FOLDER_CONTENT_PREFIX + "/".join(file_info["file_path"].split("/")[:-1])]
                             logger.info("Removing from cache: " + CACHE_FOLDER_CONTENT_PREFIX + file_info["file_path"])
 
                         flash("Folder removed.", "success")
                     else:
-                        flash("You do not have the permission to delete this folder. If you recently changed the permissions, please allow up to 10 minutes for sync.", "error")
+                        flash(
+                            "You do not have the permission to delete this folder. If you recently changed the permissions, please allow up to 10 minutes for sync.",
+                            "error",
+                        )
                 else:
                     flash("This folder is not empty.", "error")
             else:
@@ -579,7 +665,8 @@ def delete():
         flash("Unable to delete " + file_information["message"], "error")
         return redirect("/my_files")
 
-@my_files.route('/my_files/flush_cache', methods=['POST'])
+
+@my_files.route("/my_files/flush_cache", methods=["POST"])
 @login_required
 def flush_cache():
     path = request.form["path"]
@@ -592,9 +679,10 @@ def flush_cache():
                 flash("Cache updated with the latest revision of the folder", "success")
             else:
                 flash("This location is not cached", "error")
-    return redirect("/my_files?path="+path)
+    return redirect("/my_files?path=" + path)
 
-@my_files.route('/editor', methods=['GET'])
+
+@my_files.route("/editor", methods=["GET"])
 @login_required
 def editor():
     uid = request.args.get("uid", None)
@@ -608,11 +696,12 @@ def editor():
             flash("You are not authorized to download this file or this file is no longer available on the filesystem")
             return redirect("/my_files")
 
-        text = get(config.Config.FLASK_ENDPOINT + '/api/system/files',
-                   headers={"X-SOCA-TOKEN": config.Config.API_ROOT_KEY},
-                   params={"file": file_info["file_path"]},
-                   verify=False # nosec
-                   )
+        text = get(
+            config.Config.FLASK_ENDPOINT + "/api/system/files",
+            headers={"X-SOCA-TOKEN": config.Config.API_ROOT_KEY},
+            params={"file": file_info["file_path"]},
+            verify=False,  # nosec
+        )
         if text.status_code != 200:
             flash(text.json()["message"])
             return redirect("/my_files?path=" + "/".join(file_info["file_path"].split("/")[:-1]))
@@ -648,15 +737,15 @@ def editor():
             file_syntax = "text"
 
         # get size of file
-        return render_template("editor.html",
-                               page="editor",
-                               file_to_edit=file_info["file_path"],
-                               file_data=file_data,
-                               file_syntax=file_syntax,
-                               user=session["user"],
-                               api_key=session["api_key"]
-                               )
+        return render_template(
+            "editor.html",
+            page="editor",
+            file_to_edit=file_info["file_path"],
+            file_data=file_data,
+            file_syntax=file_syntax,
+            user=session["user"],
+            api_key=session["api_key"],
+        )
     else:
         flash("Unable to access the file. Please try again:  " + file_information["message"], "error")
         return redirect("/my_files")
-

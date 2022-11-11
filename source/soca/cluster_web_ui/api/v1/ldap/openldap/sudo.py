@@ -11,14 +11,18 @@
 #  and limitations under the License.                                                                                #
 ######################################################################################################################
 
-from flask_restful import Resource, reqparse
-import config
-import ldap
-from models import db,ApiKeys
-from decorators import restricted_api, admin_api
-import errors
 import logging
+
+import config
+import errors
+import ldap
+from decorators import admin_api, restricted_api
+from flask_restful import Resource, reqparse
+from models import ApiKeys, db
+
 logger = logging.getLogger("api")
+
+
 class Sudo(Resource):
     @admin_api
     def get(self):
@@ -47,7 +51,7 @@ class Sudo(Resource):
             description: Malformed client input
         """
         parser = reqparse.RequestParser()
-        parser.add_argument('user', type=str, location='args')
+        parser.add_argument("user", type=str, location="args")
         args = parser.parse_args()
         user = args["user"]
         if user is None:
@@ -57,15 +61,15 @@ class Sudo(Resource):
         base_dn = config.Config.LDAP_BASE_DN
 
         try:
-            con = ldap.initialize('ldap://{}'.format(ldap_host))
+            con = ldap.initialize("ldap://{}".format(ldap_host))
             sudoers_search_base = "ou=Sudoers," + base_dn
             sudoers_search_scope = ldap.SCOPE_SUBTREE
-            sudoers_filter = 'cn=' + user
+            sudoers_filter = "cn=" + user
             is_sudo = con.search_s(sudoers_search_base, sudoers_search_scope, sudoers_filter)
             if is_sudo.__len__() > 0:
-                return {'success': True, 'message': "User has SUDO permissions."}, 200
+                return {"success": True, "message": "User has SUDO permissions."}, 200
             else:
-                return {'success': False, 'message': "User does not have SUDO permissions."}, 222
+                return {"success": False, "message": "User does not have SUDO permissions."}, 222
 
         except Exception as err:
             return errors.all_errors(type(err).__name__, err)
@@ -100,7 +104,7 @@ class Sudo(Resource):
             description: Malformed client input
         """
         parser = reqparse.RequestParser()
-        parser.add_argument('user', type=str, location='form')
+        parser.add_argument("user", type=str, location="form")
         args = parser.parse_args()
         user = args["user"]
         if user is None:
@@ -110,16 +114,15 @@ class Sudo(Resource):
         ldap_host = config.Config.LDAP_HOST
         base_dn = config.Config.LDAP_BASE_DN
         try:
-            conn = ldap.initialize('ldap://{}'.format(ldap_host))
+            conn = ldap.initialize("ldap://{}".format(ldap_host))
             conn.simple_bind_s(config.Config.ROOT_DN, config.Config.ROOT_PW)
             dn_user = "cn=" + user + ",ou=Sudoers," + base_dn
             attrs = [
-                    ('objectClass', ['top'.encode('utf-8'),
-                                     'sudoRole'.encode('utf-8')]),
-                    ('sudoHost', ['ALL'.encode('utf-8')]),
-                    ('sudoUser', [str(user).encode('utf-8')]),
-                    ('sudoCommand', ['ALL'.encode('utf-8')])
-                ]
+                ("objectClass", ["top".encode("utf-8"), "sudoRole".encode("utf-8")]),
+                ("sudoHost", ["ALL".encode("utf-8")]),
+                ("sudoUser", [str(user).encode("utf-8")]),
+                ("sudoCommand", ["ALL".encode("utf-8")]),
+            ]
 
             conn.add_s(dn_user, attrs)
             change_user_key_scope = ApiKeys.query.filter_by(user=user, is_active=True).all()
@@ -157,9 +160,9 @@ class Sudo(Resource):
             description: Invalid user/token pair
           400:
             description: Malformed client input
-         """
+        """
         parser = reqparse.RequestParser()
-        parser.add_argument('user', type=str, location='form')
+        parser.add_argument("user", type=str, location="form")
         args = parser.parse_args()
         user = args["user"]
         if user is None:
@@ -169,7 +172,7 @@ class Sudo(Resource):
         base_dn = config.Config.LDAP_BASE_DN
 
         try:
-            conn = ldap.initialize('ldap://{}'.format(ldap_host))
+            conn = ldap.initialize("ldap://{}".format(ldap_host))
             conn.simple_bind_s(config.Config.ROOT_DN, config.Config.ROOT_PW)
             dn_user = "cn=" + user + ",ou=Sudoers," + base_dn
             conn.delete_s(dn_user)

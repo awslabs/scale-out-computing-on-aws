@@ -15,6 +15,7 @@ from flask_sqlalchemy import SQLAlchemy
 
 db = SQLAlchemy()
 
+
 class ApiKeys(db.Model):
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     user = db.Column(db.String(255), nullable=False)
@@ -65,8 +66,12 @@ class LinuxDCVSessions(db.Model):
     is_active = db.Column(db.Boolean)  # If session is active or not
     created_on = db.Column(db.DateTime)  # Timestamp when session was created
     deactivated_on = db.Column(db.DateTime)  # Timestamp when session was deleted
-    schedule_monday_start = db.Column(db.Integer)  # What time session will start on Monday, 0 (12AM) to 1440 (12PM) -1 = run all day, -2 = stopped all day
-    schedule_monday_stop = db.Column(db.Integer)  # What time session will be stopped on Monday, 0 (12AM) to 1440 (12PM) -1 = run all day, -2 = stopped all day
+    schedule_monday_start = db.Column(
+        db.Integer
+    )  # What time session will start on Monday, 0 (12AM) to 1440 (12PM) -1 = run all day, -2 = stopped all day
+    schedule_monday_stop = db.Column(
+        db.Integer
+    )  # What time session will be stopped on Monday, 0 (12AM) to 1440 (12PM) -1 = run all day, -2 = stopped all day
     schedule_tuesday_start = db.Column(db.Integer)
     schedule_tuesday_stop = db.Column(db.Integer)
     schedule_wednesday_start = db.Column(db.Integer)
@@ -79,8 +84,10 @@ class LinuxDCVSessions(db.Model):
     schedule_saturday_stop = db.Column(db.Integer)
     schedule_sunday_start = db.Column(db.Integer)
     schedule_sunday_stop = db.Column(db.Integer)
+
     def as_dict(self):
         return {c.name: getattr(self, c.name) for c in self.__table__.columns}
+
 
 class WindowsDCVSessions(db.Model):
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
@@ -102,8 +109,12 @@ class WindowsDCVSessions(db.Model):
     is_active = db.Column(db.Boolean)  # If session is active or not
     created_on = db.Column(db.DateTime)  # Timestamp when session was created
     deactivated_on = db.Column(db.DateTime)  # Timestamp when session was deleted
-    schedule_monday_start = db.Column(db.Integer)  # What time session will start on Monday, 0 (12AM) to 1440 (12PM) -1 = run all day, -2 = stopped all day
-    schedule_monday_stop = db.Column(db.Integer)  # What time session will be stopped on Monday, 0 (12AM) to 1440 (12PM) -1 = run all day, -2 = stopped all day
+    schedule_monday_start = db.Column(
+        db.Integer
+    )  # What time session will start on Monday, 0 (12AM) to 1440 (12PM) -1 = run all day, -2 = stopped all day
+    schedule_monday_stop = db.Column(
+        db.Integer
+    )  # What time session will be stopped on Monday, 0 (12AM) to 1440 (12PM) -1 = run all day, -2 = stopped all day
     schedule_tuesday_start = db.Column(db.Integer)
     schedule_tuesday_stop = db.Column(db.Integer)
     schedule_wednesday_start = db.Column(db.Integer)
@@ -133,6 +144,7 @@ class AmiList(db.Model):
 
     def as_dict(self):
         return {c.name: getattr(self, c.name) for c in self.__table__.columns}
+
 
 class ProjectList(db.Model):
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)

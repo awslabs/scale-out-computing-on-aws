@@ -11,19 +11,20 @@
 #  and limitations under the License.                                                                                #
 ######################################################################################################################
 
-import config
-from cryptography.fernet import Fernet
-from flask_restful import Resource, reqparse
-from flask import request
-from requests import get
 import logging
 from datetime import datetime
-import read_secretmanager
-from decorators import private_api
-from botocore.exceptions import ClientError
+
 import boto3
+import config
 import errors
-from models import db, LinuxDCVSessions, WindowsDCVSessions
+import read_secretmanager
+from botocore.exceptions import ClientError
+from cryptography.fernet import Fernet
+from decorators import private_api
+from flask import request
+from flask_restful import Resource, reqparse
+from models import LinuxDCVSessions, WindowsDCVSessions, db
+from requests import get
 
 logger = logging.getLogger("api")
 client_ec2 = boto3.client("ec2", config=config.boto_extra_config())
@@ -60,12 +61,15 @@ class DeleteDesktop(Resource):
             description: Invalid user/token pair
         """
         parser = reqparse.RequestParser()
-        parser.add_argument("os", type=str, location='form')
+        parser.add_argument("os", type=str, location="form")
 
         args = parser.parse_args()
         user = request.headers.get("X-SOCA-USER")
         if session_number is None:
-            return errors.all_errors('CLIENT_MISSING_PARAMETER', "session_number not found in URL. Endpoint is /api/dcv/desktop/<session_number>/<action>")
+            return errors.all_errors(
+                "CLIENT_MISSING_PARAMETER",
+                "session_number not found in URL. Endpoint is /api/dcv/desktop/<session_number>/<action>",
+            )
         else:
             args["session_number"] = str(session_number)
 
@@ -73,16 +77,19 @@ class DeleteDesktop(Resource):
             return errors.all_errors("X-SOCA-USER_MISSING")
 
         if args["os"] is None:
-            return errors.all_errors('CLIENT_MISSING_PARAMETER', "os (str)")
+            return errors.all_errors("CLIENT_MISSING_PARAMETER", "os (str)")
 
         if args["os"].lower() not in ["linux", "windows"]:
-            return errors.all_errors('CLIENT_MISSING_PARAMETER', "os must be linux or windows")
-
+            return errors.all_errors("CLIENT_MISSING_PARAMETER", "os must be linux or windows")
 
         if args["os"].lower() == "linux":
-            check_session = LinuxDCVSessions.query.filter_by(user=user, session_number=str(args["session_number"]), is_active=True).first()
+            check_session = LinuxDCVSessions.query.filter_by(
+                user=user, session_number=str(args["session_number"]), is_active=True
+            ).first()
         else:
-            check_session = WindowsDCVSessions.query.filter_by(user=user, session_number=str(args["session_number"]), is_active=True).first()
+            check_session = WindowsDCVSessions.query.filter_by(
+                user=user, session_number=str(args["session_number"]), is_active=True
+            ).first()
 
         if check_session:
             session_name = check_session.session_name
@@ -94,17 +101,15 @@ class DeleteDesktop(Resource):
                 check_session.is_active = False
                 check_session.deactivated_on = datetime.utcnow()
                 db.session.commit()
-                return {"success": True, "message": f"Your graphical session {session_name} is about to be terminated"}, 200
+                return {
+                    "success": True,
+                    "message": f"Your graphical session {session_name} is about to be terminated",
+                }, 200
             except ClientError as e:
-                return errors.all_errors('DCV_STOP_ERROR', f"Unable to delete cloudformation stack ({stack_name}) due to {e}")
+                return errors.all_errors(
+                    "DCV_STOP_ERROR", f"Unable to delete cloudformation stack ({stack_name}) due to {e}"
+                )
             except Exception as e:
-                return errors.all_errors('DCV_STOP_ERROR',f"Unable to update db due to {e}")
+                return errors.all_errors("DCV_STOP_ERROR", f"Unable to update db due to {e}")
         else:
-            return errors.all_errors('DCV_STOP_ERROR', f"This session does not exist or is not active")
-
-
-
-
-
-
-
+            return errors.all_errors("DCV_STOP_ERROR", f"This session does not exist or is not active")

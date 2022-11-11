@@ -11,12 +11,14 @@
 #  and limitations under the License.                                                                                #
 ######################################################################################################################
 
-import config
-import subprocess
-from flask_restful import Resource
 import logging
-from decorators import private_api
 import shlex
+import subprocess
+
+import config
+from decorators import private_api
+from flask_restful import Resource
+
 logger = logging.getLogger("api")
 
 

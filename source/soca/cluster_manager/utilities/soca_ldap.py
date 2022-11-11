@@ -29,11 +29,14 @@ import argparse
 import os
 import sys
 import uuid
+
 try:
     import ldap
-    from ldif import LDIFWriter, LDIFParser
+    from ldif import LDIFParser, LDIFWriter
 except ImportError:
-    print(f"Unable to import ldap/ldif. Make sure to use SOCA python (/apps/soca/<YOUR_CLUSTER_ID>/python/latest/bin/python3 and not system python")
+    print(
+        f"Unable to import ldap/ldif. Make sure to use SOCA python (/apps/soca/<YOUR_CLUSTER_ID>/python/latest/bin/python3 and not system python"
+    )
     exit(1)
 sys.path.append(os.path.dirname(__file__))
 
@@ -99,9 +102,15 @@ def ldap_import(ldif_file):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument('--action', nargs='?', required=True, choices=["import", "export"], help="Choose whether you want to export or import LDIF")
-    parser.add_argument('--base-dn', nargs='?', help="The LDAP Base")
-    parser.add_argument('--ldif', nargs='?', help="Path to LDIF file to import")
+    parser.add_argument(
+        "--action",
+        nargs="?",
+        required=True,
+        choices=["import", "export"],
+        help="Choose whether you want to export or import LDIF",
+    )
+    parser.add_argument("--base-dn", nargs="?", help="The LDAP Base")
+    parser.add_argument("--ldif", nargs="?", help="Path to LDIF file to import")
 
     args = parser.parse_args()
     ldap_host = "127.0.0.1"
@@ -145,5 +154,3 @@ if __name__ == "__main__":
             print("--ldif is required during import. Specify a LDIF file to import")
             sys.exit(1)
         ldap_import(args.ldif)
-
-

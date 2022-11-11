@@ -14,31 +14,33 @@
 import os
 import sys
 
-from troposphere import Base64, GetAtt
-from troposphere import Ref, Template, Sub
-from troposphere import Tags as base_Tags  # without PropagateAtLaunch
-from troposphere.autoscaling import AutoScalingGroup, \
-    LaunchTemplateSpecification, \
-    Tags, \
-    LaunchTemplateOverrides, \
-    MixedInstancesPolicy, \
-    InstancesDistribution
-from troposphere.autoscaling import LaunchTemplate as asg_LaunchTemplate
-from troposphere.cloudformation import AWSCustomObject
-from troposphere.ec2 import PlacementGroup, \
-    BlockDeviceMapping, \
-    LaunchTemplate, \
-    LaunchTemplateData, \
-    EBSBlockDevice, \
-    IamInstanceProfile, \
-    InstanceMarketOptions, \
-    NetworkInterfaces, \
-    SpotOptions, \
-    CpuOptions,\
-    LaunchTemplateBlockDeviceMapping
-
-from troposphere.fsx import FileSystem, LustreConfiguration
 import troposphere.ec2 as ec2
+from troposphere import Base64, GetAtt, Ref, Sub
+from troposphere import Tags as base_Tags  # without PropagateAtLaunch
+from troposphere import Template
+from troposphere.autoscaling import AutoScalingGroup, InstancesDistribution
+from troposphere.autoscaling import LaunchTemplate as asg_LaunchTemplate
+from troposphere.autoscaling import (
+    LaunchTemplateOverrides,
+    LaunchTemplateSpecification,
+    MixedInstancesPolicy,
+    Tags,
+)
+from troposphere.cloudformation import AWSCustomObject
+from troposphere.ec2 import (
+    BlockDeviceMapping,
+    CpuOptions,
+    EBSBlockDevice,
+    IamInstanceProfile,
+    InstanceMarketOptions,
+    LaunchTemplate,
+    LaunchTemplateBlockDeviceMapping,
+    LaunchTemplateData,
+    NetworkInterfaces,
+    PlacementGroup,
+    SpotOptions,
+)
+from troposphere.fsx import FileSystem, LustreConfiguration
 
 
 class CustomResourceSendAnonymousMetrics(AWSCustomObject):
@@ -69,16 +71,21 @@ def main(**params):
         allow_anonymous_data_collection = params["MetricCollectionAnonymous"]
         debug = False
         mip_usage = False
-        instances_list = params["InstanceType"] # list of instance type. Use + to specify more than one type
+        instances_list = params["InstanceType"]  # list of instance type. Use + to specify more than one type
         asg_lt = asg_LaunchTemplate()
         ltd = LaunchTemplateData("NodeLaunchTemplateData")
         mip = MixedInstancesPolicy()
         stack_name = Ref("AWS::StackName")
 
         # Begin LaunchTemplateData
-        UserData = '''#!/bin/bash -x
+        UserData = (
+            '''#!/bin/bash -x
 export PATH=$PATH:/usr/local/bin
-if [[ "''' + params['BaseOS'] + '''" == "centos7" ]] || [[ "''' + params['BaseOS'] + '''" == "rhel7" ]];
+if [[ "'''
+            + params["BaseOS"]
+            + '''" == "centos7" ]] || [[ "'''
+            + params["BaseOS"]
+            + '''" == "rhel7" ]];
 then
      yum install -y python3-pip
      PIP=$(which pip3)
@@ -89,32 +96,74 @@ else
      PIP=$(which pip3)
      $PIP install awscli
 fi
-if [[ "''' + params['BaseOS'] + '''" == "amazonlinux2" ]];
+if [[ "'''
+            + params["BaseOS"]
+            + '''" == "amazonlinux2" ]];
     then
         /usr/sbin/update-motd --disable
 fi
 
 GET_INSTANCE_TYPE=$(curl http://169.254.169.254/latest/meta-data/instance-type)
-echo export "SOCA_CONFIGURATION="''' + str(params['ClusterId']) + '''"" >> /etc/environment
-echo export "SOCA_BASE_OS="''' + str(params['BaseOS']) + '''"" >> /etc/environment
-echo export "SOCA_JOB_QUEUE="''' + str(params['JobQueue']) + '''"" >> /etc/environment
-echo export "SOCA_JOB_OWNER="''' + str(params['JobOwner']) + '''"" >> /etc/environment
-echo export "SOCA_JOB_NAME="''' + str(params['JobName']) + '''"" >> /etc/environment
-echo export "SOCA_JOB_PROJECT="''' + str(params['JobProject']) + '''"" >> /etc/environment
-echo export "SOCA_VERSION="''' + str(params['Version']) + '''"" >> /etc/environment
-echo export "SOCA_JOB_EFA="''' + str(params['Efa']).lower() + '''"" >> /etc/environment
-echo export "SOCA_JOB_ID="''' + str(params['JobId']) + '''"" >> /etc/environment
-echo export "SOCA_SCRATCH_SIZE=''' + str(params['ScratchSize']) + '''" >> /etc/environment
-echo export "SOCA_INSTALL_BUCKET="''' + str(params['S3Bucket']) + '''"" >> /etc/environment
-echo export "SOCA_INSTALL_BUCKET_FOLDER="''' + str(params['S3InstallFolder']) + '''"" >> /etc/environment
-echo export "SOCA_FSX_LUSTRE_BUCKET="''' + str(params['FSxLustreConfiguration']['fsx_lustre']).lower() + '''"" >> /etc/environment
-echo export "SOCA_FSX_LUSTRE_DNS="''' + str(params['FSxLustreConfiguration']['existing_fsx']).lower() + '''"" >> /etc/environment
+echo export "SOCA_CONFIGURATION="'''
+            + str(params["ClusterId"])
+            + '''"" >> /etc/environment
+echo export "SOCA_BASE_OS="'''
+            + str(params["BaseOS"])
+            + '''"" >> /etc/environment
+echo export "SOCA_JOB_QUEUE="'''
+            + str(params["JobQueue"])
+            + '''"" >> /etc/environment
+echo export "SOCA_JOB_OWNER="'''
+            + str(params["JobOwner"])
+            + '''"" >> /etc/environment
+echo export "SOCA_JOB_NAME="'''
+            + str(params["JobName"])
+            + '''"" >> /etc/environment
+echo export "SOCA_JOB_PROJECT="'''
+            + str(params["JobProject"])
+            + '''"" >> /etc/environment
+echo export "SOCA_VERSION="'''
+            + str(params["Version"])
+            + '''"" >> /etc/environment
+echo export "SOCA_JOB_EFA="'''
+            + str(params["Efa"]).lower()
+            + '''"" >> /etc/environment
+echo export "SOCA_JOB_ID="'''
+            + str(params["JobId"])
+            + """"" >> /etc/environment
+echo export "SOCA_SCRATCH_SIZE="""
+            + str(params["ScratchSize"])
+            + '''" >> /etc/environment
+echo export "SOCA_INSTALL_BUCKET="'''
+            + str(params["S3Bucket"])
+            + '''"" >> /etc/environment
+echo export "SOCA_INSTALL_BUCKET_FOLDER="'''
+            + str(params["S3InstallFolder"])
+            + '''"" >> /etc/environment
+echo export "SOCA_FSX_LUSTRE_BUCKET="'''
+            + str(params["FSxLustreConfiguration"]["fsx_lustre"]).lower()
+            + '''"" >> /etc/environment
+echo export "SOCA_FSX_LUSTRE_DNS="'''
+            + str(params["FSxLustreConfiguration"]["existing_fsx"]).lower()
+            + '''"" >> /etc/environment
 echo export "SOCA_INSTANCE_TYPE=$GET_INSTANCE_TYPE" >> /etc/environment
-echo export "SOCA_INSTANCE_HYPERTHREADING="''' + str(params['ThreadsPerCore']).lower() + '''"" >> /etc/environment
-echo export "SOCA_SYSTEM_METRICS="''' + str(params['SystemMetrics']).lower() + '''"" >> /etc/environment
-echo export "SOCA_ESDOMAIN_ENDPOINT="''' + str(params['ESDomainEndpoint']).lower() + '''"" >> /etc/environment
-echo export "SOCA_AUTH_PROVIDER="''' + str(params['AuthProvider']).lower() + '''"" >> /etc/environment
-echo export "SOCA_HOST_SYSTEM_LOG="/apps/soca/''' + str(params['ClusterId']) + '''/cluster_node_bootstrap/logs/''' + str(params['JobId']) + '''/$(hostname -s)"" >> /etc/environment
+echo export "SOCA_INSTANCE_HYPERTHREADING="'''
+            + str(params["ThreadsPerCore"]).lower()
+            + '''"" >> /etc/environment
+echo export "SOCA_SYSTEM_METRICS="'''
+            + str(params["SystemMetrics"]).lower()
+            + '''"" >> /etc/environment
+echo export "SOCA_ESDOMAIN_ENDPOINT="'''
+            + str(params["ESDomainEndpoint"]).lower()
+            + '''"" >> /etc/environment
+echo export "SOCA_AUTH_PROVIDER="'''
+            + str(params["AuthProvider"]).lower()
+            + """"" >> /etc/environment
+echo export "SOCA_HOST_SYSTEM_LOG="/apps/soca/"""
+            + str(params["ClusterId"])
+            + """/cluster_node_bootstrap/logs/"""
+            + str(params["JobId"])
+            + '''/$(hostname -s)"" >> /etc/environment
 echo export "AWS_STACK_ID=${AWS::StackName}" >> /etc/environment
 echo export "AWS_DEFAULT_REGION=${AWS::Region}" >> /etc/environment
 
@@ -123,16 +172,26 @@ source /etc/environment
 AWS=$(command -v aws)
 
 # Give yum permission to the user on this specific machine
-echo "''' + params['JobOwner'] + ''' ALL=(ALL) /bin/yum" >> /etc/sudoers
+echo "'''
+            + params["JobOwner"]
+            + """ ALL=(ALL) /bin/yum" >> /etc/sudoers
 
 # Mount File system
 mkdir -p /apps
 mkdir -p /data
 
-FS_DATA_PROVIDER='''+params['FileSystemDataProvider']+'''
-FS_DATA='''+params['FileSystemData']+'''
-FS_APPS_PROVIDER='''+params['FileSystemAppsProvider']+'''
-FS_APPS='''+params['FileSystemApps']+'''
+FS_DATA_PROVIDER="""
+            + params["FileSystemDataProvider"]
+            + """
+FS_DATA="""
+            + params["FileSystemData"]
+            + """
+FS_APPS_PROVIDER="""
+            + params["FileSystemAppsProvider"]
+            + """
+FS_APPS="""
+            + params["FileSystemApps"]
+            + '''
 
 if [[ "$FS_DATA_PROVIDER" == "fsx_lustre" ]] || [[ "$FS_APPS_PROVIDER" == "fsx_lustre" ]]; then
     if [[ -z "$(rpm -qa lustre-client)" ]]; then
@@ -245,7 +304,10 @@ systemctl enable chronyd
 mkdir -p $SOCA_HOST_SYSTEM_LOG
 echo "@reboot /bin/bash /apps/soca/$SOCA_CONFIGURATION/cluster_node_bootstrap/ComputeNodePostReboot.sh >> $SOCA_HOST_SYSTEM_LOG/ComputeNodePostReboot.log 2>&1" | crontab -
 cp /apps/soca/$SOCA_CONFIGURATION/cluster_node_bootstrap/config.cfg /root/
-/bin/bash /apps/soca/$SOCA_CONFIGURATION/cluster_node_bootstrap/ComputeNode.sh ''' + params['SchedulerHostname'] + ''' >> $SOCA_HOST_SYSTEM_LOG/ComputeNode.sh.log 2>&1'''
+/bin/bash /apps/soca/$SOCA_CONFIGURATION/cluster_node_bootstrap/ComputeNode.sh '''
+            + params["SchedulerHostname"]
+            + """ >> $SOCA_HOST_SYSTEM_LOG/ComputeNode.sh.log 2>&1"""
+        )
 
         # Specify the security groups to assign to the compute nodes. Max 5 per instance
         security_groups = [params["SecurityGroupId"]]
@@ -254,9 +316,21 @@ cp /apps/soca/$SOCA_CONFIGURATION/cluster_node_bootstrap/config.cfg /root/
                 security_groups.append(sg_id)
 
         # Specify the IAM instance profile to use
-        instance_profile = params["ComputeNodeInstanceProfileArn"] if params["CustomIamInstanceProfile"] is False else params["CustomIamInstanceProfile"]
+        instance_profile = (
+            params["ComputeNodeInstanceProfileArn"]
+            if params["CustomIamInstanceProfile"] is False
+            else params["CustomIamInstanceProfile"]
+        )
 
-        SpotFleet = True if ((params["SpotPrice"] is not False) and (params["SpotAllocationCount"] is False) and (int(params["DesiredCapacity"]) > 1 or len(instances_list)>1)) else False
+        SpotFleet = (
+            True
+            if (
+                (params["SpotPrice"] is not False)
+                and (params["SpotAllocationCount"] is False)
+                and (int(params["DesiredCapacity"]) > 1 or len(instances_list) > 1)
+            )
+            else False
+        )
         ltd.EbsOptimized = True
         for instance in instances_list:
             if "t2." in instance:
@@ -268,8 +342,8 @@ cp /apps/soca/$SOCA_CONFIGURATION/cluster_node_bootstrap/config.cfg /root/
                 # Spotfleet with multiple instance types doesn't support CpuOptions
                 # So we can't add CpuOptions if SpotPrice is specified and when multiple instances are specified
                 ltd.CpuOptions = CpuOptions(
-                    CoreCount=int(params["CoreCount"]),
-                    ThreadsPerCore=1 if params["ThreadsPerCore"] is False else 2)
+                    CoreCount=int(params["CoreCount"]), ThreadsPerCore=1 if params["ThreadsPerCore"] is False else 2
+                )
 
         ltd.IamInstanceProfile = IamInstanceProfile(Arn=instance_profile)
         ltd.KeyName = params["SSHKeyPair"]
@@ -278,17 +352,21 @@ cp /apps/soca/$SOCA_CONFIGURATION/cluster_node_bootstrap/config.cfg /root/
             ltd.InstanceMarketOptions = InstanceMarketOptions(
                 MarketType="spot",
                 SpotOptions=SpotOptions(
-                    MaxPrice=Ref("AWS::NoValue") if params["SpotPrice"] == "auto" else str(params["SpotPrice"])
+                    MaxPrice=Ref("AWS::NoValue")
+                    if params["SpotPrice"] == "auto"
+                    else str(params["SpotPrice"])
                     # auto -> cap at OD price
-                )
+                ),
             )
         ltd.InstanceType = instances_list[0]
-        ltd.NetworkInterfaces = [NetworkInterfaces(
-            InterfaceType="efa" if params["Efa"] is not False else Ref("AWS::NoValue"),
-            DeleteOnTermination=True,
-            DeviceIndex=0,
-            Groups=security_groups
-        )]
+        ltd.NetworkInterfaces = [
+            NetworkInterfaces(
+                InterfaceType="efa" if params["Efa"] is not False else Ref("AWS::NoValue"),
+                DeleteOnTermination=True,
+                DeviceIndex=0,
+                Groups=security_groups,
+            )
+        ]
         ltd.UserData = Base64(Sub(UserData))
         ltd.BlockDeviceMappings = [
             LaunchTemplateBlockDeviceMapping(
@@ -297,7 +375,9 @@ cp /apps/soca/$SOCA_CONFIGURATION/cluster_node_bootstrap/config.cfg /root/
                     VolumeSize=params["RootSize"],
                     VolumeType="gp3",
                     DeleteOnTermination="false" if params["KeepEbs"] is True else "true",
-                    Encrypted=True))
+                    Encrypted=True,
+                ),
+            )
         ]
         if int(params["ScratchSize"]) > 0:
             ltd.BlockDeviceMappings.append(
@@ -308,22 +388,28 @@ cp /apps/soca/$SOCA_CONFIGURATION/cluster_node_bootstrap/config.cfg /root/
                         VolumeType="io1" if int(params["VolumeTypeIops"]) > 0 else "gp3",
                         Iops=params["VolumeTypeIops"] if int(params["VolumeTypeIops"]) > 0 else Ref("AWS::NoValue"),
                         DeleteOnTermination="false" if params["KeepEbs"] is True else "true",
-                        Encrypted=True))
+                        Encrypted=True,
+                    ),
+                )
             )
-        ltd.TagSpecifications = [ec2.TagSpecifications(
-            ResourceType="instance",
-            Tags = base_Tags(
-                Name=str(params["ClusterId"]) + "-compute-job-" + str(params["JobId"]),
-                _soca_JobId=str(params["JobId"]),
-                _soca_JobName=str(params["JobName"]),
-                _soca_JobQueue=str(params["JobQueue"]),
-                _soca_StackId=stack_name,
-                _soca_JobOwner=str(params["JobOwner"]),
-                _soca_JobProject=str(params["JobProject"]),
-                _soca_TerminateWhenIdle=str(params["TerminateWhenIdle"]),
-                _soca_KeepForever=str(params["KeepForever"]).lower(),
-                _soca_ClusterId=str(params["ClusterId"]),
-                _soca_NodeType="soca-compute-node"))]
+        ltd.TagSpecifications = [
+            ec2.TagSpecifications(
+                ResourceType="instance",
+                Tags=base_Tags(
+                    Name=str(params["ClusterId"]) + "-compute-job-" + str(params["JobId"]),
+                    _soca_JobId=str(params["JobId"]),
+                    _soca_JobName=str(params["JobName"]),
+                    _soca_JobQueue=str(params["JobQueue"]),
+                    _soca_StackId=stack_name,
+                    _soca_JobOwner=str(params["JobOwner"]),
+                    _soca_JobProject=str(params["JobProject"]),
+                    _soca_TerminateWhenIdle=str(params["TerminateWhenIdle"]),
+                    _soca_KeepForever=str(params["KeepForever"]).lower(),
+                    _soca_ClusterId=str(params["ClusterId"]),
+                    _soca_NodeType="soca-compute-node",
+                ),
+            )
+        ]
         # End LaunchTemplateData
 
         # Begin Launch Template Resource
@@ -346,41 +432,43 @@ cp /apps/soca/$SOCA_CONFIGURATION/cluster_node_bootstrap/config.cfg /root/
             if params["SpotPrice"] != "auto":
                 sfrcd.SpotPrice = str(params["SpotPrice"])
             sfrcd.SpotMaintenanceStrategies = ec2.SpotMaintenanceStrategies(
-                    CapacityRebalance=ec2.SpotCapacityRebalance(ReplacementStrategy="launch"))
+                CapacityRebalance=ec2.SpotCapacityRebalance(ReplacementStrategy="launch")
+            )
             sfrcd.TargetCapacity = params["DesiredCapacity"]
             sfrcd.Type = "maintain"
             sfltc = ec2.LaunchTemplateConfigs()
-            sflts = ec2.LaunchTemplateSpecification(
-                    LaunchTemplateId=Ref(lt),
-                    Version=GetAtt(lt, "LatestVersionNumber"))
+            sflts = ec2.LaunchTemplateSpecification(LaunchTemplateId=Ref(lt), Version=GetAtt(lt, "LatestVersionNumber"))
             sfltc.LaunchTemplateSpecification = sflts
             sfltc.Overrides = []
             for subnet in params["SubnetId"]:
                 for index, instance in enumerate(instances_list):
                     if params["WeightedCapacity"] is not False:
-                        sfltc.Overrides.append(ec2.LaunchTemplateOverrides(
-                                InstanceType = instance,
-                                SubnetId = subnet,
-                                WeightedCapacity = params["WeightedCapacity"][index]))
+                        sfltc.Overrides.append(
+                            ec2.LaunchTemplateOverrides(
+                                InstanceType=instance,
+                                SubnetId=subnet,
+                                WeightedCapacity=params["WeightedCapacity"][index],
+                            )
+                        )
                     else:
-                        sfltc.Overrides.append(ec2.LaunchTemplateOverrides(
-                                InstanceType = instance,
-                                SubnetId = subnet))
+                        sfltc.Overrides.append(ec2.LaunchTemplateOverrides(InstanceType=instance, SubnetId=subnet))
             sfrcd.LaunchTemplateConfigs = [sfltc]
             TagSpecifications = ec2.SpotFleetTagSpecification(
                 ResourceType="spot-fleet-request",
                 Tags=base_Tags(
-                Name=str(params["ClusterId"]) + "-compute-job-" + str(params["JobId"]),
-                _soca_JobId=str(params["JobId"]),
-                _soca_JobName=str(params["JobName"]),
-                _soca_JobQueue=str(params["JobQueue"]),
-                _soca_StackId=stack_name,
-                _soca_JobOwner=str(params["JobOwner"]),
-                _soca_JobProject=str(params["JobProject"]),
-                _soca_TerminateWhenIdle=str(params["TerminateWhenIdle"]),
-                _soca_KeepForever=str(params["KeepForever"]).lower(),
-                _soca_ClusterId=str(params["ClusterId"]),
-                _soca_NodeType="soca-compute-node"))
+                    Name=str(params["ClusterId"]) + "-compute-job-" + str(params["JobId"]),
+                    _soca_JobId=str(params["JobId"]),
+                    _soca_JobName=str(params["JobName"]),
+                    _soca_JobQueue=str(params["JobQueue"]),
+                    _soca_StackId=stack_name,
+                    _soca_JobOwner=str(params["JobOwner"]),
+                    _soca_JobProject=str(params["JobProject"]),
+                    _soca_TerminateWhenIdle=str(params["TerminateWhenIdle"]),
+                    _soca_KeepForever=str(params["KeepForever"]).lower(),
+                    _soca_ClusterId=str(params["ClusterId"]),
+                    _soca_NodeType="soca-compute-node",
+                ),
+            )
             # End SpotFleetRequestConfigData Resource
 
             # Begin SpotFleet Resource
@@ -391,33 +479,36 @@ cp /apps/soca/$SOCA_CONFIGURATION/cluster_node_bootstrap/config.cfg /root/
         else:
 
             asg_lt.LaunchTemplateSpecification = LaunchTemplateSpecification(
-                LaunchTemplateId=Ref(lt),
-                Version=GetAtt(lt, "LatestVersionNumber")
+                LaunchTemplateId=Ref(lt), Version=GetAtt(lt, "LatestVersionNumber")
             )
 
             asg_lt.Overrides = []
             for index, instance in enumerate(instances_list):
                 if params["WeightedCapacity"] is not False:
                     mip_usage = True
-                    asg_lt.Overrides.append(LaunchTemplateOverrides(
-                        InstanceType=instance,
-                        WeightedCapacity=str(params["WeightedCapacity"][index])))
+                    asg_lt.Overrides.append(
+                        LaunchTemplateOverrides(
+                            InstanceType=instance, WeightedCapacity=str(params["WeightedCapacity"][index])
+                        )
+                    )
                 else:
-                    asg_lt.Overrides.append(LaunchTemplateOverrides(
-                        InstanceType=instance))
+                    asg_lt.Overrides.append(LaunchTemplateOverrides(InstanceType=instance))
 
             # Begin InstancesDistribution
-            if params["SpotPrice"] is not False and \
-                    params["SpotAllocationCount"] is not False and \
-                    (int(params["DesiredCapacity"]) - int(params["SpotAllocationCount"])) > 0:
+            if (
+                params["SpotPrice"] is not False
+                and params["SpotAllocationCount"] is not False
+                and (int(params["DesiredCapacity"]) - int(params["SpotAllocationCount"])) > 0
+            ):
                 mip_usage = True
                 idistribution = InstancesDistribution()
                 idistribution.OnDemandAllocationStrategy = "prioritized"  # only supported value
                 idistribution.OnDemandBaseCapacity = params["DesiredCapacity"] - params["SpotAllocationCount"]
                 idistribution.OnDemandPercentageAboveBaseCapacity = "0"  # force the other instances to be SPOT
-                idistribution.SpotMaxPrice = Ref("AWS::NoValue") if params["SpotPrice"] == "auto" else str(
-                    params["SpotPrice"])
-                idistribution.SpotAllocationStrategy = params['SpotAllocationStrategy']
+                idistribution.SpotMaxPrice = (
+                    Ref("AWS::NoValue") if params["SpotPrice"] == "auto" else str(params["SpotPrice"])
+                )
+                idistribution.SpotAllocationStrategy = params["SpotAllocationStrategy"]
                 mip.InstancesDistribution = idistribution
 
             # End MixedPolicyInstance
@@ -431,8 +522,8 @@ cp /apps/soca/$SOCA_CONFIGURATION/cluster_node_bootstrap/config.cfg /root/
 
             else:
                 asg.LaunchTemplate = LaunchTemplateSpecification(
-                    LaunchTemplateId=Ref(lt),
-                    Version=GetAtt(lt, "LatestVersionNumber"))
+                    LaunchTemplateId=Ref(lt), Version=GetAtt(lt, "LatestVersionNumber")
+                )
 
             asg.MinSize = int(params["DesiredCapacity"])
             asg.MaxSize = int(params["DesiredCapacity"])
@@ -456,7 +547,8 @@ cp /apps/soca/$SOCA_CONFIGURATION/cluster_node_bootstrap/config.cfg /root/
                 _soca_TerminateWhenIdle=str(params["TerminateWhenIdle"]),
                 _soca_KeepForever=str(params["KeepForever"]).lower(),
                 _soca_ClusterId=str(params["ClusterId"]),
-                _soca_NodeType="soca-compute-node")
+                _soca_NodeType="soca-compute-node",
+            )
             t.add_resource(asg)
             # End AutoScalingGroup Resource
 
@@ -471,11 +563,26 @@ cp /apps/soca/$SOCA_CONFIGURATION/cluster_node_bootstrap/config.cfg /root/
                 fsx_lustre_configuration = LustreConfiguration()
                 fsx_lustre_configuration.DeploymentType = params["FSxLustreConfiguration"]["deployment_type"].upper()
                 if params["FSxLustreConfiguration"]["deployment_type"].upper() == "PERSISTENT_1":
-                    fsx_lustre_configuration.PerUnitStorageThroughput = params["FSxLustreConfiguration"]["per_unit_throughput"]
+                    fsx_lustre_configuration.PerUnitStorageThroughput = params["FSxLustreConfiguration"][
+                        "per_unit_throughput"
+                    ]
 
                 if params["FSxLustreConfiguration"]["s3_backend"] is not False:
-                    fsx_lustre_configuration.ImportPath = params["FSxLustreConfiguration"]["import_path"] if params["FSxLustreConfiguration"]["import_path"] is not False else params["FSxLustreConfiguration"]["s3_backend"]
-                    fsx_lustre_configuration.ExportPath = params["FSxLustreConfiguration"]["import_path"] if params["FSxLustreConfiguration"]["import_path"] is not False else params["FSxLustreConfiguration"]["s3_backend"] + "/" + params["ClusterId"] + "-fsxoutput/job-" +  params["JobId"] + "/"
+                    fsx_lustre_configuration.ImportPath = (
+                        params["FSxLustreConfiguration"]["import_path"]
+                        if params["FSxLustreConfiguration"]["import_path"] is not False
+                        else params["FSxLustreConfiguration"]["s3_backend"]
+                    )
+                    fsx_lustre_configuration.ExportPath = (
+                        params["FSxLustreConfiguration"]["import_path"]
+                        if params["FSxLustreConfiguration"]["import_path"] is not False
+                        else params["FSxLustreConfiguration"]["s3_backend"]
+                        + "/"
+                        + params["ClusterId"]
+                        + "-fsxoutput/job-"
+                        + params["JobId"]
+                        + "/"
+                    )
 
                 fsx_lustre.LustreConfiguration = fsx_lustre_configuration
                 fsx_lustre.Tags = base_Tags(
@@ -520,12 +627,13 @@ cp /apps/soca/$SOCA_CONFIGURATION/cluster_node_bootstrap/config.cfg /root/
 
         # Tags must use "soca:<Key>" syntax
         template_output = t.to_yaml().replace("_soca_", "soca:")
-        return {'success': True,
-                'output': template_output}
+        return {"success": True, "output": template_output}
 
     except Exception as e:
         exc_type, exc_obj, exc_tb = sys.exc_info()
         fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
-        return {'success': False,
-                'output': 'cloudformation_builder.py: ' + (
-                            str(e) + ': error :' + str(exc_type) + ' ' + str(fname) + ' ' + str(exc_tb.tb_lineno))}
+        return {
+            "success": False,
+            "output": "cloudformation_builder.py: "
+            + (str(e) + ": error :" + str(exc_type) + " " + str(fname) + " " + str(exc_tb.tb_lineno)),
+        }

@@ -11,13 +11,15 @@
 #  and limitations under the License.                                                                                #
 ######################################################################################################################
 
-import ldap
-import errors
-from flask_restful import Resource
-import config
 import logging
-from decorators import admin_api
 from random import choice
+
+import config
+import errors
+import ldap
+from decorators import admin_api
+from flask_restful import Resource
+
 logger = logging.getLogger("api")
 
 
@@ -45,31 +47,37 @@ class Ids(Resource):
         try:
             conn = ldap.initialize(f"ldap://{config.Config.DOMAIN_NAME}")
             conn.simple_bind_s(f"{config.Config.ROOT_USER}@{config.Config.DOMAIN_NAME}", config.Config.ROOT_PW)
-            user_res = conn.search_s(f"ou=Users,ou={config.Config.NETBIOS},{config.Config.LDAP_BASE}", ldap.SCOPE_SUBTREE, 'objectClass=person',["uidNumber"])
-            group_res = conn.search_s(f"ou=Users,ou={config.Config.NETBIOS},{config.Config.LDAP_BASE}", ldap.SCOPE_SUBTREE, 'objectClass=group',["gidNumber"])
+            user_res = conn.search_s(
+                f"ou=Users,ou={config.Config.NETBIOS},{config.Config.LDAP_BASE}",
+                ldap.SCOPE_SUBTREE,
+                "objectClass=person",
+                ["uidNumber"],
+            )
+            group_res = conn.search_s(
+                f"ou=Users,ou={config.Config.NETBIOS},{config.Config.LDAP_BASE}",
+                ldap.SCOPE_SUBTREE,
+                "objectClass=group",
+                ["gidNumber"],
+            )
             for a in user_res:
                 if a[1]:
-                    uid_temp = int(a[1].get('uidNumber')[0])
+                    uid_temp = int(a[1].get("uidNumber")[0])
                     uid_in_use.append(uid_temp)
 
             for a in group_res:
                 if a[1]:
-                    gid_temp = int(a[1].get('gidNumber')[0])
+                    gid_temp = int(a[1].get("gidNumber")[0])
                     gid_in_use.append(gid_temp)
 
-            return {"success": True,
-                    "message": {
-                        "proposed_uid": choice([i for i in range(UID, MAX_IDS) if i not in uid_in_use]),
-                        "proposed_gid": choice([i for i in range(GID, MAX_IDS) if i not in gid_in_use]),
-                        "uid_in_use": uid_in_use,
-                        "gid_in_use": gid_in_use}
-                    }, 200
+            return {
+                "success": True,
+                "message": {
+                    "proposed_uid": choice([i for i in range(UID, MAX_IDS) if i not in uid_in_use]),
+                    "proposed_gid": choice([i for i in range(GID, MAX_IDS) if i not in gid_in_use]),
+                    "uid_in_use": uid_in_use,
+                    "gid_in_use": gid_in_use,
+                },
+            }, 200
 
         except Exception as err:
             return errors.all_errors(type(err).__name__, err)
-
-
-
-
-
-
