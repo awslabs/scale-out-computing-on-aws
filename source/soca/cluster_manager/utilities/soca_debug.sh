@@ -19,8 +19,8 @@
 # Refer to https://awslabs.github.io/scale-out-computing-on-aws/tutorials/troubleshoot-job-queue/ for additional data
 
 if [[ "$EUID" -ne 0 ]]
-  then echo "Script must be run as root"
-  exit
+then echo "Script must be run as root"
+    exit
 fi
 
 source /etc/environment
@@ -45,40 +45,40 @@ mkdir -p $DEBUG_PATH
 while getopts j:q:d: flag
 do
     case "${flag}" in
-        j) JOB=${OPTARG};;
-        q) QUEUE=${OPTARG};;
-        d) DESKTOP_USER=${OPTARG};;
-        *) echo "Argument not recognized. Exiting ..." && exit 1;;
+        j) JOB=${OPTARG} ;;
+        q) QUEUE=${OPTARG} ;;
+        d) DESKTOP_USER=${OPTARG} ;;
+        *) echo "Argument not recognized. Exiting ..." && exit 1 ;;
     esac
 done
 
 # Retrieve Job logs
 if [[ -v $JOB ]]; then
-  echo "BEGIN: Retrieving log for job $JOB"
-  mkdir -p "$JOB_DEBUG_PATH"
-  cp -r "$SOCA_PATH/cluster_node_bootstrap/logs/$JOB" "$JOB_DEBUG_PATH"
-  tracejob $JOB > "$JOB_DEBUG_PATH/tracejob.$JOB.txt"
-  echo "END: Retrieving log for job $JOB"
+    echo "BEGIN: Retrieving log for job $JOB"
+    mkdir -p "$JOB_DEBUG_PATH"
+    cp -r "$SOCA_PATH/cluster_node_bootstrap/logs/$JOB" "$JOB_DEBUG_PATH"
+    tracejob $JOB > "$JOB_DEBUG_PATH/tracejob.$JOB.txt"
+    echo "END: Retrieving log for job $JOB"
 fi
 
 # Retrieve desktop provisioning log.
 # These are not DCV log. To get DCV logs you must SSH to the DCV hosts.
 if [[ -v $DESKTOP_USER ]]; then
-  echo "BEGIN: Retrieving Desktop job for user $DESKTOP_USER"
-  mkdir -p "$JOB_DESKTOP_DEBUG_PATH"
-  cp -r "$SOCA_PATH/cluster_node_bootstrap/logs/desktop/$DESKTOP_USER" "$JOB_DESKTOP_DEBUG_PATH"
-  echo "END: Retrieving Desktop job for user $DESKTOP_USER"
+    echo "BEGIN: Retrieving Desktop job for user $DESKTOP_USER"
+    mkdir -p "$JOB_DESKTOP_DEBUG_PATH"
+    cp -r "$SOCA_PATH/cluster_node_bootstrap/logs/desktop/$DESKTOP_USER" "$JOB_DESKTOP_DEBUG_PATH"
+    echo "END: Retrieving Desktop job for user $DESKTOP_USER"
 fi
 
 # Get Queues Logs
 echo "BEGIN: Retrieving queue logs"
 mkdir -p "$QUEUE_DEBUG_PATH"
 if [[ -v $QUEUE ]]; then
-  echo "No Queue specified, trying to copy all queue logs. Use -q to retrieve log for a given queue"
-  cp -r "$SOCA_PATH/cluster_manager/logs" "$QUEUE_DEBUG_PATH"
+    echo "No Queue specified, trying to copy all queue logs. Use -q to retrieve log for a given queue"
+    cp -r "$SOCA_PATH/cluster_manager/logs" "$QUEUE_DEBUG_PATH"
 else
-  echo "Retrieving $QUEUE logs"
-  cp "$SOCA_PATH/cluster_manager/logs/$QUEUE.log" "$QUEUE_DEBUG_PATH"
+    echo "Retrieving $QUEUE logs"
+    cp "$SOCA_PATH/cluster_manager/logs/$QUEUE.log" "$QUEUE_DEBUG_PATH"
 fi
 echo "END: Retrieving queue logs"
 
@@ -107,7 +107,7 @@ pbsnodes -a > "$PBS_SNAPSHOT_DEBUG_PATH/pbsnodes_output.txt"
 qstat --version > "$OTHER_DEBUG_PATH/pbs_version.txt"
 
 if [[ "$HOSTNAME" != "$SCHEDULER_HOSTNAME" ]]; then
- qmgr -c "print server" > "$PBS_SNAPSHOT_DEBUG_PATH/qmgr_output.txt"
+    qmgr -c "print server" > "$PBS_SNAPSHOT_DEBUG_PATH/qmgr_output.txt"
 fi
 echo "END: Retrieving PBS snapshot info"
 

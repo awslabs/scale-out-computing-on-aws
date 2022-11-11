@@ -53,59 +53,59 @@ fi
 
 # Check if user is already running on a virtual environment
 if [[ -n $VIRTUAL_ENV ]]; then
-  echo "=====ATTENTION===="
-  echo "You are currently using an existing Python virtual environment."
-  echo "To prevent dependencies errors, It's highly recommended to exit your virtual environment first and re-launch the installer"
-  echo "SOCA will create its own virtual environment and configure all required dependencies"
-  echo "=================="
-  read -rp "Do you want to continue with your existing virtual environment? (yes/no) " EXISTINGVIRTENV
+    echo "=====ATTENTION===="
+    echo "You are currently using an existing Python virtual environment."
+    echo "To prevent dependencies errors, It's highly recommended to exit your virtual environment first and re-launch the installer"
+    echo "SOCA will create its own virtual environment and configure all required dependencies"
+    echo "=================="
+    read -rp "Do you want to continue with your existing virtual environment? (yes/no) " EXISTINGVIRTENV
     case $EXISTINGVIRTENV in
         yes )
-          if [[ $QUIET_MODE = "true" ]]; then
-            pip3 install --upgrade pip --quiet
-            pip3 install -r resources/src/requirements.txt --quiet
-          else
-            pip3 install --upgrade pip
-            pip3 install -r resources/src/requirements.txt
-          fi
-          ;;
-        no ) exit 1;;
+            if [[ $QUIET_MODE = "true" ]]; then
+                pip3 install --upgrade pip --quiet
+                pip3 install -r resources/src/requirements.txt --quiet
+            else
+                pip3 install --upgrade pip
+                pip3 install -r resources/src/requirements.txt
+            fi
+            ;;
+        no ) exit 1 ;;
         * ) echo "Please answer yes or no."
-          exit 1 ;;
+            exit 1 ;;
     esac
-  sleep 5
+    sleep 5
 else
-  # Check if Python Virtual environment exist
-  # If not, create the venv and install required python libraries
-  if [[ ! -e $PYTHON_VENV/bin/activate ]]; then
-      echo "No Python virtual environment found. Creating one ..."
-      rm -rf $PYTHON_VENV
-      $PYTHON -m venv $PYTHON_VENV
-      # shellcheck disable=SC1090
-      . "$PYTHON_VENV/bin/activate"
-  else
-    # Load Python environment
-    echo "Loading Python Virtual Environment"
-    source "$PYTHON_VENV/bin/activate"
-  fi
+    # Check if Python Virtual environment exist
+    # If not, create the venv and install required python libraries
+    if [[ ! -e $PYTHON_VENV/bin/activate ]]; then
+        echo "No Python virtual environment found. Creating one ..."
+        rm -rf $PYTHON_VENV
+        $PYTHON -m venv $PYTHON_VENV
+        # shellcheck disable=SC1090
+        . "$PYTHON_VENV/bin/activate"
+    else
+        # Load Python environment
+        echo "Loading Python Virtual Environment"
+        source "$PYTHON_VENV/bin/activate"
+    fi
 fi
 make resources/src/.requirements_installed
 
 # Install local NodeJS environment and CDK
 if [[ ! -d $NVM_DIR ]]; then
-  mkdir -p $NVM_DIR
-  echo "Local NodeJS environment not detected, creating one ..."
-  echo "Downloading $NODEJS_BIN"
-  curl --silent -o- "$NODEJS_BIN" | bash
-  echo "Installing Node & NPM via nvm"
-  source "$NVM_DIR/nvm.sh"  # This loads nvm
-  # shellcheck disable=SC1090
-  source "$NVM_DIR/bash_completion"
-  nvm install v16.15.0
-  npm install -g aws-cdk
+    mkdir -p $NVM_DIR
+    echo "Local NodeJS environment not detected, creating one ..."
+    echo "Downloading $NODEJS_BIN"
+    curl --silent -o- "$NODEJS_BIN" | bash
+    echo "Installing Node & NPM via nvm"
+    source "$NVM_DIR/nvm.sh"  # This loads nvm
+    # shellcheck disable=SC1090
+    source "$NVM_DIR/bash_completion"
+    nvm install v16.15.0
+    npm install -g aws-cdk
 else
-  source "$NVM_DIR/nvm.sh"  # This loads nvm
-  source "$NVM_DIR/bash_completion"
+    source "$NVM_DIR/nvm.sh"  # This loads nvm
+    source "$NVM_DIR/bash_completion"
 fi
 
 # Check if aws cli (https://aws.amazon.com/cli/) is installed
@@ -115,23 +115,23 @@ command -v aws > /dev/null
 if [[ $? -ne 0 ]]; then
     echo "AWSCLI not detected."
     while true; do
-    read -rp "Do you want to automatically install aws cli and configure it? You will need to have a valid pair of access/secret key. You can generate them on the AWS Console IAM section (yes/no) " AWSCLIINSTALL
-    case $AWSCLIINSTALL in
-        yes ) $PIP3 install awscli
-          echo "AWS CLI installed. Running 'aws configure' to configure your AWS CLI environment:"
-          aws configure
-          ;;
-        no ) exit 1;;
-        * ) echo "Please answer yes or no."
-          exit 1;;
-    esac
-  done
+        read -rp "Do you want to automatically install aws cli and configure it? You will need to have a valid pair of access/secret key. You can generate them on the AWS Console IAM section (yes/no) " AWSCLIINSTALL
+        case $AWSCLIINSTALL in
+            yes ) $PIP3 install awscli
+                echo "AWS CLI installed. Running 'aws configure' to configure your AWS CLI environment:"
+                aws configure
+                ;;
+            no ) exit 1 ;;
+            * ) echo "Please answer yes or no."
+                exit 1 ;;
+        esac
+    done
 fi
 
 # Set default region, fallback to Virginia if not defined (Used by install_soca.py)
 export AWS_DEFAULT_REGION=$(cat ~/.aws/config | grep region | awk '{print $3}' | head -n 1)
 if [[ $AWS_DEFAULT_REGION == "" ]]; then
-  export AWS_DEFAULT_REGION="us-east-1" ;
+    export AWS_DEFAULT_REGION="us-east-1" ;
 fi
 
 echo "======= Pre-requisites completed. Launching installer ======="

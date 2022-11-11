@@ -46,23 +46,23 @@ echo $SERVER_IP $SERVER_HOSTNAME $SERVER_HOSTNAME_ALT >> /etc/hosts
 
 # Install System required libraries / EPEL
 if [[ $SOCA_BASE_OS == "rhel7" ]]; then
-  # RHEL7
-  curl "$EPEL_URL" -o $EPEL_RPM
-  if [[ $(md5sum "$EPEL_RPM" | awk '{print $1}') != "$EPEL_HASH" ]];  then
-      echo -e "FATAL ERROR: Checksum for EPEL failed. File may be compromised." > /etc/motd
-      exit 1
-  fi
-  yum -y install $EPEL_RPM
-  yum install -y $(echo ${SYSTEM_PKGS[*]} ${SCHEDULER_PKGS[*]}) --enablerepo rhel-7-server-rhui-optional-rpms
+    # RHEL7
+    curl "$EPEL_URL" -o $EPEL_RPM
+    if [[ $(md5sum "$EPEL_RPM" | awk '{print $1}') != "$EPEL_HASH" ]];  then
+        echo -e "FATAL ERROR: Checksum for EPEL failed. File may be compromised." > /etc/motd
+        exit 1
+    fi
+    yum -y install $EPEL_RPM
+    yum install -y $(echo ${SYSTEM_PKGS[*]} ${SCHEDULER_PKGS[*]}) --enablerepo rhel-7-server-rhui-optional-rpms
 elif [[ $SOCA_BASE_OS == "centos7" ]]; then
-  # CentOS
-  yum -y install epel-release
-  yum install -y $(echo ${SYSTEM_PKGS[*]} ${SCHEDULER_PKGS[*]})
+    # CentOS
+    yum -y install epel-release
+    yum install -y $(echo ${SYSTEM_PKGS[*]} ${SCHEDULER_PKGS[*]})
 else
-  # AL2
-  amazon-linux-extras install -y epel
-  yum update --security
-  yum install -y $(echo ${SYSTEM_PKGS[*]} ${SCHEDULER_PKGS[*]})
+    # AL2
+    amazon-linux-extras install -y epel
+    yum update --security
+    yum install -y $(echo ${SYSTEM_PKGS[*]} ${SCHEDULER_PKGS[*]})
 fi
 yum install -y $(echo ${OPENLDAP_SERVER_PKGS[*]} ${SSSD_PKGS[*]})
 
@@ -145,8 +145,8 @@ done
 
 # Exit if folder already exist
 if [[ -d "/apps/soca/$SOCA_CONFIGURATION" ]]; then
-  echo "/apps/soca/$SOCA_CONFIGURATION folder already exist. To prevent configuration overwrite, we exit the script. Please pick a different SOCA cluster name or delete the folder"
-  exit 1
+    echo "/apps/soca/$SOCA_CONFIGURATION folder already exist. To prevent configuration overwrite, we exit the script. Please pick a different SOCA cluster name or delete the folder"
+    exit 1
 fi
 
 # Install Python if needed
@@ -200,7 +200,7 @@ PBS_EXEC=/opt/pbs
 PBS_HOME=/var/spool/pbs
 PBS_CORE_LIMIT=unlimited
 PBS_SCP=/usr/bin/scp
-" > /etc/pbs.conf
+    " > /etc/pbs.conf
     echo "$clienthost $SERVER_HOSTNAME_ALT" > /var/spool/pbs/mom_priv/config
 fi
 
@@ -291,25 +291,25 @@ sed -i 's/resources: "ncpus, mem, arch, host, vnode, aoe, eoe"/resources: "ncpus
 
 # Configure OpenLDAP is auth provider is set to OpenLDAP
 if [[ "$SOCA_AUTH_PROVIDER" == "openldap" ]]; then
-  systemctl enable slapd
-  systemctl start slapd
-  ADMIN_LDAP_PASSWORD=$(slappasswd -g)
-  ADMIN_LDAP_PASSWORD_ENCRYPTED=$(/sbin/slappasswd -s $ADMIN_LDAP_PASSWORD -h "{SSHA}")
-  echo -n "admin" > /root/OpenLdapAdminUsername.txt
-  echo -n $ADMIN_LDAP_PASSWORD > /root/OpenLdapAdminPassword.txt
-  chmod 600 /root/OpenLdapAdminPassword.txt
-  echo "URI ldap://$SERVER_HOSTNAME" >> /etc/openldap/ldap.conf
-  echo "BASE $SOCA_LDAP_BASE" >> /etc/openldap/ldap.conf
+    systemctl enable slapd
+    systemctl start slapd
+    ADMIN_LDAP_PASSWORD=$(slappasswd -g)
+    ADMIN_LDAP_PASSWORD_ENCRYPTED=$(/sbin/slappasswd -s $ADMIN_LDAP_PASSWORD -h "{SSHA}")
+    echo -n "admin" > /root/OpenLdapAdminUsername.txt
+    echo -n $ADMIN_LDAP_PASSWORD > /root/OpenLdapAdminPassword.txt
+    chmod 600 /root/OpenLdapAdminPassword.txt
+    echo "URI ldap://$SERVER_HOSTNAME" >> /etc/openldap/ldap.conf
+    echo "BASE $SOCA_LDAP_BASE" >> /etc/openldap/ldap.conf
 
-  # Generate 10y certificate for ldaps
-  openssl req -new -newkey rsa:2048 -days 3650 -nodes -x509 \
-      -subj "/C=US/ST=California/L=Sunnyvale/O=Aligo/CN=$SERVER_HOSTNAME" \
-      -keyout /etc/openldap/certs/soca.key -out /etc/openldap/certs/soca.crt
+    # Generate 10y certificate for ldaps
+    openssl req -new -newkey rsa:2048 -days 3650 -nodes -x509 \
+        -subj "/C=US/ST=California/L=Sunnyvale/O=Aligo/CN=$SERVER_HOSTNAME" \
+        -keyout /etc/openldap/certs/soca.key -out /etc/openldap/certs/soca.crt
 
-  chown ldap:ldap /etc/openldap/certs/soca.key /etc/openldap/certs/soca.crt
-  chmod 600 /etc/openldap/certs/soca.key /etc/openldap/certs/soca.crt
+    chown ldap:ldap /etc/openldap/certs/soca.key /etc/openldap/certs/soca.crt
+    chmod 600 /etc/openldap/certs/soca.key /etc/openldap/certs/soca.crt
 
-  echo -e "
+    echo -e "
 dn: olcDatabase={2}hdb,cn=config
 changetype: modify
 replace: olcSuffix
@@ -323,27 +323,27 @@ olcRootDN: cn=admin,$SOCA_LDAP_BASE
 dn: olcDatabase={2}hdb,cn=config
 changetype: modify
 replace: olcRootPW
-olcRootPW: $ADMIN_LDAP_PASSWORD_ENCRYPTED" > db.ldif
+    olcRootPW: $ADMIN_LDAP_PASSWORD_ENCRYPTED" > db.ldif
 
-  echo -e "
+    echo -e "
 dn: cn=config
 changetype: modify
 replace: olcTLSCertificateFile
 olcTLSCertificateFile: /etc/openldap/certs/soca.crt
 -
 replace: olcTLSCertificateKeyFile
-olcTLSCertificateKeyFile: /etc/openldap/certs/soca.key" > update_ssl_cert.ldif
+    olcTLSCertificateKeyFile: /etc/openldap/certs/soca.key" > update_ssl_cert.ldif
 
-  echo -e "
+    echo -e "
 dn: olcDatabase={2}hdb,cn=config
 changetype: modify
 replace: olcAccess
 olcAccess: {0}to attrs=userPassword by self write by anonymous auth by group.exact="ou=admins,$SOCA_LDAP_BASE" write by * none
 -
 add: olcAccess
-olcAccess: {1}to * by dn.base="gidNumber=0+uidNumber=0,cn=peercred,cn=external,cn=auth" write by dn.base="ou=admins,$SOCA_LDAP_BASE" write by * read" > change_user_password.ldif
+    olcAccess: {1}to * by dn.base="gidNumber=0+uidNumber=0,cn=peercred,cn=external,cn=auth" write by dn.base="ou=admins,$SOCA_LDAP_BASE" write by * read" > change_user_password.ldif
 
-  echo -e "
+    echo -e "
 dn: cn=sudo,cn=schema,cn=config
 objectClass: olcSchemaConfig
 cn: sudo
@@ -354,17 +354,17 @@ olcAttributeTypes: ( 1.3.6.1.4.1.15953.9.1.4 NAME 'sudoRunAs' DESC 'User(s) impe
 olcAttributeTypes: ( 1.3.6.1.4.1.15953.9.1.5 NAME 'sudoOption' DESC 'Options(s) followed by sudo' EQUALITY caseExactIA5Match SYNTAX 1.3.6.1.4.1.1466.115.121.1.26 )
 olcAttributeTypes: ( 1.3.6.1.4.1.15953.9.1.6 NAME 'sudoRunAsUser' DESC 'User(s) impersonated by sudo' EQUALITY caseExactIA5Match SYNTAX 1.3.6.1.4.1.1466.115.121.1.26 )
 olcAttributeTypes: ( 1.3.6.1.4.1.15953.9.1.7 NAME 'sudoRunAsGroup' DESC 'Group(s) impersonated by sudo' EQUALITY caseExactIA5Match SYNTAX 1.3.6.1.4.1.1466.115.121.1.26 )
-olcObjectClasses: ( 1.3.6.1.4.1.15953.9.2.1 NAME 'sudoRole' SUP top STRUCTURAL DESC 'Sudoer Entries' MUST ( cn ) MAY ( sudoUser $ sudoHost $ sudoCommand $ sudoRunAs $ sudoRunAsUser $ sudoRunAsGroup $ sudoOption $ description ) )" > sudoers.ldif
+    olcObjectClasses: ( 1.3.6.1.4.1.15953.9.2.1 NAME 'sudoRole' SUP top STRUCTURAL DESC 'Sudoer Entries' MUST ( cn ) MAY ( sudoUser $ sudoHost $ sudoCommand $ sudoRunAs $ sudoRunAsUser $ sudoRunAsGroup $ sudoOption $ description ) )" > sudoers.ldif
 
-  /bin/ldapmodify -Y EXTERNAL -H ldapi:/// -f db.ldif
-  /bin/ldapmodify -Y EXTERNAL -H ldapi:/// -f update_ssl_cert.ldif
-  /bin/ldapmodify -Y EXTERNAL -H ldapi:/// -f change_user_password.ldif
-  /bin/ldapadd -Y EXTERNAL -H ldapi:/// -f sudoers.ldif
-  /bin/ldapadd -Y EXTERNAL -H ldapi:/// -f /etc/openldap/schema/cosine.ldif
-  /bin/ldapadd -Y EXTERNAL -H ldapi:/// -f /etc/openldap/schema/nis.ldif
-  /bin/ldapadd -Y EXTERNAL -H ldapi:/// -f /etc/openldap/schema/inetorgperson.ldif
+    /bin/ldapmodify -Y EXTERNAL -H ldapi:/// -f db.ldif
+    /bin/ldapmodify -Y EXTERNAL -H ldapi:/// -f update_ssl_cert.ldif
+    /bin/ldapmodify -Y EXTERNAL -H ldapi:/// -f change_user_password.ldif
+    /bin/ldapadd -Y EXTERNAL -H ldapi:/// -f sudoers.ldif
+    /bin/ldapadd -Y EXTERNAL -H ldapi:/// -f /etc/openldap/schema/cosine.ldif
+    /bin/ldapadd -Y EXTERNAL -H ldapi:/// -f /etc/openldap/schema/nis.ldif
+    /bin/ldapadd -Y EXTERNAL -H ldapi:/// -f /etc/openldap/schema/inetorgperson.ldif
 
-  echo -e "
+    echo -e "
 dn: $SOCA_LDAP_BASE
 dc: soca
 objectClass: top
@@ -388,26 +388,26 @@ objectClass: organizationalUnit
 
 dn: ou=admins,$SOCA_LDAP_BASE
 objectClass: organizationalUnit
-ou: Group" > base.ldif
+    ou: Group" > base.ldif
 
-  /bin/ldapadd -x -W -y /root/OpenLdapAdminPassword.txt -D "cn=admin,$SOCA_LDAP_BASE" -f base.ldif
+    /bin/ldapadd -x -W -y /root/OpenLdapAdminPassword.txt -D "cn=admin,$SOCA_LDAP_BASE" -f base.ldif
 
-  authconfig \
-      --enablesssd \
-      --enablesssdauth \
-      --enableldap \
-      --enableldapauth \
-      --ldapserver="ldap://$SERVER_HOSTNAME" \
-      --ldapbasedn="$SOCA_LDAP_BASE" \
-      --enablelocauthorize \
-      --enablemkhomedir \
-      --enablecachecreds \
-      --updateall
+    authconfig \
+        --enablesssd \
+        --enablesssdauth \
+        --enableldap \
+        --enableldapauth \
+        --ldapserver="ldap://$SERVER_HOSTNAME" \
+        --ldapbasedn="$SOCA_LDAP_BASE" \
+        --enablelocauthorize \
+        --enablemkhomedir \
+        --enablecachecreds \
+        --updateall
 
-  echo "sudoers: files sss" >> /etc/nsswitch.conf
+    echo "sudoers: files sss" >> /etc/nsswitch.conf
 
-  ## Configure SSSD
-  echo -e "[domain/default]
+    ## Configure SSSD
+    echo -e "[domain/default]
 enumerate = True
 autofs_provider = ldap
 cache_credentials = True
@@ -445,11 +445,11 @@ ldap_sudo_smart_refresh_interval=3600
 
 [ifp]
 
-[secrets]" > /etc/sssd/sssd.conf
-  chmod 600 /etc/sssd/sssd.conf
+    [secrets]" > /etc/sssd/sssd.conf
+    chmod 600 /etc/sssd/sssd.conf
 
-  systemctl enable sssd
-  systemctl restart sssd
+    systemctl enable sssd
+    systemctl restart sssd
 fi
 
 # Disable SELINUX

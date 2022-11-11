@@ -25,12 +25,12 @@ GPU_INSTANCE_FAMILY=(g3 g4 g4dn)
 if [[ -z "$(rpm -qa gnome-terminal)" ]]; then
     # Install Gnome or  Mate Desktop
     if [[ $SOCA_BASE_OS == "rhel7" ]]; then
-      yum groupinstall "Server with GUI" -y
+        yum groupinstall "Server with GUI" -y
     elif [[ $SOCA_BASE_OS == "amazonlinux2" ]]; then
-      yum install -y $(echo ${DCV_AMAZONLINUX_PKGS[*]})
+        yum install -y $(echo ${DCV_AMAZONLINUX_PKGS[*]})
     else
-      # Centos7
-      yum groupinstall "GNOME Desktop" -y
+        # Centos7
+        yum groupinstall "GNOME Desktop" -y
     fi
 fi
 
@@ -39,14 +39,14 @@ systemctl set-default graphical.target
 
 # Install latest NVIDIA driver if GPU instance is detected
 if [[ "${GPU_INSTANCE_FAMILY[@]}" =~ "${INSTANCE_FAMILY}" ]]; then
-  # clean previously installed drivers
-  echo "Detected GPU instance .. installing NVIDIA Drivers"
-  rm -f /root/NVIDIA-Linux-x86_64*.run
-  $AWS s3 cp --quiet --recursive s3://ec2-linux-nvidia-drivers/latest/ .
-  rm -rf /tmp/.X*
-  /bin/sh /root/NVIDIA-Linux-x86_64*.run -q -a -n -X -s
-  NVIDIAXCONFIG=$(which nvidia-xconfig)
-  $NVIDIAXCONFIG --preserve-busid --enable-all-gpus
+    # clean previously installed drivers
+    echo "Detected GPU instance .. installing NVIDIA Drivers"
+    rm -f /root/NVIDIA-Linux-x86_64*.run
+    $AWS s3 cp --quiet --recursive s3://ec2-linux-nvidia-drivers/latest/ .
+    rm -rf /tmp/.X*
+    /bin/sh /root/NVIDIA-Linux-x86_64*.run -q -a -n -X -s
+    NVIDIAXCONFIG=$(which nvidia-xconfig)
+    $NVIDIAXCONFIG --preserve-busid --enable-all-gpus
 fi
 
 cd ~
@@ -146,9 +146,9 @@ sleep 5
 
 # Final reboot is needed to update GPU drivers if running GPU instance. Reboot will be triggered by ComputeNodePostReboot.sh
 if [[ "${GPU_INSTANCE_FAMILY[@]}" =~ "${INSTANCE_FAMILY}" ]]; then
-  echo "@reboot dcv create-session --owner $SOCA_DCV_OWNER --storage-root \"$DCV_STORAGE_ROOT\" $SOCA_DCV_SESSION_ID # Do Not Delete"| crontab - -u $SOCA_DCV_OWNER
-  exit 3 # notify ComputeNodePostReboot.sh to force reboot
+    echo "@reboot dcv create-session --owner $SOCA_DCV_OWNER --storage-root \"$DCV_STORAGE_ROOT\" $SOCA_DCV_SESSION_ID # Do Not Delete"| crontab - -u $SOCA_DCV_OWNER
+    exit 3 # notify ComputeNodePostReboot.sh to force reboot
 else
-  echo "@reboot dcv create-session --owner $SOCA_DCV_OWNER --storage-root \"$DCV_STORAGE_ROOT\" $SOCA_DCV_SESSION_ID # Do Not Delete"| crontab - -u $SOCA_DCV_OWNER
-  exit 0
+    echo "@reboot dcv create-session --owner $SOCA_DCV_OWNER --storage-root \"$DCV_STORAGE_ROOT\" $SOCA_DCV_SESSION_ID # Do Not Delete"| crontab - -u $SOCA_DCV_OWNER
+    exit 0
 fi

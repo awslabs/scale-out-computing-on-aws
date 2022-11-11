@@ -32,8 +32,8 @@ if [[ "$SOCA_JOB_TYPE" == "dcv" ]]; then
     echo "Installing DCV"
     /bin/bash /apps/soca/$SOCA_CONFIGURATION/cluster_node_bootstrap/ComputeNodeInstallDCV.sh >> $SOCA_HOST_SYSTEM_LOG/ComputeNodeInstallDCV.log 2>&1
     if [[ $? -eq 3 ]];
-     then
-       REQUIRE_REBOOT=1
+    then
+        REQUIRE_REBOOT=1
     fi
     sleep 30
 fi
@@ -106,12 +106,12 @@ if [[ "$SOCA_FSX_LUSTRE_BUCKET" != 'false' ]] || [[ "$SOCA_FSX_LUSTRE_DNS" != 'f
         LOOP_COUNT=1
         echo "FSX_DNS: " $FSX_DNS
         while [[ "$CHECK_FSX_STATUS" != "AVAILABLE" ]] && [[ $LOOP_COUNT -lt 10 ]]
-            do
-                echo "FSX does not seem to be in AVAILABLE status yet ... waiting 60 secs"
-                sleep 60
-                CHECK_FSX_STATUS=$($AWS fsx describe-file-systems --file-system-ids $FSX_ID  --query FileSystems[].Lifecycle --output text)
-                echo $CHECK_FSX_STATUS
-                ((LOOP_COUNT++))
+        do
+            echo "FSX does not seem to be in AVAILABLE status yet ... waiting 60 secs"
+            sleep 60
+            CHECK_FSX_STATUS=$($AWS fsx describe-file-systems --file-system-ids $FSX_ID  --query FileSystems[].Lifecycle --output text)
+            echo $CHECK_FSX_STATUS
+            ((LOOP_COUNT++))
         done
 
         if [[ "$CHECK_FSX_STATUS" == "AVAILABLE" ]]; then
@@ -127,7 +127,7 @@ if [[ "$SOCA_FSX_LUSTRE_BUCKET" != 'false' ]] || [[ "$SOCA_FSX_LUSTRE_DNS" != 'f
         GET_FSX_MOUNT_NAME=$($AWS fsx describe-file-systems --file-system-ids $FSX_ID  --query FileSystems[].LustreConfiguration.MountName --output text)
         echo "$SOCA_FSX_LUSTRE_DNS@tcp:/$GET_FSX_MOUNT_NAME $FSX_MOUNTPOINT lustre defaults,noatime,flock,_netdev 0 0" >> /etc/fstab
     fi
-    
+
     # Check if Lustre Client is already installed
     if [[ -z "$(rpm -qa lustre-client)" ]]; then
         # Install FSx for Lustre Client
@@ -187,7 +187,7 @@ EBS_IDS=$(aws ec2 describe-volumes --filters Name=attachment.instance-id,Values=
 LOOP_EBS_TAG=0
 $AWS ec2 create-tags --resources $EBS_IDS --region $AWS_REGION --tags Key=Name,Value="EBS for $SOCA_JOB_ID" Key=soca:JobOwner,Value="$SOCA_JOB_OWNER" Key=soca:JobProject,Value="$SOCA_JOB_PROJECT" Key=Name,Value="soca-job-$SOCA_JOB_ID"  Key=soca:JobId,Value="$SOCA_JOB_ID" Key=soca:JobQueue,Value="$SOCA_JOB_QUEUE" Key=soca:ClusterId,Value="$SOCA_CONFIGURATION"
 while [[ $? -ne 0 ]] && [[ $LOOP_EBS_TAG -lt 5 ]]
-    do
+do
     SLEEP_TIME=$(( RANDOM % 100 ))
     echo "ec2 tag failed due to EC2 API error, retrying in  $SLEEP_TIME seconds  and Loop $LOOP_EBS_TAG/5..."
     sleep $SLEEP_TIME
@@ -200,7 +200,7 @@ ENI_IDS=$(aws ec2 describe-network-interfaces --filters Name=attachment.instance
 LOOP_ENI_TAG=0
 $AWS ec2 create-tags --resources $ENI_IDS --region $AWS_REGION --tags Key=Name,Value="ENI for $SOCA_JOB_ID" Key=soca:JobOwner,Value="$SOCA_JOB_OWNER" Key=soca:JobProject,Value="$SOCA_JOB_PROJECT" Key=Name,Value="soca-job-$SOCA_JOB_ID"  Key=soca:JobId,Value="$SOCA_JOB_ID" Key=soca:JobQueue,Value="$SOCA_JOB_QUEUE" Key=soca:ClusterId,Value="$SOCA_CONFIGURATION"
 while [[ $? -ne 0 ]] && [[ $LOOP_ENI_TAG -lt 5 ]]
-    do
+do
     SLEEP_TIME=$(( RANDOM % 100 ))
     echo "ec2 tag failed due to EC2 API error, retrying in  $SLEEP_TIME seconds ... and Loop $LOOP_ENI_TAG/5"
     sleep $SLEEP_TIME
@@ -219,7 +219,7 @@ DCVGLADMIN=\$(which dcvgladmin)
 if [[ \"\$SOCA_INSTANCE_HYPERTHREADING\" == \"false\" ]]; then
     echo \"Disabling Hyperthreading\" >> \$SOCA_HOST_SYSTEM_LOG/ComputeNodePostReboot.log
     for cpunum in \$(awk -F'[,-]' '{print \$2}' /sys/devices/system/cpu/cpu*/topology/thread_siblings_list | sort -un);
-    do 
+    do
         echo 0 > /sys/devices/system/cpu/cpu\$cpunum/online;
     done
 fi
@@ -235,7 +235,7 @@ do
 done
 /bin/bash /apps/soca/\$SOCA_CONFIGURATION/cluster_node_bootstrap/ComputeNodeUserCustomization.sh >> \$SOCA_HOST_SYSTEM_LOG/ComputeNodeUserCustomization.log 2>&1
 /bin/bash /apps/soca/\$SOCA_CONFIGURATION/cluster_node_bootstrap/ComputeNodeConfigureMetrics.sh >> \$SOCA_HOST_SYSTEM_LOG/ComputeNodeConfigureMetrics.log 2>&1
-systemctl start pbs" >> /etc/rc.local
+    systemctl start pbs" >> /etc/rc.local
     chmod +x /etc/rc.d/rc.local
     systemctl enable rc-local
     reboot

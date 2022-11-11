@@ -17,7 +17,7 @@
 # To prevent disk to fill up, we also remove files after 10 days (default). This value can be changed using DATA_RETENTION variable
 
 source /etc/environment
-DATA_RETENTION=10 # number of days logs stay in the server 
+DATA_RETENTION=10 # number of days logs stay in the server
 S3_BUCKET="s3://$SOCA_INSTALL_BUCKET/$SOCA_CONFIGURATION/cluster_logs/"
 SCHEDULER_DIRECTORY='/var/spool/pbs'
 SCHEDULER_SERVER_LOGS=$SCHEDULER_DIRECTORY'/server_logs/'

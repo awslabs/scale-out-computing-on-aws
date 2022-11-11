@@ -46,20 +46,20 @@ cd ~
 if [[ ! -f /root/soca_preinstalled_packages.log ]]; then
     # Install System required libraries / EPEL
     if [[ $SOCA_BASE_OS == "rhel7" ]]; then
-      curl "$EPEL_URL" -o $EPEL_RPM
-      if [[ $(md5sum "$EPEL_RPM" | awk '{print $1}') != "$EPEL_HASH" ]];  then
-          echo -e "FATAL ERROR: Checksum for EPEL failed. File may be compromised." > /etc/motd
-          exit 1
-      fi
-      yum -y install $EPEL_RPM
-      yum install -y $(echo ${SYSTEM_PKGS[*]} ${SCHEDULER_PKGS[*]}) --enablerepo rhel-7-server-rhui-optional-rpms
+        curl "$EPEL_URL" -o $EPEL_RPM
+        if [[ $(md5sum "$EPEL_RPM" | awk '{print $1}') != "$EPEL_HASH" ]];  then
+            echo -e "FATAL ERROR: Checksum for EPEL failed. File may be compromised." > /etc/motd
+            exit 1
+        fi
+        yum -y install $EPEL_RPM
+        yum install -y $(echo ${SYSTEM_PKGS[*]} ${SCHEDULER_PKGS[*]}) --enablerepo rhel-7-server-rhui-optional-rpms
     elif [[ $SOCA_BASE_OS == "centos7" ]]; then
-      yum -y install epel-release
-      yum install -y $(echo ${SYSTEM_PKGS[*]} ${SCHEDULER_PKGS[*]})
+        yum -y install epel-release
+        yum install -y $(echo ${SYSTEM_PKGS[*]} ${SCHEDULER_PKGS[*]})
     else
-      # AL2
-      sudo amazon-linux-extras install -y epel
-      yum install -y $(echo ${SYSTEM_PKGS[*]} ${SCHEDULER_PKGS[*]})
+        # AL2
+        sudo amazon-linux-extras install -y epel
+        yum install -y $(echo ${SYSTEM_PKGS[*]} ${SCHEDULER_PKGS[*]})
     fi
     yum install -y $(echo ${OPENLDAP_SERVER_PKGS[*]} ${SSSD_PKGS[*]})
 fi
@@ -116,11 +116,11 @@ else
             # if more than 1 instance store disks, raid them !
             echo "Detected more than 1 NVMe device available, creating XFS fs ..."
             DEVICE_NAME="md0"
-          for dev in ${VOLUME_LIST[@]} ; do dd if=/dev/zero of=$dev bs=1M count=1 ; done
-          echo yes | mdadm --create -f --verbose --level=0 --raid-devices=$VOLUME_COUNT /dev/$DEVICE_NAME ${VOLUME_LIST[@]}
-          mkfs -t ext4 /dev/$DEVICE_NAME
-          mdadm --detail --scan | tee -a /etc/mdadm.conf
-          echo "/dev/$DEVICE_NAME /scratch ext4 defaults,nofail 0 0" >> /etc/fstab
+            for dev in ${VOLUME_LIST[@]} ; do dd if=/dev/zero of=$dev bs=1M count=1 ; done
+            echo yes | mdadm --create -f --verbose --level=0 --raid-devices=$VOLUME_COUNT /dev/$DEVICE_NAME ${VOLUME_LIST[@]}
+            mkfs -t ext4 /dev/$DEVICE_NAME
+            mdadm --detail --scan | tee -a /etc/mdadm.conf
+            echo "/dev/$DEVICE_NAME /scratch ext4 defaults,nofail 0 0" >> /etc/fstab
         else
             echo "All volumes detected already have a partition or mount point and can't be used as scratch devices"
         fi
@@ -179,7 +179,7 @@ if [[ "$SOCA_AUTH_PROVIDER" == "openldap" ]]; then
         ((CURRENT_ATTEMPT=CURRENT_ATTEMPT+1))
         LDAP_CONFIG=$($AWS secretsmanager get-secret-value --secret-id $SOCA_CONFIGURATION --query SecretString --output text)
     done
-    
+
     LDAP_BASE=$(echo "$LDAP_CONFIG" | grep -oP '"LdapBase":\s*\"(.*?)\"' | sed 's/"LdapBase":\s*//g' | tr -d '"')
     LDAP_NAME=$(echo "$LDAP_CONFIG" | grep -oP '"LdapName":\s*\"(.*?)\"' | sed 's/"LdapName":\s*//g' | tr -d '"')
     echo "URI ldap://$LDAP_NAME" >> /etc/openldap/ldap.conf
@@ -224,7 +224,7 @@ ldap_sudo_smart_refresh_interval=3600
 
 [ifp]
 
-[secrets]" > /etc/sssd/sssd.conf
+    [secrets]" > /etc/sssd/sssd.conf
 
     echo | openssl s_client -connect $SCHEDULER_HOSTNAME:389 -starttls ldap > /root/open_ssl_ldap
     mkdir /etc/openldap/cacerts/
@@ -241,7 +241,7 @@ else
         DS_DOMAIN_NAME=$(cat /apps/soca/$SOCA_CONFIGURATION/cluster_node_bootstrap/ad_automation/domain_name.cache)
     fi
     UPPER_DS_DOMAIN_NAME=$(echo $DS_DOMAIN_NAME | tr a-z A-Z)
-    
+
     # Retrieve account with join permission if available, otherwise query SecretManager
     if [[ ! -f /apps/soca/$SOCA_CONFIGURATION/cluster_node_bootstrap/ad_automation/join_domain_user.cache ]]; then
         DS_DOMAIN_ADMIN_USERNAME=$($AWS secretsmanager get-secret-value --secret-id $SOCA_CONFIGURATION --query SecretString --output text | grep -oP '"DSDomainAdminUsername": \"(.*?)\"' | sed 's/"DSDomainAdminUsername": //g' | tr -d '"')
@@ -277,7 +277,7 @@ else
     echo -e "
 ## Add the \"AWS Delegated Administrators\" group from the ${DS_DOMAIN_NAME} domain.
 %AWS\ Delegated\ Administrators ALL=(ALL:ALL) ALL
-" >> /etc/sudoers
+    " >> /etc/sudoers
 
     cp /etc/sssd/sssd.conf /etc/sssd/sssd.conf.orig
 
@@ -289,7 +289,7 @@ services = nss, pam
 [domain/default]
 ad_domain = $DS_DOMAIN_NAME
 krb5_realm = $UPPER_DS_DOMAIN_NAME
-realmd_tags = manages-system joined-with-samba 
+realmd_tags = manages-system joined-with-samba
 cache_credentials = True
 id_provider = ad
 krb5_store_password_if_offline = True
@@ -308,7 +308,7 @@ homedir_substring = /data/home
 
 [ssh]
 
-[secrets]" > /etc/sssd/sssd.conf
+    [secrets]" > /etc/sssd/sssd.conf
 
 fi
 

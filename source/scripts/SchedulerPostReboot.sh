@@ -19,7 +19,7 @@ source /etc/environment
 source /root/config.cfg
 AWS=$(command -v aws)
 
-function get_secret {
+get_secret() {
     # When using custom AMI, the scheduler is fully operational even before SecretManager is ready.
     # LDAP_Manager has a dependency on SecretManager so we have to wait a little bit (or create the user manually once secretmanager is available)
     MAX_ATTEMPT=10
@@ -107,7 +107,7 @@ queue_type:
     instance_type: "c5.large+c5.xlarge+c5.2xlarge" # Required
     # Terminate when idle: The value specifies the default duration (in mins) where the compute instances would be terminated after being detected as free (no jobs running) for N consecutive minutes
     terminate_when_idle: 3 # Required when scaling_mode is set to multiple_jobs
-    ht_support: "true" 
+    ht_support: "true"
     placement_group: "false"
     root_size: "10"
     # .. Refer to the doc for more supported parameters
@@ -204,67 +204,67 @@ echo "
 secret=$(get_secret)
 
 if [[ "$SOCA_AUTH_PROVIDER" == "activedirectory" ]]; then
-  DS_DOMAIN_NAME=$(echo "$secret" | grep -oP '"DSDomainName": \"(.*?)\"' | sed 's/"DSDomainName": //g' | tr -d '"')
-  UPPER_DS_DOMAIN_NAME=$(echo "$DS_DOMAIN_NAME" | tr a-z A-Z)
-  DS_DOMAIN_ADMIN_USERNAME=$(echo "$secret" | grep -oP '"DSDomainAdminUsername": \"(.*?)\"' | sed 's/"DSDomainAdminUsername": //g' | tr -d '"')
-  DS_DOMAIN_ADMIN_PASSWORD=$(echo "$secret" | grep -oP '"DSDomainAdminPassword": \"(.*?)\"' | sed 's/"DSDomainAdminPassword": //g' | tr -d '"')
-  DS_DOMAIN_NETBIOS=$(echo "$secret" | grep -oP '"DSDomainNetbios": \"(.*?)\"' | sed 's/"DSDomainNetbios": //g' | tr -d '"')
-  DS_DOMAIN_BASE=$(echo "$secret" | grep -oP '"DSDomainBase": \"(.*?)\"' | sed 's/"DSDomainBase": //g' | tr -d '"')
-  DS_DIRECTORY_ID=$(echo "$secret" | grep -oP '"DSDirectoryId": \"(.*?)\"' | sed 's/"DSDirectoryId": //g' | tr -d '"')
+    DS_DOMAIN_NAME=$(echo "$secret" | grep -oP '"DSDomainName": \"(.*?)\"' | sed 's/"DSDomainName": //g' | tr -d '"')
+    UPPER_DS_DOMAIN_NAME=$(echo "$DS_DOMAIN_NAME" | tr a-z A-Z)
+    DS_DOMAIN_ADMIN_USERNAME=$(echo "$secret" | grep -oP '"DSDomainAdminUsername": \"(.*?)\"' | sed 's/"DSDomainAdminUsername": //g' | tr -d '"')
+    DS_DOMAIN_ADMIN_PASSWORD=$(echo "$secret" | grep -oP '"DSDomainAdminPassword": \"(.*?)\"' | sed 's/"DSDomainAdminPassword": //g' | tr -d '"')
+    DS_DOMAIN_NETBIOS=$(echo "$secret" | grep -oP '"DSDomainNetbios": \"(.*?)\"' | sed 's/"DSDomainNetbios": //g' | tr -d '"')
+    DS_DOMAIN_BASE=$(echo "$secret" | grep -oP '"DSDomainBase": \"(.*?)\"' | sed 's/"DSDomainBase": //g' | tr -d '"')
+    DS_DIRECTORY_ID=$(echo "$secret" | grep -oP '"DSDirectoryId": \"(.*?)\"' | sed 's/"DSDirectoryId": //g' | tr -d '"')
 
-  # Waiting for the Route53 Resolver to be fully active, otherwise SOCA won't be able to resolve the AD domain
-  SCHEDULER_UPPER_HOSTNAME=$(hostname | awk '{split($0,h,"."); print toupper(h[1])}')
-  MAX_ATTEMPT=10
-  CURRENT_ATTEMPT=0
-  echo "DS_DIRECTORY_ID: $DS_DIRECTORY_ID"
-  echo "DS_DOMAIN_BASE: $DS_DOMAIN_BASE"
-  echo "DS_DOMAIN_NAME: $DS_DOMAIN_NAME"
-  echo "DS_DOMAIN_NETBIOS: $DS_DOMAIN_NETBIOS"
+    # Waiting for the Route53 Resolver to be fully active, otherwise SOCA won't be able to resolve the AD domain
+    SCHEDULER_UPPER_HOSTNAME=$(hostname | awk '{split($0,h,"."); print toupper(h[1])}')
+    MAX_ATTEMPT=10
+    CURRENT_ATTEMPT=0
+    echo "DS_DIRECTORY_ID: $DS_DIRECTORY_ID"
+    echo "DS_DOMAIN_BASE: $DS_DOMAIN_BASE"
+    echo "DS_DOMAIN_NAME: $DS_DOMAIN_NAME"
+    echo "DS_DOMAIN_NETBIOS: $DS_DOMAIN_NETBIOS"
 
-  nslookup "$DS_DOMAIN_NAME"
-  while [[ $? -ne 0 ]] && [[ $CURRENT_ATTEMPT -le $MAX_ATTEMPT ]]
-  do
-      echo "Waiting for Route 53 outbound endpoint and rule to become active... Waiting 3mn... Loop count is: $CURRENT_ATTEMPT/$MAX_ATTEMPT"
-      sleep 180
-      ((CURRENT_ATTEMPT=CURRENT_ATTEMPT+1))
-      nslookup "$DS_DOMAIN_NAME"
-  done
+    nslookup "$DS_DOMAIN_NAME"
+    while [[ $? -ne 0 ]] && [[ $CURRENT_ATTEMPT -le $MAX_ATTEMPT ]]
+    do
+        echo "Waiting for Route 53 outbound endpoint and rule to become active... Waiting 3mn... Loop count is: $CURRENT_ATTEMPT/$MAX_ATTEMPT"
+        sleep 180
+        ((CURRENT_ATTEMPT=CURRENT_ATTEMPT+1))
+        nslookup "$DS_DOMAIN_NAME"
+    done
 
-  # Create AD caching credentials. These files will be used to retrieve AD Join Domain user as we do not want to query secret manager every time we provision a compute host
-  mkdir -p "/apps/soca/$SOCA_CONFIGURATION/cluster_node_bootstrap/ad_automation"
-  chmod 600 "/apps/soca/$SOCA_CONFIGURATION/cluster_node_bootstrap/ad_automation"
-  echo -n "$DS_DOMAIN_NAME" > "/apps/soca/$SOCA_CONFIGURATION/cluster_node_bootstrap/ad_automation/domain_name.cache"
-  echo -n "$DS_DOMAIN_ADMIN_USERNAME" > "/apps/soca/$SOCA_CONFIGURATION/cluster_node_bootstrap/ad_automation/join_domain_user.cache"
-  echo -n "$DS_DOMAIN_ADMIN_PASSWORD" > "/apps/soca/$SOCA_CONFIGURATION/cluster_node_bootstrap/ad_automation/join_domain.cache"
-  chmod 600 "/apps/soca/$SOCA_CONFIGURATION/cluster_node_bootstrap/ad_automation/domain_name.cache"
-  chmod 600 "/apps/soca/$SOCA_CONFIGURATION/cluster_node_bootstrap/ad_automation/join_domain_user.cache"
-  chmod 600 "/apps/soca/$SOCA_CONFIGURATION/cluster_node_bootstrap/ad_automation/join_domain.cache"
+    # Create AD caching credentials. These files will be used to retrieve AD Join Domain user as we do not want to query secret manager every time we provision a compute host
+    mkdir -p "/apps/soca/$SOCA_CONFIGURATION/cluster_node_bootstrap/ad_automation"
+    chmod 600 "/apps/soca/$SOCA_CONFIGURATION/cluster_node_bootstrap/ad_automation"
+    echo -n "$DS_DOMAIN_NAME" > "/apps/soca/$SOCA_CONFIGURATION/cluster_node_bootstrap/ad_automation/domain_name.cache"
+    echo -n "$DS_DOMAIN_ADMIN_USERNAME" > "/apps/soca/$SOCA_CONFIGURATION/cluster_node_bootstrap/ad_automation/join_domain_user.cache"
+    echo -n "$DS_DOMAIN_ADMIN_PASSWORD" > "/apps/soca/$SOCA_CONFIGURATION/cluster_node_bootstrap/ad_automation/join_domain.cache"
+    chmod 600 "/apps/soca/$SOCA_CONFIGURATION/cluster_node_bootstrap/ad_automation/domain_name.cache"
+    chmod 600 "/apps/soca/$SOCA_CONFIGURATION/cluster_node_bootstrap/ad_automation/join_domain_user.cache"
+    chmod 600 "/apps/soca/$SOCA_CONFIGURATION/cluster_node_bootstrap/ad_automation/join_domain.cache"
 
-  # Join host to realm
-  ADCLI=$(command -v adcli)
-  REALM=$(command -v realm)
-  MAX_ATTEMPT=10
-  CURRENT_ATTEMPT=0
-  echo $DS_DOMAIN_ADMIN_PASSWORD | $REALM join --user $DS_DOMAIN_ADMIN_USERNAME $UPPER_DS_DOMAIN_NAME --verbose
-  while [[ $? -ne 0 ]] && [[ $CURRENT_ATTEMPT -le $MAX_ATTEMPT ]]
-  do
-      SLEEP_TIME=$(( RANDOM % 60 ))
-      id $DS_DOMAIN_ADMIN_USERNAME
-      echo "Realm join didn't complete successfully. Retrying in $SLEEP_TIME seconds... Loop count is: $CURRENT_ATTEMPT/$MAX_ATTEMPT"
-      sleep $SLEEP_TIME
-      ((CURRENT_ATTEMPT=CURRENT_ATTEMPT+1))
-      echo $DS_DOMAIN_ADMIN_PASSWORD | $ADCLI delete-computer -U $DS_DOMAIN_ADMIN_USERNAME --stdin-password --domain=$DS_DOMAIN_NAME $SCHEDULER_UPPER_HOSTNAME
-      echo $DS_DOMAIN_ADMIN_PASSWORD | $REALM leave --user $DS_DOMAIN_ADMIN_USERNAME $UPPER_DS_DOMAIN_NAME --verbose
-      echo $DS_DOMAIN_ADMIN_PASSWORD | $REALM join --user $DS_DOMAIN_ADMIN_USERNAME $UPPER_DS_DOMAIN_NAME --verbose
-  done
+    # Join host to realm
+    ADCLI=$(command -v adcli)
+    REALM=$(command -v realm)
+    MAX_ATTEMPT=10
+    CURRENT_ATTEMPT=0
+    echo $DS_DOMAIN_ADMIN_PASSWORD | $REALM join --user $DS_DOMAIN_ADMIN_USERNAME $UPPER_DS_DOMAIN_NAME --verbose
+    while [[ $? -ne 0 ]] && [[ $CURRENT_ATTEMPT -le $MAX_ATTEMPT ]]
+    do
+        SLEEP_TIME=$(( RANDOM % 60 ))
+        id $DS_DOMAIN_ADMIN_USERNAME
+        echo "Realm join didn't complete successfully. Retrying in $SLEEP_TIME seconds... Loop count is: $CURRENT_ATTEMPT/$MAX_ATTEMPT"
+        sleep $SLEEP_TIME
+        ((CURRENT_ATTEMPT=CURRENT_ATTEMPT+1))
+        echo $DS_DOMAIN_ADMIN_PASSWORD | $ADCLI delete-computer -U $DS_DOMAIN_ADMIN_USERNAME --stdin-password --domain=$DS_DOMAIN_NAME $SCHEDULER_UPPER_HOSTNAME
+        echo $DS_DOMAIN_ADMIN_PASSWORD | $REALM leave --user $DS_DOMAIN_ADMIN_USERNAME $UPPER_DS_DOMAIN_NAME --verbose
+        echo $DS_DOMAIN_ADMIN_PASSWORD | $REALM join --user $DS_DOMAIN_ADMIN_USERNAME $UPPER_DS_DOMAIN_NAME --verbose
+    done
 
-  echo -e "
+    echo -e "
 ## Add the \"AWS Delegated Administrators\" group from the domain.
-%AWS\ Delegated\ Administrators ALL=(ALL:ALL) ALL" >> /etc/sudoers
+    %AWS\ Delegated\ Administrators ALL=(ALL:ALL) ALL" >> /etc/sudoers
 
-  cp /etc/sssd/sssd.conf /etc/sssd/sssd.conf.orig
+    cp /etc/sssd/sssd.conf /etc/sssd/sssd.conf.orig
 
-  echo -e "[sssd]
+    echo -e "[sssd]
 domains = default
 config_file_version = 2
 services = nss, pam
@@ -291,11 +291,11 @@ homedir_substring = /data/home
 
 [ssh]
 
-[secrets]" > /etc/sssd/sssd.conf
+    [secrets]" > /etc/sssd/sssd.conf
 
-  chmod 600 /etc/sssd/sssd.conf
-  systemctl enable sssd
-  systemctl restart sssd
+    chmod 600 /etc/sssd/sssd.conf
+    systemctl enable sssd
+    systemctl restart sssd
 fi
 
 # Append the cluster name on the SOCA HTML template
@@ -305,21 +305,21 @@ sed -i "s/__SOCA_CLUSTER__NAME__/$sanitized_cluster_name/g" /apps/soca/$SOCA_CON
 # Install NodeJS/NPM if needed
 if [[ ! $(command -v npm) ]];
 then
-  echo "npm not detected, installing it ... "
-  export NVM_DIR="/root/nvm/$(date +%s)/.nvm"
-  mkdir -p $NVM_DIR
-  echo "Downloading $NVM_URL"
-  wget "$NVM_URL"
-  if [[ $(md5sum $NVM_INSTALL_SCRIPT | awk '{print $1}') != $NVM_HASH ]];  then
+    echo "npm not detected, installing it ... "
+    export NVM_DIR="/root/nvm/$(date +%s)/.nvm"
+    mkdir -p $NVM_DIR
+    echo "Downloading $NVM_URL"
+    wget "$NVM_URL"
+    if [[ $(md5sum $NVM_INSTALL_SCRIPT | awk '{print $1}') != $NVM_HASH ]];  then
         echo -e "FATAL ERROR: Checksum for NVM failed. File may be compromised." > /etc/motd
         exit 1
-  fi
-  chmod +x $NVM_INSTALL_SCRIPT
-  /bin/bash $NVM_INSTALL_SCRIPT
-  source "$NVM_DIR/nvm.sh"  # This loads nvm
-  # shellcheck disable=SC1090
-  source "$NVM_DIR/bash_completion"
-  nvm install v8.7.0
+    fi
+    chmod +x $NVM_INSTALL_SCRIPT
+    /bin/bash $NVM_INSTALL_SCRIPT
+    source "$NVM_DIR/nvm.sh"  # This loads nvm
+    # shellcheck disable=SC1090
+    source "$NVM_DIR/bash_completion"
+    nvm install v8.7.0
 fi
 
 # Install required Node module
@@ -340,21 +340,21 @@ sanitized_password="$4"
 admin_api_key=$(cat /apps/soca/$SOCA_CONFIGURATION/cluster_web_ui/keys/admin_api_key.txt)
 
 curl -k -H "X-SOCA-TOKEN: $admin_api_key" \
- --data-urlencode "user=$sanitized_username" \
- --data-urlencode "password=$sanitized_password" \
- --data-urlencode "sudoers=1" \
- --data-urlencode "email=admin@soca" \
- --data-urlencode "uid=0" \
- --data-urlencode "gid=0" \
- -X POST https://127.0.0.1:8443/api/ldap/user >> /root/create_new_user.log 2>&1
+    --data-urlencode "user=$sanitized_username" \
+    --data-urlencode "password=$sanitized_password" \
+    --data-urlencode "sudoers=1" \
+    --data-urlencode "email=admin@soca" \
+    --data-urlencode "uid=0" \
+    --data-urlencode "gid=0" \
+    -X POST https://127.0.0.1:8443/api/ldap/user >> /root/create_new_user.log 2>&1
 
 # Re-enable access
 if [[ "$SOCA_BASE_OS" == "amazonlinux2" ]] || [[ "$SOCA_BASE_OS" == "rhel7" ]]; then
-     usermod --shell /bin/bash ec2-user
+    usermod --shell /bin/bash ec2-user
 fi
 
 if [[ "$SOCA_BASE_OS" == "centos7" ]]; then
-     usermod --shell /bin/bash centos
+    usermod --shell /bin/bash centos
 fi
 
 # Avoid customer to use system account to submit job

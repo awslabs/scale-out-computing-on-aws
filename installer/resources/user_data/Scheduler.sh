@@ -32,31 +32,31 @@ fi
 
 # Install awscli
 if [[ "$SOCA_BASE_OS" == "centos7" ]] || [[ "$SOCA_BASE_OS" == "rhel7" ]]; then
-  yum install -y python3-pip
-  PIP=$(which pip3)
-  $PIP install awscli
-  export PATH=$PATH:/usr/local/bin
+    yum install -y python3-pip
+    PIP=$(which pip3)
+    $PIP install awscli
+    export PATH=$PATH:/usr/local/bin
 fi
 
 # Disable automatic motd update if using ALI
 if [[ "$SOCA_BASE_OS" == "amazonlinux2" ]]; then
-  /usr/sbin/update-motd --disable
-  rm /etc/cron.d/update-motd
-  rm -f /etc/update-motd.d/*
+    /usr/sbin/update-motd --disable
+    rm /etc/cron.d/update-motd
+    rm -f /etc/update-motd.d/*
 fi
 
 {
-  echo "## [BEGIN] SOCA Configuration - Do Not Delete"
-  echo export "SOCA_BASE_OS=\"$SOCA_BASE_OS\""
-  echo export "SOCA_CONFIGURATION=\"$CLUSTER_ID\""
-  echo export "AWS_DEFAULT_REGION=\"%%AWS_REGION%%\""
-  echo export "SOCA_INSTALL_BUCKET=\"$S3_BUCKET\""
-  echo export "SOCA_INSTALL_BUCKET_FOLDER=\"$CLUSTER_ID\""
-  echo export "SOCA_VERSION=\"$SOCA_VERSION\""
-  echo export "SOCA_INSTALL_AMI=\"$SOCA_INSTALL_AMI\""
-  echo export "SOCA_AUTH_PROVIDER=\"$SOCA_AUTH_PROVIDER\""
-  echo export "SOCA_LDAP_BASE=\"$SOCA_LDAP_BASE\""
-  echo "## [END] SOCA Configuration"
+    echo "## [BEGIN] SOCA Configuration - Do Not Delete"
+    echo export "SOCA_BASE_OS=\"$SOCA_BASE_OS\""
+    echo export "SOCA_CONFIGURATION=\"$CLUSTER_ID\""
+    echo export "AWS_DEFAULT_REGION=\"%%AWS_REGION%%\""
+    echo export "SOCA_INSTALL_BUCKET=\"$S3_BUCKET\""
+    echo export "SOCA_INSTALL_BUCKET_FOLDER=\"$CLUSTER_ID\""
+    echo export "SOCA_VERSION=\"$SOCA_VERSION\""
+    echo export "SOCA_INSTALL_AMI=\"$SOCA_INSTALL_AMI\""
+    echo export "SOCA_AUTH_PROVIDER=\"$SOCA_AUTH_PROVIDER\""
+    echo export "SOCA_LDAP_BASE=\"$SOCA_LDAP_BASE\""
+    echo "## [END] SOCA Configuration"
 } >> /etc/environment
 
 source /etc/environment
