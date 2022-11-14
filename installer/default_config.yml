@@ -7,6 +7,7 @@ Config:
   network:
     nat_gateways: 1 # Number of NAT gateways to create. Must be equal or lower to the numbers of public subnets
     max_azs: 3 # Number of AZs to use. We will deploy the same number of private and public subnets. Must be greater than 2
+    vpc_flow_logs: False # Enable VPC flow logs for GuardDuty or network debug. Set to False if you don't need them.
     use_vpc_endpoints: False # Enable / Disable creation of VPC endpoints for various services (listed under vpc_interface_endpoints)
     vpc_gateway_endpoints:
     - s3
@@ -58,7 +59,7 @@ Config:
 
   # Configure your EC2 instance used as scheduler host below
   scheduler:
-    instance_type: "m5.large" # default instance type
+    instance_type: "m5.xlarge" # default instance type
     volume_size: 200 # Size of the EBS root disk
 
   # Configure your AWS ElasticSearch/Kibana options below
@@ -85,6 +86,11 @@ Config:
       name: "soca.local" # https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-directoryservice-microsoftad.html#cfn-directoryservice-microsoftad-name
       short_name: "SOCA" # https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-directoryservice-microsoftad.html#cfn-directoryservice-microsoftad-shortname
       edition: "Standard" # https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-directoryservice-microsoftad.html#cfn-directoryservice-microsoftad-edition
+
+  # Configure your AWS China Regions options below
+  china:
+    pip_china_mirror: "https://opentuna.cn/pypi/web/simple" # pip China mirror site
+    centos_china_repo: "https://soca-china-deployment.s3.cn-northwest-1.amazonaws.com.cn/scale-out-computing-on-aws/v2.7.0/CentOS-Base-china.repo" # centos China mirror repo file
 
 RegionMap:
   af-south-1:
@@ -121,6 +127,14 @@ RegionMap:
     amazonlinux2: ami-029758462acdf767c
     centos7: ami-0a7c5b189b6460115
     rhel7: ami-02cc622b97f7e8d45
+  cn-north-1: # Beijing
+    amazonlinux2: ami-0c52e2685c7218558
+    centos7: ami-088b61f50b18f807e
+    rhel7: ami-0aec480c46b22c341
+  cn-northwest-1: # Ningxia
+    amazonlinux2: ami-0b6ea802f7ef3bcdb
+    centos7: ami-0d8487330873f710c
+    rhel7: ami-05d1efb0d288aa5ed
   eu-central-1:
     amazonlinux2: ami-0d10f2d3b9ab936a1
     centos7: ami-08b6d44b4f6f7b279

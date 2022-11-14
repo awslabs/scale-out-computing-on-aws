@@ -589,7 +589,7 @@ if __name__ == "__main__":
         session = boto3.session.Session()
 
     # Determine all AWS regions available on the account. We do not display opt-out region
-    default_region = os.environ.get("AWS_DEFAULT_REGION", "us-east-1")
+    default_region = os.environ.get("AWS_DEFAULT_REGION", "cn-northwest-1")
     ec2 = session.client("ec2", region_name=default_region, config=boto_extra_config)
     try:
         accepted_regions = [region["RegionName"] for region in ec2.describe_regions()["Regions"]]
@@ -718,7 +718,7 @@ if __name__ == "__main__":
 
     if cdk_cmd == "deploy":
         if int(launch_installer) == 0:
-            # SOCA is installed. We will know wait until SOCA is fully configured (when the ELB returns HTTP 200)
+            # SOCA is installed. We will wait until SOCA is fully configured (when the ELB returns HTTP 200)
             print(f"{fg('green')}SOCA was installed successfully!{attr('reset')}")
             try:
                 check_cfn = cloudformation.describe_stacks(StackName=install_parameters['cluster_id'])

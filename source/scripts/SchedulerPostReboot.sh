@@ -50,6 +50,14 @@ cp /root/config.cfg /apps/soca/$SOCA_CONFIGURATION/cluster_node_bootstrap/config
 mkdir -p /apps/soca/$SOCA_CONFIGURATION/cluster_manager/logs
 chmod +x /apps/soca/$SOCA_CONFIGURATION/cluster_manager/socaqstat.py
 
+# Download static pricing list for China regions
+wget https://pricing.cn-north-1.amazonaws.com.cn/offers/v1.0/cn/AmazonEC2/current/index.json -O /apps/soca/$SOCA_CONFIGURATION/cluster_analytics/pricing_index.json
+cat <<EOT >> /apps/soca/$SOCA_CONFIGURATION/cluster_analytics/download_china_pricing_index.sh
+#!/bin/bash
+wget https://pricing.cn-north-1.amazonaws.com.cn/offers/v1.0/cn/AmazonEC2/current/index.json -O /apps/soca/$SOCA_CONFIGURATION/cluster_analytics/pricing_index.json
+EOT
+chmod +x /apps/soca/$SOCA_CONFIGURATION/cluster_analytics/download_china_pricing_index.sh
+
 # Generate default queue_mapping file based on default AMI chosen by customer
 cat <<EOT >> /apps/soca/$SOCA_CONFIGURATION/cluster_manager/settings/queue_mapping.yml
 # This manage automatic provisioning for your queues
@@ -180,6 +188,7 @@ echo "
 * * * * * source /etc/environment; /apps/soca/$SOCA_CONFIGURATION/python/latest/bin/python3 /apps/soca/$SOCA_CONFIGURATION/cluster_analytics/cluster_nodes_tracking.py >> /apps/soca/$SOCA_CONFIGURATION/cluster_analytics/cluster_nodes_tracking.log 2>&1
 @hourly source /etc/environment; /apps/soca/$SOCA_CONFIGURATION/python/latest/bin/python3 /apps/soca/$SOCA_CONFIGURATION/cluster_analytics/job_tracking.py >> /apps/soca/$SOCA_CONFIGURATION/cluster_analytics/job_tracking.log 2>&1
 */10 * * * * source /etc/environment; /apps/soca/$SOCA_CONFIGURATION/python/latest/bin/python3 /apps/soca/$SOCA_CONFIGURATION/cluster_analytics/desktop_hosts_tracking.py >> /apps/soca/$SOCA_CONFIGURATION/cluster_analytics/desktop_hosts_tracking.log 2>&1
+@daily /apps/soca/$SOCA_CONFIGURATION/cluster_analytics/download_china_pricing_index.sh > /apps/soca/$SOCA_CONFIGURATION/cluster_analytics/download_china_pricing_index.log 2>&1
 
 ## Cluster Log Management
 @daily  source /etc/environment; /bin/bash /apps/soca/$SOCA_CONFIGURATION/cluster_logs_management/send_logs_s3.sh >>/apps/soca/$SOCA_CONFIGURATION/cluster_logs_management/send_logs_s3.log 2>&1

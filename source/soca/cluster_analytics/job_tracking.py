@@ -41,36 +41,58 @@ def get_soca_configuration():
 
 def get_aws_pricing(ec2_instance_type):
     pricing = {}
-    response = client.get_products(
-        ServiceCode='AmazonEC2',
-        Filters=[
-            {
-                'Type': 'TERM_MATCH',
-                'Field': 'usageType',
-                'Value': 'BoxUsage:' + ec2_instance_type
-            },
-        ],
-
-    )
-    for data in response['PriceList']:
-        data = ast.literal_eval(data)
+    static_pricing_json = '/apps/soca/' + os.environ['SOCA_CONFIGURATION'] + '/cluster_analytics/pricing_index.json'
+    if session.region_name == "cn-north-1" or session.region_name == "cn-northwest-1":
+        f = open(static_pricing_json,)
+        data = json.load(f)
         for k, v in data['terms'].items():
             if k == 'OnDemand':
                 for skus in v.keys():
-                    for ratecode in v[skus]['priceDimensions'].keys():
-                        instance_data = v[skus]['priceDimensions'][ratecode]
-                        if 'on demand linux ' + str(ec2_instance_type) + ' instance hour' in instance_data['description'].lower():
-                            pricing['ondemand'] = float(instance_data['pricePerUnit']['USD'])
-            else:
+                    for offertermcode in v[skus].keys():
+                        for ratecode in v[skus][offertermcode]['priceDimensions'].keys():
+                            instance_data = v[skus][offertermcode]['priceDimensions'][ratecode]
+                            if 'on demand linux ' + str(ec2_instance_type) + ' instance hour' in instance_data['description'].lower():
+                                pricing['ondemand'] = float(instance_data['pricePerUnit']['CNY'])
+            elif k == 'Reserved':
                 for skus in v.keys():
-                    if v[skus]['termAttributes']['OfferingClass'] == 'standard' \
-                            and v[skus]['termAttributes']['LeaseContractLength'] == '1yr' \
-                            and v[skus]['termAttributes']['PurchaseOption'] == 'No Upfront':
+                    for offertermcode in v[skus].keys():
+                        if v[skus][offertermcode]['termAttributes']['OfferingClass'] == 'standard' \
+                                and v[skus][offertermcode]['termAttributes']['LeaseContractLength'] == '1yr' \
+                                and v[skus][offertermcode]['termAttributes']['PurchaseOption'] == 'No Upfront':
+                            for ratecode in v[skus][offertermcode]['priceDimensions'].keys():
+                                instance_data = v[skus][offertermcode]['priceDimensions'][ratecode]
+                                if 'Linux/UNIX (Amazon VPC)' in instance_data['description']:
+                                    pricing['reserved'] = float(instance_data['pricePerUnit']['CNY'])
+    else:
+        response = client.get_products(
+            ServiceCode='AmazonEC2',
+            Filters=[
+                {
+                    'Type': 'TERM_MATCH',
+                    'Field': 'usageType',
+                    'Value': 'BoxUsage:' + ec2_instance_type
+                },
+            ],
+
+        )
+        for data in response['PriceList']:
+            data = ast.literal_eval(data)
+            for k, v in data['terms'].items():
+                if k == 'OnDemand':
+                    for skus in v.keys():
                         for ratecode in v[skus]['priceDimensions'].keys():
                             instance_data = v[skus]['priceDimensions'][ratecode]
-                            if 'Linux/UNIX (Amazon VPC)' in instance_data['description']:
-                                pricing['reserved'] = float(instance_data['pricePerUnit']['USD'])
-
+                            if 'on demand linux ' + str(ec2_instance_type) + ' instance hour' in instance_data['description'].lower():
+                                pricing['ondemand'] = float(instance_data['pricePerUnit']['USD'])
+                else:
+                    for skus in v.keys():
+                        if v[skus]['termAttributes']['OfferingClass'] == 'standard' \
+                                and v[skus]['termAttributes']['LeaseContractLength'] == '1yr' \
+                                and v[skus]['termAttributes']['PurchaseOption'] == 'No Upfront':
+                            for ratecode in v[skus]['priceDimensions'].keys():
+                                instance_data = v[skus]['priceDimensions'][ratecode]
+                                if 'Linux/UNIX (Amazon VPC)' in instance_data['description']:
+                                    pricing['reserved'] = float(instance_data['pricePerUnit']['USD'])
     return pricing
 
 

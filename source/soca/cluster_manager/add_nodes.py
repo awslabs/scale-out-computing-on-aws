@@ -31,6 +31,7 @@ import cloudformation_builder
 cloudformation = boto3.client("cloudformation", config=configuration.boto_extra_config())
 s3 = boto3.client("s3", config=configuration.boto_extra_config())
 ec2 = boto3.client("ec2", config=configuration.boto_extra_config())
+aws_region = s3.meta.region_name
 iam = boto3.client("iam", config=configuration.boto_extra_config())
 servicequotas = boto3.client("service-quotas", config=configuration.boto_extra_config())
 soca_configuration = configuration.get_soca_configuration()
@@ -204,13 +205,15 @@ def can_launch_capacity(instance_type, desired_capacity, image_id, subnet_id, se
                     quota_info
                 except NameError:
                     quota_info = {}
-
-                vcpus_check = verify_vcpus_limit(instance, desired_capacity, quota_info)
-                quota_info = vcpus_check["quota_info"]
-                if vcpus_check["message"] is True:
+                if aws_region in ['cn-north-1', "cn-northwest-1"]:
                     return True
                 else:
-                    return vcpus_check["message"]
+                    vcpus_check = verify_vcpus_limit(instance, desired_capacity, quota_info)
+                    quota_info = vcpus_check["quota_info"]
+                    if vcpus_check["message"] is True:
+                        return True
+                    else:
+                        return vcpus_check["message"]
             else:
                 print('Dry Run Failed, capacity ' + instance + ' can not be added: ' + str(e), 'error')
                 return str(instance + ' can not be added: ' + str(e))

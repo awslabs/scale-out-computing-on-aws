@@ -24,13 +24,14 @@ PYTHON=$(command -v python) # Change to custom Python3 if needed
 INSTALLER_DIRECTORY=$(dirname $(realpath "$0"))
 QUIET_MODE="false" # change to "false" for more log
 PYTHON_VENV="$INSTALLER_DIRECTORY/resources/src/envs/venv-py-installer" # Python Virtual Environment. It's not recommended to change the value
-NODEJS_BIN="https://raw.githubusercontent.com/nvm-sh/nvm/v0.38.0/install.sh"
+#NODEJS_BIN="https://raw.githubusercontent.com/nvm-sh/nvm/v0.38.0/install.sh"
 export NVM_DIR="$INSTALLER_DIRECTORY/resources/src/envs/.nvm"
 
 # shellcheck disable=SC2164
 cd "$INSTALLER_DIRECTORY"
 
 echo "======= Checking system pre-requisites ======="
+
 echo "Verifying Python3 interpreter"
 # shellcheck disable=SC2181
 if [[ $? -ne 0 ]]; then
@@ -51,58 +52,64 @@ else
     fi
 fi
 
-# Check if user is already running on a virtual environment
-if [[ -n $VIRTUAL_ENV ]]; then
-  echo "=====ATTENTION===="
-  echo "You are currently using an existing Python virtual environment."
-  echo "To prevent dependencies errors, It's highly recommended to exit your virtual environment first and re-launch the installer"
-  echo "SOCA will create its own virtual environment and configure all required dependencies"
-  echo "=================="
-  read -rp "Do you want to continue with your existing virtual environment? (yes/no) " EXISTINGVIRTENV
-    case $EXISTINGVIRTENV in
-        yes )
-          if [[ $QUIET_MODE = "true" ]]; then
-            pip3 install --upgrade pip --quiet
-            pip3 install -r resources/src/requirements.txt --quiet
-          else
-            pip3 install --upgrade pip
-            pip3 install -r resources/src/requirements.txt
-          fi
-          ;;
-        no ) exit 1;;
-        * ) echo "Please answer yes or no."
-          exit 1 ;;
-    esac
-  sleep 5
-else
-  # Check if Python Virtual environment exist
-  # If not, create the venv and install required python libraries
-  if [[ ! -e $PYTHON_VENV/bin/activate ]]; then
-      echo "No Python virtual environment found. Creating one ..."
-      rm -rf $PYTHON_VENV
-      $PYTHON -m venv $PYTHON_VENV
-      # shellcheck disable=SC1090
-      . "$PYTHON_VENV/bin/activate"
-  else
-    # Load Python environment
-    echo "Loading Python Virtual Environment"
-    source "$PYTHON_VENV/bin/activate"
-  fi
+# Set default region, fallback to Virginia if not defined (Used by install_soca.py)
+export AWS_DEFAULT_REGION=$(cat ~/.aws/config | grep region | awk '{print $3}' | head -n 1)
+if [[ $AWS_DEFAULT_REGION == "" ]]; then
+  export AWS_DEFAULT_REGION="cn-northwest-1" ;
 fi
-make resources/src/.requirements_installed
+
+pip3 config set global.index-url https://mirrors.aliyun.com/pypi/simple/
+
+if [[ -n $VIRTUAL_ENV ]]; then
+  echo "Found running virtual environment $VIRTUAL_ENV, will remove it"
+  deactivate
+  rm -rf $VIRTUAL_ENV
+  echo "Removed virtual environment $PYTHON_VENV"
+#  cd $INSTALLER_DIRECTORY
+fi
+
+# Check if Python Virtual environment exist
+# If not, create the venv and install required python libraries
+if [[ ! -e $PYTHON_VENV/bin/activate ]]; then
+    echo "No Python virtual environment found. Creating one ..."
+    rm -rf $PYTHON_VENV
+    $PYTHON -m venv $PYTHON_VENV
+    # shellcheck disable=SC1090
+    source "$PYTHON_VENV/bin/activate"
+else
+  # Load Python environment
+  echo "Loading Python Virtual Environment"
+  source "$PYTHON_VENV/bin/activate"
+fi
+if [[ $QUIET_MODE = "true" ]]; then
+  pip3 install --upgrade pip --quiet
+  pip3 install -r resources/src/requirements.txt --quiet
+else
+  pip3 install --upgrade pip
+  pip3 install -r resources/src/requirements.txt
+fi
+
+#source "$PYTHON_VENV/bin/deactivate"
+#make resources/src/.requirements_installed
 
 # Install local NodeJS environment and CDK
 if [[ ! -d $NVM_DIR ]]; then
   mkdir -p $NVM_DIR
   echo "Local NodeJS environment not detected, creating one ..."
-  echo "Downloading $NODEJS_BIN"
-  curl --silent -o- "$NODEJS_BIN" | bash
+  echo "Copying local NVM file to $NVM_DIR"
+  #  curl --silent -o- "$NODEJS_BIN" | bash
+  cp resources/src/nvm.sh $NVM_DIR
+  cp resources/src/bash_completion $NVM_DIR
+
   echo "Installing Node & NPM via nvm"
+  # use china internal mirror
+  export NVM_NODEJS_ORG_MIRROR=https://npm.taobao.org/mirrors/node/
   source "$NVM_DIR/nvm.sh"  # This loads nvm
   # shellcheck disable=SC1090
   source "$NVM_DIR/bash_completion"
   nvm install v16.15.0
-  npm install -g aws-cdk
+  #  npm install -g aws-cdk
+  npm --registry https://registry.npm.taobao.org install -g aws-cdk
 else
   source "$NVM_DIR/nvm.sh"  # This loads nvm
   source "$NVM_DIR/bash_completion"
@@ -127,13 +134,6 @@ if [[ $? -ne 0 ]]; then
     esac
   done
 fi
-
-# Set default region, fallback to Virginia if not defined (Used by install_soca.py)
-export AWS_DEFAULT_REGION=$(cat ~/.aws/config | grep region | awk '{print $3}' | head -n 1)
-if [[ $AWS_DEFAULT_REGION == "" ]]; then
-  export AWS_DEFAULT_REGION="us-east-1" ;
-fi
-
 echo "======= Pre-requisites completed. Launching installer ======="
 
 # Launch actual installer

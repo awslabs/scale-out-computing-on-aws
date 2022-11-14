@@ -199,5 +199,8 @@ class Config(object):
     # SSH
     SSH_PRIVATE_KEY_LOCATION = "tmp/ssh"
 
+    # CHINA
+    PIP_CHINA_MIRROR = "https://mirrors.aliyun.com/pypi/simple/"
+    CENTOS_CHINA_REPO = "https://soca-china-deployment.s3.cn-northwest-1.amazonaws.com.cn/scale-out-computing-on-aws/v2.7.0/CentOS-Base-china.repo"
 
 app_config = Config()

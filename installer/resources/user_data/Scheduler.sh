@@ -13,6 +13,9 @@ LDAP_PASSWORD="%%LDAP_PASSWORD%%"
 SOCA_AUTH_PROVIDER="%%SOCA_AUTH_PROVIDER%%"
 SOCA_LDAP_BASE="%%SOCA_LDAP_BASE%%"
 RESET_PASSWORD_DS_LAMBDA="%%RESET_PASSWORD_DS_LAMBDA%%"
+AWS_REGION="%%AWS_REGION%%"
+PIP_CHINA_MIRROR="%%PIP_CHINA_MIRROR%%"
+CENTOS_CHINA_REPO="%%CENTOS_CHINA_REPO%%"
 
 # Deactivate shell to make sure users won't access the cluster if it's not ready
 echo "
@@ -27,14 +30,20 @@ if [[ "$SOCA_BASE_OS" == "amazonlinux2" ]] || [[ "$SOCA_BASE_OS" == "rhel7" ]]; 
 fi
 
 if [[ "%%BASE_OS%%" == "centos7" ]]; then
-    usermod --shell /usr/sbin/nologin centos
+    # Install SSM
+    yum install -y https://s3.amazonaws.com/ec2-downloads-windows/SSMAgent/latest/linux_amd64/amazon-ssm-agent.rpm
+    systemctl enable amazon-ssm-agent
+    systemctl restart amazon-ssm-agent
+    usermod --shell /usr/sbin/nologin ec2-user
+    curl -o /etc/yum.repos.d/CentOS-Base.repo $CENTOS_CHINA_REPO
+#    usermod --shell /usr/sbin/nologin centos
 fi
 
 # Install awscli
 if [[ "$SOCA_BASE_OS" == "centos7" ]] || [[ "$SOCA_BASE_OS" == "rhel7" ]]; then
   yum install -y python3-pip
   PIP=$(which pip3)
-  $PIP install awscli
+  $PIP install -i https://mirrors.aliyun.com/pypi/simple/ awscli
   export PATH=$PATH:/usr/local/bin
 fi
 
@@ -78,6 +87,13 @@ echo "@reboot $AWS s3 cp s3://$S3_BUCKET/$CLUSTER_ID/scripts/SchedulerPostReboot
 $AWS s3 cp s3://$S3_BUCKET/$CLUSTER_ID/scripts/config.cfg /root/
 $AWS s3 cp s3://$S3_BUCKET/$CLUSTER_ID/scripts/requirements.txt /root/
 $AWS s3 cp s3://$S3_BUCKET/$CLUSTER_ID/scripts/Scheduler.sh /root/
+
+# Specify the AD DS lambda function we will use to reset AD Password
+if [[ "$SOCA_AUTH_PROVIDER" == "activedirectory" ]]; then
+  if [[ "$RESET_PASSWORD_DS_LAMBDA" != "false" ]]; then
+    echo "$RESET_PASSWORD_DS_LAMBDA" > /root/LambdaActiveDirectoryPasswordResetArn
+  fi
+fi
 
 # Prepare Scheduler setup
 /bin/bash /root/Scheduler.sh %%FS_DATA_PROVIDER%% %%FS_DATA_DNS%% %%FS_APPS_PROVIDER%% %%FS_APPS_DNS%% >> /root/Scheduler.sh.log 2>&1

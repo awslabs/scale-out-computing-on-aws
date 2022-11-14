@@ -111,7 +111,7 @@ class SOCAInstall(cdk.Stack):
         self.storage()  # Create Storage backend
         if install_props.Config.directoryservice.provider == "activedirectory" and not user_specified_variables.directory_service_id:
             self.directoryservice()  # Create Directory Service
-        self.analytics()  # Create ElasticSearch domain
+        # self.analytics()  # Create ElasticSearch domain
         self.scheduler()  # Configure the Scheduler
         self.viewer()  # Configure the DCV Load Balancer
         self.secretsmanager()  # Store SOCA config on Secret Manager
@@ -380,8 +380,8 @@ class SOCAInstall(cdk.Stack):
             self.soca_resources["fs_apps_lambda_role"] = iam.Role(self, 'EFSAppsLambdaRole', description="IAM role assigned to the EFSApps Lambda function", assumed_by=iam.ServicePrincipal(principals_suffix["lambda"]))
 
         # CreateRole for GetESPrivateIPLambdaRole when creating a new ElasticSearch
-        if not user_specified_variables.es_endpoint:
-            self.soca_resources["get_es_private_ip_lambda_role"] = iam.Role(self, 'GetESPrivateIPLambdaRole', description="IAM role assigned to the EFSApps Lambda function", assumed_by=iam.ServicePrincipal(principals_suffix["lambda"]))
+        # if not user_specified_variables.es_endpoint:
+        #     self.soca_resources["get_es_private_ip_lambda_role"] = iam.Role(self, 'GetESPrivateIPLambdaRole', description="IAM role assigned to the EFSApps Lambda function", assumed_by=iam.ServicePrincipal(principals_suffix["lambda"]))
 
         if use_existing_roles is False:
             # Create Scheduler/ComputeNode/SpotFleet roles if not specified by the user
@@ -417,8 +417,8 @@ class SOCAInstall(cdk.Stack):
                             "BackupPolicy": {"template": "../policies/Backup.json", "attach_to_role": "backup_role"},
                             "SolutionMetricsLambdaPolicy": {"template": "../policies/SolutionMetricsLambda.json", "attach_to_role": "solution_metrics_lambda_role"}}
 
-        if not user_specified_variables.es_endpoint:
-            policy_templates["GetESPrivateIPLambdaPolicy"] = {"template": "../policies/GetESPrivateIPLambda.json", "attach_to_role": "get_es_private_ip_lambda_role"}
+        # if not user_specified_variables.es_endpoint:
+        #     policy_templates["GetESPrivateIPLambdaPolicy"] = {"template": "../policies/GetESPrivateIPLambda.json", "attach_to_role": "get_es_private_ip_lambda_role"}
 
         if use_existing_roles is False:
             policy_templates["ComputeNodePolicy"] = {"template": "../policies/ComputeNode.json", "attach_to_role": "compute_node_role"}
@@ -661,6 +661,8 @@ class SOCAInstall(cdk.Stack):
                                  "%%LDAP_PASSWORD%%": user_specified_variables.ldap_password,
                                  "%%SOCA_INSTALL_AMI%%": self.soca_resources["ami_id"],
                                  "%%RESET_PASSWORD_DS_LAMBDA%%": "false" if not self.soca_resources["reset_ds_lambda"] else self.soca_resources["reset_ds_lambda"].function_arn,
+                                 "%%PIP_CHINA_MIRROR%%": install_props.Config.china.pip_china_mirror,
+                                 "%%CENTOS_CHINA_REPO%%": install_props.Config.china.centos_china_repo,
                                  "%%SOCA_AUTH_PROVIDER%%": install_props.Config.directoryservice.provider,
                                  "%%SOCA_LDAP_BASE%%": "false" if install_props.Config.directoryservice.provider == "activedirectory" else f"dc={',dc='.join(install_props.Config.directoryservice.openldap.name.split('.'))}".lower()}
 
@@ -715,7 +717,8 @@ class SOCAInstall(cdk.Stack):
         if not user_specified_variables.fs_data:
             self.soca_resources["scheduler_instance"].node.add_dependency(self.soca_resources["fs_data"])
 
-        ssh_user = "centos" if user_specified_variables.base_os == "centos7" else "ec2-user"
+        # ssh_user = "centos" if user_specified_variables.base_os == "centos7" else "ec2-user"
+        ssh_user = "ec2-user"
 
         if install_props.Config.entry_points_subnets.lower() == "public":
             # Associate the EIP to the scheduler instance
@@ -786,10 +789,10 @@ class SOCAInstall(cdk.Stack):
                   }
 
         # ES configuration
-        if not user_specified_variables.es_endpoint:
-            secret["ESDomainEndpoint"] = self.soca_resources["es_domain"].domain_endpoint
-        else:
-            secret["ESDomainEndpoint"] = user_specified_variables.es_endpoint
+        # if not user_specified_variables.es_endpoint:
+        #     secret["ESDomainEndpoint"] = self.soca_resources["es_domain"].domain_endpoint
+        # else:
+        #     secret["ESDomainEndpoint"] = user_specified_variables.es_endpoint
 
         # LDAP configuration
         if not user_specified_variables.ldap_host:
@@ -876,7 +879,7 @@ class SOCAInstall(cdk.Stack):
                                                   )
             if user_specified_variables.create_es_service_role:
                 service_linked_role = iam.CfnServiceLinkedRole(self, "ESServiceLinkedRole",
-                                                               aws_service_name=f"es.{core.Aws.URL_SUFFIX}",
+                                                               aws_service_name="es.amazonaws.com",
                                                                description="Role for ES to access resources in the VPC")
                 self.soca_resources["es_domain"].node.add_dependency(service_linked_role)
 
@@ -970,32 +973,32 @@ class SOCAInstall(cdk.Stack):
 
         https_listener.node.add_dependency(cert_custom_resource)
 
-        if not user_specified_variables.es_endpoint:
-            # Create the target group for Elastic Search
-            es_targets = []
-            for i in range(0, install_props.Config.elasticsearch.data_nodes * 3):
-                es_targets.append(elbv2.CfnTargetGroup.TargetDescriptionProperty(id=core.Fn.select(i, core.Fn.split(",", self.soca_resources["es_custom_resource"].get_att_string('IpAddresses')))))
+        # if not user_specified_variables.es_endpoint:
+        #     # Create the target group for Elastic Search
+        #     es_targets = []
+        #     for i in range(0, install_props.Config.elasticsearch.data_nodes * 3):
+        #         es_targets.append(elbv2.CfnTargetGroup.TargetDescriptionProperty(id=core.Fn.select(i, core.Fn.split(",", self.soca_resources["es_custom_resource"].get_att_string('IpAddresses')))))
+        #
+        #     es_target_group = elbv2.CfnTargetGroup(self, f"{user_specified_variables.cluster_id}-ESTargetGroup", port=443,
+        #                                            protocol="HTTPS", target_type="ip", vpc_id=self.soca_resources["vpc"].vpc_id,
+        #                                            name=f"{user_specified_variables.cluster_id}-ES",
+        #                                            targets=es_targets, health_check_path="/")
+        #
+        #     es_target_group.node.add_dependency(self.soca_resources["es_custom_resource"])
+        #     es_load_balancer_listener_rule = elbv2.CfnListenerRule(self, f"{user_specified_variables.cluster_id}-ESLoadBalancerListenerRule",
+        #                                                            listener_arn=https_listener.ref,
+        #                                                            actions=[elbv2.CfnListenerRule.ActionProperty(type="forward", target_group_arn=es_target_group.ref)],
+        #                                                            conditions=[elbv2.CfnListenerRule.RuleConditionProperty(field="path-pattern",
+        #                                                            path_pattern_config=elbv2.CfnListenerRule.PathPatternConfigProperty(values=["/_plugin/kibana/*"]))],
+        #                                                            priority=1)
+        #
+        #     es_load_balancer_listener_rule.node.add_dependency(https_listener)
+        #     es_load_balancer_listener_rule.node.add_dependency(es_target_group)
 
-            es_target_group = elbv2.CfnTargetGroup(self, f"{user_specified_variables.cluster_id}-ESTargetGroup", port=443,
-                                                   protocol="HTTPS", target_type="ip", vpc_id=self.soca_resources["vpc"].vpc_id,
-                                                   name=f"{user_specified_variables.cluster_id}-ES",
-                                                   targets=es_targets, health_check_path="/")
-
-            es_target_group.node.add_dependency(self.soca_resources["es_custom_resource"])
-            es_load_balancer_listener_rule = elbv2.CfnListenerRule(self, f"{user_specified_variables.cluster_id}-ESLoadBalancerListenerRule",
-                                                                   listener_arn=https_listener.ref,
-                                                                   actions=[elbv2.CfnListenerRule.ActionProperty(type="forward", target_group_arn=es_target_group.ref)],
-                                                                   conditions=[elbv2.CfnListenerRule.RuleConditionProperty(field="path-pattern",
-                                                                   path_pattern_config=elbv2.CfnListenerRule.PathPatternConfigProperty(values=["/_plugin/kibana/*"]))],
-                                                                   priority=1)
-
-            es_load_balancer_listener_rule.node.add_dependency(https_listener)
-            es_load_balancer_listener_rule.node.add_dependency(es_target_group)
-
-        if not user_specified_variables.es_endpoint:
-            core.CfnOutput(self, "AnalyticsDashboard", value=f"https://{self.soca_resources['alb'].load_balancer_dns_name}/_plugin/kibana/")
-        else:
-            core.CfnOutput(self, "AnalyticsDashboard", value=f"https://{user_specified_variables.es_endpoint}/_plugin/kibana/")
+        # if not user_specified_variables.es_endpoint:
+        #     core.CfnOutput(self, "AnalyticsDashboard", value=f"https://{self.soca_resources['alb'].load_balancer_dns_name}/_plugin/kibana/")
+        # else:
+        #     core.CfnOutput(self, "AnalyticsDashboard", value=f"https://{user_specified_variables.es_endpoint}/_plugin/kibana/")
 
         core.CfnOutput(self, "WebUserInterface", value=f"https://{self.soca_resources['alb'].load_balancer_dns_name}/")
 
@@ -1054,14 +1057,14 @@ if __name__ == "__main__":
     endpoints_suffix = {"fsx_lustre": f"fsx.{core.Aws.REGION}.{core.Aws.URL_SUFFIX}",
                         "efs": f"efs.{core.Aws.REGION}.{core.Aws.URL_SUFFIX}"}
 
-    principals_suffix = {"backup": f"backup.{core.Aws.URL_SUFFIX}",
-                         "cloudwatch": f"cloudwatch.{core.Aws.URL_SUFFIX}",
-                         "ec2": f"ec2.{core.Aws.URL_SUFFIX}",
-                         "lambda": f"lambda.{core.Aws.URL_SUFFIX}",
-                         "sns": f"sns.{core.Aws.URL_SUFFIX}",
-                         "spotfleet": f"spotfleet.{core.Aws.URL_SUFFIX}",
-                         "ssm": f"ssm.{core.Aws.URL_SUFFIX}"}
 
+    principals_suffix = {"backup": "backup.amazonaws.com",
+                         "cloudwatch": "cloudwatch.amazonaws.com",
+                         "ec2": "ec2.amazonaws.com",
+                         "lambda": "lambda.amazonaws.com",
+                         "sns": "sns.amazonaws.com",
+                         "spotfleet": "spotfleet.amazonaws.com",
+                         "ssm": "ssm.amazonaws.com"}
     # Apply default tag to all taggable resources
     core.Tags.of(app).add("soca:ClusterId", user_specified_variables.cluster_id)
     core.Tags.of(app).add("soca:CreatedOn", str(datetime.datetime.utcnow()))
