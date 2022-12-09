@@ -145,7 +145,11 @@ def verify_vcpus_limit(instance_type, desired_capacity, quota_info):
 
             for quota in response["Quotas"]:
                 # Remove 'Running' to prevent error when using R instance family
-                if "running on-demand" in quota["QuotaName"].lower() and instance_family in quota["QuotaName"].replace("Running",""):
+                # Remove commas and parentheses so that each instance family has white space on both sides
+                simplified_quota_name = quota["QuotaName"].replace("Running","").replace(",", "").replace("(", "").replace(")", "")
+                # Use regex to find the instance family in the quota name
+                match_quota = bool(re.search(r'\s' + instance_family + r'\s', simplified_quota_name))
+                if "running on-demand" in quota["QuotaName"].lower() and match_quota:
                     max_vcpus_allowed = quota["Value"]
                     quota_name = quota["QuotaName"]
                     #print("Instance Type {}. Quota {}, Max CPUs {}".format(instance_type, quota_name, max_vcpus_allowed))
