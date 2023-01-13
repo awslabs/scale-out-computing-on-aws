@@ -212,7 +212,7 @@ class CreateLinuxDesktop(Resource):
 
             if args["instance_ami"] is None or args["instance_ami"] == "base":
                 image_id = soca_configuration["CustomAMI"]
-                base_os = read_secretmanager.get_soca_configuration()['BaseOS']
+                base_os = soca_configuration['BaseOS']
             else:
                 if len(args["instance_ami"].split(",")) != 2:
                     return errors.all_errors("DCV_LAUNCH_ERROR", f"Invalid format for instance_ami,base_os : {args['instance_ami']}")
@@ -227,21 +227,16 @@ class CreateLinuxDesktop(Resource):
                                                  f"AMI {image_id} does not seems to be registered on SOCA. Refer to https://awslabs.github.io/scale-out-computing-on-aws/web-interface/create-virtual-desktops-images/")
 
             user_data = '''#!/bin/bash -x
+
             export PATH=$PATH:/usr/local/bin
-            if [[ "''' + base_os + '''" == "centos7" ]] || [[ "''' + base_os + '''" == "rhel7" ]];
-            then
-                    yum install -y python3-pip
-                    PIP=$(which pip3)
-                    $PIP install awscli
-                    yum install -y nfs-utils # enforce install of nfs-utils
-            else
-                 yum install -y python3-pip
-                 PIP=$(which pip3)
-                 $PIP install awscli
+            yum install -y python3-pip
+            PIP=$(which pip3)
+            $PIP install awscli
+            if [[ "''' + base_os + '''" == "centos7" ]] || [[ "''' + base_os + '''" == "rhel7" ]]; then
+                yum install -y nfs-utils # enforce install of nfs-utils
             fi
-            if [[ "''' + base_os + '''" == "amazonlinux2" ]];
-                then
-                    /usr/sbin/update-motd --disable
+            if [[ "''' + base_os + '''" == "amazonlinux2" ]]; then
+                /usr/sbin/update-motd --disable
             fi
 
             IMDS_TOKEN=`curl -X PUT "http://169.254.169.254/latest/api/token" -H "X-aws-ec2-metadata-token-ttl-seconds: 21600"` \
@@ -271,11 +266,12 @@ class CreateLinuxDesktop(Resource):
             echo export "SOCA_JOB_PROJECT="dcv"" >> /etc/environment
             echo export "SOCA_JOB_QUEUE="dcv"" >> /etc/environment
     
-    
             source /etc/environment
             AWS=$(which aws)
+
             # Give yum permission to the user on this specific machine
             echo "''' + user + ''' ALL=(ALL) /bin/yum" >> /etc/sudoers
+
             mkdir -p /apps
             mkdir -p /data
 
@@ -349,15 +345,14 @@ class CreateLinuxDesktop(Resource):
 
             FS_MOUNT=0
             mount -a 
-            while [[ $? -ne 0 ]] && [[ $FS_MOUNT -lt 5 ]]
-            do
+            while [[ $? -ne 0 ]] && [[ $FS_MOUNT -lt 5 ]]; do
                 SLEEP_TIME=$(( RANDOM % 60 ))
                 echo "Failed to mount FS, retrying in $SLEEP_TIME seconds and Loop $FS_MOUNT/5..."
                 sleep $SLEEP_TIME
                 ((FS_MOUNT++))
                 mount -a
             done
-                
+
             # Configure Chrony
             yum remove -y ntp
             yum install -y chrony
@@ -365,7 +360,7 @@ class CreateLinuxDesktop(Resource):
             echo -e """
             # use the local instance NTP service, if available
             server 169.254.169.123 prefer iburst minpoll 4 maxpoll 4
-    
+
             # Use public servers from the pool.ntp.org project.
             # Please consider joining the pool (http://www.pool.ntp.org/join.html).
             # !!! [BEGIN] SOCA REQUIREMENT
@@ -374,22 +369,22 @@ class CreateLinuxDesktop(Resource):
             # !!! [END] SOCA REQUIREMENT
             # Record the rate at which the system clock gains/losses time.
             driftfile /var/lib/chrony/drift
-    
+
             # Allow the system clock to be stepped in the first three updates
             # if its offset is larger than 1 second.
             makestep 1.0 3
-    
+
             # Specify file containing keys for NTP authentication.
             keyfile /etc/chrony.keys
-    
+
             # Specify directory for log files.
             logdir /var/log/chrony
-    
+
             # save data between restarts for fast re-load
             dumponexit
             dumpdir /var/run/chrony
             """ > /etc/chrony.conf
-    
+
             systemctl enable chronyd
             # Prepare  Log folder
             mkdir -p $SOCA_HOST_SYSTEM_LOG
@@ -441,8 +436,8 @@ class CreateLinuxDesktop(Resource):
                 launch_template = dcv_cloudformation_builder.main(**launch_parameters)
                 if launch_template["success"] is True:
                     cfn_stack_name = str(
-                        launch_parameters["cluster_id"] + "-" + launch_parameters["session_name"] + "-" + launch_parameters[
-                            "user"])
+                        launch_parameters["cluster_id"] + "-" + launch_parameters["session_name"] + "-" + launch_parameters["user"]
+                    )
                     cfn_stack_tags = [{"Key": "soca:JobName", "Value": str(launch_parameters["session_name"])},
                                       {"Key": "soca:JobOwner", "Value": user},
                                       {"Key": "soca:JobProject", "Value": "desktop"},
@@ -453,7 +448,8 @@ class CreateLinuxDesktop(Resource):
                         client_cfn.create_stack(
                             StackName=cfn_stack_name,
                             TemplateBody=launch_template["output"],
-                            Tags=cfn_stack_tags)
+                            Tags=cfn_stack_tags
+                        )
                     except Exception as e:
                         logger.error(f"Error while trying to provision {cfn_stack_name} due to {e}")
                         return errors.all_errors("DCV_LAUNCH_ERROR", f"Error while trying to provision {cfn_stack_name} due to {e}")
@@ -500,5 +496,3 @@ class CreateLinuxDesktop(Resource):
             fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
             logger.error(exc_type, fname, exc_tb.tb_lineno)
             return errors.all_errors(type(err).__name__, err)
-
-

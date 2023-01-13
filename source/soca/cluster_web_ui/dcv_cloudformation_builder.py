@@ -14,8 +14,9 @@
 import os
 import sys
 import random
-from troposphere import Base64
-from troposphere import Template, Sub
+
+from troposphere import Base64, GetAtt
+from troposphere import Ref, Template, Sub
 from troposphere import Tags as base_Tags  # without PropagateAtLaunch
 from troposphere.cloudformation import AWSCustomObject
 import troposphere.ec2 as ec2
@@ -45,6 +46,7 @@ def main(**launch_parameters):
         t.set_version("2010-09-09")
         t.set_description("(SOCA) - Base template to deploy DCV nodes version 2.7.2")
         allow_anonymous_data_collection = launch_parameters["DefaultMetricCollection"]
+
         # Launch Actual Capacity
         instance = ec2.Instance(str(launch_parameters["session_name"]))
         instance.BlockDeviceMappings = [{'DeviceName': "/dev/xvda" if launch_parameters["base_os"] == "amazonlinux2" else "/dev/sda1",
@@ -71,7 +73,19 @@ def main(**launch_parameters):
             _soca_DCVSupportHibernate=str(launch_parameters["hibernate"]).lower(),
             _soca_ClusterId=str(launch_parameters["cluster_id"]),
             _soca_DCVSessionUUID=str(launch_parameters["session_uuid"]),
-            _soca_DCVSystem=str(launch_parameters["base_os"]))
+            _soca_DCVSystem=str(launch_parameters["base_os"])
+        )
+        ltd = ec2.LaunchTemplateData("DCVNodeLaunchTemplateData")
+        ltd.MetadataOptions = ec2.MetadataOptions(
+            HttpEndpoint="enabled",
+            HttpTokens="required"
+        )
+        lt = ec2.LaunchTemplate("DCVNodeLaunchTemplate", LaunchTemplateData=ltd)
+        t.add_resource(lt)
+        instance.LaunchTemplate = ec2.LaunchTemplateSpecification(
+            LaunchTemplateId=Ref(lt),
+            Version=GetAtt(lt, "LatestVersionNumber")
+        )
         t.add_resource(instance)
 
         # Begin Custom Resource
