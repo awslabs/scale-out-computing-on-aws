@@ -94,7 +94,9 @@ if [[ "''' + params['BaseOS'] + '''" == "amazonlinux2" ]];
         /usr/sbin/update-motd --disable
 fi
 
-GET_INSTANCE_TYPE=$(curl http://169.254.169.254/latest/meta-data/instance-type)
+IMDS_TOKEN=`curl -X PUT "http://169.254.169.254/latest/api/token" -H "X-aws-ec2-metadata-token-ttl-seconds: 21600"` \
+    && GET_INSTANCE_TYPE=$(curl -H "X-aws-ec2-metadata-token: $IMDS_TOKEN" http://169.254.169.254/latest/meta-data/instance-type)
+
 echo export "SOCA_CONFIGURATION="''' + str(params['ClusterId']) + '''"" >> /etc/environment
 echo export "SOCA_BASE_OS="''' + str(params['BaseOS']) + '''"" >> /etc/environment
 echo export "SOCA_JOB_QUEUE="''' + str(params['JobQueue']) + '''"" >> /etc/environment

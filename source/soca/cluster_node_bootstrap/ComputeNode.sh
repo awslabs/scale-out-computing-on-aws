@@ -348,7 +348,8 @@ echo -e "
 \$usecp *:/data /data
 "  > /var/spool/pbs/mom_priv/config
 
-INSTANCE_FAMILY=`curl --silent  http://169.254.169.254/latest/meta-data/instance-type | cut -d. -f1`
+IMDS_TOKEN=`curl -X PUT "http://169.254.169.254/latest/api/token" -H "X-aws-ec2-metadata-token-ttl-seconds: 21600"` \
+    && INSTANCE_FAMILY=`curl -H "X-aws-ec2-metadata-token: $IMDS_TOKEN" --silent http://169.254.169.254/latest/meta-data/instance-type | cut -d. -f1`
 
 # If GPU instance, disable NOUVEAU drivers before installing DCV as this require a reboot
 # Rest of the DCV configuration is managed by ComputeNodeInstallDCV.sh

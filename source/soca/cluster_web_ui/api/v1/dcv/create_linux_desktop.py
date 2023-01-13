@@ -243,8 +243,10 @@ class CreateLinuxDesktop(Resource):
                 then
                     /usr/sbin/update-motd --disable
             fi
-    
-            GET_INSTANCE_TYPE=$(curl http://169.254.169.254/latest/meta-data/instance-type)
+
+            IMDS_TOKEN=`curl -X PUT "http://169.254.169.254/latest/api/token" -H "X-aws-ec2-metadata-token-ttl-seconds: 21600"` \
+                && GET_INSTANCE_TYPE=$(curl -H "X-aws-ec2-metadata-token: $IMDS_TOKEN" http://169.254.169.254/latest/meta-data/instance-type)
+
             echo export "SOCA_DCV_AUTHENTICATOR="https://''' + soca_configuration[
                 'SchedulerPrivateDnsName'] + ''':''' + config.Config.FLASK_PORT + '''/api/dcv/authenticator"" >> /etc/environment
             echo export "SOCA_DCV_SESSION_ID="''' + str(session_uuid) + '''"" >> /etc/environment
