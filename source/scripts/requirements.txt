@@ -48,5 +48,5 @@ swagger-ui-py==0.2.1
 troposphere==2.7.1
 urllib3==1.26.5
 uwsgi==2.0.18
-Werkzeug==1.0.0
+Werkzeug==2.2.3
 WTForms==2.2.1
