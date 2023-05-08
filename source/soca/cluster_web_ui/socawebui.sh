@@ -23,7 +23,7 @@ UWSGI_BIN="/apps/soca/$SOCA_CONFIGURATION/python/latest/bin/uwsgi"
 UWSGI_BIND='0.0.0.0:8443'
 
 UWSGI_PROCESSES=5
-UWSGI_THREADS=$(cat  /proc/cpuinfo | grep processor | wc -l)
+UWSGI_THREADS=$(nproc)
 UWSGI_FILE='wsgi.py'
 BUFFER_SIZE=32768
 

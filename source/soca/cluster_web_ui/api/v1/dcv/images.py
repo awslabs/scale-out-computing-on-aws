@@ -21,7 +21,7 @@ import boto3
 logger = logging.getLogger("api")
 session = boto3.session.Session()
 aws_region = session.region_name
-ec2_client = boto3.client('ec2', aws_region, config=config.boto_extra_config())
+ec2_client = boto3.client("ec2", aws_region, config=config.boto_extra_config())
 
 
 class ListImages(Resource):

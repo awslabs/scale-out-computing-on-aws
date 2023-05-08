@@ -65,14 +65,14 @@
                                   </form>
 
 
-                                  <iframe style="width:100%; border: 0" height="1500" src="{{ user_kibana_url }}"></iframe>
+                                  <iframe sandbox="allow-scripts allow-same-origin allow-forms" style="width:100%; border: 0" height="1500" src="{{ user_kibana_url }}"></iframe>
                                   <br>
                                   <div class="alert alert-warning">
                                       <strong>Permission Error</strong>
-                                      Refer to <a href="https://awslabs.github.io/scale-out-computing-on-aws/analytics/monitor-cluster-activity/#troubleshooting-access-permission" target="_blank">this link</a>  and add the following entry {{ client_ip }}/32 if you are getting: {"Message":"User: anonymous is not authorized to perform: es:ESHttpGet"}.
+                                      Refer to <a href="https://awslabs.github.io/scale-out-computing-on-aws/analytics/monitor-cluster-activity/#troubleshooting-access-permission" target="_blank" rel="noopener,noreferrer">this link</a>  and add the following entry {{ client_ip }}/32 if you are getting: {"Message":"User: anonymous is not authorized to perform: es:ESHttpGet"}.
                                   </div>
                                   <i>
-                                      All data: <a href="{{ user_kibana_url }}" target="_blank">{{ user_kibana_url }}</a>
+                                      All data: <a href="{{ user_kibana_url }}" target="_blank" rel="noopener,noreferrer">{{ user_kibana_url }}</a>
                                   </i>
                               </div>
                   </div>

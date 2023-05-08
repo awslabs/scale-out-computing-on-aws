@@ -42,8 +42,11 @@ function get_secret {
 # First flush the current crontab to prevent this script to run on the next reboot
 crontab -r
 
+# Determine the S3 bucket AWS region
+S3_BUCKET_REGION=$(curl -s --head ${SOCA_INSTALL_BUCKET}.s3.amazonaws.com | grep bucket-region | awk '{print $2}' | tr -d '\r\n')
+
 # Retrieve SOCA configuration under soca.tar.gz and extract it on /apps/
-$AWS s3 cp s3://$SOCA_INSTALL_BUCKET/$SOCA_INSTALL_BUCKET_FOLDER/soca.tar.gz /root
+$AWS --region ${S3_BUCKET_REGION} s3 cp s3://$SOCA_INSTALL_BUCKET/$SOCA_INSTALL_BUCKET_FOLDER/soca.tar.gz /root
 mkdir -p /apps/soca/$SOCA_CONFIGURATION
 tar -xvf /root/soca.tar.gz -C /apps/soca/$SOCA_CONFIGURATION --no-same-owner
 cp /root/config.cfg /apps/soca/$SOCA_CONFIGURATION/cluster_node_bootstrap/config.cfg
@@ -323,14 +326,30 @@ then
 fi
 
 # Install required Node module
-npm install --prefix /apps/soca/"$SOCA_CONFIGURATION"/cluster_web_ui/static monaco-editor@0.24.0
+npm install --prefix /apps/soca/"$SOCA_CONFIGURATION"/cluster_web_ui/static monaco-editor@0.36.1
 
 # Start Web UI
 chmod +x /apps/soca/"$SOCA_CONFIGURATION"/cluster_web_ui/socawebui.sh
 /apps/soca/"$SOCA_CONFIGURATION"/cluster_web_ui/socawebui.sh start
-
 # Wait until the endpoint is reachable
 sleep 30
+
+START_WEB_UI_MAX_ATTEMPT=10
+START_WEB_UI_CURRENT_ATTEMPT=0
+while [[ "$(curl https://localhost:8443/ping --insecure  -s -o /dev/null -w '%{http_code}')" != "200" ]]; do
+  ((START_WEB_UI_CURRENT_ATTEMPT=START_WEB_UI_CURRENT_ATTEMPT+1))
+  if [[ $START_WEB_UI_CURRENT_ATTEMPT -ge $START_WEB_UI_MAX_ATTEMPT ]]; then
+      echo "error: Timed out waiting for starting the web interface. please check uwsgi logs under /apps/soca/"$SOCA_CONFIGURATION"/cluster_web_ui/logs/ and run the create user command manually."
+      exit 1
+  fi
+  echo "Web UI is not returning HTTP/200 ... restarting process ... "
+  /apps/soca/"$SOCA_CONFIGURATION"/cluster_web_ui/socawebui.sh stop
+  sleep 10
+  /apps/soca/"$SOCA_CONFIGURATION"/cluster_web_ui/socawebui.sh start
+  sleep 30
+done
+
+echo "Web UI is ready and serving requests ... "
 
 # Create default LDAP user with admin privileges
 mkdir -p /data/home

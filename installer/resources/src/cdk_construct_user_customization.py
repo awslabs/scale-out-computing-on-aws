@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 
-from aws_cdk import core as cdk
 from aws_cdk import aws_ec2 as ec2
 from aws_cdk import aws_s3 as s3
 import random
@@ -28,7 +27,5 @@ def main(scope, soca_base_parameters):
     # To confirm if your resources are added correctly, use `--cdk-cmd synth` as soca_installer.sh parameter and check the output generated
 
     # Happy coding !
-
-
 
     pass

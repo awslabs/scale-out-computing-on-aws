@@ -22,8 +22,9 @@ basedir = os.path.abspath(os.path.dirname(__file__))
 
 
 def boto_extra_config():
-    aws_solution_user_agent = {"user_agent_extra": "AwsSolution/SO0072/2.7.2"}
+    aws_solution_user_agent = {"user_agent_extra": "AwsSolution/SO0072/2.7.4"}
     return botocore_config.Config(**aws_solution_user_agent)
+
 
 class Config(object):
     soca_config = read_secretmanager.get_soca_configuration()
@@ -45,13 +46,33 @@ class Config(object):
     APPS_LOCATION = "/apps/"
     USER_HOME = "/data/home"
     CHROOT_USER = False  # if True, user can only access their $HOME directory (aka: USER_HOME/<user>)
-    PATH_TO_RESTRICT = ['/bin', '/boot', '/dev', '/etc', '/home', '/lib', '/lib64', '/local',
-                        '/media', '/opt', '/proc', '/root', '/run', '/sbin', '/srv', '/sys', '/tmp', '/usr', # nosec
-                        '/var']  # List of folders not accessible via the web ui
+    PATH_TO_RESTRICT = [
+        "/bin",
+        "/boot",
+        "/dev",
+        "/etc",
+        "/home",
+        "/lib",
+        "/lib64",
+        "/local",
+        "/media",
+        "/opt",
+        "/proc",
+        "/root",
+        "/run",
+        "/sbin",
+        "/srv",
+        "/sys",
+        "/tmp",
+        "/usr",  # nosec
+        "/var",
+    ]  # List of folders not accessible via the web ui
     DEFAULT_CACHE_TIME = 120  # 2 minutes. Change this value to optimize performance in case you have a large number of concurrent user
     MAX_UPLOAD_FILE = 5120  # 5 GB
     MAX_UPLOAD_TIMEOUT = 1800000  # 30 minutes
-    ALLOW_DOWNLOAD_FROM_PORTAL = True  # Give user ability to download files from the web portal
+    ALLOW_DOWNLOAD_FROM_PORTAL = (
+        True  # Give user ability to download files from the web portal
+    )
     MAX_SIZE_ONLINE_PREVIEW = 150000000  # in bytes (150mb by default), maximum size of file that can be visualized via the web editor
     MAX_ARCHIVE_SIZE = 150000000  # in bytes (150mb by default), maximum size of archive generated when downloading multiple files at once
     DAILY_BACKUP_COUNT = 15  # Keep 15 latest daily backups
@@ -77,32 +98,47 @@ class Config(object):
     DCV_AUTH_DIR = "/var/run/dcvsimpleextauth"
     DCV_SIMPLE_AUTH = "/usr/libexec/dcvsimpleextauth.py"
     DCV_SESSION_LOCATION = "tmp/dcv_sessions"
-    DCV_FORCE_INSTANCE_HIBERNATE_SUPPORT = False  # If True, users can only provision instances that support hibernation
-    DCV_TOKEN_SYMMETRIC_KEY = os.environ["SOCA_DCV_TOKEN_SYMMETRIC_KEY"]  # used to encrypt/decrypt and validate DCV session auth
-    DCV_RESTRICTED_INSTANCE_TYPE = ['metal', 'nano', 'micro', 'p3', 'p2', 'p3dn', 'g2']  # This instance type won't be visible on the dropdown menu
+    DCV_FORCE_INSTANCE_HIBERNATE_SUPPORT = (
+        False  # If True, users can only provision instances that support hibernation
+    )
+    DCV_TOKEN_SYMMETRIC_KEY = os.environ[
+        "SOCA_DCV_TOKEN_SYMMETRIC_KEY"
+    ]  # used to encrypt/decrypt and validate DCV session auth
+    DCV_RESTRICTED_INSTANCE_TYPE = [
+        "metal",
+        "nano",
+        "micro",
+        "p3",
+        "p2",
+        "p3dn",
+        "g2",
+    ]  # This instance type won't be visible on the dropdown menu
     DCV_IDLE_CPU_THRESHOLD = 15  # SOCA will NOT hibernate/stop an instance if current CPU usage % is over this value
 
     # DCV Linux
     DCV_LINUX_SESSION_COUNT = 4
-    DCV_LINUX_ALLOW_INSTANCE_CHANGE = True  # Allow user to change their instance type if their DCV session is stopped
+    DCV_LINUX_ALLOW_INSTANCE_CHANGE = (
+        True  # Allow user to change their instance type if their DCV session is stopped
+    )
     DCV_LINUX_HIBERNATE_IDLE_SESSION = 1  # In hours. Linux DCV sessions will be hibernated to save cost if there is no active connection within the time specified. 0 to disable
     DCV_LINUX_STOP_IDLE_SESSION = 1  # In hours. Linux DCV sessions will be stopped to save cost if there is no active connection within the time specified. 0 to disable
     DCV_LINUX_TERMINATE_STOPPED_SESSION = 0  # In hours. Stopped Linux DCV will be permanently terminated if user won't restart it within the time specified. 0 to disable
     DCV_LINUX_DEFAULT_SCHEDULE = {
         "weekdays": {
             "start": 480,  # Default Schedule - Start 8 AM (8*60) mon-fri
-            "stop": 1140  # Default Schedule - Stop if idle after 7 PM (19*60) mon-fri
+            "stop": 1140,  # Default Schedule - Stop if idle after 7 PM (19*60) mon-fri
         },
         "weekend": {
             "start": 0,  # Default Schedule - Stopped by default sat-sun
-            "stop": 0  # Default Schedule - Stopped by default sat-sun
-        }
+            "stop": 0,  # Default Schedule - Stopped by default sat-sun
+        },
     }
-
 
     # DCV Windows
     DCV_WINDOWS_SESSION_COUNT = 4
-    DCV_WINDOWS_ALLOW_INSTANCE_CHANGE = True  # Allow user to change their instance type if their DCV session is stopped
+    DCV_WINDOWS_ALLOW_INSTANCE_CHANGE = (
+        True  # Allow user to change their instance type if their DCV session is stopped
+    )
     DCV_WINDOWS_HIBERNATE_IDLE_SESSION = 1  # In hours. Windows DCV sessions will be hibernated to save cost if there is no active connection within the time specified. 0 to disable
     DCV_WINDOWS_STOP_IDLE_SESSION = 1  # In hours. Windows DCV sessions will be stopped to save cost if there is no active connection within the time specified. 0 to disable
     DCV_WINDOWS_TERMINATE_STOPPED_SESSION = 0  # In hours. Stopped Windows DCV will be permanently terminated if user won't restart it within the time specified. 0 to disable
@@ -110,61 +146,69 @@ class Config(object):
     DCV_WINDOWS_DEFAULT_SCHEDULE = {
         "weekdays": {
             "start": 480,  # Default Schedule - Start 8 AM (8*60) mon-fri
-            "stop": 1140  # Default Schedule - Stop if idle after 7 PM (19*60) mon-fri
+            "stop": 1140,  # Default Schedule - Stop if idle after 7 PM (19*60) mon-fri
         },
         "weekend": {
             "start": 0,  # Default Schedule - Stopped by default sat-sun
-            "stop": 0  # Default Schedule - Stopped by default sat-sun
-        }
+            "stop": 0,  # Default Schedule - Stopped by default sat-sun
+        },
     }
+    #
+    # 2022.2
     DCV_WINDOWS_AMI = {
         "graphics-amd": {
-            'us-east-1': 'ami-09e9fc6b0563179e0',
-            'ca-central-1': 'ami-02ce5abc7648ae028',
-             'us-east-2': 'ami-0e9dffe211d55ea3d',
-             'us-west-2': 'ami-0ca9facae744b755d',
-             'eu-west-1': 'ami-0b79b4e3a40bdf60e',
-             'eu-west-2': 'ami-049344b657f4fb45c',
-             'eu-central-1': 'ami-01f877801cd06f23f',
-             'ap-northeast-1': 'ami-0f73f5c42d0a2a659'
+            "us-east-1": "ami-079b1289945e31397",
+            "us-east-2": "ami-0e249f5d39f91f2f4",
+            "ca-central-1": "ami-04a285bea28b03aa8",
+            "us-west-2": "ami-027c182712886555f",
+            "eu-west-1": "ami-003e92b402c37b8c3",
+            "eu-west-2": "ami-0cc01d6ede331b397",
+            "eu-central-1": "ami-0f938ea3b438c5264",
+            "ap-northeast-1": "ami-0b3b14d67fcb9123e",
         },
         "graphics": {
             # Nvidia
-            'us-east-1': 'ami-0feb4b3151fb93b8e',
-             'ca-central-1': 'ami-01a3418587fbf46cb',
-             'us-east-2': 'ami-08dbaa5a7a0d66dd8',
-             'us-west-1': 'ami-044ba431fff097d34',
-             'us-west-2': 'ami-05f7fcc83babd18eb',
-             'eu-west-1': 'ami-0d0fcc08444568042',
-             'eu-west-2': 'ami-0567a305f99abe138',
-             'eu-west-3': 'ami-0df87cbfbf5e29a6d',
-             'eu-central-1': 'ami-042ee7fefd2fbce6c',
-             'eu-north-1': 'ami-095afbb53221a2d16',
-             'ap-northeast-1': 'ami-04bcb220c319e2d0a',
-             'ap-northeast-2': 'ami-0af10927eaebde20b',
-             'ap-southeast-1': 'ami-068263e9c9ca3d9dc',
-             'ap-southeast-2': 'ami-07ce6711013585e48',
-             'ap-south-1': 'ami-0d4304f1bb621ae46',
-             'sa-east-1': 'ami-0c297587e3093aa24'
+            "us-east-1": "ami-0cf41c11d3fa97da5",
+            "us-east-2": "ami-0268f01e8fb7e1af3",
+            "ca-central-1": "ami-0486e50471fb25a3a",
+            "us-west-1": "ami-0fc3b5bb5928ea710",
+            "us-west-2": "ami-0c10cec74382ca9e0",
+            "eu-west-1": "ami-0ff1e68d6e1607215",
+            "eu-west-2": "ami-0d53b26481b70af89",
+            "eu-west-3": "ami-0ad001e4894b1a0ca",
+            "eu-central-1": "ami-08fde2d58bdaec1ce",
+            "eu-north-1": "ami-03a287c0eb445490a",
+            "eu-south-1": "ami-081d0182cefd9aa2f",
+            "ap-northeast-1": "ami-0eb109172d3113ded",
+            "ap-northeast-2": "ami-0494f802e96e6c82e",
+            "ap-southeast-1": "ami-0468047f972420f58",
+            "ap-southeast-2": "ami-00a5512963d78992e",
+            "ap-south-1": "ami-044352a08ae6abf8b",
+            "sa-east-1": "ami-08349b52d65f189d2",
+            "af-south-1": "ami-0fa3212b891ec5229",
+            "me-south-1": "ami-0077ceea73246a807"
         },
         "non-graphics": {
-             "us-east-1": "ami-0d9299304a5e3cfea",
-             "ca-central-1": "ami-072dfac76bbba7a11",
-             "us-east-2": "ami-08ad93b85eb93fc5c",
-             "us-west-1": "ami-084e38470f6754074",
-             "us-west-2": "ami-0dab9e46b5aa47961",
-             "eu-west-1": "ami-01f10101bddf8ecb8",
-             "eu-west-2": "ami-0c57e129d10d47c39",
-             "eu-west-3": "ami-0433843d3f015e124",
-             "eu-central-1": "ami-01d59b9c6a0031789",
-             "eu-north-1": "ami-04994358f2a0bd112",
-             "ap-northeast-1": "ami-0cebe66543ec56ce2",
-             "ap-northeast-2": "ami-0825e91c25df5a3a1",
-             "ap-southeast-1": "ami-08e0bf49e1b2bbd6c",
-             "ap-southeast-2": "ami-0058a6d6659ce124f",
-             "ap-south-1": "ami-074192a64ff10aa67",
-             "sa-east-1": "ami-02938726ac94b1cea",
-        }
+            "us-east-1": "ami-08b47fddb4ba746b1",
+            "us-east-2": "ami-03d5e7631c44bb64f",
+            "ca-central-1": "ami-01bd9c8d8fe091ec5",
+            "us-west-1": "ami-0fcb6f452b987831b",
+            "us-west-2": "ami-04fcdb0e74a7c1ffe",
+            "eu-west-1": "ami-02152a6180c33a271",
+            "eu-west-2": "ami-09fb2e1db38f28409",
+            "eu-west-3": "ami-0696004a126982b82",
+            "eu-central-1": "ami-0b7c04cddaf0d0657",
+            "eu-north-1": "ami-0789d6077a6611769",
+            "eu-south-1": "ami-022931dd5a86492f6",
+            "ap-northeast-1": "ami-0dbfaf3f7ada2814f",
+            "ap-northeast-2": "ami-05d14fc8790162b90c",
+            "ap-southeast-1": "ami-025c0ea2676ef21b8",
+            "ap-southeast-2": "ami-00b3f8fc29827f368",
+            "ap-south-1": "ami-0c23b9f35ff99c1a1",
+            "sa-east-1": "ami-027cc0155ff1d1a7a",
+            "af-south-1": "ami-046ee35e0ed17612a",
+            "me-south-1": "ami-0790eff3583c6b51b"
+        },
     }
 
     SOCA_AUTH_PROVIDER = os.environ.get("SOCA_AUTH_PROVIDER")
@@ -174,8 +218,13 @@ class Config(object):
         LDAP_BASE_DN = soca_config["LdapBase"]
         LDAP_ADMIN_PASSWORD_FILE = "/root/OpenLdapAdminPassword.txt"
         LDAP_ADMIN_USERNAME_FILE = "/root/OpenLdapAdminUsername.txt"
-        ROOT_DN = 'CN=' + open(LDAP_ADMIN_USERNAME_FILE, 'r').read().rstrip().lstrip() + ',' + LDAP_BASE_DN
-        ROOT_PW = open(LDAP_ADMIN_PASSWORD_FILE, 'r').read().rstrip().lstrip()
+        ROOT_DN = (
+            "CN="
+            + open(LDAP_ADMIN_USERNAME_FILE, "r").read().rstrip().lstrip()
+            + ","
+            + LDAP_BASE_DN
+        )
+        ROOT_PW = open(LDAP_ADMIN_PASSWORD_FILE, "r").read().rstrip().lstrip()
     else:
         DOMAIN_NAME = soca_config["DSDomainName"]
         DIRECTORY_SERVICE_ID = soca_config["DSDirectoryId"]

@@ -20,6 +20,7 @@ import config
 from decorators import restricted_api, admin_api, retrieve_api_key
 import errors
 import logging
+
 logger = logging.getLogger("api")
 
 
@@ -51,47 +52,54 @@ class ApiKey(Resource):
             description: Malformed client input
         """
         parser = reqparse.RequestParser()
-        parser.add_argument("user", type=str, location='args')
+        parser.add_argument("user", type=str, location="args")
         args = parser.parse_args()
         user = args["user"]
         if user is None:
-            return errors.all_errors("CLIENT_MISSING_PARAMETER", "user (str) parameter is required")
+            return errors.all_errors(
+                "CLIENT_MISSING_PARAMETER", "user (str) parameter is required"
+            )
 
         try:
-            check_existing_key = ApiKeys.query.filter_by(user=user,
-                                                         is_active=True).first()
+            check_existing_key = ApiKeys.query.filter_by(
+                user=user, is_active=True
+            ).first()
             if check_existing_key:
                 return {"success": True, "message": check_existing_key.token}, 200
             else:
                 try:
                     # Create an API key for the user if needed
-                    user_exist = get(config.Config.FLASK_ENDPOINT + "/api/ldap/user",
-                                     headers={"X-SOCA-TOKEN": config.Config.API_ROOT_KEY},
-                                     params={"user": user},
-                                     verify=False) # nosec
+                    user_exist = get(
+                        config.Config.FLASK_ENDPOINT + "/api/ldap/user",
+                        headers={"X-SOCA-TOKEN": config.Config.API_ROOT_KEY},
+                        params={"user": user},
+                        verify=False,
+                    )  # nosec
                     if user_exist.status_code == 200:
-                        permissions = get(config.Config.FLASK_ENDPOINT + "/api/ldap/sudo",
-                                          headers={"X-SOCA-TOKEN": config.Config.API_ROOT_KEY},
-                                          params={"user": user},
-                                          verify=False) # nosec
+                        permissions = get(
+                            config.Config.FLASK_ENDPOINT + "/api/ldap/sudo",
+                            headers={"X-SOCA-TOKEN": config.Config.API_ROOT_KEY},
+                            params={"user": user},
+                            verify=False,
+                        )  # nosec
 
                         if permissions.status_code == 200:
                             scope = "sudo"
                         else:
                             scope = "user"
                         api_token = secrets.token_hex(16)
-                        new_key = ApiKeys(user=user,
-                                          token=api_token,
-                                          is_active=True,
-                                          scope=scope,
-                                          created_on=datetime.datetime.utcnow())
+                        new_key = ApiKeys(
+                            user=user,
+                            token=api_token,
+                            is_active=True,
+                            scope=scope,
+                            created_on=datetime.datetime.utcnow(),
+                        )
                         db.session.add(new_key)
                         db.session.commit()
-                        return {"success": True,
-                                "message": api_token}, 200
+                        return {"success": True, "message": api_token}, 200
                     else:
-                        return {"success": False,
-                                "message": "Not authorized"}, 401
+                        return {"success": False, "message": "Not authorized"}, 401
 
                 except Exception as err:
                     return errors.all_errors(type(err).__name__, err)
@@ -125,13 +133,17 @@ class ApiKey(Resource):
                description: Client error.
         """
         parser = reqparse.RequestParser()
-        parser.add_argument('user', type=str, location='form')
+        parser.add_argument("user", type=str, location="form")
         args = parser.parse_args()
         user = args["user"]
         if user is None:
-            return errors.all_errors("CLIENT_MISSING_PARAMETER", "user (str) parameter is required")
+            return errors.all_errors(
+                "CLIENT_MISSING_PARAMETER", "user (str) parameter is required"
+            )
         try:
-            check_existing_keys = ApiKeys.query.filter_by(user=user, is_active=True).all()
+            check_existing_keys = ApiKeys.query.filter_by(
+                user=user, is_active=True
+            ).all()
             if check_existing_keys:
                 for key in check_existing_keys:
                     key.is_active = False

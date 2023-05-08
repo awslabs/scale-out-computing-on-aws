@@ -12,17 +12,28 @@
 ######################################################################################################################
 
 import logging
-from flask import render_template, Blueprint, request, redirect, session, flash, Response
+from flask import (
+    render_template,
+    Blueprint,
+    request,
+    redirect,
+    session,
+    flash,
+    Response,
+)
 from models import db, ApplicationProfiles
 from decorators import login_required, admin_only
 import base64
 import datetime
 import json
+
 logger = logging.getLogger("application")
-admin_applications = Blueprint('admin_applications', __name__, template_folder='templates')
+admin_applications = Blueprint(
+    "admin_applications", __name__, template_folder="templates"
+)
 
 
-@admin_applications.route('/admin/applications', methods=['GET'])
+@admin_applications.route("/admin/applications", methods=["GET"])
 @login_required
 @admin_only
 def index():
@@ -30,24 +41,27 @@ def index():
     get_all_application_profiles = ApplicationProfiles.query.all()
     for profile in get_all_application_profiles:
         application_profiles[profile.id] = {"profile_name": profile.profile_name}
-    return render_template('admin/applications.html',
-                           user=session['user'],
-                           page="application",
-                           profile_interpreter="qsub",
-                           application_profiles=application_profiles,
-                           action="create")
+    return render_template(
+        "admin/applications.html",
+        user=session["user"],
+        page="application",
+        profile_interpreter="qsub",
+        application_profiles=application_profiles,
+        action="create",
+    )
 
-@admin_applications.route('/admin/applications/edit', methods=['GET','POST'])
+
+@admin_applications.route("/admin/applications/edit", methods=["GET", "POST"])
 @login_required
 @admin_only
 def edit():
     if request.method == "GET":
-        return redirect('/admin/applications')
+        return redirect("/admin/applications")
 
     if "app" not in request.form:
-        return redirect('/admin/applications')
+        return redirect("/admin/applications")
 
-    app_id = request.form['app']
+    app_id = request.form["app"]
     get_application_profile = ApplicationProfiles.query.filter_by(id=app_id).first()
     if get_application_profile:
         profile_form = base64.b64decode(get_application_profile.profile_form).decode()
@@ -60,20 +74,21 @@ def edit():
     for profile in get_all_application_profiles:
         application_profiles[profile.id] = {"profile_name": profile.profile_name}
 
-    return render_template('admin/applications.html',
-                           user=session['user'],
-                           app_id=app_id,
-                           profile_form=profile_form,
-                           profile_job=profile_job,
-                           profile_name=profile_name,
-                           profile_interpreter=profile_interpreter,
-                           application_profiles=application_profiles,
-                           page="application",
-                           action="edit"
-                           )
+    return render_template(
+        "admin/applications.html",
+        user=session["user"],
+        app_id=app_id,
+        profile_form=profile_form,
+        profile_job=profile_job,
+        profile_name=profile_name,
+        profile_interpreter=profile_interpreter,
+        application_profiles=application_profiles,
+        page="application",
+        action="edit",
+    )
 
 
-@admin_applications.route('/admin/applications/create', methods=['post'])
+@admin_applications.route("/admin/applications/create", methods=["post"])
 @login_required
 @admin_only
 def create_application():
@@ -81,10 +96,18 @@ def create_application():
         flash("Missing action parameter", "error")
         return redirect("/admin/applications")
     else:
-        required_parameters = ["submit_job_script", "profile_name", "submit_job_form", "submit_job_interpreter"]
+        required_parameters = [
+            "submit_job_script",
+            "profile_name",
+            "submit_job_form",
+            "submit_job_interpreter",
+        ]
         for parameter in required_parameters:
             if parameter not in request.form:
-                flash("Missing parameters. Make sure you have sent the correct inputs", "error")
+                flash(
+                    "Missing parameters. Make sure you have sent the correct inputs",
+                    "error",
+                )
                 return redirect("/admin/applications")
 
         if request.form["action"] == "create":
@@ -94,30 +117,40 @@ def create_application():
             else:
                 encoded_image = request.form["thumbnail_b64"]
 
-            new_app_profile = ApplicationProfiles(creator=session["user"],
-                                                  profile_name=request.form["profile_name"],
-                                                  profile_form=request.form["submit_job_form"],
-                                                  profile_job=request.form["submit_job_script"],
-                                                  profile_interpreter=request.form["submit_job_interpreter"],
-                                                  profile_thumbnail=encoded_image,
-                                                  created_on=datetime.datetime.utcnow())
+            new_app_profile = ApplicationProfiles(
+                creator=session["user"],
+                profile_name=request.form["profile_name"],
+                profile_form=request.form["submit_job_form"],
+                profile_job=request.form["submit_job_script"],
+                profile_interpreter=request.form["submit_job_interpreter"],
+                profile_thumbnail=encoded_image,
+                created_on=datetime.datetime.utcnow(),
+            )
             db.session.add(new_app_profile)
             db.session.commit()
             flash(request.form["profile_name"] + " created successfully.", "success")
             return redirect("/admin/applications")
 
         elif request.form["action"] == "edit":
-            application_profile = ApplicationProfiles.query.filter_by(id=request.form["app_id"]).first()
+            application_profile = ApplicationProfiles.query.filter_by(
+                id=request.form["app_id"]
+            ).first()
             if application_profile:
                 if request.form["thumbnail_b64"] != "":
-                    application_profile.profile_thumbnail = request.form["thumbnail_b64"]
+                    application_profile.profile_thumbnail = request.form[
+                        "thumbnail_b64"
+                    ]
 
                 application_profile.profile_job = request.form["submit_job_script"]
                 application_profile.profile_form = request.form["submit_job_form"]
-                application_profile.profile_interpreter = request.form["submit_job_interpreter"]
+                application_profile.profile_interpreter = request.form[
+                    "submit_job_interpreter"
+                ]
                 application_profile.profile_name = request.form["profile_name"]
                 db.session.commit()
-                flash(request.form["profile_name"] + " updated successfully.", "success")
+                flash(
+                    request.form["profile_name"] + " updated successfully.", "success"
+                )
                 return redirect("/admin/applications")
 
         else:
@@ -125,7 +158,7 @@ def create_application():
             return redirect("/admin/applications")
 
 
-@admin_applications.route('/admin/applications/delete', methods=['post'])
+@admin_applications.route("/admin/applications/delete", methods=["post"])
 @login_required
 @admin_only
 def delete_application():
@@ -139,7 +172,7 @@ def delete_application():
         return redirect("/admin/applications")
 
 
-@admin_applications.route('/admin/applications/export', methods=['post'])
+@admin_applications.route("/admin/applications/export", methods=["post"])
 @login_required
 @admin_only
 def export_application():
@@ -149,21 +182,29 @@ def export_application():
     else:
         check_app = ApplicationProfiles.query.filter_by(id=request.form["app"]).first()
         if check_app:
-            output = {"Instructions:": "https://awslabs.github.io/scale-out-computing-on-aws/web-interface/import-export-application-profiles",
+            output = {
+                "Instructions:": "https://awslabs.github.io/scale-out-computing-on-aws/web-interface/import-export-application-profiles",
                 "profile_form": check_app.profile_form,
                 "profile_job": check_app.profile_job,
                 "profile_interpreter": check_app.profile_interpreter,
-                "profile_thumbnail": check_app.profile_thumbnail}
-            return Response(json.dumps(output),
-                            mimetype='application/json',
-                            headers={'Content-Disposition': "attachment;filename=soca_app_" + check_app.profile_name+".json"})
+                "profile_thumbnail": check_app.profile_thumbnail,
+            }
+            return Response(
+                json.dumps(output),
+                mimetype="application/json",
+                headers={
+                    "Content-Disposition": "attachment;filename=soca_app_"
+                    + check_app.profile_name
+                    + ".json"
+                },
+            )
 
         else:
             flash("App not found")
             return redirect("/admin/applications")
 
 
-@admin_applications.route('/admin/applications/import', methods=['post'])
+@admin_applications.route("/admin/applications/import", methods=["post"])
 @login_required
 @admin_only
 def import_application():
@@ -171,37 +212,39 @@ def import_application():
         flash("Missing action parameter", "error")
         return redirect("/admin/applications")
     else:
-        app_profile = request.files['app_profile'].read()
+        app_profile = request.files["app_profile"].read()
         try:
             sanitize_input = json.loads(app_profile)
         except Exception:
             flash("This does not seems to be a valid JSON")
             return redirect("/admin/applications")
 
-
-        required_params = ["profile_form",
-                           "profile_job",
-                           "profile_interpreter",
-                           "profile_thumbnail"]
+        required_params = [
+            "profile_form",
+            "profile_job",
+            "profile_interpreter",
+            "profile_thumbnail",
+        ]
         for param in required_params:
             if param not in sanitize_input.keys():
                 flash(param + " is missing on your json")
                 return redirect("/admin/applications")
 
         try:
-            new_app_profile = ApplicationProfiles(creator=session["user"],
-                                              profile_name=request.form["name"],
-                                              profile_form=sanitize_input["profile_form"],
-                                              profile_job=sanitize_input["profile_job"],
-                                              profile_interpreter=sanitize_input["profile_interpreter"],
-                                              profile_thumbnail=sanitize_input["profile_thumbnail"],
-                                              created_on=datetime.datetime.utcnow())
+            new_app_profile = ApplicationProfiles(
+                creator=session["user"],
+                profile_name=request.form["name"],
+                profile_form=sanitize_input["profile_form"],
+                profile_job=sanitize_input["profile_job"],
+                profile_interpreter=sanitize_input["profile_interpreter"],
+                profile_thumbnail=sanitize_input["profile_thumbnail"],
+                created_on=datetime.datetime.utcnow(),
+            )
             db.session.add(new_app_profile)
             db.session.commit()
         except Exception as err:
-            flash("Error while creating the db entry " +str(err))
+            flash("Error while creating the db entry " + str(err))
             return redirect("/admin/applications")
 
         flash(request.form["name"] + " imported successfully.", "success")
         return redirect("/admin/applications")
-

@@ -1,7 +1,17 @@
 Config:
-  version: "2.7.2" # version automatically populated as part of RELEASE-PIPELINE.sh (see github_release.py)
+  version: "2.7.4" # version automatically populated as part of RELEASE-PIPELINE.sh (see github_release.py)
   termination_protection: True # Enable (recommended) or Disable Cloudformation Stack termination protection
   entry_points_subnets: "Public" # Public (recommended) or Private. In public mode the scheduler and ELB are deployed on PublicSubnets and assigned Public IPS. In Private mode scheduler and ELB are deployed in private subnets. In both case compute nodes and ElasticSearch/EFS/FSxL are deployed in private subnets. Public does not means your cluster will be accessible to everyone by default, access to your cluster is still protected by security groups
+  skip_quotas: False # Enable (True) or Disable (False) AWS Service quotas check. It's recommended to disable this setting only when the AWS Service Quotas API is not accessible (e.g: isolated subnets)
+  metadata_http_tokens: "required" # Supported values are "required" for IMDSv2 or "optional" for IMDSv1 (https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-ec2-launchtemplate-launchtemplatedata-metadataoptions.html#cfn-ec2-launchtemplate-launchtemplatedata-metadataoptions-httptokens)
+  # Uncomment section below if you want to add additional tags to the resources created by SOCA
+  #custom_tags:
+  #  - Key: 'example:custom:Tag1Name'
+  #    Value: 'Tag1Value'
+  #  - Key: 'example:custom:Tag2Name'
+  #    Value: 'Tag2Value'
+  services:
+    aws_backup: True  # Enable (True) or Disable (False) AWS Backup integration.  WARNING - SETTING THIS TO FALSE WILL DISABLE AUTOMATIC BACKUPS OF YOUR SOCA ENVIRONMENT.
 
   # Configure your Network parameters below (CIDR range is configured interactively --vpc-cidr
   network:
@@ -16,12 +26,17 @@ Config:
     - ec2messages
     - elasticfilesystem
     - elasticloadbalancing
+    - fsx
     - logs
     - monitoring
     - secretsmanager
     - sns
     - ssm
     - ssmmessages
+  # FIPS endpoints are available for specific services. Enabled as required by policy.
+  #  - elasticfilesystem-fips
+  #  - fsx-fips
+
 
   # Configure your Storage options below
   storage:
@@ -35,10 +50,10 @@ Config:
         transition_to_ia: "AFTER_30_DAYS" # https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-efs-filesystem-lifecyclepolicy.html
         deletion_policy: "NO_RETAIN" # RETAIN will preserve the EFS even if you delete the stack. Any other value will delete EFS if you delete the CFN stack
       fsx_lustre:
-         deployment_type: "SCRATCH_2" # Allowed values: PERSISTENT_1 | SCRATCH_1 | SCRATCH_2. https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-fsx-filesystem-lustreconfiguration.html#cfn-fsx-filesystem-lustreconfiguration-deploymenttype
+         deployment_type: "PERSISTENT_1" # Allowed values: PERSISTENT_1 | PERSISTENT_2 | SCRATCH_1 | SCRATCH_2. Region availability information  https://docs.aws.amazon.com/fsx/latest/LustreGuide/using-fsx-lustre.html
          drive_cache_type: "NONE" # Allowed values: NONE | READ. Required when storage_type is HDD. https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-fsx-filesystem-lustreconfiguration.html#cfn-fsx-filesystem-lustreconfiguration-drivecachetype
          per_unit_storage_throughput: 50 # Allowed values: 12, 40 for HDD, 50, 100, 200 for SSD. Required for the PERSISTENT_1 deployment_type. https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-fsx-filesystem-lustreconfiguration.html#cfn-fsx-filesystem-lustreconfiguration-perunitstoragethroughput
-         storage_capacity: 1200 # For SCRATCH_2 and PERSISTENT_1 types, valid values are 1,200, 2,400, then continuing in increments of 2,400 GiB. For SCRATCH_1 deployment types, valid values are 1,200, 2,400, 3,600, then continuing in increments of 3,600 GiB. https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-fsx-filesystem.html#cfn-fsx-filesystem-storagecapacity
+         storage_capacity: 1200 # For SCRATCH_2 and PERSISTENT_x types, valid values are 1,200, 2,400, then continuing in increments of 2,400 GiB. For SCRATCH_1 deployment types, valid values are 1,200, 2,400, 3,600, then continuing in increments of 3,600 GiB. https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-fsx-filesystem.html#cfn-fsx-filesystem-storagecapacity
          storage_type: "SSD" # Allowed values: SSD or HDD. https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-fsx-filesystem.html#cfn-fsx-filesystem-storagetype
 
     apps:
@@ -50,23 +65,24 @@ Config:
          encrypted: True # Select whether or not you want to encrypt the filesystem
          deletion_policy: "NO_RETAIN" # RETAIN will preserve the EFS even if you delete the stack. Any other value will delete EFS if you delete the CFN stack
       fsx_lustre:
-         deployment_type: "PERSISTENT_1" # Allowed values: PERSISTENT_1 | SCRATCH_1 | SCRATCH_2. https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-fsx-filesystem-lustreconfiguration.html#cfn-fsx-filesystem-lustreconfiguration-deploymenttype
+         deployment_type: "PERSISTENT_1" # Allowed values: PERSISTENT_1 | PERSISTENT_2 | SCRATCH_1 | SCRATCH_2. Region availability information  https://docs.aws.amazon.com/fsx/latest/LustreGuide/using-fsx-lustre.html
          drive_cache_type: "NONE" # Allowed values: NONE | READ. Required when storage_type is HDD. https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-fsx-filesystem-lustreconfiguration.html#cfn-fsx-filesystem-lustreconfiguration-drivecachetype
          per_unit_storage_throughput: 50 # Allowed values: 12, 40 for HDD, 50, 100, 200 for SSD. Required for the PERSISTENT_1 deployment_type. https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-fsx-filesystem-lustreconfiguration.html#cfn-fsx-filesystem-lustreconfiguration-perunitstoragethroughput
-         storage_capacity: 1200 # For SCRATCH_2 and PERSISTENT_1 types, valid values are 1,200, 2,400, then continuing in increments of 2,400 GiB. For SCRATCH_1 deployment types, valid values are 1,200, 2,400, 3,600, then continuing in increments of 3,600 GiB. https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-fsx-filesystem.html#cfn-fsx-filesystem-storagecapacity
+         storage_capacity: 1200 # For SCRATCH_2 and PERSISTENT_x types, valid values are 1,200, 2,400, then continuing in increments of 2,400 GiB. For SCRATCH_1 deployment types, valid values are 1,200, 2,400, 3,600, then continuing in increments of 3,600 GiB. https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-fsx-filesystem.html#cfn-fsx-filesystem-storagecapacity
          storage_type: "SSD" # Allowed values: SSD or HDD. https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-fsx-filesystem.html#cfn-fsx-filesystem-storagetype
 
   # Configure your EC2 instance used as scheduler host below
   scheduler:
     instance_type: "m5.large" # default instance type
-    volume_size: 200 # Size of the EBS root disk
+    volume_size: 200 # Size of the EBS root disk in GB
 
-  # Configure your AWS ElasticSearch/Kibana options below
-  elasticsearch:
-      data_node_instance_type: "m5.large.elasticsearch" # instance type for elasticsearch data nodes
-      data_nodes: 2  # number of data nodes for elasticsearch
-      ebs_volume_size: 100  # ebs volume size attached to data nodes
-      deletion_policy: "NO_RETAIN"  # RETAIN will preserve the ES even if you delete the stack. Any other value will delete ES if you delete the CFN stack
+  # Configure your AWS OpenSearch
+  analytics:
+    engine: elasticsearch # elasticsearch or opensearch. Note: MetricBeat is not supported on OpenSearch.
+    data_node_instance_type: "m5.large.search" # instance type for analytics data nodes
+    data_nodes: 2  # number of data nodes for analytics
+    ebs_volume_size: 100  # EBS volume size attached to data nodes in GB
+    deletion_policy: "NO_RETAIN"  # RETAIN will preserve the ES even if you delete the stack. Any other value will delete OS if you delete the CFN stack
 
   # Configure your AWS Secrets Manager options below
   secretsmanager:
@@ -88,84 +104,180 @@ Config:
 
 RegionMap:
   af-south-1:
-    amazonlinux2: ami-073f101842e8ceae7
-    centos7: ami-0b761332115c38669
-    rhel7: ami-03bc1929bae8e8d10
+    arm64:
+      amazonlinux2: ami-03c164696545bfdc3
+      centos7: ami-0e88079e08c51419c
+    x86_64:
+      amazonlinux2: ami-09e9303c17605e00a
+      centos7: ami-0cf2f235226a4d1f2
+      rhel7: ami-0fe7507703898a688
   ap-east-1:
-    amazonlinux2: ami-0dff3691c13e5881d
-    centos7: ami-09611bd6fa5dd0e3d
-    rhel7: ami-09871f5062b616ac8
+    arm64:
+      amazonlinux2: ami-05ef098b6b815cb30
+      centos7: ami-04b61d6a053ad2539
+    x86_64:
+      amazonlinux2: ami-02c72a4f706caa5b2
+      centos7: ami-039ac400e94785a1d
+      rhel7: ami-0d113ed541942504a
   ap-northeast-1:
-    amazonlinux2: ami-0387b0d09183a3a97
-    centos7: ami-0ddea5e0f69c193a4
-    rhel7: ami-00e3b125d72527ff6
+    arm64:
+      amazonlinux2: ami-009c20e7181c8a1dd
+      centos7: ami-0052528bdd809d899
+    x86_64:
+      amazonlinux2: ami-04d6e43069fd7e366
+      centos7: ami-06e6d2122baa563c4
+      rhel7: ami-05016d58118cb4881
   ap-northeast-2:
-    amazonlinux2: ami-030656986ed2d9f00
-    centos7: ami-0e4214f08b51e23cc
-    rhel7: ami-0f878d6caa1fa98f0
+    arm64:
+      amazonlinux2: ami-0140b86b0af590eac
+      centos7: ami-052d9a481ce0de50a
+    x86_64:
+      amazonlinux2: ami-0a5546ae8688f4f97
+      centos7: ami-061f5322ab2662c82
+      rhel7: ami-004ed0ba77095ba25
   ap-south-1:
-    amazonlinux2: ami-08c6724c280604575
-    centos7: ami-0ffc7af9c06de0077
-    rhel7: ami-024685afee5678595
+    arm64:
+      amazonlinux2: ami-0cfc494b35d1af234
+      centos7: ami-0a69d3ff816398377
+    x86_64:
+      amazonlinux2: ami-0fb08b4ce57852c53
+      centos7: ami-09f129ee53d3523c0
+      rhel7: ami-0ea2ce8b668f422ce
+  ap-south-2:
+    arm64:
+      amazonlinux2: ami-06f59e2431f3ea8b7
+    x86_64:
+      amazonlinux2: ami-0bd90b7cfc2413f01
+      rhel7: ami-06ed2b77cde70d481
   ap-southeast-1:
-    amazonlinux2: ami-049f20cccc294bb90
-    centos7: ami-0adfdaea54d40922b
-    rhel7: ami-057fd2d861be8fb5e
+    arm64:
+      amazonlinux2: ami-0064c3feea4e97df2
+      centos7: ami-091062b883853b295
+    x86_64:
+      amazonlinux2: ami-0b3585f7e59098316
+      centos7: ami-03bfba2e75432064e
+      rhel7: ami-0883712f4e7f557f7
   ap-southeast-2:
-    amazonlinux2: ami-0b2eed9bc374d87a9
-    centos7: ami-03d56f451ca110e99
-    rhel7: ami-0343583dce592b33a
+    arm64:
+      amazonlinux2: ami-02cc8608142295eb6
+      centos7: ami-0cfdc63b39f103cab
+    x86_64:
+      amazonlinux2: ami-0c4df4ca2a5fa0fb2
+      centos7: ami-0264ead5294ad1773
+      rhel7: ami-01edb389be6d2ae7f
   ap-southeast-3:
-    amazonlinux2: ami-0280cd826703b26b9
+    arm64:
+      amazonlinux2: ami-0827a4fa9701d547c
+    x86_64:
+      amazonlinux2: ami-06c4a05de66fd5415
+      rhel7: ami-0e1bd60bacf164ead
   ca-central-1:
-    amazonlinux2: ami-029758462acdf767c
-    centos7: ami-0a7c5b189b6460115
-    rhel7: ami-02cc622b97f7e8d45
+    arm64:
+      amazonlinux2: ami-031c8d437cbc926a4
+      centos7: ami-052a1a6ef4db58dd8
+    x86_64:
+      amazonlinux2: ami-049b38c5b2715a775
+      centos7: ami-01ebef6e00efb2c20
+      rhel7: ami-08ba906b09cdf48ff
   eu-central-1:
-    amazonlinux2: ami-0d10f2d3b9ab936a1
-    centos7: ami-08b6d44b4f6f7b279
-    rhel7: ami-0f0fc6bdd397422dd
+    arm64:
+      amazonlinux2: ami-03622d923a3cbc2c0
+      centos7: ami-0162ae2b9d245b9a5
+    x86_64:
+      amazonlinux2: ami-01fd08d7b0955d6d5
+      centos7: ami-0afcbcee3dfbce929
+      rhel7: ami-058a887d3af3bc23e
   eu-north-1:
-    amazonlinux2: ami-0854c75c979835223
-    centos7: ami-0358414bac2039369
-    rhel7: ami-0b844bbd294a8e075
+    arm64:
+      amazonlinux2: ami-0dcc0d0aa56da782c
+      centos7: ami-00658799cfc32659e
+    x86_64:
+      amazonlinux2: ami-02e57fd683bea062d
+      centos7: ami-0e5125a0f19c52a2b
+      rhel7: ami-0930c6515d30d4867
   eu-south-1:
-    amazonlinux2: ami-02fb9ea0a3dc1e298
-    centos7: ami-0fe3899b62205176a
-    rhel7: ami-0533b4c2e62e8bfb5
+    arm64:
+      amazonlinux2: ami-06262571b8ce1e0c1
+      centos7: ami-0c28ae8b6a03e9904
+    x86_64:
+      amazonlinux2: ami-0fb84959eb0a33501
+      centos7: ami-0a3a6d4d737db3bc1
+      rhel7: ami-03e09da05c106a5bc
   eu-west-1:
-    amazonlinux2: ami-0b0bf695cabdc2ce8
-    centos7: ami-04f5641b0d178a27a
-    rhel7: ami-002d3240b69a0ef4e
+    arm64:
+      amazonlinux2: ami-045d2a85883ce882e
+      centos7: ami-0c47424ef2c94b774
+    x86_64:
+      amazonlinux2: ami-03f295fecc39988fc
+      centos7: ami-00d464afa64e1fc69
+      rhel7: ami-018e4344af2a62450
   eu-west-2:
-    amazonlinux2: ami-0619177a5b68d29e3
-    centos7: ami-0b22fcaf3564fb0c9
-    rhel7: ami-045151e990cd5bf35
+    arm64:
+      amazonlinux2: ami-08993885cfdbb428c
+      centos7: ami-02868404201349f83
+    x86_64:
+      amazonlinux2: ami-0e94c01e016a4040e
+      centos7: ami-0de2f45684e59282c
+      rhel7: ami-0c2f9865057c3dfe1
   eu-west-3:
-    amazonlinux2: ami-092c29a186204ba09
-    centos7: ami-072ec828dae86abe5
-    rhel7: ami-025295ed8743be8fd
+    arm64:
+      amazonlinux2: ami-01da684aadd370bc5
+      centos7: ami-07dd7b23f721e7bbc
+    x86_64:
+      amazonlinux2: ami-043bbc01a161b6818
+      centos7: ami-051806c39fa542e22
+      rhel7: ami-053b42a6733c52f17
+  me-central-1:
+    arm64:
+      amazonlinux2: ami-0ab5ac6f353ddedb3
+    x86_64:
+      amazonlinux2: ami-01aed1e40b2323f85
+      rhel7: ami-068543e4b7405fbb2
   me-south-1:
-    amazonlinux2: ami-0aa583da61ed90680
-    centos7: ami-0ac17dcdd6f6f4eb6
-    rhel7: ami-0ba9dbb5f12f9e19b
+    arm64:
+      amazonlinux2: ami-01a1c6f4879a7462c
+      centos7: ami-02d946c5a59126c32
+    x86_64:
+      amazonlinux2: ami-00aad6471e59d0d30
+      centos7: ami-09ce1cd69cab28540
+      rhel7: ami-0b6a0e920d35d15a7
   sa-east-1:
-    amazonlinux2: ami-0fbb0781e8c7f140a
-    centos7: ami-02334c45dd95ca1fc
-    rhel7: ami-08d0639f173f8d91c
+    arm64:
+      amazonlinux2: ami-0fd458ee800b62c82
+      centos7: ami-05b835a95ace17eee
+    x86_64:
+      amazonlinux2: ami-0d9ba995317c0560c
+      centos7: ami-015f6bf0657816a2d
+      rhel7: ami-0562b80a8716922c9
   us-east-1:
-    amazonlinux2: ami-00db75007d6c5c578
-    centos7: ami-00e87074e52e6c9f9
-    rhel7: ami-0051b1b2c5a166c8c
+    arm64:
+      amazonlinux2: ami-0fa9ea024c969a246
+      centos7: ami-0144a5a84f5699847
+    x86_64:
+      amazonlinux2: ami-05f408238af346b4f
+      centos7: ami-0aedf6b1cb669b4c7
+      rhel7: ami-045393c081cabeb1f
   us-east-2:
-    amazonlinux2: ami-0489c6c0a2c0b6281
-    centos7: ami-00f8e2c955f7ffa9b
-    rhel7: ami-0c1c3220d0b1716d2
+    arm64:
+      amazonlinux2: ami-06953ab510be7dc62
+      centos7: ami-0fb25f99cfe1c665e
+    x86_64:
+      amazonlinux2: ami-08c50cb06459e56a4
+      centos7: ami-033adaf0b583374d4
+      rhel7: ami-00342897eb8ba6355
   us-west-1:
-    amazonlinux2: ami-01cf9b8078ea41f1b
-    centos7: ami-08d2d8b00f270d03b
-    rhel7: ami-05ca2e876e4d5669a
+    arm64:
+      amazonlinux2: ami-0edae0c487a15d378
+      centos7: ami-0de261f921415431f
+    x86_64:
+      amazonlinux2: ami-098023750985977ad
+      centos7: ami-0bcd12d19d926f8e9
+      rhel7: ami-039ca986f21216c27
   us-west-2:
-    amazonlinux2: ami-012363a297a261d65
-    centos7: ami-0686851c4e7b1a8e1
-    rhel7: ami-068fd644a9270e323
+    arm64:
+      amazonlinux2: ami-03a2b9bfc3fe67fbd
+      centos7: ami-0fbf55055efe5787e
+    x86_64:
+      amazonlinux2: ami-0f9fff25f1c7ca4f0
+      centos7: ami-04f798ca92cc13f74
+      rhel7: ami-01788be7cc93be6ee

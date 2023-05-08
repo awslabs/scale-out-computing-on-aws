@@ -53,8 +53,9 @@ function Write-ToLog {
 }
 
 Write-ToLog -Message "Edit dcv.conf"
-$Hostname = Invoke-RestMethod -uri http://169.254.169.254/latest/meta-data/hostname
-$InstanceId = Invoke-RestMethod -uri http://169.254.169.254/latest/meta-data/instance-id
+[string]$IMDSToken = Invoke-RestMethod -Headers @{"X-aws-ec2-metadata-token-ttl-seconds" = "21600"} -Method PUT -Uri http://169.254.169.254/latest/api/token
+$Hostname = Invoke-RestMethod -Headers @{"X-aws-ec2-metadata-token" = $IMDSToken} -Method GET -Uri http://169.254.169.254/latest/meta-data/hostname
+$InstanceId = Invoke-RestMethod -Headers @{"X-aws-ec2-metadata-token" = $IMDSToken} -Method GET -Uri http://169.254.169.254/latest/meta-data/instance-id
 $DCVHostAltname = $Hostname.split(".")[0]
 $WindowsHostname = $env:COMPUTERNAME
 New-Item -Path "Microsoft.PowerShell.Core\Registry::\HKEY_USERS\S-1-5-18\Software\GSettings\com\nicesoftware\dcv\" -Name connectivity -Force

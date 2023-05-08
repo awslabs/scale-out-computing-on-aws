@@ -33,44 +33,52 @@ from cryptography.hazmat.backends import default_backend as crypto_default_backe
 
 logger = logging.getLogger("api")
 
+
 def create_home(username, group):
     try:
         user_home = config.Config.USER_HOME
-        key = rsa.generate_private_key(backend=crypto_default_backend(), public_exponent=65537, key_size=2048)
+        key = rsa.generate_private_key(
+            backend=crypto_default_backend(), public_exponent=65537, key_size=2048
+        )
         private_key = key.private_bytes(
             crypto_serialization.Encoding.PEM,
             crypto_serialization.PrivateFormat.TraditionalOpenSSL,
-            crypto_serialization.NoEncryption())
+            crypto_serialization.NoEncryption(),
+        )
         public_key = key.public_key().public_bytes(
             crypto_serialization.Encoding.OpenSSH,
-            crypto_serialization.PublicFormat.OpenSSH
+            crypto_serialization.PublicFormat.OpenSSH,
         )
-        private_key_str = private_key.decode('utf-8')
-        public_key_str = public_key.decode('utf-8')
+        private_key_str = private_key.decode("utf-8")
+        public_key_str = public_key.decode("utf-8")
 
         # Create user directory structure
         user_path = f"{user_home}/{username}/.ssh"
         os.makedirs(user_path)
 
         # Copy default .bash profile
-        shutil.copy('/etc/skel/.bashrc', f'{"/".join(user_path.split("/")[:-1])}/')
-        shutil.copy('/etc/skel/.bash_profile', f'{"/".join(user_path.split("/")[:-1])}/')
-        shutil.copy('/etc/skel/.bash_logout', f'{"/".join(user_path.split("/")[:-1])}/')
+        shutil.copy("/etc/skel/.bashrc", f'{"/".join(user_path.split("/")[:-1])}/')
+        shutil.copy(
+            "/etc/skel/.bash_profile", f'{"/".join(user_path.split("/")[:-1])}/'
+        )
+        shutil.copy("/etc/skel/.bash_logout", f'{"/".join(user_path.split("/")[:-1])}/')
 
         # Create SSH keypair
-        print(private_key_str, file=open(user_path + '/id_rsa', 'w'))
-        print(public_key_str, file=open(user_path + '/id_rsa.pub', 'w'))
-        print(public_key_str, file=open(user_path + '/authorized_keys', 'w'))
+        print(private_key_str, file=open(user_path + "/id_rsa", "w"))
+        print(public_key_str, file=open(user_path + "/id_rsa.pub", "w"))
+        print(public_key_str, file=open(user_path + "/authorized_keys", "w"))
 
         # Adjust file/folder ownership
-        for path in [f"{user_home}/{username}",
-                     f"{user_home}/{username}/.ssh",
-                     f"{user_home}/{username}/.ssh/authorized_keys",
-                     f"{user_home}/{username}/.ssh/id_rsa",
-                     f"{user_home}/{username}/.ssh/id_rsa.pub",
-                     f"{user_home}/{username}/.bashrc",
-                     f"{user_home}/{username}/.bash_profile",
-                     f"{user_home}/{username}/.bash_logout"]:
+        for path in [
+            f"{user_home}/{username}",
+            f"{user_home}/{username}/.ssh",
+            f"{user_home}/{username}/.ssh/authorized_keys",
+            f"{user_home}/{username}/.ssh/id_rsa",
+            f"{user_home}/{username}/.ssh/id_rsa.pub",
+            f"{user_home}/{username}/.bashrc",
+            f"{user_home}/{username}/.bash_profile",
+            f"{user_home}/{username}/.bash_logout",
+        ]:
             shutil.chown(path, user=username, group=group)
 
         # Adjust file/folder permissions
@@ -115,17 +123,19 @@ class User(Resource):
             description: Malformed client input
         """
         parser = reqparse.RequestParser()
-        parser.add_argument('user', type=str, location='args')
+        parser.add_argument("user", type=str, location="args")
         args = parser.parse_args()
         user = args["user"]
         if user is None:
-            return errors.all_errors("CLIENT_MISSING_PARAMETER", "user (str) parameter is required")
+            return errors.all_errors(
+                "CLIENT_MISSING_PARAMETER", "user (str) parameter is required"
+            )
 
-        user_filter = 'cn='+user
+        user_filter = "cn=" + user
         user_search_base = "ou=People," + config.Config.LDAP_BASE_DN
         user_search_scope = ldap.SCOPE_SUBTREE
         try:
-            conn = ldap.initialize('ldap://' + config.Config.LDAP_HOST)
+            conn = ldap.initialize("ldap://" + config.Config.LDAP_HOST)
             check_user = conn.search_s(user_search_base, user_search_scope, user_filter)
             if check_user.__len__() == 0:
                 return {"success": False, "message": "Unknown user"}, 203
@@ -182,15 +192,21 @@ class User(Resource):
             description: Malformed client input
         """
         parser = reqparse.RequestParser()
-        parser.add_argument('user', type=str, location='form')
-        parser.add_argument('password', type=str, location='form')
-        parser.add_argument('sudoers', type=int, location='form')
-        parser.add_argument('email', type=str, location='form')
-        parser.add_argument('shell', type=str, location='form')
-        parser.add_argument('uid', type=int, location='form')  # 0 = no value specified, use default one
-        parser.add_argument('gid', type=int, location='form')  # 0 = no value specified, use default one
+        parser.add_argument("user", type=str, location="form")
+        parser.add_argument("password", type=str, location="form")
+        parser.add_argument("sudoers", type=int, location="form")
+        parser.add_argument("email", type=str, location="form")
+        parser.add_argument("shell", type=str, location="form")
+        parser.add_argument(
+            "uid", type=int, location="form"
+        )  # 0 = no value specified, use default one
+        parser.add_argument(
+            "gid", type=int, location="form"
+        )  # 0 = no value specified, use default one
         args = parser.parse_args()
-        user = ''.join(x for x in args["user"] if x.isalpha() or x.isdigit()).lower()  # Sanitize input
+        user = "".join(
+            x for x in args["user"] if x.isalpha() or x.isdigit()
+        ).lower()  # Sanitize input
         password = args["password"]
         sudoers = args["sudoers"]
         email = args["email"]
@@ -201,17 +217,25 @@ class User(Resource):
         if shell is None:
             shell = "/bin/bash"
 
-        get_id = get(config.Config.FLASK_ENDPOINT + '/api/ldap/ids',
-                     headers={"X-SOCA-TOKEN": config.Config.API_ROOT_KEY},
-                     verify=False) # nosec
+        get_id = get(
+            config.Config.FLASK_ENDPOINT + "/api/ldap/ids",
+            headers={"X-SOCA-TOKEN": config.Config.API_ROOT_KEY},
+            verify=False,
+        )  # nosec
         if get_id.status_code == 200:
-            current_ldap_ids = (json.loads(get_id.text))
+            current_ldap_ids = json.loads(get_id.text)
         else:
             logger.error("/api/ldap/ids returned error : " + str(get_id.__dict__))
-            return {"success": False, "message": "/api/ldap/ids returned error: " +str(get_id.__dict__)}, 500
+            return {
+                "success": False,
+                "message": "/api/ldap/ids returned error: " + str(get_id.__dict__),
+            }, 500
 
         if user is None or password is None or sudoers is None or email is None:
-            return errors.all_errors("CLIENT_MISSING_PARAMETER", "user (str), password (str), sudoers (bool) and email (str) parameters are required")
+            return errors.all_errors(
+                "CLIENT_MISSING_PARAMETER",
+                "user (str), password (str), sudoers (bool) and email (str) parameters are required",
+            )
 
         # Note: parseaddr adheres to rfc5322 , which means user@domain is a correct address.
         # You do not necessarily need to add a tld at the end
@@ -219,89 +243,116 @@ class User(Resource):
             return errors.all_errors("INVALID_EMAIL_ADDRESS")
 
         if uid == 0:
-            uid = current_ldap_ids["message"]['proposed_uid']
+            uid = current_ldap_ids["message"]["proposed_uid"]
         else:
-            if uid in current_ldap_ids["message"]['uid_in_use']:
+            if uid in current_ldap_ids["message"]["uid_in_use"]:
                 return errors.all_errors("UID_ALREADY_IN_USE")
 
         if gid == 0:
-            gid = current_ldap_ids["message"]['proposed_gid']
+            gid = current_ldap_ids["message"]["proposed_gid"]
         else:
-            if gid in current_ldap_ids["message"]['gid_in_use']:
+            if gid in current_ldap_ids["message"]["gid_in_use"]:
                 return errors.all_errors("GID_ALREADY_IN_USE")
         try:
-            conn = ldap.initialize('ldap://' + config.Config.LDAP_HOST)
+            conn = ldap.initialize("ldap://" + config.Config.LDAP_HOST)
             dn_user = "uid=" + user + ",ou=people," + config.Config.LDAP_BASE_DN
-            enc_passwd = bytes(password, 'utf-8')
+            enc_passwd = bytes(password, "utf-8")
             salt = os.urandom(16)
-            sha = hashlib.sha1(enc_passwd) # nosec
+            sha = hashlib.sha1(enc_passwd)  # nosec
             sha.update(salt)
             digest = sha.digest()
             b64_envelop = encode(digest + salt)
-            passwd = '{{SSHA}}{}'.format(b64_envelop.decode('utf-8'))
+            passwd = "{{SSHA}}{}".format(b64_envelop.decode("utf-8"))
             attrs = [
-                    ('objectClass', ['top'.encode('utf-8'),
-                                     'person'.encode('utf-8'),
-                                     'posixAccount'.encode('utf-8'),
-                                     'shadowAccount'.encode('utf-8'),
-                                     'inetOrgPerson'.encode('utf-8'),
-                                     'organizationalPerson'.encode('utf-8')]),
-                    ('uid', [str(user).encode('utf-8')]),
-                    ('uidNumber', [str(uid).encode('utf-8')]),
-                    ('gidNumber', [str(gid).encode('utf-8')]),
-                    ('mail', [email.encode('utf-8')]),
-                    ('cn', [str(user).encode('utf-8')]),
-                    ('sn', [str(user).encode('utf-8')]),
-                    ('loginShell', [str(shell).encode('utf-8')]),
-                    ('homeDirectory', (config.Config.USER_HOME + '/' + str(user)).encode('utf-8')),
-                    ('userPassword', [passwd.encode('utf-8')])
-                ]
+                (
+                    "objectClass",
+                    [
+                        "top".encode("utf-8"),
+                        "person".encode("utf-8"),
+                        "posixAccount".encode("utf-8"),
+                        "shadowAccount".encode("utf-8"),
+                        "inetOrgPerson".encode("utf-8"),
+                        "organizationalPerson".encode("utf-8"),
+                    ],
+                ),
+                ("uid", [str(user).encode("utf-8")]),
+                ("uidNumber", [str(uid).encode("utf-8")]),
+                ("gidNumber", [str(gid).encode("utf-8")]),
+                ("mail", [email.encode("utf-8")]),
+                ("cn", [str(user).encode("utf-8")]),
+                ("sn", [str(user).encode("utf-8")]),
+                ("loginShell", [str(shell).encode("utf-8")]),
+                (
+                    "homeDirectory",
+                    (config.Config.USER_HOME + "/" + str(user)).encode("utf-8"),
+                ),
+                ("userPassword", [passwd.encode("utf-8")]),
+            ]
 
             conn.simple_bind_s(config.Config.ROOT_DN, config.Config.ROOT_PW)
 
             # Create group first to prevent GID issue
-            create_user_group = post(config.Config.FLASK_ENDPOINT + "/api/ldap/group",
-                                     headers={"X-SOCA-TOKEN": config.Config.API_ROOT_KEY},
-                                     data={"group": f"{group}", "gid": gid},
-                                     verify=False) # nosec
+            create_user_group = post(
+                config.Config.FLASK_ENDPOINT + "/api/ldap/group",
+                headers={"X-SOCA-TOKEN": config.Config.API_ROOT_KEY},
+                data={"group": f"{group}", "gid": gid},
+                verify=False,
+            )  # nosec
             if create_user_group.status_code != 200:
-                return errors.all_errors("COULD_NOT_CREATE_GROUP", str(create_user_group.text))
+                return errors.all_errors(
+                    "COULD_NOT_CREATE_GROUP", str(create_user_group.text)
+                )
 
             # Assign user
             conn.add_s(dn_user, attrs)
 
             # Add user to group
-            update_group = put(config.Config.FLASK_ENDPOINT + "/api/ldap/group",
-                               headers={"X-SOCA-TOKEN": config.Config.API_ROOT_KEY},
-                               data={"group": f"{group}",
-                                     "user": user,
-                                     "action": "add"},
-                               verify=False) # nosec
+            update_group = put(
+                config.Config.FLASK_ENDPOINT + "/api/ldap/group",
+                headers={"X-SOCA-TOKEN": config.Config.API_ROOT_KEY},
+                data={"group": f"{group}", "user": user, "action": "add"},
+                verify=False,
+            )  # nosec
             if update_group.status_code != 200:
-                return errors.all_errors("UNABLE_TO_ADD_USER_TO_GROUP", "User/Group created but could not add user to his group")
+                return errors.all_errors(
+                    "UNABLE_TO_ADD_USER_TO_GROUP",
+                    "User/Group created but could not add user to his group",
+                )
 
             # Create home directory
             if create_home(user, group) is False:
-                return errors.all_errors("UNABLE_CREATE_HOME", "User added but unable to create home director")
+                return errors.all_errors(
+                    "UNABLE_CREATE_HOME",
+                    "User added but unable to create home director",
+                )
 
             # Create API Key
             try:
-                get(config.Config.FLASK_ENDPOINT + "/api/user/api_key",
+                get(
+                    config.Config.FLASK_ENDPOINT + "/api/user/api_key",
                     headers={"X-SOCA-TOKEN": config.Config.API_ROOT_KEY},
                     params={"user": user},
-                    verify=False).json()  # nosec
+                    verify=False,
+                ).json()  # nosec
             except Exception as err:
-                logger.error("User created but unable to create API key. SOCA will try to generate it when user log in for the first time " + str(err))
+                logger.error(
+                    "User created but unable to create API key. SOCA will try to generate it when user log in for the first time "
+                    + str(err)
+                )
 
             # Add Sudo permission
             if sudoers == 1:
-                grant_sudo = post(config.Config.FLASK_ENDPOINT + "/api/ldap/sudo",
-                                  headers={"X-SOCA-TOKEN": config.Config.API_ROOT_KEY},
-                                  data={"user": user},
-                                  verify=False # nosec
-                                  )
+                grant_sudo = post(
+                    config.Config.FLASK_ENDPOINT + "/api/ldap/sudo",
+                    headers={"X-SOCA-TOKEN": config.Config.API_ROOT_KEY},
+                    data={"user": user},
+                    verify=False,  # nosec
+                )
                 if grant_sudo.status_code != 200:
-                    return errors.all_errors("UNABLE_TO_GRANT_SUDO", "User added but unable to give admin permissions")
+                    return errors.all_errors(
+                        "UNABLE_TO_GRANT_SUDO",
+                        "User added but unable to give admin permissions",
+                    )
 
             return {"success": True, "message": "Added user"}, 200
 
@@ -335,13 +386,15 @@ class User(Resource):
             description: User deleted but API still active
           400:
             description: Malformed client input
-                """
+        """
         parser = reqparse.RequestParser()
-        parser.add_argument('user', type=str, location='form')
+        parser.add_argument("user", type=str, location="form")
         args = parser.parse_args()
         user = args["user"]
         if user is None:
-            return errors.all_errors("CLIENT_MISSING_PARAMETER", "user (str) parameter is required")
+            return errors.all_errors(
+                "CLIENT_MISSING_PARAMETER", "user (str) parameter is required"
+            )
 
         request_user = request.headers.get("X-SOCA-USER")
         if request_user is None:
@@ -352,12 +405,14 @@ class User(Resource):
 
         ldap_base = config.Config.LDAP_BASE_DN
         try:
-            conn = ldap.initialize('ldap://' + config.Config.LDAP_HOST)
+            conn = ldap.initialize("ldap://" + config.Config.LDAP_HOST)
             conn.simple_bind_s(config.Config.ROOT_DN, config.Config.ROOT_PW)
             group = f"{args['user']}{config.Config.GROUP_NAME_SUFFIX}"
-            entries_to_delete = ["uid=" + user + ",ou=People," + ldap_base,
-                                 "cn=" + group + ",ou=Group," + ldap_base,
-                                 "cn=" + user + ",ou=Sudoers," + ldap_base]
+            entries_to_delete = [
+                "uid=" + user + ",ou=People," + ldap_base,
+                "cn=" + group + ",ou=Group," + ldap_base,
+                "cn=" + user + ",ou=Sudoers," + ldap_base,
+            ]
 
             today = datetime.datetime.utcnow().strftime("%s")
             user_home = config.Config.USER_HOME + "/" + user
@@ -373,15 +428,24 @@ class User(Resource):
                     else:
                         pass
                 except Exception as err:
-                    return {"success": False, "message": "Unknown error: " + str(err)}, 500
+                    return {
+                        "success": False,
+                        "message": "Unknown error: " + str(err),
+                    }, 500
 
-            invalidate_api_key = delete(config.Config.FLASK_ENDPOINT + "/api/user/api_key",
-                                        headers={"X-SOCA-TOKEN": config.Config.API_ROOT_KEY},
-                                        data={"user": user},
-                                        verify=False)  # nosec
+            invalidate_api_key = delete(
+                config.Config.FLASK_ENDPOINT + "/api/user/api_key",
+                headers={"X-SOCA-TOKEN": config.Config.API_ROOT_KEY},
+                data={"user": user},
+                verify=False,
+            )  # nosec
 
             if invalidate_api_key.status_code != 200:
-                return errors.all_errors("API_KEY_NOT_DELETED", "User deleted but unable to deactivate API key. " + str(invalidate_api_key))
+                return errors.all_errors(
+                    "API_KEY_NOT_DELETED",
+                    "User deleted but unable to deactivate API key. "
+                    + str(invalidate_api_key),
+                )
 
             return {"success": True, "message": "Deleted user."}, 200
 

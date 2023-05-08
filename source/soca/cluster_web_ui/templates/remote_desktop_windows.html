@@ -72,12 +72,12 @@
                                                             {% else %}
                                                                 &nbsp;<button class="btn btn-secondary btn-sm" data-toggle="modal" data-target="#stop{{ n }}">Stop</button>
                                                                 {% endif %}
-                                                          &nbsp;<button class="btn btn-danger btn-sm" data-toggle="modal" data-target="#terminate{{ n }}">Kill</button>
+                                                          &nbsp;<button class="btn btn-danger btn-sm" data-toggle="modal" data-target="#terminate{{ n }}">Delete Session</button>
                                                       </div>
                                                   {% elif session_data.session_state == 'stopped' %}
-                                                      <div class="float-right"><button class="btn btn-secondary btn-sm" data-toggle="modal" data-target="#schedule{{ n }}">Schedule</button>&nbsp;<button class="btn btn-secondary btn-sm" data-toggle="modal" data-target="#resize{{ n }}">Change Hardware</button>&nbsp;<button class="btn btn-danger btn-sm" data-toggle="modal" data-target="#terminate{{ n }}">Kill</button></div>
+                                                      <div class="float-right"><button class="btn btn-secondary btn-sm" data-toggle="modal" data-target="#schedule{{ n }}">Schedule</button>&nbsp;<button class="btn btn-secondary btn-sm" data-toggle="modal" data-target="#resize{{ n }}">Change Hardware</button>&nbsp;<button class="btn btn-danger btn-sm" data-toggle="modal" data-target="#terminate{{ n }}">Delete Session</button></div>
                                                   {% elif session_data.session_state == 'pending' %}
-                                                      <div class="float-right"><button class="btn btn-danger btn-sm" data-toggle="modal" data-target="#terminate{{ n }}">Kill</button></div>
+                                                      <div class="float-right"><button class="btn btn-danger btn-sm" data-toggle="modal" data-target="#terminate{{ n }}">Delete Session</button></div>
                                                   {% endif %}
                                               </h6>
                                           </div>
@@ -275,10 +275,10 @@
                                           {% elif session_data.session_state == 'running' %}
                                               <h6>Option1: Browser access</h6>
                                               {% if auth_provider == 'openldap' %}
-                                                <a target="_blank" href="{{ session_data.url }}?authToken={{ session_data.session_authentication_token }}#{{ session_data.session_id }}" class="btn btn-success btn-icon-split">
+                                                <a target="_blank" rel="noopener,noreferrer" href="{{ session_data.url }}?authToken={{ session_data.session_authentication_token }}#{{ session_data.session_id }}" class="btn btn-success btn-icon-split">
                                               {% else %}
                                                   <!-- ad -->
-                                                  <a target="_blank" href="{{ session_data.url }}?username={{ netbios }}\{{ user }}#{{ session_data.session_id }}" class="btn btn-success btn-icon-split">
+                                                  <a target="_blank" rel="noopener,noreferrer" href="{{ session_data.url }}?username={{ netbios }}\{{ user }}#{{ session_data.session_id }}" class="btn btn-success btn-icon-split">
                                               {% endif %}
                                                   <span class="icon text-white-50">
                                                       <i class="fas fa-check"></i>
@@ -288,9 +288,9 @@
                                               <br><br>
                                               <h6>Option2: Use Native Application (best performance)</h6>
                                               <div class="alert alert-primary" role="alert">
-                                                  Download your client <strong><a href="https://download.nice-dcv.com/" target="_blank"> here</a></strong>
+                                                  Download your client <strong><a href="https://download.nice-dcv.com/" target="_blank" rel="noopener,noreferrer"> here</a></strong>
                                               </div>
-                                              <a target="_blank" href="/remote_desktop_windows/client?session={{ n }}" class="btn btn-success btn-icon-split">
+                                              <a target="_blank" rel="noopener,noreferrer" href="/remote_desktop_windows/client?session={{ n }}" class="btn btn-success btn-icon-split">
                                                 <span class="icon text-white-50">
                                                   <i class="fas fa-check"></i>
                                                 </span>
@@ -334,7 +334,7 @@
                                                   <div class="modal-dialog modal-lg" role="document">
                                                       <div class="modal-content">
                                                           <div class="modal-header">
-                                                              <h5 class="modal-title" id="exampleModalLabel">Hibernate session {{ session_data.session_name }} <small><a href="https://docs.aws.amazon.com/AWSEC2/latest/WindowsGuide/Hibernate.html" target="_blank"> Documentation</a> </small></h5>
+                                                              <h5 class="modal-title" id="exampleModalLabel">Hibernate session {{ session_data.session_name }} <small><a href="https://docs.aws.amazon.com/AWSEC2/latest/WindowsGuide/Hibernate.html" target="_blank" rel="noopener,noreferrer"> Documentation</a> </small></h5>
                                                               <button type="button" class="close" data-dismiss="modal" aria-label="Close">
                                                                   <span aria-hidden="true">&times;</span>
                                                               </button>
@@ -483,6 +483,12 @@
                                                    <small id="subnet_id" class="form-text text-muted">Launch your capacity in a specific subnet</small>
                                                </div>
                                           </div>
+                                          Tenancy:
+                                              <select class="form-control" name='tenancy' id="tenancy">
+                                                  <option value="default" selected>default</option>
+                                                  <option value="dedicated">dedicated</option>
+                                              </select>
+                                              <small id="tenancy" class="form-text text-muted">Tenancy defines how EC2 instances are distributed across physical hardware.</small>
                                           <br>
                                       </div>
 

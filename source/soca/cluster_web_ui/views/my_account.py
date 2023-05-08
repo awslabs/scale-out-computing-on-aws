@@ -20,21 +20,25 @@ import string
 import random
 
 logger = logging.getLogger("application")
-my_account = Blueprint('my_account', __name__, template_folder='templates')
+my_account = Blueprint("my_account", __name__, template_folder="templates")
 
 
 @my_account.route("/my_account", methods=["GET"])
 @login_required
 def index():
-    group_name = session['user']
-    get_user_ldap_group = get(config.Config.FLASK_ENDPOINT + "/api/ldap/group",
-                               headers={"X-SOCA-TOKEN": config.Config.API_ROOT_KEY},
-                               params={"group": group_name},
-                              verify=False) # nosec
+    group_name = session["user"]
+    get_user_ldap_group = get(
+        config.Config.FLASK_ENDPOINT + "/api/ldap/group",
+        headers={"X-SOCA-TOKEN": config.Config.API_ROOT_KEY},
+        params={"group": group_name},
+        verify=False,
+    )  # nosec
 
-    get_user_ldap_users = get(config.Config.FLASK_ENDPOINT + "/api/ldap/users",
-                              headers={"X-SOCA-TOKEN": config.Config.API_ROOT_KEY},
-                              verify=False) # nosec
+    get_user_ldap_users = get(
+        config.Config.FLASK_ENDPOINT + "/api/ldap/users",
+        headers={"X-SOCA-TOKEN": config.Config.API_ROOT_KEY},
+        verify=False,
+    )  # nosec
 
     if get_user_ldap_group.status_code == 200:
         group_members = get_user_ldap_group.json()["message"]["members"]
@@ -46,31 +50,33 @@ def index():
     else:
         all_users = []
 
-    return render_template("my_account.html",
-                           user=session["user"],
-                           group_members=group_members,
-                           all_users=all_users)
+    return render_template(
+        "my_account.html",
+        user=session["user"],
+        group_members=group_members,
+        all_users=all_users,
+    )
 
 
-@my_account.route('/manage_group', methods=['POST'])
+@my_account.route("/manage_group", methods=["POST"])
 @login_required
 def manage_group():
-    group_name = session['user']
-    user = request.form.get('user')
-    action = request.form.get('action')
-    update_group = put(config.Config.FLASK_ENDPOINT + "/api/ldap/group",
-                       headers={"X-SOCA-TOKEN": config.Config.API_ROOT_KEY},
-                             data={"group": group_name,
-                                   "user": user,
-                                   "action": action},
-                       verify=False) # nosec
+    group_name = session["user"]
+    user = request.form.get("user")
+    action = request.form.get("action")
+    update_group = put(
+        config.Config.FLASK_ENDPOINT + "/api/ldap/group",
+        headers={"X-SOCA-TOKEN": config.Config.API_ROOT_KEY},
+        data={"group": group_name, "user": user, "action": action},
+        verify=False,
+    )  # nosec
 
     if update_group.status_code == 200:
         flash("Group update successfully", "success")
     else:
-        flash('Unable to update group: ' + update_group.json()["message"], "error")
+        flash("Unable to update group: " + update_group.json()["message"], "error")
 
-    return redirect('/my_account')
+    return redirect("/my_account")
 
 
 @my_account.route("/reset_password", methods=["POST"])
@@ -85,38 +91,66 @@ def reset_key():
         if user is None:
             return redirect("/admin/users")
         elif user == session["user"]:
-            flash("You can not reset your own password using this tool. Please visit 'My Account' section for that", "error")
+            flash(
+                "You can not reset your own password using this tool. Please visit 'My Account' section for that",
+                "error",
+            )
             return redirect("/admin/users")
         else:
-            password = ''.join(random.choice(string.ascii_lowercase + string.ascii_uppercase + string.digits) for i in range(25))
-            change_password = post(config.Config.FLASK_ENDPOINT + '/api/user/reset_password',
-                                       headers={"X-SOCA-TOKEN": session["api_key"],
-                                                "X-SOCA-USER": session["user"]},
-                                       data={"user": user,
-                                             "password": password},
-                                       verify=False) # nosec
+            password = "".join(
+                random.choice(
+                    string.ascii_lowercase + string.ascii_uppercase + string.digits
+                )
+                for i in range(25)
+            )
+            change_password = post(
+                config.Config.FLASK_ENDPOINT + "/api/user/reset_password",
+                headers={
+                    "X-SOCA-TOKEN": session["api_key"],
+                    "X-SOCA-USER": session["user"],
+                },
+                data={"user": user, "password": password},
+                verify=False,
+            )  # nosec
             if change_password.status_code == 200:
-                flash("Password for " + user + " has been changed to " + password + "<hr> User is recommended to change it using 'My Account' section", "success")
+                flash(
+                    "Password for "
+                    + user
+                    + " has been changed to "
+                    + password
+                    + "<hr> User is recommended to change it using 'My Account' section",
+                    "success",
+                )
                 return redirect("/admin/users")
             else:
-                flash("Unable to reset password. Error: " + str(change_password._content), "error")
+                flash(
+                    "Unable to reset password. Error: " + str(change_password._content),
+                    "error",
+                )
                 return redirect("/admin/users")
     else:
         if password is not None:
             # User can change their own password
             if password == password_verif:
-                change_password = post(config.Config.FLASK_ENDPOINT + '/api/user/reset_password',
-                                       headers={"X-SOCA-TOKEN": config.Config.API_ROOT_KEY,
-                                                "X-SOCA-USER": session["user"]},
-                                       data={"user": session["user"],
-                                             "password": password},
-                                       verify=False) # nosec
+                change_password = post(
+                    config.Config.FLASK_ENDPOINT + "/api/user/reset_password",
+                    headers={
+                        "X-SOCA-TOKEN": config.Config.API_ROOT_KEY,
+                        "X-SOCA-USER": session["user"],
+                    },
+                    data={"user": session["user"], "password": password},
+                    verify=False,
+                )  # nosec
 
                 if change_password.status_code == 200:
-                    flash("Your password has been changed succesfully.", "success")
+                    flash("Your password has been changed successfully.", "success")
                     return redirect("/my_account")
                 else:
-                    flash("Unable to reset your password. Error: " +str(change_password._content), "error")
+                    flash(
+                        "Unable to reset your password. Error: "
+                        + str(change_password._content),
+                        "error",
+                    )
                     return redirect("/my_account")
             else:
                 flash("Password does not match", "error")

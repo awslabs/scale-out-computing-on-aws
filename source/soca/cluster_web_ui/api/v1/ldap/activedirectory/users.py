@@ -42,11 +42,20 @@ class Users(Resource):
             conn = ldap.initialize(f"ldap://{config.Config.DOMAIN_NAME}")
             conn.protocol_version = 3
             conn.set_option(ldap.OPT_REFERRALS, 0)
-            conn.simple_bind_s(f"{config.Config.ROOT_USER}@{config.Config.DOMAIN_NAME}", config.Config.ROOT_PW)
-            user_search_base = f"OU=Users,OU={config.Config.NETBIOS},{config.Config.LDAP_BASE}"
+            conn.simple_bind_s(
+                f"{config.Config.ROOT_USER}@{config.Config.DOMAIN_NAME}",
+                config.Config.ROOT_PW,
+            )
+            user_search_base = (
+                f"OU=Users,OU={config.Config.NETBIOS},{config.Config.LDAP_BASE}"
+            )
             filter_criteria = f"(objectClass=person)"
-            logger.info(f"Checking all AD users with search filter {filter_criteria} and base {user_search_base}")
-            for dn, entry in conn.search_s(user_search_base, ldap.SCOPE_SUBTREE, filter_criteria, ["cn"]):
+            logger.info(
+                f"Checking all AD users with search filter {filter_criteria} and base {user_search_base}"
+            )
+            for dn, entry in conn.search_s(
+                user_search_base, ldap.SCOPE_SUBTREE, filter_criteria, ["cn"]
+            ):
                 all_ldap_users[entry["cn"][0].decode("utf-8")] = str(dn)
             logger.info(f"all ldap users {all_ldap_users}")
             return {"success": True, "message": all_ldap_users}, 200

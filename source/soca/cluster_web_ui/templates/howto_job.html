@@ -125,7 +125,7 @@ Placement group is automatically enabled if simulation is running on > 1 host (u
 <hr>
 <h4>Specify an EC2 Instance Type (optional)</h4>
 Scale-Out Computing on AWS supports all type of EC2 instance. If you don't specify it, job will use a default type which may not be optimal (eg: simulation is memory intensive but default EC2 is compute optimized)
-If you are not familiar with EC2 instances, take some time to review  <a href="https://aws.amazon.com/ec2/instance-types/" target="_blank">https://aws.amazon.com/ec2/instance-types/</a><br>
+If you are not familiar with EC2 instances, take some time to review  <a href="https://aws.amazon.com/ec2/instance-types/" target="_blank" rel="noopener,noreferrer">https://aws.amazon.com/ec2/instance-types/</a><br>
 If you want to force utilization of a specific instance type (and not use the default one), simply change the line and modify instance_type value<br>
                                   <code class="language-bash">#PBS -l [existing_parameters...],instance_type=**instance_type_value**</code>
                                   <hr>

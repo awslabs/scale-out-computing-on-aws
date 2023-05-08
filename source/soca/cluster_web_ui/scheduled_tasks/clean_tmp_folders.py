@@ -14,7 +14,9 @@
 import os
 import glob
 import logging
+
 logger = logging.getLogger("api_log")
+
 
 def clean_tmp_folders():
     directories = ["tmp/zip_downloads/*", "tmp/ssh/*"]

@@ -15,81 +15,105 @@ import os
 import json
 import sys
 import boto3
+
 sys.path.append(os.path.dirname(__file__))
 from botocore import config as botocore_config
+from opensearchpy import OpenSearch, RequestsHttpConnection
+from opensearchpy.exceptions import NotFoundError as NotFoundError
 from elasticsearch import Elasticsearch, RequestsHttpConnection
 from requests_aws4auth import AWS4Auth
 import datetime
 
+
 def boto_extra_config():
-    aws_solution_user_agent = {"user_agent_extra": "AwsSolution/SO0072/2.7.2"}
+    aws_solution_user_agent = {"user_agent_extra": "AwsSolution/SO0072/2.7.4"}
     return botocore_config.Config(**aws_solution_user_agent)
 
 
 def get_soca_configuration():
-    secretsmanager_client = boto3.client('secretsmanager',config=boto_extra_config())
-    configuration_secret_name = os.environ['SOCA_CONFIGURATION']
-    response = secretsmanager_client.get_secret_value(SecretId=configuration_secret_name)
-    return json.loads(response['SecretString'])
+    secretsmanager_client = boto3.client("secretsmanager", config=boto_extra_config())
+    configuration_secret_name = os.environ["SOCA_CONFIGURATION"]
+    response = secretsmanager_client.get_secret_value(
+        SecretId=configuration_secret_name
+    )
+    return json.loads(response["SecretString"])
 
 
 def retrieve_desktops(cluster_id):
     desktop_information = {}
-    try:
-        token = True
-        next_token = ''
-        while token is True:
-            response = ec2_client.describe_instances(
-                Filters=[
-                    {
-                        'Name': 'instance-state-name',
-                        'Values': ['pending', 'running', 'shutting-down', 'stopping', 'stopped']
-                    },
-                    {
-                        'Name': 'tag:soca:NodeType',
-                        'Values': ['dcv']
-                    },
-                    {
-                        'Name': 'tag:soca:ClusterId',
-                        'Values': [cluster_id]
-                    },
+
+    ec2_paginator = ec2_client.get_paginator("describe_instances")
+    ec2_iterator = ec2_paginator.paginate(
+        Filters=[
+            {
+                "Name": "instance-state-name",
+                "Values": [
+                    "pending",
+                    "running",
+                    "shutting-down",
+                    "stopping",
+                    "stopped",
                 ],
-                MaxResults=1000,
-                NextToken=next_token,
-            )
+            },
+            {"Name": "tag:soca:NodeType", "Values": ["dcv"]},
+            {"Name": "tag:soca:ClusterId", "Values": [cluster_id]},
+        ],
+    )
 
-            try:
-                next_token = response['NextToken']
-            except KeyError:
-                token = False
+    for page in ec2_iterator:
+        for reservation in page["Reservations"]:
+            for instance in reservation["Instances"]:
+                desktop_information[instance["InstanceId"]] = {}
+                desktop_information[instance["InstanceId"]][
+                    "soca_cluster_id"
+                ] = cluster_id
+                desktop_information[instance["InstanceId"]][
+                    "desktop_uuid"
+                ] = f"{instance['InstanceId']}_{cluster_id}"
+                desktop_information[instance["InstanceId"]][
+                    "timestamp"
+                ] = datetime.datetime.now().isoformat()
 
-            for reservation in response['Reservations']:
-                for instance in reservation['Instances']:
-                    desktop_information[instance['InstanceId']] = {}
-                    desktop_information[instance['InstanceId']]["soca_cluster_id"] = cluster_id
-                    desktop_information[instance['InstanceId']]["desktop_uuid"] = f"{instance['InstanceId']}_{cluster_id}"
-                    desktop_information[instance['InstanceId']]["timestamp"] = datetime.datetime.now().isoformat()
+                # Add all tags as top level value
+                for tag in instance["Tags"]:
+                    desktop_information[instance["InstanceId"]][tag["Key"]] = tag[
+                        "Value"
+                    ]
 
-                    # Add all tags as top level value
-                    for tag in instance['Tags']:
-                        desktop_information[instance['InstanceId']][tag['Key']] = tag['Value']
-
-                    # Add all desktop info to ElasticSearch
-                    # https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/ec2.html#EC2.Client.describe_instances
-                    for k, v in instance.items():
-                        if k != "Tags":
-                            desktop_information[instance['InstanceId']][k] = v
-
-    except Exception as err:
-        exc_type, exc_obj, exc_tb = sys.exc_info()
-        fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
-        print(f"Unable to retrieve desktop information due to {exc_type} {fname} {exc_tb.tb_lineno} {err}")
+                # Add all desktop info to Analytics
+                # https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/ec2.html#EC2.Client.describe_instances
+                for k, v in instance.items():
+                    if k != "Tags":
+                        desktop_information[instance["InstanceId"]][k] = v
 
     return desktop_information
 
+def build_client(engine):
+    try:
+        if engine == 'opensearch':
+            return OpenSearch(
+                [os_endpoint],
+                http_auth=awsauth,
+                use_ssl=True,
+                verify_certs=True,
+                ssl_assert_hostname=False,
+                ssl_show_warn=False,
+                connection_class=RequestsHttpConnection,
+            )
+        else:
+            return Elasticsearch([os_endpoint],
+                               port=443,
+                               http_auth=awsauth,
+                               use_ssl=True,
+                               verify_certs=True,
+                               connection_class=RequestsHttpConnection)
+
+    except Exception as err:
+        print(f"Unable to establish connection to  {os_endpoint} due to {err}")
+        sys.exit(1)
 
 if __name__ == "__main__":
-    ec2_client = boto3.client('ec2', config=boto_extra_config())
+    ec2_client = boto3.client("ec2", config=boto_extra_config())
     try:
         soca_configuration = get_soca_configuration()
     except Exception as err:
@@ -97,29 +121,34 @@ if __name__ == "__main__":
         sys.exit(1)
     session = boto3.Session()
     credentials = session.get_credentials()
-    awsauth = AWS4Auth(credentials.access_key, credentials.secret_key, session.region_name, 'es', session_token=credentials.token)
-    es_endpoint = 'https://' + soca_configuration['ESDomainEndpoint']
-    es_index_name = "soca_desktops"
-    cluster_id = os.environ.get('SOCA_CONFIGURATION', None)
+    awsauth = AWS4Auth(
+        credentials.access_key,
+        credentials.secret_key,
+        session.region_name,
+        "es",
+        session_token=credentials.token,
+    )
+    os_endpoint = "https://" + soca_configuration["OSDomainEndpoint"]
+    os_index_name = "soca_desktops"
+    cluster_id = os.environ.get("SOCA_CONFIGURATION", None)
     if cluster_id is None:
-        print("SOCA_CONFIGURATION environment variable not found. Make sure to source /etc/environment before executing this script")
+        print(
+            "SOCA_CONFIGURATION environment variable not found. Make sure to source /etc/environment before executing this script"
+        )
         sys.exit(1)
 
-    try:
-        es = Elasticsearch([es_endpoint], port=443, http_auth=awsauth, use_ssl=True, verify_certs=True, connection_class=RequestsHttpConnection)
-    except Exception as err:
-        print(f"Unable to establish connection to  {es_endpoint} due to {err}")
-        sys.exit(1)
+    os_client = build_client(soca_configuration['AnalyticsEngine'])
     current_desktops = retrieve_desktops(cluster_id)
+
     if len(current_desktops) > 0:
         for desktop_data in current_desktops.values():
             try:
-                doc_type = "item"
-                add = es.index(index=es_index_name, doc_type=doc_type, body=desktop_data)
-                if add['result'] != 'created':
+                add = os_client.index(index=os_index_name, body=desktop_data)
+                if add["result"] != "created":
                     print(f"Unable to index {desktop_data} due to {add}")
 
             except Exception as err:
                 exc_type, exc_obj, exc_tb = sys.exc_info()
-                fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
-                print(f"Error trying to add a new record to elasticsearch {desktop_data} due to {exc_type} {fname} {exc_tb.tb_lineno} with error {err}")
+                print(
+                    f"Error trying to add a new record to elasticsearch {desktop_data} due to {exc_type}  {exc_tb.tb_lineno} with error {err}"
+                )

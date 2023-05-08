@@ -44,6 +44,9 @@ SERVER_HOSTNAME=$(hostname)
 SERVER_HOSTNAME_ALT=$(echo $SERVER_HOSTNAME | cut -d. -f1)
 echo $SERVER_IP $SERVER_HOSTNAME $SERVER_HOSTNAME_ALT >> /etc/hosts
 
+# Number of CPUs on the host (for compiles)
+NCPU=$(nproc)
+
 # Install System required libraries / EPEL
 if [[ $SOCA_BASE_OS == "rhel7" ]]; then
   # RHEL7
@@ -61,7 +64,7 @@ elif [[ $SOCA_BASE_OS == "centos7" ]]; then
 else
   # AL2
   amazon-linux-extras install -y epel
-  yum update --security
+  yum update --security -y
   yum install -y $(echo ${SYSTEM_PKGS[*]} ${SCHEDULER_PKGS[*]})
 fi
 yum install -y $(echo ${OPENLDAP_SERVER_PKGS[*]} ${SSSD_PKGS[*]})
@@ -74,7 +77,7 @@ if [[ "$FS_DATA_PROVIDER" == "fsx_lustre" ]] || [[ "$FS_APPS_PROVIDER" == "fsx_l
     if [[ -z "$(rpm -qa lustre-client)" ]]; then
         # Install FSx for Lustre Client
         if [[ "$SOCA_BASE_OS" == "amazonlinux2" ]]; then
-            amazon-linux-extras install -y lustre2.10
+            amazon-linux-extras install -y lustre
         else
             kernel=$(uname -r)
             machine=$(uname -m)
@@ -153,8 +156,8 @@ fi
 PYTHON_INSTALLED_VERS=$(/apps/soca/$SOCA_CONFIGURATION/python/latest/bin/python3 --version | awk {'print $NF'})
 if [[ "$PYTHON_INSTALLED_VERS" != "$PYTHON_VERSION" ]]; then
     echo "Python not detected, installing"
-    mkdir -p /apps/soca/$SOCA_CONFIGURATION/python/installer
-    cd /apps/soca/$SOCA_CONFIGURATION/python/installer
+    mkdir -p /root/soca/$SOCA_CONFIGURATION/python/installer
+    cd /root/soca/$SOCA_CONFIGURATION/python/installer
     wget $PYTHON_URL
     if [[ $(md5sum $PYTHON_TGZ | awk '{print $1}') != $PYTHON_HASH ]];  then
         echo -e "FATAL ERROR: Checksum for Python failed. File may be compromised." > /etc/motd
@@ -163,7 +166,7 @@ if [[ "$PYTHON_INSTALLED_VERS" != "$PYTHON_VERSION" ]]; then
     tar xvf $PYTHON_TGZ
     cd Python-$PYTHON_VERSION
     ./configure LDFLAGS="-L/usr/lib64/openssl" CPPFLAGS="-I/usr/include/openssl" -enable-loadable-sqlite-extensions --prefix=/apps/soca/$SOCA_CONFIGURATION/python/$PYTHON_VERSION
-    make
+    make -j ${NCPU}
     make install
     ln -sf /apps/soca/$SOCA_CONFIGURATION/python/$PYTHON_VERSION /apps/soca/$SOCA_CONFIGURATION/python/latest
 else
@@ -185,8 +188,8 @@ if [[ "$OPENPBS_INSTALLED_VERS" != "$OPENPBS_VERSION" ]]; then
     cd openpbs-$OPENPBS_VERSION
     ./autogen.sh
     ./configure --prefix=/opt/pbs
-    make -j6
-    make install -j6
+    make -j ${NCPU}
+    make install -j ${NCPU}
     /opt/pbs/libexec/pbs_postinstall
     chmod 4755 /opt/pbs/sbin/pbs_iff /opt/pbs/sbin/pbs_rcp
 else
@@ -250,7 +253,7 @@ systemctl start pbs
 /opt/pbs/bin/qmgr -c "set node $SERVER_HOSTNAME_ALT queue = workq"
 /opt/pbs/bin/qmgr -c "set server flatuid=true"
 /opt/pbs/bin/qmgr -c "set server job_history_enable=1"
-/opt/pbs/bin/qmgr -c "set server job_history_duration = 01:00:00"
+/opt/pbs/bin/qmgr -c "set server job_history_duration = 72:00:00"
 /opt/pbs/bin/qmgr -c "set server scheduler_iteration = 30"
 /opt/pbs/bin/qmgr -c "set server max_concurrent_provision = 5000"
 
@@ -422,6 +425,8 @@ ldap_uri = ldap://$SERVER_HOSTNAME
 ldap_id_use_start_tls = True
 use_fully_qualified_names = False
 ldap_tls_cacertdir = /etc/openldap/certs/
+ldap_sudo_full_refresh_interval=86400
+ldap_sudo_smart_refresh_interval=3600
 
 [sssd]
 services = nss, pam, autofs, sudo
@@ -434,8 +439,7 @@ homedir_substring = /data/home
 [pam]
 
 [sudo]
-ldap_sudo_full_refresh_interval=86400
-ldap_sudo_smart_refresh_interval=3600
+
 
 [autofs]
 

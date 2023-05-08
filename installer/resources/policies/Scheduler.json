@@ -106,7 +106,8 @@
                 "cloudformation:CreateStack",
                 "cloudformation:DeleteStack",
                 "cloudformation:DescribeStackResources",
-                "cloudformation:DescribeStacks"
+                "cloudformation:DescribeStacks",
+                "cloudfomration:ListStacks"
             ],
             "Resource": "*",
             "Effect": "Allow"

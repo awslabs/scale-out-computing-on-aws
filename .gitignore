@@ -131,3 +131,8 @@ cfg.tmp.json
 
 # Node
 **/node_modules/**
+
+# deployment files
+deployment/global-s3-assets/
+deployment/regional-s3-assets/
+

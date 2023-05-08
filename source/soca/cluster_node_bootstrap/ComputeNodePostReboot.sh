@@ -132,7 +132,7 @@ if [[ "$SOCA_FSX_LUSTRE_BUCKET" != 'false' ]] || [[ "$SOCA_FSX_LUSTRE_DNS" != 'f
     if [[ -z "$(rpm -qa lustre-client)" ]]; then
         # Install FSx for Lustre Client
         if [[ "$SOCA_BASE_OS" == "amazonlinux2" ]]; then
-            sudo amazon-linux-extras install -y lustre2.10
+            sudo amazon-linux-extras install -y lustre
         else
             kernel=$(uname -r)
             machine=$(uname -m)
@@ -180,9 +180,10 @@ if [[ "$SOCA_FSX_LUSTRE_BUCKET" != 'false' ]] || [[ "$SOCA_FSX_LUSTRE_DNS" != 'f
 fi
 
 # Tag EBS disks manually as CFN ASG does not support it
-AWS_AVAIL_ZONE=$(curl --silent http://169.254.169.254/latest/meta-data/placement/availability-zone)
-AWS_REGION=$(echo "$AWS_AVAIL_ZONE" | sed "s/[a-z]$//")
-AWS_INSTANCE_ID=$(curl --silent http://169.254.169.254/latest/meta-data/instance-id)
+IMDS_TOKEN=$(curl -X PUT "http://169.254.169.254/latest/api/token" -H "X-aws-ec2-metadata-token-ttl-seconds: 21600")
+AWS_AVAIL_ZONE=$(curl -H "X-aws-ec2-metadata-token: $IMDS_TOKEN" --silent http://169.254.169.254/latest/meta-data/placement/availability-zone)
+AWS_INSTANCE_ID=$(curl -H "X-aws-ec2-metadata-token: $IMDS_TOKEN" --silent http://169.254.169.254/latest/meta-data/instance-id)
+AWS_REGION=$(curl -H "X-aws-ec2-metadata-token: $IMDS_TOKEN" --silent http://169.254.169.254/latest/meta-data/placement/region)
 EBS_IDS=$(aws ec2 describe-volumes --filters Name=attachment.instance-id,Values="$AWS_INSTANCE_ID" --region $AWS_REGION --query "Volumes[*].[VolumeId]" --out text | tr "\n" " ")
 LOOP_EBS_TAG=0
 $AWS ec2 create-tags --resources $EBS_IDS --region $AWS_REGION --tags Key=Name,Value="EBS for $SOCA_JOB_ID" Key=soca:JobOwner,Value="$SOCA_JOB_OWNER" Key=soca:JobProject,Value="$SOCA_JOB_PROJECT" Key=Name,Value="soca-job-$SOCA_JOB_ID"  Key=soca:JobId,Value="$SOCA_JOB_ID" Key=soca:JobQueue,Value="$SOCA_JOB_QUEUE" Key=soca:ClusterId,Value="$SOCA_CONFIGURATION"

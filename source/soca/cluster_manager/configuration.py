@@ -16,23 +16,27 @@ import os
 import json
 from botocore import config as botocore_config
 
+
 def boto_extra_config():
-    aws_solution_user_agent = {"user_agent_extra": "AwsSolution/SO0072/2.7.2"}
+    aws_solution_user_agent = {"user_agent_extra": "AwsSolution/SO0072/2.7.4"}
     return botocore_config.Config(**aws_solution_user_agent)
 
+
 def get_soca_configuration():
-    '''
+    """
     Return general configuration parameter
-    '''
-    secretsmanager_client = boto3.client('secretsmanager', config=boto_extra_config())
-    configuration_secret_name = os.environ['SOCA_CONFIGURATION']
-    response = secretsmanager_client.get_secret_value(SecretId=configuration_secret_name)
-    return json.loads(response['SecretString'], strict=False)
+    """
+    secretsmanager_client = boto3.client("secretsmanager", config=boto_extra_config())
+    configuration_secret_name = os.environ["SOCA_CONFIGURATION"]
+    response = secretsmanager_client.get_secret_value(
+        SecretId=configuration_secret_name
+    )
+    return json.loads(response["SecretString"], strict=False)
 
 
 def return_desktop_queues():
-    '''
+    """
     List of queued dedicated to DCV.
-    These queues does not have any compute_node mapping and multiple PBS jobs can land on the same harwdware
-    '''
-    return ['desktop']
+    These queues do not have any compute_node mapping and multiple PBS jobs can land on the same hardware
+    """
+    return ["desktop"]

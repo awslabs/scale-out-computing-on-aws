@@ -6,8 +6,9 @@ AD Password Reset can be integrated via python-ldap if the customer deploy LdapS
 
 import boto3
 
+
 def lambda_handler(event, context):
-    directory_service = boto3.client('ds')
+    directory_service = boto3.client("ds")
     required_params = ["DirectoryServiceId", "Username", "Password"]
     data = {}
     for param in required_params:
@@ -22,7 +23,11 @@ def lambda_handler(event, context):
     if username.lower() in new_password.lower():
         return "PasswordCannotContainsUsername"
     try:
-        pw_reset_request = directory_service.reset_user_password(DirectoryId=directory_service_id, UserName=username, NewPassword=new_password)
+        pw_reset_request = directory_service.reset_user_password(
+            DirectoryId=directory_service_id,
+            UserName=username,
+            NewPassword=new_password,
+        )
         return "Success"
     except directory_service.exceptions.InvalidPasswordException:
         return "InvalidPasswordException"

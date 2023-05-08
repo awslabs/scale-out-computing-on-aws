@@ -42,13 +42,13 @@ class Users(Resource):
         all_ldap_users = {}
         user_search_base = "ou=People," + base_dn
         user_search_scope = ldap.SCOPE_SUBTREE
-        user_filter = 'uid=*'
+        user_filter = "uid=*"
         try:
-            con = ldap.initialize('ldap://{}'.format(ldap_host))
+            con = ldap.initialize(f"ldap://{ldap_host}")
             users = con.search_s(user_search_base, user_search_scope, user_filter)
             for user in users:
                 user_base = user[0]
-                username = user[1]['uid'][0].decode('utf-8')
+                username = user[1]["uid"][0].decode("utf-8")
                 all_ldap_users[username] = user_base
 
             return {"success": True, "message": all_ldap_users}, 200

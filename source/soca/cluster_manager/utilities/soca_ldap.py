@@ -29,11 +29,14 @@ import argparse
 import os
 import sys
 import uuid
+
 try:
     import ldap
     from ldif import LDIFWriter, LDIFParser
 except ImportError:
-    print(f"Unable to import ldap/ldif. Make sure to use SOCA python (/apps/soca/<YOUR_CLUSTER_ID>/python/latest/bin/python3 and not system python")
+    print(
+        f"Unable to import ldap/ldif. Make sure to use SOCA python (/apps/soca/<YOUR_CLUSTER_ID>/python/latest/bin/python3 and not system python"
+    )
     exit(1)
 sys.path.append(os.path.dirname(__file__))
 
@@ -57,7 +60,9 @@ def ldap_export():
     except Exception as err:
         exc_type, exc_obj, exc_tb = sys.exc_info()
         fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
-        print(f"Unable to export LDAP environment due to {err}. {exc_type}, {fname}, {exc_tb.tb_lineno}")
+        print(
+            f"Unable to export LDAP environment due to {err}. {exc_type}, {fname}, {exc_tb.tb_lineno}"
+        )
         sys.exit(1)
 
 
@@ -87,21 +92,31 @@ def ldap_import(ldif_file):
         print(f"Unable to locate {ldif_file}. Make sure the path is correct")
         sys.exit(1)
     except ValueError as err:
-        print(f"Unable to read ldif. Make sure the LDIF was created with this utility. Error {err}")
+        print(
+            f"Unable to read ldif. Make sure the LDIF was created with this utility. Error {err}"
+        )
         sys.exit(1)
 
     except Exception as err:
         exc_type, exc_obj, exc_tb = sys.exc_info()
         fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
-        print(f"Unable to import LDAP environment due to {err}. {exc_type}, {fname}, {exc_tb.tb_lineno}")
+        print(
+            f"Unable to import LDAP environment due to {err}. {exc_type}, {fname}, {exc_tb.tb_lineno}"
+        )
         sys.exit(1)
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument('--action', nargs='?', required=True, choices=["import", "export"], help="Choose whether you want to export or import LDIF")
-    parser.add_argument('--base-dn', nargs='?', help="The LDAP Base")
-    parser.add_argument('--ldif', nargs='?', help="Path to LDIF file to import")
+    parser.add_argument(
+        "--action",
+        nargs="?",
+        required=True,
+        choices=["import", "export"],
+        help="Choose whether you want to export or import LDIF",
+    )
+    parser.add_argument("--base-dn", nargs="?", help="The LDAP Base")
+    parser.add_argument("--ldif", nargs="?", help="Path to LDIF file to import")
 
     args = parser.parse_args()
     ldap_host = "127.0.0.1"
@@ -145,5 +160,3 @@ if __name__ == "__main__":
             print("--ldif is required during import. Specify a LDIF file to import")
             sys.exit(1)
         ldap_import(args.ldif)
-
-

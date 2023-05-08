@@ -15,6 +15,24 @@
 set -x
 
 source /etc/environment
+
+#
+# Read in our bootstrap helper scripts
+#
+if [[ -n ${SOCA_CONFIGURATION} ]]; then
+    if [[ -d "/apps/soca/${SOCA_CONFIGURATION}/cluster_node_bootstrap/bootstrap.d" ]]; then
+      for i in /apps/soca/"${SOCA_CONFIGURATION}"/cluster_node_bootstrap/bootstrap.d/*.sh ; do
+        if [ -r "$i" ]; then
+            if [ "${-#*i}" != "$-" ]; then
+                . "$i"
+            else
+                . "$i" >/dev/null
+            fi
+        fi
+      done
+    fi
+fi
+
 source /root/config.cfg
 
 if [[ $# -lt 1 ]]; then
@@ -47,10 +65,6 @@ if [[ ! -f /root/soca_preinstalled_packages.log ]]; then
     # Install System required libraries / EPEL
     if [[ $SOCA_BASE_OS == "rhel7" ]]; then
       curl "$EPEL_URL" -o $EPEL_RPM
-      if [[ $(md5sum "$EPEL_RPM" | awk '{print $1}') != "$EPEL_HASH" ]];  then
-          echo -e "FATAL ERROR: Checksum for EPEL failed. File may be compromised." > /etc/motd
-          exit 1
-      fi
       yum -y install $EPEL_RPM
       yum install -y $(echo ${SYSTEM_PKGS[*]} ${SCHEDULER_PKGS[*]}) --enablerepo rhel-7-server-rhui-optional-rpms
     elif [[ $SOCA_BASE_OS == "centos7" ]]; then
@@ -62,6 +76,12 @@ if [[ ! -f /root/soca_preinstalled_packages.log ]]; then
       yum install -y $(echo ${SYSTEM_PKGS[*]} ${SCHEDULER_PKGS[*]})
     fi
     yum install -y $(echo ${OPENLDAP_SERVER_PKGS[*]} ${SSSD_PKGS[*]})
+fi
+
+# Check if the yum updates above installed a new kernel version
+REQUIRE_REBOOT=0
+if [[ $(rpm -qa kernel | wc -l) -gt 1 ]]; then
+    REQUIRE_REBOOT=1
 fi
 
 # Configure Scratch Directory if specified by the user
@@ -155,9 +175,6 @@ fi
 # Edit path with new scheduler/python locations
 echo "export PATH=\"/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin:/opt/pbs/bin:/opt/pbs/sbin:/opt/pbs/bin:/apps/soca/$SOCA_CONFIGURATION/python/latest/bin\"" >> /etc/environment
 
-# Disable SELINUX
-sed -i 's/SELINUX=enforcing/SELINUX=disabled/g' /etc/selinux/config
-
 # Configure Host
 SERVER_IP=$(hostname -I)
 SERVER_HOSTNAME=$(hostname)
@@ -201,6 +218,8 @@ ldap_uri = ldap://$SCHEDULER_HOSTNAME
 ldap_id_use_start_tls = True
 use_fully_qualified_names = False
 ldap_tls_cacertdir = /etc/openldap/cacerts
+ldap_sudo_full_refresh_interval=86400
+ldap_sudo_smart_refresh_interval=3600
 
 [sssd]
 services = nss, pam, autofs, sudo
@@ -213,8 +232,6 @@ homedir_substring = /data/home
 [pam]
 
 [sudo]
-ldap_sudo_full_refresh_interval=86400
-ldap_sudo_smart_refresh_interval=3600
 
 [autofs]
 
@@ -319,7 +336,10 @@ systemctl restart sssd
 echo "sudoers: files sss" >> /etc/nsswitch.conf
 
 # Disable SELINUX & firewalld
-sed -i 's/SELINUX=enforcing/SELINUX=disabled/g' /etc/selinux/config
+if [[ -z $(grep SELINUX=disabled /etc/selinux/config) ]]; then
+    sed -i 's/SELINUX=enforcing/SELINUX=disabled/g' /etc/selinux/config
+    REQUIRE_REBOOT=1
+fi
 systemctl stop firewalld
 systemctl disable firewalld
 
@@ -336,6 +356,7 @@ PBS_START_SCHED=0
 PBS_START_COMM=0
 PBS_START_MOM=1
 PBS_EXEC=/opt/pbs
+PBS_LEAF_NAME=$SERVER_HOSTNAME
 PBS_HOME=/var/spool/pbs
 PBS_CORE_LIMIT=unlimited
 PBS_SCP=/usr/bin/scp
@@ -348,7 +369,8 @@ echo -e "
 \$usecp *:/data /data
 "  > /var/spool/pbs/mom_priv/config
 
-INSTANCE_FAMILY=`curl --silent  http://169.254.169.254/latest/meta-data/instance-type | cut -d. -f1`
+IMDS_TOKEN=$(curl -X PUT "http://169.254.169.254/latest/api/token" -H "X-aws-ec2-metadata-token-ttl-seconds: 21600")
+INSTANCE_FAMILY=$(curl -H "X-aws-ec2-metadata-token: $IMDS_TOKEN" --silent http://169.254.169.254/latest/meta-data/instance-type | cut -d. -f1)
 
 # If GPU instance, disable NOUVEAU drivers before installing DCV as this require a reboot
 # Rest of the DCV configuration is managed by ComputeNodeInstallDCV.sh
@@ -405,7 +427,12 @@ echo -e  "
 " >> /etc/security/limits.conf
 
 
-# Reboot to disable SELINUX
-sudo reboot
+# Reboot to disable SELINUX if needed
+if [[ $REQUIRE_REBOOT -eq 1 ]] || [[ $SOCA_JOB_TYPE == "dcv" ]]; then
+    sudo reboot
+else
+    crontab -r
+    /bin/bash /apps/soca/$SOCA_CONFIGURATION/cluster_node_bootstrap/ComputeNodePostReboot.sh >> $SOCA_HOST_SYSTEM_LOG/ComputeNodePostReboot.log 2>&1
+fi
 
 # Upon reboot, ComputeNodePostReboot will be executed

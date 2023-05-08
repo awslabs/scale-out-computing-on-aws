@@ -25,6 +25,7 @@
                 "cloudformation:DescribeChangeSet",
                 "cloudformation:DescribeStackEvents",
                 "cloudformation:DescribeStacks",
+                "cloudformation:ListStacks",
                 "cloudformation:ExecuteChangeSet",
                 "cloudformation:GetTemplate",
                 "cloudformation:UpdateTerminationProtection",
@@ -198,6 +199,7 @@
                 "s3:PutBucketVersioning",
                 "s3:PutBucketPublicAccessBlock",
                 "s3:PutBucketPolicy",
+                "s3:GetBucketPolicy",
                 "s3:CreateBucket"
             ],
             "Resource": "arn:aws:s3:::cdk*"
@@ -208,16 +210,20 @@
             "Action": [
                 "ecr:CreateRepository",
                 "ecr:DescribeRepositories",
+                "ecr:SetRepositoryPolicy",
                 "ec2:DescribeAccountAttributes",
                 "es:CreateServiceLinkedRole",
                 "ssm:GetParameter",
                 "ssm:GetParameters",
                 "ssm:PutParameter",
                 "ssm:DeleteParameter",
+                "ssm:GetParametersByPath",
                 "iam:CreateRole",
                 "iam:CreateServiceLinkedRole",
                 "iam:GetRole",
-                "iam:PutRolePolicy"
+                "iam:PutRolePolicy",
+                "sts:AssumeRole",
+                "ssm:AddTagsToResource"
             ],
             "Resource": "*"
         }

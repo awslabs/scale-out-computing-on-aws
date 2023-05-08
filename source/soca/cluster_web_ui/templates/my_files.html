@@ -173,9 +173,9 @@
                          <a href="/my_files/download?uid={{ file_data.uid }}&ts={{ timestamp }}"><i data-toggle="tooltip" data-placement="top" title="Download this file" class="fa fa-file-download fa-lg"  style="color: grey"></i></a>
                          <a href="/submit_job?input_file={{ file_data.uid }}&ts={{ timestamp }}"><i data-toggle="tooltip" data-placement="top" title="Use as simulation input" class="fas fa-microchip fa-lg"  style="color: grey"></i></a>
                          {% if file_data.st_size_default > max_online_preview %} <!-- Unable to edit file bigger than 150 mb via web -->
-                             <a style="cursor: pointer" target="_blank" data-toggle="modal" data-target="#fileToBig"><i data-toggle="tooltip" data-placement="top" title="View or Edit this file" class="fas fa-edit fa-lg" style="color: grey"></i></a>
+                             <a style="cursor: pointer" target="_blank" rel="noopener,noreferrer" data-toggle="modal" data-target="#fileToBig"><i data-toggle="tooltip" data-placement="top" title="View or Edit this file" class="fas fa-edit fa-lg" style="color: grey"></i></a>
                          {% else %}
-                            <a target="_blank" href="/editor?uid={{ file_data.uid }}&ts={{ timestamp }}"><i data-toggle="tooltip" data-placement="top" title="View or Edit this file" class="fas fa-edit fa-lg" style="color: grey"></i></a>
+                            <a target="_blank" rel="noopener,noreferrer" href="/editor?uid={{ file_data.uid }}&ts={{ timestamp }}"><i data-toggle="tooltip" data-placement="top" title="View or Edit this file" class="fas fa-edit fa-lg" style="color: grey"></i></a>
                          {% endif %}
 
                          <a data-toggle="modal" data-target="#deleteModal{{ loop.index }}"><i data-toggle="tooltip" data-placement="top" title="Delete file" style="cursor: pointer" class="fas fa-trash-alt fa-lg" style="color: grey"></i></a>

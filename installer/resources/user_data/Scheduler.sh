@@ -14,6 +14,48 @@ SOCA_AUTH_PROVIDER="%%SOCA_AUTH_PROVIDER%%"
 SOCA_LDAP_BASE="%%SOCA_LDAP_BASE%%"
 RESET_PASSWORD_DS_LAMBDA="%%RESET_PASSWORD_DS_LAMBDA%%"
 
+
+function imds_get () {
+  local SLASH=''
+  local IMDS_HOST="http://169.254.169.254"
+  local IMDS_TTL="300"
+  # prepend a slash if needed
+  if [[ "${1:0:1}" == '/' ]]; then
+    SLASH=''
+  else
+    SLASH='/'
+  fi
+  local URL="${IMDS_HOST}${SLASH}${1}"
+
+  # Get an Auth token
+  local TOKEN=$(curl --silent -X PUT "${IMDS_HOST}/latest/api/token" -H "X-aws-ec2-metadata-token-ttl-seconds: ${IMDS_TTL}")
+
+  # Get the requested value and echo it back
+  local OUTPUT=$(curl --silent -H "X-aws-ec2-metadata-token: ${TOKEN}" "${URL}")
+  echo -n "${OUTPUT}"
+}
+
+function instance_type () {
+  local INSTANCE_TYPE=$(imds_get /latest/meta-data/instance-type)
+  echo -n "${INSTANCE_TYPE}"
+}
+
+function instance_family () {
+  local INSTANCE_FAMILY=$(imds_get /latest/meta-data/instance-type | cut -d. -f1)
+  echo -n "${INSTANCE_FAMILY}"
+}
+
+function instance_id () {
+  local INSTANCE_ID=$(imds_get /latest/meta-data/instance-id)
+  echo -n "${INSTANCE_ID}"
+}
+
+function instance_region () {
+  local INSTANCE_REGION=$(imds_get /latest/meta-data/placement/region)
+  echo -n "${INSTANCE_REGION}"
+}
+
+
 # Deactivate shell to make sure users won't access the cluster if it's not ready
 echo "
 ************* SOCA FIRST TIME CONFIGURATION *************
@@ -22,11 +64,11 @@ Please wait ~30 minutes as SOCA is being installed.
 Once cluster is ready to use, this message will be replaced automatically and you will be able to SSH.
 *********************************************************" > /etc/nologin
 
-if [[ "$SOCA_BASE_OS" == "amazonlinux2" ]] || [[ "$SOCA_BASE_OS" == "rhel7" ]]; then
+if [[ "$SOCA_BASE_OS" == "amazonlinux2" ]] || [[ "$SOCA_BASE_OS" == "amazonlinux2023" ]] || [[ "$SOCA_BASE_OS" == "rhel7" ]] || [[ "$SOCA_BASE_OS" == "rhel8" ]] || [[ "$SOCA_BASE_OS" == "rhel9" ]]; then
     usermod --shell /usr/sbin/nologin ec2-user
 fi
 
-if [[ "%%BASE_OS%%" == "centos7" ]]; then
+if [[ "%%BASE_OS%%" == "centos7" ]] || [[ "%%BASE_OS%%" == "centos8" ]]; then
     usermod --shell /usr/sbin/nologin centos
 fi
 
@@ -39,7 +81,7 @@ if [[ "$SOCA_BASE_OS" == "centos7" ]] || [[ "$SOCA_BASE_OS" == "rhel7" ]]; then
 fi
 
 # Disable automatic motd update if using ALI
-if [[ "$SOCA_BASE_OS" == "amazonlinux2" ]]; then
+if [[ "$SOCA_BASE_OS" == "amazonlinux2" ]] || [[ "$SOCA_BASE_OS" == "amazonlinux2023" ]]; then
   /usr/sbin/update-motd --disable
   rm /etc/cron.d/update-motd
   rm -f /etc/update-motd.d/*
@@ -63,9 +105,8 @@ source /etc/environment
 AWS=$(command -v aws)
 
 # Tag EBS disks manually as CFN  does not support it
-AWS_AVAIL_ZONE=$(curl http://169.254.169.254/latest/meta-data/placement/availability-zone)
-AWS_REGION="`echo \"$AWS_AVAIL_ZONE\" | sed "s/[a-z]$//"`"
-AWS_INSTANCE_ID=$(curl http://169.254.169.254/latest/meta-data/instance-id)
+AWS_REGION=$(instance_region)
+AWS_INSTANCE_ID=$(instance_id)
 EBS_IDS=$(aws ec2 describe-volumes --filters Name=attachment.instance-id,Values="$AWS_INSTANCE_ID" --region $AWS_REGION --query "Volumes[*].[VolumeId]" --out text | tr "\n" " ")
 $AWS ec2 create-tags --resources $EBS_IDS --region $AWS_REGION --tags Key=Name,Value="$CLUSTER_ID Root Disk" "Key=soca:ClusterId,Value=$CLUSTER_ID"
 

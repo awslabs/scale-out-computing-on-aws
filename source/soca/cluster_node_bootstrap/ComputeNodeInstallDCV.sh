@@ -17,7 +17,8 @@ source /root/config.cfg
 
 DCV_HOST_ALTNAME=$(hostname | cut -d. -f1)
 AWS=$(which aws)
-INSTANCE_FAMILY=`curl --silent  http://169.254.169.254/latest/meta-data/instance-type | cut -d. -f1`
+IMDS_TOKEN=$(curl -X PUT "http://169.254.169.254/latest/api/token" -H "X-aws-ec2-metadata-token-ttl-seconds: 21600")
+INSTANCE_FAMILY=$(curl -H "X-aws-ec2-metadata-token: $IMDS_TOKEN" --silent http://169.254.169.254/latest/meta-data/instance-type | cut -d. -f1)
 echo "Detected Instance family $INSTANCE_FAMILY"
 GPU_INSTANCE_FAMILY=(g3 g4 g4dn)
 
@@ -42,7 +43,9 @@ if [[ "${GPU_INSTANCE_FAMILY[@]}" =~ "${INSTANCE_FAMILY}" ]]; then
   # clean previously installed drivers
   echo "Detected GPU instance .. installing NVIDIA Drivers"
   rm -f /root/NVIDIA-Linux-x86_64*.run
-  $AWS s3 cp --quiet --recursive s3://ec2-linux-nvidia-drivers/latest/ .
+  # Determine the S3 bucket AWS region for the drivers
+  DRIVER_BUCKET_REGION=$(curl -s --head ec2-linux-nvidia-drivers.s3.amazonaws.com | grep bucket-region | awk '{print $2}' | tr -d '\r\n')
+  $AWS --region ${DRIVER_BUCKET_REGION} s3 cp --quiet --recursive s3://ec2-linux-nvidia-drivers/latest/ .
   rm -rf /tmp/.X*
   /bin/sh /root/NVIDIA-Linux-x86_64*.run -q -a -n -X -s
   NVIDIAXCONFIG=$(which nvidia-xconfig)

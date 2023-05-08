@@ -4,11 +4,61 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.7.4] - 2023-05-08
+
+### Features
+- Support for newer AWS EC2 instances since the last release.
+  - HPC family (in supported regions): `hpc6a.48xlarge`, `hpc6id.32xlarge`
+- Updated Region support list with new regions for SOCA deployment
+- Updated all AMIs to point to newer versions
+- Added support for OpenSearch. 
+  - OpenSearch will be the default option in the future release and will replace ElasticSearch
+  - MetricBeat will be sunset once OpenSearch replace ElasticSearch
+- The SOCA head node can now be installed onto an AWS Graviton processors(`arm64`) in regions where available. The `scheduler/instance_type` will have the architecture determined at installation time for selecting the correct AMI.
+- IMDSv2 metadata is now enforced for all EC2 hosts. This setting change be changed on the config file. (contributor: @sebastiangrimberg [#84](https://github.com/awslabs/scale-out-computing-on-aws/pull/84)
+
+### Changed
+- boto3 updated from `1.17.49` to `1.26.61`
+- botocore updated from `1.20.49` to `1.29.61`
+- troposphere requirements are now `>= 4.3.0`. Updated from `2.7.1` to `4.3.2`
+- Python updated from `3.7.9` to `3.9.16`
+- OpenPBS updated from `20.0.1` to `22.05.11`
+- AWS EFA installer updated from `1.13.0` to `1.22.1`
+- OpenMPI updated from `4.1.1` to `4.1.5`
+- NICE DCV framework updated from `2021.2` to `2023.0-14852`
+- NVM updated from `0.38.0` to `0.39.3`
+- Update Monaco-editor from `` to `0.36.1`
+- EPEL RPM updated to `-9`
+- Updates to several downstream python requirements/modules
+- Added support for `Version`, `Region`, `Misc` in anonymous metrics
+- Changed default OpenPBS Job History Duration (`job_history_duration`) to `72-hours` (from `1-hour`)
+- Improved Python/OpenPBS compilation to make consistent use of `nproc` CPUs/jobs (`make -j N`)
+- Upgraded Amazon Cloud Development Kit (CDK) to `v2`
+- Added `skip_quota` flag to disable quota checks when using subnets with no egress
+- The default queues that are created will now default to using the instance type of the scheduler instance. This is to align CPU architectures and the selected BaseOS AMI.
+- Upgraded Jquery to `3.6.4`
+- Upgraded Bootstrap to `4.6.3`
+- Updated lustre client installation for Amazon Linux 2 enabling installation of lustre2.12 client required for FSx File Cache
+
+### Fixes
+- Fixed instances matching the incorrect Service Quota and preventing job execution under some circumstances (contributor: @nfahlgren [#81](https://github.com/awslabs/scale-out-computing-on-aws/pull/81)).
+- Fixed anonymous metric submission during job delete.
+- Fixed detection of IP address during `soca_installer.sh` by using https://checkip.amazonaws.com
+- Fix attempt to set `CpuOptions` on instance types that do not support `CpuOptions`
+- Additional exception handling during installation when the ALB is not ready yet and emits a connection refused.
+- Added PBS_LEAF_NAME in ComputeNode.sh pbs.conf section to address pbs_mom to pbs_comm communication when there are multiple network interfaces in the AMI
+- Added REQUIRE_REBOOT logic in ComputeNode.sh to skip instance reboot if not needed (mostly when using a customized AMI)
+
+
+## [2.7.3] - 2022-08-20
+### Changed
+- Bumped Lambda Python Runtime to 3.7
+
 ## [2.7.2] - 2022-04-25
 ### Changed
 - Fix node version to v8.7.0 (later versions need updated versions of GLIBC that are not available for AL2/CentOS7/RHEL7)
 - Update RHEL7 AMI IDs to RHEL7.9
-- Update AL2 AMI IDs 
+- Update AL2 AMI IDs
 
 ## [2.7.1] - 2022-02-15
 ### Changed

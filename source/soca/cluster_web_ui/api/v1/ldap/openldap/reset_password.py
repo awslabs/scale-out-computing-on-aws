@@ -26,6 +26,7 @@ from flask import session
 import ldap.modlist as modlist
 from datetime import datetime
 import errors
+
 logger = logging.getLogger("api")
 
 
@@ -68,21 +69,24 @@ class Reset(Resource):
         user = args["user"]
         password = args["password"]
         if user is None or password is None:
-            return errors.all_errors("CLIENT_MISSING_PARAMETER", "user (str) and password (str) parameters are required")
+            return errors.all_errors(
+                "CLIENT_MISSING_PARAMETER",
+                "user (str) and password (str) parameters are required",
+            )
 
         dn_user = "uid=" + user + ",ou=people," + config.Config.LDAP_BASE_DN
-        enc_passwd = bytes(password, 'utf-8')
+        enc_passwd = bytes(password, "utf-8")
         salt = os.urandom(16)
-        sha = hashlib.sha1(enc_passwd) # nosec
+        sha = hashlib.sha1(enc_passwd)  # nosec
         sha.update(salt)
         digest = sha.digest()
         b64_envelop = encode(digest + salt)
-        passwd = '{{SSHA}}{}'.format(b64_envelop.decode('utf-8'))
+        passwd = "{{SSHA}}{}".format(b64_envelop.decode("utf-8"))
         new_value = passwd
         try:
-            conn = ldap.initialize('ldap://' + config.Config.LDAP_HOST)
+            conn = ldap.initialize("ldap://" + config.Config.LDAP_HOST)
             conn.simple_bind_s(config.Config.ROOT_DN, config.Config.ROOT_PW)
-            mod_attrs = [(ldap.MOD_REPLACE, "userPassword", new_value.encode('utf-8'))]
+            mod_attrs = [(ldap.MOD_REPLACE, "userPassword", new_value.encode("utf-8"))]
             conn.modify_s(dn_user, mod_attrs)
             return {"success": True, "message": "Password updated correctly."}, 200
 
