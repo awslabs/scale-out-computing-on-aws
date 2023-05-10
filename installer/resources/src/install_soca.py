@@ -1005,7 +1005,7 @@ if __name__ == "__main__":
 
     install_phases = {
         1: "Please provide a cluster name ('soca-' is automatically added as a prefix)",
-        2: "Enter the name of an S3 bucket your own",
+        2: "Enter the name of an S3 bucket you own",
         3: "Please enter the username for your first LDAP account. This account will have admin privileges",
         4: "Please enter the password of your first LDAP account",
         5: "Choose the default operating system (this can be changed later for the compute nodes)",

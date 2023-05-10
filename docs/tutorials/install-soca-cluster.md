@@ -47,7 +47,7 @@ Execute `soca_install.sh` script located in the `installer` folder:
 
 ~~~bash
 # Assuming your current working directory is the root level of SOCA
-./installer/soca_install.sh
+./installer/soca_installer.sh
 ~~~
 
 You will then be prompted for your cluster parameters. Follow the instructions and choose a S3 bucket you own, the name of your cluster, the SSH keypair to use and other cluster parameters.
