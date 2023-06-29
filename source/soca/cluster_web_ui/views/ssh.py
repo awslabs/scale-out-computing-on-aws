@@ -63,7 +63,7 @@ def get_key():
         return send_file(
             user_private_key_path,
             as_attachment=True,
-            attachment_filename=user + "_soca_privatekey.pem",
+            download_name=user + "_soca_privatekey.pem",
         )
     else:
         user_private_key_path_ppk = (
@@ -96,7 +96,7 @@ def get_key():
             return send_file(
                 user_private_key_path_ppk,
                 as_attachment=True,
-                attachment_filename=user + "_soca_privatekey.ppk",
+                download_name=user + "_soca_privatekey.ppk",
             )
         else:
             flash("Unable to locate  the download archive, please try again", "error")
