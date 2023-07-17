@@ -111,9 +111,11 @@ def build_lambda_dependency(install_directory):
         for filename in os.listdir(dir):
             if filename == "requirements.txt":
                 print(f"Installing Python dependencies for {dir.path}")
-                os.system(
-                    f"pip3.9 install -r {dir.path}/requirements.txt --platform manylinux2014_x86_64 --target={dir.path} --implementation cp --python 3.9 --only-binary=:all: --upgrade"
-                )
+                if os.system(
+                    f"pip3.9 install --python-version 3.9 -r {dir.path}/requirements.txt --platform manylinux2014_x86_64 --target={dir.path} --implementation cp --only-binary=:all: --upgrade"
+                ) != 0:
+                    print(f"{fg('red')} Error during Lambda Dependency {attr('reset')}")
+                    sys.exit(1)
 
 
 def upload_objects(install_directory, bucket, cluster_id):
@@ -987,7 +989,7 @@ if __name__ == "__main__":
     os.chdir(install_directory)
 
     # Append Solution ID to Boto3 Construct
-    aws_solution_user_agent = {"user_agent_extra": "AwsSolution/SO0072/2.7.4"}
+    aws_solution_user_agent = {"user_agent_extra": "AwsSolution/SO0072/__VERSION__"}
     boto_extra_config = config.Config(**aws_solution_user_agent)
 
     print(
