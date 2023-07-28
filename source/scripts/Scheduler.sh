@@ -51,10 +51,6 @@ NCPU=$(nproc)
 if [[ $SOCA_BASE_OS == "rhel7" ]]; then
   # RHEL7
   curl "$EPEL_URL" -o $EPEL_RPM
-  if [[ $(md5sum "$EPEL_RPM" | awk '{print $1}') != "$EPEL_HASH" ]];  then
-      echo -e "FATAL ERROR: Checksum for EPEL failed. File may be compromised." > /etc/motd
-      exit 1
-  fi
   yum -y install $EPEL_RPM
   yum install -y $(echo ${SYSTEM_PKGS[*]} ${SCHEDULER_PKGS[*]}) --enablerepo rhel-7-server-rhui-optional-rpms
 elif [[ $SOCA_BASE_OS == "centos7" ]]; then

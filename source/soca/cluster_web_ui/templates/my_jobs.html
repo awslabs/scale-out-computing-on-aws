@@ -83,7 +83,7 @@
                                            <th>
                                                <button type="button" class="btn btn-primary" data-toggle="modal" data-target="#job{{ job_id.split(".")[0] }}">Job Info</button>
                                                {% if job_data.job_state != 'E' %}
-                                                   <button type="button" class="btn btn-danger" data-toggle="modal" data-target="#delete{{ job_id.split(".")[0] }}">Delete Session</button>
+                                                   <button type="button" class="btn btn-danger" data-toggle="modal" data-target="#delete{{ job_id.split(".")[0] }}">Delete Job</button>
                                                {% endif %}
                                                {% if job_data.Variable_List.PBS_O_WORKDIR %}
                                                    <a target="_blank" rel="noopener,noreferrer" href="/my_files?path={{ job_data.Variable_List.PBS_O_WORKDIR  }}"><button type="button" class="btn btn-warning">Job Directory</button></a>

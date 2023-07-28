@@ -1337,7 +1337,7 @@ class SOCAInstall(Stack):
 
         self.soca_resources["scheduler_instance"] = ec2.Instance(
             self,
-            "SchedulerInstance",
+            f"{user_specified_variables.cluster_id}-SchedulerInstance",
             availability_zone=vpc_subnets.availability_zones,
             machine_image=ec2.MachineImage.generic_linux(
                 {user_specified_variables.region: self.soca_resources["ami_id"]}
@@ -1362,6 +1362,7 @@ class SOCAInstall(Stack):
             security_group=self.soca_resources["scheduler_sg"],
             vpc_subnets=vpc_subnets,
             user_data=ec2.UserData.custom(user_data),
+            require_imdsv2=True if install_props.Config.metadata_http_tokens == "required" else False
         )
 
         Tags.of(self.soca_resources["scheduler_instance"]).add(
