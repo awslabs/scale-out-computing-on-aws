@@ -105,7 +105,7 @@ class ListDesktops(Resource):
         parser.add_argument("session_number", type=str, location="args")
         parser.add_argument("state", type=str, location="args")
         args = parser.parse_args()
-        logger.info(f"Received parameter for listing DCV desktop: {args}")
+        logger.debug(f"Received parameter for listing DCV desktop: {args}")
 
         user = request.headers.get("X-SOCA-USER")
         if user is None:
@@ -113,7 +113,7 @@ class ListDesktops(Resource):
 
         if args["os"] is None or args["is_active"] is None:
             return errors.all_errors(
-                "CLIENT_MISSING_PARAMETER", "os (str), is_active (str)  are required."
+                "CLIENT_MISSING_PARAMETER", "os (str), is_active (str) are required."
             )
 
         if args["os"] not in ["windows", "linux"]:
@@ -211,8 +211,10 @@ class ListDesktops(Resource):
                 logger.info(f"Host Info {host_info}")
                 if not host_info:
                     try:
+                        logger.debug(f"Determining Host status via CloudFormation stack {stack_name}")
                         check_stack = client_cfn.describe_stacks(StackName=stack_name)
-                        logger.info(f"Host Info check_stack {check_stack}")
+                        logger.info(f"CloudFormation Stack status: {check_stack}")
+                        # TODO FIXME
                         if check_stack["Stacks"][0]["StackStatus"] in [
                             "CREATE_FAILED",
                             "ROLLBACK_COMPLETE",
@@ -287,11 +289,15 @@ class ListDesktops(Resource):
                         db.session.commit()
 
                 if session_state == "pending" and session_host_private_dns is not False:
+                    logger.debug(f"Session State is pending - checking DCV status via LoadBalancer for {session_host_private_dns}")
                     check_dcv_state = get(
                         f"https://{read_secretmanager.get_soca_configuration()['LoadBalancerDNSName']}/{session_host_private_dns}/",
                         allow_redirects=False,
                         verify=False,
                     )  # nosec
+
+                    if logger.isEnabledFor(logging.DEBUG):
+                        logger.debug(f"LoadBalancer check result: {check_dcv_state}")
 
                     logger.info(
                         "Checking {} for {} and received status {} ".format(
@@ -308,6 +314,7 @@ class ListDesktops(Resource):
                     )
 
                     if check_dcv_state.status_code == 200:
+                        logger.debug(f"Updating session status in Database to running due to status_code 200")
                         session_info.session_state = "running"
                         db.session.commit()
 
@@ -326,11 +333,12 @@ class ListDesktops(Resource):
                     "connection_string": f"https://{read_secretmanager.get_soca_configuration()['LoadBalancerDNSName']}/{session_host_private_dns}/?authToken={dcv_authentication_token}#{session_id}",
                 }
 
-                # logger.info(user_sessions)
             except Exception as err:
                 exc_type, exc_obj, exc_tb = sys.exc_info()
                 fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
                 logger.error(exc_type, fname, exc_tb.tb_lineno)
                 return errors.all_errors(type(err).__name__, err)
 
+        if logger.isEnabledFor(logging.DEBUG):
+            logger.debug(f"Complete User Sessions details to return: {user_sessions}")
         return {"success": True, "message": user_sessions}, 200

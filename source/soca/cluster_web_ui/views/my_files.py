@@ -12,6 +12,8 @@
 ######################################################################################################################
 
 import logging
+import time
+
 import config
 import zipfile
 from decorators import login_required
@@ -49,7 +51,7 @@ app = Flask(__name__)
 with app.app_context():
     cache = TTLCache(
         maxsize=10000, ttl=config.Config.DEFAULT_CACHE_TIME
-    )  # default is 500 seconds
+    )  # default is 120 seconds
 
 CACHE_FOLDER_PERMISSION_PREFIX = "my_files_folder_permissions_"
 CACHE_GROUP_MEMBERSHIP_PREFIX = "my_files_group_membership_"
@@ -112,21 +114,28 @@ def demote(user_uid, user_gid):
 
 
 def user_has_permission(path, permission_required, permission_type):
-    logger.info(
-        "Checking "
-        + permission_required
-        + " for "
-        + path
-        + " ("
-        + permission_type
-        + ")"
-    )
+    _start_time = time.perf_counter_ns()
+
+    logger.info(f"Checking {permission_required} for {path} ({permission_type})")
+
+    _user_from_session = session["user"].lower()
+
+    if not _user_from_session:
+        logger.error(f"User not logged in / unable to read session: {_user_from_session}")
+        return False
+
+    user_uid = pwd.getpwnam(_user_from_session).pw_uid
+    user_gid = pwd.getpwnam(_user_from_session).pw_gid
+
+    if logger.isEnabledFor(logging.DEBUG):
+        logger.debug(f"Resolved user {_user_from_session} to UID: {user_uid} GID: {user_gid}")
+
     if permission_type not in ["file", "folder"]:
-        logger.info("Permission Type must be file or folder")
+        logger.error("Permission Type must be file or folder")
         return False
 
     if permission_required not in ["write", "read"]:
-        logger.info("permission_required must be write or read")
+        logger.error("permission_required must be write or read")
         return False
 
     if path.startswith("//"):
@@ -134,13 +143,13 @@ def user_has_permission(path, permission_required, permission_type):
         path = path[1:]
 
     if config.Config.CHROOT_USER is True:
-        if not path.lower().startswith(
-            config.Config.USER_HOME.lower() + "/" + session["user"].lower()
-        ):
+        if not path.lower().startswith(config.Config.USER_HOME.lower() + "/" + _user_from_session):
+            logger.error(f"User ({_user_from_session}) attempting to access path outside of chroot environment: {path}")
             return False
 
     for restricted_path in config.Config.PATH_TO_RESTRICT:
         if path.lower().startswith(restricted_path.lower()):
+            logger.error(f"User ({_user_from_session}) attempting to access restricted path: {path}")
             return False
 
     min_permission_level = {
@@ -148,8 +157,6 @@ def user_has_permission(path, permission_required, permission_type):
         "read": 5,  # Read+Execute
         "execute": 1,  # Min permission to be able to CD into directory
     }
-
-    user_uid = pwd.getpwnam(session["user"]).pw_uid
 
     # First, make sure user can access the entire folder hierarchy
     folder_level = 1
@@ -168,6 +175,7 @@ def user_has_permission(path, permission_required, permission_type):
                     check_folder = {}
                     check_folder["folder_owner"] = os.stat(folder_path).st_uid
                     check_folder["folder_group_id"] = os.stat(folder_path).st_gid
+                    logger.debug(f"Folder ({folder_path}) owner ({check_folder['folder_owner']}) Group ({check_folder['folder_group_id']})")
                     try:
                         check_folder["folder_group_name"] = grp.getgrgid(
                             check_folder["folder_group_id"]
@@ -192,21 +200,27 @@ def user_has_permission(path, permission_required, permission_type):
                     CACHE_GROUP_MEMBERSHIP_PREFIX + check_folder["folder_group_name"]
                     not in cache.keys()
                 ):
+                    _ldap_check_start_time = time.perf_counter_ns()
                     check_group_membership = get(
                         config.Config.FLASK_ENDPOINT + "/api/ldap/group",
                         headers={"X-SOCA-TOKEN": config.Config.API_ROOT_KEY},
                         params={"group": check_folder["folder_group_name"]},
                         verify=False,
                     )  # nosec
+                    _ldap_check_duration_ms = (time.perf_counter_ns() - _ldap_check_start_time) / 1_000_000
+                    logger.debug(f"LDAP group lookup took {_ldap_check_duration_ms} ms")
+
+                    _os_check_start_time = time.perf_counter_ns()
+                    _os_groups = os.getgrouplist(session["user"], user_gid)
+                    _os_check_duration_ms = (time.perf_counter_ns() - _os_check_start_time) / 1_000_000
+                    logger.debug(f"OS groups ({_os_groups}) lookup took {_os_check_duration_ms} ms ")
 
                     if check_group_membership.status_code == 200:
-                        group_members = check_group_membership.json()["message"][
-                            "members"
-                        ]
+                        group_members = check_group_membership.json()["message"]["members"]
                     else:
-                        logger.info(
-                            "Unable to check group membership because of "
-                            + check_group_membership.text
+                        logger.warning(
+                            f"Unable to check group membership {check_folder['folder_group_id']} because of "
+                            + check_group_membership.text.strip()
                         )
                         group_members = []
                     cache[
@@ -219,7 +233,7 @@ def user_has_permission(path, permission_required, permission_type):
                         + check_folder["folder_group_name"]
                     ]
 
-                if session["user"] in group_members:
+                if _user_from_session in group_members:
                     user_belong_to_group = True
                 else:
                     user_belong_to_group = False
@@ -233,53 +247,31 @@ def user_has_permission(path, permission_required, permission_type):
                                 check_folder["group_permission"]
                                 < min_permission_level[permission_required]
                             ):
-                                logger.info(
-                                    "user do not have "
-                                    + permission_required
-                                    + " permission for "
-                                    + folder_path
-                                )
+                                logger.error(f"user ({_user_from_session}) does not have {permission_required} permission for {folder_path}")
                                 return False
                         else:
                             if (
                                 check_folder["other_permission"]
                                 < min_permission_level[permission_required]
                             ):
-                                logger.info(
-                                    "user do not have "
-                                    + permission_required
-                                    + " permission for "
-                                    + folder_path
-                                )
+                                logger.error(f"user ({_user_from_session}) does not have {permission_required} permission for {folder_path}")
                                 return False
                 else:
                     # Folder chain, must have at least Execute permission
                     if check_folder["folder_owner"] != user_uid:
                         if user_belong_to_group is True:
-                            if (
-                                check_folder["group_permission"]
-                                < min_permission_level[permission_required]
-                            ):
-                                logger.info(
-                                    "user do not have "
-                                    + permission_required
-                                    + " permission for "
-                                    + folder_path
-                                )
+                            if check_folder["group_permission"] < min_permission_level[permission_required]:
+                                logger.error(f"user ({_user_from_session}) does not have {permission_required} permission for {folder_path}")
                                 return False
                         else:
-                            if (
-                                check_folder["other_permission"]
-                                < min_permission_level["execute"]
-                            ):
-                                logger.info(
-                                    "user do not have EXECUTE permission for "
-                                    + folder_path
-                                )
+                            if check_folder["other_permission"] < min_permission_level["execute"]:
+                                logger.error(f"user ({_user_from_session}) does not have EXECUTE permission for {folder_path}")
                                 return False
 
             folder_level += 1
 
+        _duration_time_ms = (time.perf_counter_ns() - _start_time) / 1_000_000
+        logger.debug(f"check permission completed in {_duration_time_ms} ms")
         logger.info("Permissions valid.")
         return True
     except FileNotFoundError:
@@ -317,7 +309,7 @@ def index():
         if user_has_permission(path, "read", "folder") is False:
             if path == config.Config.USER_HOME + "/" + session["user"]:
                 flash(
-                    "We cannot access to your own home directory. Please ask a admin to rollback your folder ACLs to 750"
+                    "SOCA cannot access your home directory. Please ask an admin to set your folder ACLs to 750"
                 )
                 return redirect("/")
             else:

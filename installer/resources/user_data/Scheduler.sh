@@ -14,6 +14,32 @@ SOCA_AUTH_PROVIDER="%%SOCA_AUTH_PROVIDER%%"
 SOCA_LDAP_BASE="%%SOCA_LDAP_BASE%%"
 RESET_PASSWORD_DS_LAMBDA="%%RESET_PASSWORD_DS_LAMBDA%%"
 
+function auto_install {
+  # Now perform the installs on the potentially updated package lists
+  MAX_INSTALL_ATTEMPTS=10
+  ATTEMPT_NUMBER=1
+  SUCCESS=false
+
+  if [[ $# -eq 0 ]]; then
+    echo "No package list to install. Exiting... "
+    exit 1
+  fi
+
+  while  [ $SUCCESS = false ] &&  [ $ATTEMPT_NUMBER -le $MAX_INSTALL_ATTEMPTS ]; do
+    echo "Attempting to install packages (Attempt ${ATTEMPT_NUMBER}/${MAX_INSTALL_ATTEMPTS})"
+
+    yum install -y $*
+    if [[ $? -eq 0 ]]; then
+      echo "Successfully installed packages on Attempt ${ATTEMPT_NUMBER}/${MAX_INSTALL_ATTEMPTS}"
+      SUCCESS=true
+    else
+      echo "Failed to install packages on Attempt ${ATTEMPT_NUMBER}/${MAX_INSTALL_ATTEMPTS} . Sleeping for 60sec for retry"
+      sleep 60
+      ((ATTEMPT_NUMBER++))
+    fi
+  done
+
+}
 
 function imds_get () {
   local SLASH=''
@@ -73,7 +99,7 @@ if [[ "%%BASE_OS%%" == "centos7" ]] || [[ "%%BASE_OS%%" == "centos8" ]]; then
 fi
 
 # Install awscli
-if [[ "$SOCA_BASE_OS" == "centos7" ]] || [[ "$SOCA_BASE_OS" == "rhel7" ]]; then
+if [[ "$SOCA_BASE_OS" == "centos7" ]] || [[ "$SOCA_BASE_OS" == "rhel7" ]] || [[ "$SOCA_BASE_OS" == "rhel8" ]] || [[ "$SOCA_BASE_OS" == "rhel9" ]]; then
   yum install -y python3-pip
   PIP=$(which pip3)
   $PIP install awscli
@@ -83,7 +109,12 @@ fi
 # Disable automatic motd update if using ALI
 if [[ "$SOCA_BASE_OS" == "amazonlinux2" ]] || [[ "$SOCA_BASE_OS" == "amazonlinux2023" ]]; then
   /usr/sbin/update-motd --disable
-  rm /etc/cron.d/update-motd
+  if [[ "$SOCA_BASE_OS" == "amazonlinux2" ]] ; then
+    rm /etc/cron.d/update-motd
+  elif [ "$SOCA_BASE_OS" == "amazonlinux2023" ]; then
+      # Make sure to add cronie since it is needed to trigger the next stage of bootstrap
+      auto_install cronie
+  fi
   rm -f /etc/update-motd.d/*
 fi
 
@@ -107,6 +138,17 @@ AWS=$(command -v aws)
 # Tag EBS disks manually as CFN  does not support it
 AWS_REGION=$(instance_region)
 AWS_INSTANCE_ID=$(instance_id)
+#
+# Probe the bucket and make sure S3 commands use the correct endpoint
+#
+if [[ ${AWS_REGION} =~ ^us-gov-[a-z]+-[0-9]+$ ]]; then
+  S3_BUCKET_REGION=$(curl -s --head "${S3_BUCKET}".s3.us-gov-west-1.amazonaws.com | grep bucket-region | awk '{print $2}' | tr -d '\r\n')
+else
+  S3_BUCKET_REGION=$(curl -s --head "${S3_BUCKET}".s3.amazonaws.com | grep bucket-region | awk '{print $2}' | tr -d '\r\n')
+fi
+
+AWS_S3="${AWS} s3 --region ${S3_BUCKET_REGION}"
+
 EBS_IDS=$(aws ec2 describe-volumes --filters Name=attachment.instance-id,Values="$AWS_INSTANCE_ID" --region $AWS_REGION --query "Volumes[*].[VolumeId]" --out text | tr "\n" " ")
 $AWS ec2 create-tags --resources $EBS_IDS --region $AWS_REGION --tags Key=Name,Value="$CLUSTER_ID Root Disk" "Key=soca:ClusterId,Value=$CLUSTER_ID"
 
@@ -115,10 +157,10 @@ ENI_IDS=$(aws ec2 describe-network-interfaces --filters Name=attachment.instance
 $AWS ec2 create-tags --resources $ENI_IDS --region $AWS_REGION --tags Key=Name,Value="$CLUSTER_ID Scheduler Network Adapter" "Key=soca:ClusterId,Value=$CLUSTER_ID"
 
 # Retrieve installer files from S3
-echo "@reboot $AWS s3 cp s3://$S3_BUCKET/$CLUSTER_ID/scripts/SchedulerPostReboot.sh /root && /bin/bash /root/SchedulerPostReboot.sh $S3_BUCKET $CLUSTER_ID $LDAP_USERNAME '$LDAP_PASSWORD' >> /root/PostRebootConfig.log 2>&1" | crontab -
-$AWS s3 cp s3://$S3_BUCKET/$CLUSTER_ID/scripts/config.cfg /root/
-$AWS s3 cp s3://$S3_BUCKET/$CLUSTER_ID/scripts/requirements.txt /root/
-$AWS s3 cp s3://$S3_BUCKET/$CLUSTER_ID/scripts/Scheduler.sh /root/
+echo "@reboot $AWS_S3 cp s3://$S3_BUCKET/$CLUSTER_ID/scripts/SchedulerPostReboot.sh /root && /bin/bash /root/SchedulerPostReboot.sh $S3_BUCKET $CLUSTER_ID $LDAP_USERNAME '$LDAP_PASSWORD' >> /root/PostRebootConfig.log 2>&1" | crontab -
+$AWS_S3 cp s3://$S3_BUCKET/$CLUSTER_ID/scripts/config.cfg /root/
+$AWS_S3 cp s3://$S3_BUCKET/$CLUSTER_ID/scripts/requirements.txt /root/
+$AWS_S3 cp s3://$S3_BUCKET/$CLUSTER_ID/scripts/Scheduler.sh /root/
 
 # Prepare Scheduler setup
 /bin/bash /root/Scheduler.sh %%FS_DATA_PROVIDER%% %%FS_DATA_DNS%% %%FS_APPS_PROVIDER%% %%FS_APPS_DNS%% >> /root/Scheduler.sh.log 2>&1

@@ -291,16 +291,15 @@ def clean_cloudformation_stack():
 def capacity_being_provisioned(stack_id, job_id, job_select_resource, scaling_mode):
     # This function is only called if we detect a queued job with an already assigned Compute Node
     try:
-        logpush("Checking existing cloudformation " + str(stack_id))
+        logpush(f"Checking existing cloudformation {stack_id}")
         check_stack_status = cloudformation.describe_stacks(StackName=stack_id)
         if check_stack_status["Stacks"][0]["StackStatus"] == "CREATE_COMPLETE":
-            logpush(
-                job_id
-                + " is queued but CI has been specified and CloudFormation has been created."
-            )
+            logpush(f"{job_id} is queued but CI has been specified and CloudFormation has been created.")
+
             if scaling_mode == "multiple_jobs":
                 response = cloudformation.describe_stack_resources(StackName=stack_id)
                 for resource in response["StackResources"]:
+
                     if resource["ResourceType"] == "AWS::EC2::SpotFleet":
                         spotfleet = resource["PhysicalResourceId"]
                         now = pytz.utc.localize(datetime.datetime.utcnow())
@@ -319,10 +318,7 @@ def capacity_being_provisioned(stack_id, job_id, job_select_resource, scaling_mo
                         if now > (
                             spot_fleet_last_activity + datetime.timedelta(minutes=10)
                         ):
-                            logpush(
-                                job_id
-                                + " Spotfleet last activity was more than 10 mins ago but job has not started yet, rollback compute_node value"
-                            )
+                            logpush(f"{job_id} Spotfleet last activity was more than 10 mins ago but job has not started yet, rollback compute_node value")
                             new_job_select = (
                                 job_select_resource.split(":compute_node")[0]
                                 + ":compute_node=tbd"
@@ -339,6 +335,7 @@ def capacity_being_provisioned(stack_id, job_id, job_select_resource, scaling_mo
                         else:
                             return True
                         break
+
                     if resource["ResourceType"] == "AWS::AutoScaling::AutoScalingGroup":
                         asg = resource["PhysicalResourceId"]
                         response = autoscaling.describe_scaling_activities(
@@ -351,10 +348,7 @@ def capacity_being_provisioned(stack_id, job_id, job_select_resource, scaling_mo
                         if now > (
                             asg_last_activity_end_time + datetime.timedelta(minutes=10)
                         ):
-                            logpush(
-                                job_id
-                                + " asg last activity was more than 10 minutes ago but job has not started yet, rollback compute_node value"
-                            )
+                            logpush(f"{job_id} ASG last activity was more than 10 minutes ago but job has not started yet, rollback compute_node value")
                             new_job_select = (
                                 job_select_resource.split(":compute_node")[0]
                                 + ":compute_node=tbd"
@@ -374,11 +368,11 @@ def capacity_being_provisioned(stack_id, job_id, job_select_resource, scaling_mo
             else:
                 stack_creation_time = check_stack_status["Stacks"][0]["CreationTime"]
                 now = pytz.utc.localize(datetime.datetime.utcnow())
+
                 if now > (stack_creation_time + datetime.timedelta(minutes=30)):
-                    logpush(
-                        job_id
-                        + " Stack has been created for more than 30 minutes. Because job has not started by then, rollback compute_node value"
-                    )
+
+                    logpush(f"{job_id} Stack has been created for more than 30 minutes. Because job has not started by then, rollback compute_node value")
+
                     new_job_select = (
                         job_select_resource.split(":compute_node")[0]
                         + ":compute_node=tbd"
@@ -394,17 +388,11 @@ def capacity_being_provisioned(stack_id, job_id, job_select_resource, scaling_mo
                     run_command(qalter_cmd, "call")
                     cloudformation.delete_stack(StackName=stack_id)
                 else:
-                    logpush(
-                        job_id
-                        + " Stack has been created for less than 30 minutes. Let's wait a bit before killing the CI and resetting the compute_node value"
-                    )
+                    logpush(f"{job_id} Stack has been created for less than 30 minutes. Let's wait a bit before killing the CI and resetting the compute_node value")
                     return True
 
         elif check_stack_status["Stacks"][0]["StackStatus"] == "CREATE_IN_PROGRESS":
-            logpush(
-                job_id
-                + " is queued but has a valid CI assigned. However CloudFormation stack is not completed yet so we exit the script."
-            )
+            logpush(f"{job_id} is queued but has a valid CI assigned. However CloudFormation stack is not completed yet")
             return True
 
         elif check_stack_status["Stacks"][0]["StackStatus"] in [
@@ -620,7 +608,7 @@ if __name__ == "__main__":
     )
     try:
         stream_resource_mapping = open(queue_settings_file, "r")
-        docs = yaml.load_all(stream_resource_mapping, Loader=yaml.FullLoader)
+        docs = yaml.safe_load_all(stream_resource_mapping)
         for doc in docs:
             for items in doc.values():
                 for type, info in items.items():
@@ -634,7 +622,7 @@ if __name__ == "__main__":
                                 queue_parameter_values[parameter_key] = parameter_value
             stream_resource_mapping.close()
     except Exception as err:
-        print("Unable to read {} with error: {}".format(queue_settings_file, err))
+        print(f"Unable to read queue settings file ({queue_settings_file}) with error: {err}")
         sys.exit(1)
 
     # Generate FlexLM mapping
@@ -645,7 +633,7 @@ if __name__ == "__main__":
     )
     try:
         stream_flexlm_mapping = open(license_mapping_file, "r")
-        docs = yaml.load_all(stream_flexlm_mapping, Loader=yaml.FullLoader)
+        docs = yaml.safe_load_all(stream_flexlm_mapping)
         custom_flexlm_resources = {}
         for doc in docs:
             for k, v in doc.items():
@@ -653,12 +641,12 @@ if __name__ == "__main__":
                     custom_flexlm_resources[license_name] = license_output
         stream_flexlm_mapping.close()
     except Exception as err:
-        print("Unable to read {} with error: {}".format(license_mapping_file, err))
+        print(f"Unable to read license file ({license_mapping_file}) with error: {err}")
         sys.exit(1)
     # End Pre-requisite
 
     if queues is False:
-        print("No queues  detected either on the queue_mapping.yml. Exiting ...")
+        print("No queues detected in the queue_mapping.yml. Exiting ...")
         exit(1)
 
     for queue_name in queues:
@@ -695,12 +683,10 @@ if __name__ == "__main__":
             # default to single_job
             scaling_mode = "single_job"
 
-        logpush(
-            "Queue provisioning: {}, scaling mode: {}".format(queue_mode, scaling_mode)
-        )
+        logpush(f"Queue provisioning: {queue_mode}, scaling mode: {scaling_mode}")
 
         if check_if_queue_started(queue_name) is False:
-            logpush("Queue does not seems to be enabled")
+            logpush("Queue does not seem to be enabled")
             skip_queue = True
 
         if scaling_mode == "multiple_jobs":
@@ -735,13 +721,8 @@ if __name__ == "__main__":
                 skip_queue = True
 
             if skip_queue is False:
-                logpush(
-                    "================================================================"
-                )
-                logpush(
-                    "Detected Default Parameters for this queue: "
-                    + str(queue_parameter_values)
-                )
+                logpush(f"=" * 64)
+                logpush(f"Detected Default Parameters for this queue: {queue_parameter_values}")
 
                 job_list = []
                 # Validate queue_mode
@@ -749,30 +730,28 @@ if __name__ == "__main__":
                     user_fair_share = fair_share_score(
                         queued_jobs, running_jobs, queue_name
                     )
-                    logpush("User Fair Share: " + str(user_fair_share))
+                    logpush(f"User Fair Share: {user_fair_share}")
                     job_id_order_based_on_fairshare = fair_share_job_id_order(
                         sorted(queued_jobs, key=lambda k: k["get_job_order_in_queue"]),
                         user_fair_share,
                     )
-                    logpush(
-                        "Job_id_order_based_on_fairshare: "
-                        + str(job_id_order_based_on_fairshare)
-                    )
+                    logpush(f"Job_id_order_based_on_fairshare: {job_id_order_based_on_fairshare}")
                     job_list = job_id_order_based_on_fairshare
+
                 elif queue_mode == "fifo":
                     for job in sorted(
                         queued_jobs, key=lambda k: k["get_job_order_in_queue"]
                     ):
                         job_list.append(job["get_job_id"])
                 else:
-                    logpush("queue mode must either be fairshare or fifo")
+                    logpush(f"Queue mode of ({queue_mode}) is invalid. Queue mode must be fairshare or fifo")
                     exit(1)
 
                 hash_cpu_ct = 0
                 job_parameter_values = {}
                 stack_id = ""
                 for job_hash, hash_data in get_jobs.items():
-                    logpush("Iterating for job_hash: " + str(job_hash))
+                    logpush(f"Iterating for job_hash: {job_hash}")
                     # Identify job ids that belong to the current job_hash
                     jobs_in_hash = []
                     for job_id in job_list:
@@ -810,17 +789,13 @@ if __name__ == "__main__":
                         )
                         exit(1)
 
-                    if "instance_ami" not in job_parameter_values.keys():
-                        logpush(
-                            "No instance_ami type detected either on the queue_mapping.yml .. defaulting to base os"
-                        )
-                        job_parameter_values["instance_ami"] = soca_configuration[
-                            "CustomAMI"
-                        ]
+                    #if "instance_ami" not in job_parameter_values.keys():
+                    #    logpush(
+                    #        "No instance_ami detected either on the queue_mapping.yml .. defaulting to base os"
+                    #    )
+                    #    job_parameter_values["instance_ami"] = soca_configuration["CustomAMI"]
 
-                    user_instance_types = job_parameter_values["instance_type"].split(
-                        "+"
-                    )
+                    user_instance_types = job_parameter_values["instance_type"].split("+")
                     instance_types = []
                     memory_required_instances = []
                     vcpus_required_instances = []
@@ -1207,11 +1182,7 @@ if __name__ == "__main__":
                         except Exception as err:
                             exc_type, exc_obj, exc_tb = sys.exc_info()
                             fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
-                            logpush(
-                                "max_running_jobs: Error occurred when trying to determine if job can start: {}, {}, {}".format(
-                                    exc_type, fname, exc_tb.tb_lineno
-                                )
-                            )
+                            logpush(f"max_running_jobs: Error occurred when trying to determine if job can start: {exc_type}, {fname}, {exc_tb.tb_lineno}")
                             sys.exit(1)
 
                         # Check available resources and reduce hash_cpu_ct accordingly
@@ -1496,16 +1467,10 @@ if __name__ == "__main__":
                                             ],
                                             "call",
                                         )
-                                        logpush(
-                                            "Error while trying to create ASG: "
-                                            + str(create_new_asg)
-                                        )
+                                        logpush(f"Error while trying to create ASG: {create_new_asg}")
 
                                 else:
-                                    logpush(
-                                        "Encountered an unexpected client error: "
-                                        + str(e)
-                                    )
+                                    logpush(f"Encountered an unexpected client error: {e}")
 
                             except Exception as e:
                                 exc_type, exc_obj, exc_tb = sys.exc_info()
@@ -1591,13 +1556,9 @@ if __name__ == "__main__":
                 skip_queue = True
 
             if skip_queue is False:
-                logpush(
-                    "================================================================"
-                )
-                logpush(
-                    "Detected Default Parameters for this queue: "
-                    + str(queue_parameter_values)
-                )
+                logpush("=" * 64)
+                logpush(f"Detected Default Parameters for this queue: {queue_parameter_values}")
+
                 licenses_required = []
                 for job_data in queued_jobs:
                     resource_name = job_data["get_job_resource_list"].keys()
@@ -1608,7 +1569,7 @@ if __name__ == "__main__":
                 license_available = check_available_licenses(
                     custom_flexlm_resources, licenses_required
                 )
-                logpush("Licenses Available: " + str(license_available))
+                logpush(f"Licenses Available: {license_available}")
 
                 job_list = []
                 # Validate queue_mode
@@ -1616,16 +1577,14 @@ if __name__ == "__main__":
                     user_fair_share = fair_share_score(
                         queued_jobs, running_jobs, queue_name
                     )
-                    logpush("User Fair Share: " + str(user_fair_share))
+                    logpush(f"User Fair Share: {user_fair_share}")
                     job_id_order_based_on_fairshare = fair_share_job_id_order(
                         sorted(queued_jobs, key=lambda k: k["get_job_order_in_queue"]),
                         user_fair_share,
                     )
-                    logpush(
-                        "Job_id_order_based_on_fairshare: "
-                        + str(job_id_order_based_on_fairshare)
-                    )
+                    logpush(f"Job_id_order_based_on_fairshare: {job_id_order_based_on_fairshare}")
                     job_list = job_id_order_based_on_fairshare
+
                 elif queue_mode == "fifo":
                     for job in sorted(
                         queued_jobs, key=lambda k: k["get_job_order_in_queue"]
@@ -1752,11 +1711,7 @@ if __name__ == "__main__":
                 except Exception as err:
                     exc_type, exc_obj, exc_tb = sys.exc_info()
                     fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
-                    logpush(
-                        "max_provisioned_instances: Error occurred when trying to determine if job can start: {}, {}, {}".format(
-                            exc_type, fname, exc_tb.tb_lineno
-                        )
-                    )
+                    logpush(f"max_provisioned_instances: Error occurred when trying to determine if job can start: {exc_type}, {fname}, {exc_tb.tb_lineno}")
                     sys.exit(1)
 
                 # Limit number of concurrent running jobs if "max_running_jobs" is set for this queue
@@ -1777,12 +1732,10 @@ if __name__ == "__main__":
                         all_running_jobs = len(running_jobs) + len(
                             queued_jobs_being_provisioned
                         )
-                        logpush("Running jobs detected {}".format(running_jobs))
-                        logpush(
-                            "Max number of running jobs {}".format(
-                                queue_parameter_values["max_running_jobs"]
-                            )
-                        )
+
+                        logpush(f"Running jobs detected {running_jobs}")
+                        logpush(f"Max number of running jobs {queue_parameter_values['max_running_jobs']}")
+
                         if (
                             all_running_jobs
                             >= queue_parameter_values["max_running_jobs"]
@@ -1866,18 +1819,14 @@ if __name__ == "__main__":
                             job_list = job_list[
                                 : job_count + queued_job_with_valid_compute_node
                             ]
-                            logpush("New job_list: " + str(job_list))
+                            logpush(f"New job_list: {job_list}")
                         else:
                             pass
 
                 except Exception as err:
                     exc_type, exc_obj, exc_tb = sys.exc_info()
                     fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
-                    logpush(
-                        "max_running_jobs: Error occurred when trying to determine if job can start: {}, {}, {}".format(
-                            exc_type, fname, exc_tb.tb_lineno
-                        )
-                    )
+                    logpush(f"max_running_jobs: Error occurred when trying to determine if job can start: {exc_type}, {fname}, {exc_tb.tb_lineno}")
                     sys.exit(1)
 
                 for job_id in job_list:
@@ -1895,10 +1844,7 @@ if __name__ == "__main__":
                     if skip_job is False and limit_running_jobs is False:
                         job_required_resource = job["get_job_resource_list"]
                         license_requirement = {}
-                        logpush(
-                            "Checking if we have enough resources available to run job_"
-                            + job_id
-                        )
+                        logpush(f"Checking if we have enough resources available to run job_{job_id}")
                         can_run = True
                         for res in job_required_resource:
                             if res in job_parameter_values.keys():
@@ -2018,13 +1964,13 @@ if __name__ == "__main__":
                                 )
                                 exit(1)
 
-                            if "instance_ami" not in job_parameter_values.keys():
-                                logpush(
-                                    "No instance_ami type detected either on the queue_mapping.yml .. defaulting to base os"
-                                )
-                                job_parameter_values[
-                                    "instance_ami"
-                                ] = soca_configuration["CustomAMI"]
+                            #if "instance_ami" not in job_parameter_values.keys():
+                            #    logpush(
+                            #        "No instance_ami type detected either on the queue_mapping.yml .. defaulting to base os"
+                            #    )
+                            #    job_parameter_values[
+                            #        "instance_ami"
+                            #    ] = soca_configuration["CustomAMI"]
 
                             # Append new resource to job resource for better tracking
                             # Ignore queue resources which are not configurable at job level
@@ -2113,7 +2059,7 @@ if __name__ == "__main__":
                                         + ":compute_node="
                                         + str(compute_unit)
                                     )
-                                    logpush("select variable: " + str(select))
+                                    logpush(f"select variable: {select}")
 
                                     run_command(
                                         [
@@ -2153,10 +2099,7 @@ if __name__ == "__main__":
                                             license_available[resource]
                                             - count_to_substract
                                         )
-                                        logpush(
-                                            "License available: "
-                                            + str(license_available[resource])
-                                        )
+                                        logpush(f"License available: {license_available[resource]}")
 
                                 else:
                                     sanitized_error = re.sub(
@@ -2177,10 +2120,7 @@ if __name__ == "__main__":
                                         ],
                                         "call",
                                     )
-                                    logpush(
-                                        "Error while trying to create ASG: "
-                                        + str(create_new_asg)
-                                    )
+                                    logpush(f"Error while trying to create ASG: {create_new_asg}")
 
                             except Exception as e:
                                 exc_type, exc_obj, exc_tb = sys.exc_info()
@@ -2201,6 +2141,6 @@ if __name__ == "__main__":
                                     "error",
                                 )
                         else:
-                            logpush("can_run is False for " + str(job_id))
+                            logpush(f"can_run is False for {job_id}")
                     else:
-                        logpush("Skip " + str(job_id))
+                        logpush(f"Skip {job_id}")

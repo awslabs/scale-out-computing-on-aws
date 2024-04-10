@@ -22,6 +22,34 @@ if [[ $# -lt 2 ]]; then
     exit 1
 fi
 
+
+function auto_install {
+  # Now perform the installs on the potentially updated package lists
+  MAX_INSTALL_ATTEMPTS=10
+  ATTEMPT_NUMBER=1
+  SUCCESS=false
+
+  if [[ $# -eq 0 ]]; then
+    echo "No package list to install. Exiting... "
+    exit 1
+  fi
+
+  while  [ $SUCCESS = false ] &&  [ $ATTEMPT_NUMBER -le $MAX_INSTALL_ATTEMPTS ]; do
+    echo "Attempting to install packages (Attempt ${ATTEMPT_NUMBER}/${MAX_INSTALL_ATTEMPTS})"
+
+    yum install -y $*
+    if [[ $? -eq 0 ]]; then
+      echo "Successfully installed packages on Attempt ${ATTEMPT_NUMBER}/${MAX_INSTALL_ATTEMPTS}"
+      SUCCESS=true
+    else
+      echo "Failed to install packages on Attempt ${ATTEMPT_NUMBER}/${MAX_INSTALL_ATTEMPTS} . Sleeping for 60sec for retry"
+      sleep 60
+      ((ATTEMPT_NUMBER++))
+    fi
+  done
+
+}
+
 # Install SSM
 machine=$(uname -m)
 if ! systemctl status amazon-ssm-agent; then
@@ -34,7 +62,7 @@ if ! systemctl status amazon-ssm-agent; then
     systemctl restart amazon-ssm-agent
 fi
 
-mkdir -p /apps/soca/$SOCA_CONFIGURATION
+mkdir -p /apps/soca/"$SOCA_CONFIGURATION"
 FS_DATA_PROVIDER=$1
 FS_DATA=$2
 FS_APPS_PROVIDER=$3
@@ -48,22 +76,149 @@ echo $SERVER_IP $SERVER_HOSTNAME $SERVER_HOSTNAME_ALT >> /etc/hosts
 NCPU=$(nproc)
 
 # Install System required libraries / EPEL
-if [[ $SOCA_BASE_OS == "rhel7" ]]; then
+if [[ $SOCA_BASE_OS == "rhel7" ]] || [[ $SOCA_BASE_OS == "rhel8" ]] || [[ $SOCA_BASE_OS == "rhel9" ]]; then
+  # RHEL7 / RHEL8 / RHEL9
+  if [[ $SOCA_BASE_OS == "rhel7" ]]; then
+    EPEL_URL=$EPEL7_URL
+    EPEL_RPM=$EPEL7_RPM
+    EPEL_REPO="epel"
+    yum-config-manager --enable rhel-7-server-rhui-optional-rpms
+
+  elif [[ $SOCA_BASE_OS == "rhel8" ]]; then
+    EPEL_URL=$EPEL8_URL
+    EPEL_RPM=$EPEL8_RPM
+    EPEL_REPO="epel"
+  elif [[ $SOCA_BASE_OS == "rhel9" ]]; then
+    EPEL_URL=$EPEL9_URL
+    EPEL_RPM=$EPEL9_RPM
+    EPEL_REPO="epel"
+  else
+    echo "Unknown Redhat BaseOS: ${SOCA_BASE_OS}   . Update Scheduler bootstrap!"
+    exit 1
+  fi
+
+  echo "Using EPEL URL/filename/repo name: ${EPEL_URL} / ${EPEL_RPM} / ${EPEL_REPO}"
+  curl --silent "$EPEL_URL" -o "$EPEL_RPM"
+  yum -y install "$EPEL_RPM"
+
+  # Fixup package lists based on the BaseOS version
+
   # RHEL7
-  curl "$EPEL_URL" -o $EPEL_RPM
-  yum -y install $EPEL_RPM
-  yum install -y $(echo ${SYSTEM_PKGS[*]} ${SCHEDULER_PKGS[*]}) --enablerepo rhel-7-server-rhui-optional-rpms
+  if [[ $SOCA_BASE_OS == "rhel7" ]]; then
+    # RHEL7
+    echo "RHEL7"
+  elif [[ $SOCA_BASE_OS == "rhel8" ]]; then
+    # RHEL8
+    echo "RHEL8"
+    REMOVE_PKGS=(
+      libselinux-python
+      libverto-tevent
+      system-lsb
+      tcp_wrappers
+      redhat-lsb
+      dejavu-fonts-common
+      postgresql
+      postgresql-contrib
+      postgresql-server
+      compat-openldap
+      http-parser
+      ntp
+    )
+
+    ADD_PKGS=(
+      rsyslog
+      amazon-efs-utils
+      amazon-cloudwatch-agent
+      python3-libselinux
+      dejavu-fonts-all
+      postgresql15
+      postgresql15-contrib
+      postgresql15-server
+      openldap-compat
+      authselect-compat
+    )
+  elif [[ $SOCA_BASE_OS == "rhel9" ]]; then
+    # RHEL9
+    echo "RHEL9 - Not implemented!"
+    exit 1
+  fi
+
 elif [[ $SOCA_BASE_OS == "centos7" ]]; then
   # CentOS
   yum -y install epel-release
   yum install -y $(echo ${SYSTEM_PKGS[*]} ${SCHEDULER_PKGS[*]})
-else
-  # AL2
-  amazon-linux-extras install -y epel
+
+elif  [[ $SOCA_BASE_OS == "amazonlinux2" ]] || [[ $SOCA_BASE_OS == "amazonlinux2023" ]]; then
+  # AL2 / AL2023 entry point
   yum update --security -y
-  yum install -y $(echo ${SYSTEM_PKGS[*]} ${SCHEDULER_PKGS[*]})
+
+  if [[ $SOCA_BASE_OS == "amazonlinux2" ]]; then
+    amazon-linux-extras install -y epel
+
+  elif [[ $SOCA_BASE_OS == "amazonlinux2023" ]]; then
+    # Fixup AL2023 package changes
+    REMOVE_PKGS=(
+      libselinux-python
+      libverto-tevent
+      system-lsb
+      tcp_wrappers
+      redhat-lsb
+      dejavu-fonts-common
+      postgresql
+      postgresql-contrib
+      postgresql-server
+      compat-openldap
+      http-parser
+      ntp
+    )
+    ADD_PKGS=(
+      rsyslog
+      amazon-efs-utils
+      amazon-cloudwatch-agent
+      python3-libselinux
+      dejavu-fonts-all
+      postgresql15
+      postgresql15-contrib
+      postgresql15-server
+      openldap-compat
+      authselect-compat
+    )
+  fi
+else
+    echo "Unsupported BaseOS: $SOCA_BASE_OS - Please update your SOCA configuration or update bootstrap Scheduler.sh!"
 fi
-yum install -y $(echo ${OPENLDAP_SERVER_PKGS[*]} ${SSSD_PKGS[*]})
+
+# All BaseOSes return here for remaining installations
+for p in "${!SYSTEM_PKGS[@]}"; do
+  pkg_name=${SYSTEM_PKGS[p]}
+  [[ " ${REMOVE_PKGS[*]} " =~ " ${pkg_name} " ]] && unset 'SYSTEM_PKGS[p]'
+done
+
+for p in "${!SCHEDULER_PKGS[@]}"; do
+  pkg_name=${SCHEDULER_PKGS[p]}
+  [[ " ${REMOVE_PKGS[*]} " =~ " ${pkg_name} " ]] && unset 'SCHEDULER_PKGS[p]'
+done
+
+for p in "${!SSSD_PKGS[@]}"; do
+  pkg_name=${SSSD_PKGS[p]}
+  [[ " ${REMOVE_PKGS[*]} " =~ " ${pkg_name} " ]] && unset 'SSSD_PKGS[p]'
+done
+
+for p in "${!OPENLDAP_SERVER_PKGS[@]}"; do
+  pkg_name=${OPENLDAP_SERVER_PKGS[p]}
+  [[ " ${REMOVE_PKGS[*]} " =~ " ${pkg_name} " ]] && unset 'OPENLDAP_SERVER_PKGS[p]'
+done
+
+# Now add new packages.
+for i in "${ADD_PKGS[@]}"; do
+  SYSTEM_PKGS+=($i)
+done
+
+# Now perform the installs on the potentially updated package lists
+auto_install ${SYSTEM_PKGS[*]} ${SCHEDULER_PKGS[*]}
+
+auto_install ${OPENLDAP_SERVER_PKGS[*]} ${SSSD_PKGS[*]}
+
 
 # Mount File system
 mkdir -p /apps
@@ -72,7 +227,11 @@ mkdir -p /data
 if [[ "$FS_DATA_PROVIDER" == "fsx_lustre" ]] || [[ "$FS_APPS_PROVIDER" == "fsx_lustre" ]]; then
     if [[ -z "$(rpm -qa lustre-client)" ]]; then
         # Install FSx for Lustre Client
-        if [[ "$SOCA_BASE_OS" == "amazonlinux2" ]]; then
+        if [[ "$SOCA_BASE_OS" == "amazonlinux2023" ]]; then
+          # AL2023 does not support Lustre at this time
+          echo "FSx for Lustre is not supported on amazonlinux2023 at this time - https://github.com/amazonlinux/amazon-linux-2023/issues/309"
+          exit 1
+        elif [[ "$SOCA_BASE_OS" == "amazonlinux2" ]]; then
             amazon-linux-extras install -y lustre
         else
             kernel=$(uname -r)
@@ -116,21 +275,37 @@ if [[ "$FS_DATA_PROVIDER" == "fsx_lustre" ]] || [[ "$FS_APPS_PROVIDER" == "fsx_l
 fi
 
 AWS=$(command -v aws)
-if [[ "$FS_DATA_PROVIDER" == "efs" ]]; then
-    echo "$FS_DATA:/ /data/ nfs4 nfsvers=4.1,rsize=1048576,wsize=1048576,hard,timeo=600,retrans=2,noresvport 0 0" >> /etc/fstab
+if [[ "$FS_DATA_PROVIDER" == "efs" ]] || [[ "$FS_DATA_PROVIDER" == "fsx_openzfs" ]]; then
+  NFS_OPTS_DATA="nfsvers=4.1,rsize=1048576,wsize=1048576,hard,timeo=600,retrans=2"
+  if [[ "$FS_DATA_PROVIDER" == "fsx_openzfs" ]]; then
+    SOURCE_MOUNT="/fsx"
+  else
+    SOURCE_MOUNT="/"
+    NFS_OPTS_DATA+=",noresvport"
+  fi
+  echo "${FS_DATA}:${SOURCE_MOUNT} /data/ nfs4 ${NFS_OPTS_DATA} 0 0" >> /etc/fstab
 elif [[ "$FS_DATA_PROVIDER" == "fsx_lustre" ]]; then
-    FSX_ID=$(echo $FS_DATA | cut -d. -f1)
-    FSX_DATA_MOUNT_NAME=$($AWS fsx describe-file-systems --file-system-ids $FSX_ID  --query FileSystems[].LustreConfiguration.MountName --output text)
-    echo "$FS_DATA@tcp:/$FSX_DATA_MOUNT_NAME /data lustre defaults,noatime,flock,_netdev 0 0" >> /etc/fstab
+  FSX_ID=$(echo "$FS_DATA" | cut -d. -f1)
+  FSX_DATA_MOUNT_NAME=$($AWS fsx describe-file-systems --file-system-ids "$FSX_ID"  --query FileSystems[].LustreConfiguration.MountName --output text)
+  echo "$FS_DATA@tcp:/$FSX_DATA_MOUNT_NAME /data lustre defaults,noatime,flock,_netdev 0 0" >> /etc/fstab
 fi
 
-if [[ "$FS_APPS_PROVIDER" == "efs" ]]; then
-    echo "$FS_APPS:/ /apps nfs4 nfsvers=4.1,rsize=1048576,wsize=1048576,hard,timeo=600,retrans=2,noresvport 0 0" >> /etc/fstab
+if [[ "$FS_APPS_PROVIDER" == "efs" ]] || [[ "$FS_DATA_PROVIDER" == "fsx_openzfs" ]]; then
+  NFS_OPTS_APPS="nfsvers=4.1,rsize=1048576,wsize=1048576,hard,timeo=600,retrans=2"
+  if [[ "$FS_APPS_PROVIDER" == "fsx_openzfs" ]]; then
+    SOURCE_MOUNT="/fsx"
+  else
+    SOURCE_MOUNT="/"
+    NFS_OPTS_APPS+=",noresvport"
+  fi
+  echo "${FS_APPS}:${SOURCE_MOUNT} /apps nfs4 ${NFS_OPTS_APPS} 0 0" >> /etc/fstab
 elif [[ "$FS_APPS_PROVIDER" == "fsx_lustre" ]]; then
-    FSX_ID=$(echo $FS_APPS | cut -d. -f1)
-    FSX_APPS_MOUNT_NAME=$($AWS fsx describe-file-systems --file-system-ids $FSX_ID  --query FileSystems[].LustreConfiguration.MountName --output text)
+    FSX_ID=$(echo "$FS_APPS" | cut -d. -f1)
+    FSX_APPS_MOUNT_NAME=$($AWS fsx describe-file-systems --file-system-ids "$FSX_ID" --query FileSystems[].LustreConfiguration.MountName --output text)
     echo "$FS_APPS@tcp:/$FSX_APPS_MOUNT_NAME /apps lustre defaults,noatime,flock,_netdev 0 0" >> /etc/fstab
 fi
+
+
 FS_MOUNT=0
 mount -a
 while [[ $? -ne 0 ]] && [[ $FS_MOUNT -le 5 ]]
@@ -149,24 +324,113 @@ if [[ -d "/apps/soca/$SOCA_CONFIGURATION" ]]; then
 fi
 
 # Install Python if needed
-PYTHON_INSTALLED_VERS=$(/apps/soca/$SOCA_CONFIGURATION/python/latest/bin/python3 --version | awk {'print $NF'})
+PYTHON_INSTALLED_VERS=$(/apps/soca/"$SOCA_CONFIGURATION"/python/latest/bin/python3 --version | awk {'print $NF'})
 if [[ "$PYTHON_INSTALLED_VERS" != "$PYTHON_VERSION" ]]; then
     echo "Python not detected, installing"
-    mkdir -p /root/soca/$SOCA_CONFIGURATION/python/installer
-    cd /root/soca/$SOCA_CONFIGURATION/python/installer
-    wget $PYTHON_URL
-    if [[ $(md5sum $PYTHON_TGZ | awk '{print $1}') != $PYTHON_HASH ]];  then
+    mkdir -p /root/soca/"$SOCA_CONFIGURATION"/python/installer
+    cd /root/soca/"$SOCA_CONFIGURATION"/python/installer
+    wget "${PYTHON_URL}"
+    if [[ $(md5sum "${PYTHON_TGZ}" | awk '{print $1}') != "${PYTHON_HASH}" ]];  then
         echo -e "FATAL ERROR: Checksum for Python failed. File may be compromised." > /etc/motd
         exit 1
     fi
-    tar xvf $PYTHON_TGZ
-    cd Python-$PYTHON_VERSION
-    ./configure LDFLAGS="-L/usr/lib64/openssl" CPPFLAGS="-I/usr/include/openssl" -enable-loadable-sqlite-extensions --prefix=/apps/soca/$SOCA_CONFIGURATION/python/$PYTHON_VERSION
-    make -j ${NCPU}
+    tar xvf "$PYTHON_TGZ"
+    cd Python-"$PYTHON_VERSION"
+    ./configure LDFLAGS="-L/usr/lib64/openssl" CPPFLAGS="-I/usr/include/openssl" -enable-loadable-sqlite-extensions --prefix=/apps/soca/"$SOCA_CONFIGURATION"/python/"$PYTHON_VERSION"
+    make -j "${NCPU}"
     make install
-    ln -sf /apps/soca/$SOCA_CONFIGURATION/python/$PYTHON_VERSION /apps/soca/$SOCA_CONFIGURATION/python/latest
+    ln -sf /apps/soca/"$SOCA_CONFIGURATION"/python/"$PYTHON_VERSION" /apps/soca/"$SOCA_CONFIGURATION"/python/latest
 else
-    echo "Python already installed and at correct version."
+    echo "Python already installed and at correct version (${PYTHON_VERSION})."
+fi
+
+#
+# Install Redis
+#
+REDIS_CLI=$(command -v redis-cli)
+REDIS_INSTALLED_VERS=$(${REDIS_CLI} --version | cut -f2 -d" ")
+REDIS_ADMIN_USER="soca-redis-adminuser"
+REDIS_ADMIN_PASSWORD=$(openssl rand 8192 | openssl sha256 | awk '{print $2}')
+REDIS_RUN_AS_USER="redis"
+if [[ "$REDIS_INSTALLED_VERS" != "$REDIS_VERSION" ]]; then
+    echo "Redis not detected. Installing version $REDIS_VERSION"
+    mkdir -p /root/soca/"$SOCA_CONFIGURATION"/redis/installer
+    cd /root/soca/"$SOCA_CONFIGURATION"/redis/installer
+    wget "$REDIS_URL"
+    if [[ $(md5sum "$REDIS_TGZ" | awk '{print $1}') != "$REDIS_HASH" ]];  then
+        echo -e "FATAL ERROR: Checksum for Redis failed. File may be compromised." > /etc/motd
+        exit 1
+    fi
+    tar xvf "$REDIS_TGZ"
+    cd redis-"$REDIS_VERSION"
+    time make V=1 USE_SYSTEMD=yes BUILD_TLS=yes -j "${NCPU}"
+    time make install
+
+    adduser --system --no-create-home --user-group redis
+    mkdir -p /var/lib/redis
+    chown redis:redis /var/lib/redis
+    chmod 770 /var/lib/redis
+    mkdir -p /etc/systemd/system
+    mkdir -p /etc/redis
+
+    echo "${REDIS_ADMIN_USER}" >/root/RedisAdminUsername.txt
+    echo "${REDIS_ADMIN_PASSWORD}" > /root/RedisAdminPassword.txt
+    echo "
+# SOCA Redis minimal configuration
+bind 127.0.0.1 -::1
+protected-mode yes
+port 6379
+tcp-backlog 128
+unixsocket /var/lib/redis/redis.sock
+timeout 0
+tcp-keepalive 300
+supervised auto
+loglevel notice
+syslog-enabled yes
+dir /var/lib/redis/
+maxclients 256
+maxmemory 256mb
+lazyfree-lazy-expire yes
+rename-command CONFIG \"\"
+rename-command SHUTDOWN \"\"
+aclfile /etc/redis/users.acl
+
+" > /etc/redis/redis.conf
+
+    # Generate Redis ACL File
+    echo "user default resetpass
+user ${REDIS_ADMIN_USER} on allcommands allkeys allchannels >${REDIS_ADMIN_PASSWORD}" > /etc/redis/users.acl
+
+    # Secure our ACL file
+    chmod 600 /etc/redis/users.acl
+    chown ${REDIS_RUN_AS_USER} /etc/redis/users.acl
+
+    # Configure Redis systemd
+    echo "
+[Unit]
+Description=Redis In-Memory Data Store
+After=network.target
+
+[Service]
+User=${REDIS_RUN_AS_USER}
+Group=${REDIS_RUN_AS_USER}
+ExecStart=/usr/local/bin/redis-server /etc/redis/redis.conf
+ExecStop=/usr/local/bin/redis-cli shutdown
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
+"> /etc/systemd/system/redis.service
+
+    systemctl enable redis
+    systemctl start redis
+    systemctl status redis
+    sleep 5
+    echo "Running Redis ping check..."
+    time ${REDIS_CLI} --user "$(cat /root/RedisAdminUsername.txt)" --pass "$(cat /root/RedisAdminPassword.txt)" ping
+
+else
+    echo "Redis already installed and at correct version (${REDIS_VERSION})."
 fi
 
 # Install OpenPBS if needed
@@ -175,13 +439,13 @@ OPENPBS_INSTALLED_VERS=$(/opt/pbs/bin/qstat --version | awk {'print $NF'})
 if [[ "$OPENPBS_INSTALLED_VERS" != "$OPENPBS_VERSION" ]]; then
     echo "OpenPBS Not Detected, Installing OpenPBS ..."
     cd ~
-    wget $OPENPBS_URL
-    if [[ $(md5sum $OPENPBS_TGZ | awk '{print $1}') != $OPENPBS_HASH ]];  then
+    wget "$OPENPBS_URL"
+    if [[ $(md5sum "$OPENPBS_TGZ" | awk '{print $1}') != "${OPENPBS_HASH}" ]];  then
         echo -e "FATAL ERROR: Checksum for OpenPBS failed. File may be compromised." > /etc/motd
         exit 1
     fi
-    tar zxvf $OPENPBS_TGZ
-    cd openpbs-$OPENPBS_VERSION
+    tar zxvf "$OPENPBS_TGZ"
+    cd openpbs-"$OPENPBS_VERSION"
     ./autogen.sh
     ./configure --prefix=/opt/pbs
     make -j ${NCPU}
@@ -189,7 +453,7 @@ if [[ "$OPENPBS_INSTALLED_VERS" != "$OPENPBS_VERSION" ]]; then
     /opt/pbs/libexec/pbs_postinstall
     chmod 4755 /opt/pbs/sbin/pbs_iff /opt/pbs/sbin/pbs_rcp
 else
-    echo "OpenPBS already installed, and at correct version."
+    echo "OpenPBS already installed, and at correct version (${OPENPBS_VERSION})."
     echo "PBS_SERVER=$SERVER_HOSTNAME_ALT
 PBS_START_SERVER=1
 PBS_START_SCHED=1
@@ -293,9 +557,9 @@ if [[ "$SOCA_AUTH_PROVIDER" == "openldap" ]]; then
   systemctl enable slapd
   systemctl start slapd
   ADMIN_LDAP_PASSWORD=$(slappasswd -g)
-  ADMIN_LDAP_PASSWORD_ENCRYPTED=$(/sbin/slappasswd -s $ADMIN_LDAP_PASSWORD -h "{SSHA}")
+  ADMIN_LDAP_PASSWORD_ENCRYPTED=$(/sbin/slappasswd -s "$ADMIN_LDAP_PASSWORD" -h "{SSHA}")
   echo -n "admin" > /root/OpenLdapAdminUsername.txt
-  echo -n $ADMIN_LDAP_PASSWORD > /root/OpenLdapAdminPassword.txt
+  echo -n "$ADMIN_LDAP_PASSWORD" > /root/OpenLdapAdminPassword.txt
   chmod 600 /root/OpenLdapAdminPassword.txt
   echo "URI ldap://$SERVER_HOSTNAME" >> /etc/openldap/ldap.conf
   echo "BASE $SOCA_LDAP_BASE" >> /etc/openldap/ldap.conf
@@ -308,18 +572,25 @@ if [[ "$SOCA_AUTH_PROVIDER" == "openldap" ]]; then
   chown ldap:ldap /etc/openldap/certs/soca.key /etc/openldap/certs/soca.crt
   chmod 600 /etc/openldap/certs/soca.key /etc/openldap/certs/soca.crt
 
+  # Create OpenLDAP config
+  if [[ $SOCA_BASE_OS == "amazonlinux2023" ]]; then
+    OPEN_LDAP_CONFIG_KEY="{2}mdb"
+  else
+    OPEN_LDAP_CONFIG_KEY="{2}hdb"
+  fi
+
   echo -e "
-dn: olcDatabase={2}hdb,cn=config
+dn: olcDatabase=${OPEN_LDAP_CONFIG_KEY},cn=config
 changetype: modify
 replace: olcSuffix
 olcSuffix: $SOCA_LDAP_BASE
 
-dn: olcDatabase={2}hdb,cn=config
+dn: olcDatabase=${OPEN_LDAP_CONFIG_KEY},cn=config
 changetype: modify
 replace: olcRootDN
 olcRootDN: cn=admin,$SOCA_LDAP_BASE
 
-dn: olcDatabase={2}hdb,cn=config
+dn: olcDatabase=${OPEN_LDAP_CONFIG_KEY},cn=config
 changetype: modify
 replace: olcRootPW
 olcRootPW: $ADMIN_LDAP_PASSWORD_ENCRYPTED" > db.ldif
@@ -334,7 +605,7 @@ replace: olcTLSCertificateKeyFile
 olcTLSCertificateKeyFile: /etc/openldap/certs/soca.key" > update_ssl_cert.ldif
 
   echo -e "
-dn: olcDatabase={2}hdb,cn=config
+dn: olcDatabase=${OPEN_LDAP_CONFIG_KEY},cn=config
 changetype: modify
 replace: olcAccess
 olcAccess: {0}to attrs=userPassword by self write by anonymous auth by group.exact="ou=admins,$SOCA_LDAP_BASE" write by * none
@@ -461,7 +732,7 @@ echo "UserKnownHostsFile /dev/null" >> /etc/ssh/ssh_config
 
 # Install Python required libraries
 # Source environment to reload path for Python3
-/apps/soca/$SOCA_CONFIGURATION/python/$PYTHON_VERSION/bin/pip3 install -r /root/requirements.txt
+/apps/soca/"$SOCA_CONFIGURATION"/python/"$PYTHON_VERSION"/bin/pip3 install -r /root/requirements.txt
 
 # Configure Chrony
 yum remove -y ntp
@@ -471,7 +742,7 @@ echo -e """
 server 169.254.169.123 prefer iburst minpoll 4 maxpoll 4
 
 # Use public servers from the pool.ntp.org project.
-# Please consider joining the pool (http://www.pool.ntp.org/join.html).
+# Please consider joining the pool (https://www.pool.ntp.org/join.html).
 # !!! [BEGIN] SOCA REQUIREMENT
 # You will need to open UDP egress traffic on your security group if you want to enable public pool
 #pool 2.amazon.pool.ntp.org iburst

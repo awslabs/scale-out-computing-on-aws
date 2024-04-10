@@ -157,10 +157,17 @@ class AmiList(db.Model):
     ami_id = db.Column(db.String(255), nullable=False)
     ami_type = db.Column(db.String(255), nullable=False)
     ami_label = db.Column(db.Text, nullable=False)
+    ami_arch= db.Column(db.String(255), nullable=False)
     created_on = db.Column(db.DateTime)
     is_active = db.Column(db.Boolean, nullable=False)
     deactivated_on = db.Column(db.DateTime)
     ami_root_disk_size = db.Column(db.Integer)
+
+    # Allow for launch tenancy and host information to be saved with the AMI registration
+    # https://docs.aws.amazon.com/autoscaling/ec2/userguide/auto-scaling-dedicated-instances.html
+    # launch_host is nullable since it is not required (untargeted method)
+    launch_tenancy = db.Column(db.String(255), nullable=False)
+    launch_host = db.Column(db.String(255), nullable=True)
 
     def as_dict(self):
         return {c.name: getattr(self, c.name) for c in self.__table__.columns}

@@ -47,6 +47,27 @@ def validate_ec2_image(image_id):
         return False
 
 
+def get_arch_for_instance_type(region: str, instancetype: str) -> str:
+    _found_arch = None
+    ec2_client = boto3.client("ec2", region_name=region)
+    _resp = ec2_client.describe_instance_types(InstanceTypes=[instancetype])
+
+    _instance_info = _resp.get("InstanceTypes", {})
+
+    for _i in _instance_info:
+        _instance_name = _i.get("InstanceType", None)
+        # This shouldn't happen with an exact-match search
+        if _instance_name != instancetype:
+            continue
+
+        _proc_info = _i.get("ProcessorInfo", {})
+        if _proc_info:
+            _arch = sorted(_proc_info.get("SupportedArchitectures", []))
+            _found_arch = _arch[0]
+
+    return _found_arch
+
+
 def can_launch_instance(launch_parameters):
     try:
         if launch_parameters["base_os"] in {"amazonlinux2", "amazonlinux2023"}:
@@ -61,7 +82,7 @@ def can_launch_instance(launch_parameters):
                     "Ebs": {
                         "DeleteOnTermination": True,
                         "VolumeSize": launch_parameters["disk_size"],
-                        "VolumeType": "gp3",
+                        "VolumeType": launch_parameters.get("VolumeType", "gp2"),
                         "Encrypted": True,
                     },
                 },
@@ -213,7 +234,7 @@ class CreateLinuxDesktop(Resource):
                     "CLIENT_MISSING_PARAMETER", "instance_type (str) is required."
                 )
 
-            args["disk_size"] = 30 if args["disk_size"] is None else args["disk_size"]
+            args["disk_size"] = 40 if args["disk_size"] is None else args["disk_size"]
             try:
                 args["disk_size"] = int(args["disk_size"])
             except ValueError:
@@ -236,8 +257,12 @@ class CreateLinuxDesktop(Resource):
                 )
 
             session_uuid = str(uuid.uuid4())
+            # TODO - should this be from the soca_configuration instead?
             region = os.environ["AWS_DEFAULT_REGION"]
             instance_type = args["instance_type"]
+
+            _instance_architecture = get_arch_for_instance_type(region=region, instancetype=instance_type)
+
             soca_configuration = read_secretmanager.get_soca_configuration()
             instance_profile = soca_configuration["ComputeNodeInstanceProfileArn"]
             security_group_id = soca_configuration["ComputeNodeSecurityGroup"]
@@ -248,7 +273,7 @@ class CreateLinuxDesktop(Resource):
                     f"Session Number {args['session_number']} is already used by an active desktop. Terminate it first before being able to use the same number",
                 )
 
-            # sanitize session_name, limit to 255 chars
+            # sanitize session_name
             if args["session_name"] is None:
                 session_name = "LinuxDesktop" + str(args["session_number"])
             else:
@@ -256,10 +281,22 @@ class CreateLinuxDesktop(Resource):
                 if session_name == "":
                     # handle case when session name specified by user only contains invalid char
                     session_name = "LinuxDesktop" + str(args["session_number"])
+            # Cleanup unwanted characters that can conflict in CloudFormation StackNames
+            # TODO - move to common
+            session_name = re.sub(
+                pattern=r"[-_=]+",
+                repl="",
+                string=str(session_name)[:32]
+            )[:32]
 
-            if args["instance_ami"] is None or args["instance_ami"] == "base":
-                image_id = soca_configuration["CustomAMI"]
-                base_os = soca_configuration["BaseOS"]
+            logger.debug(f"Session name sanitized to: {session_name}")
+            if args.get("instance_ami", None) is None:
+                # TODO - Should the BaseOS be from the configuration or the job param?
+                base_os = soca_configuration.get("BaseOS", "amazonlinux2")
+                image_id = soca_configuration.get("CustomAMIMap", {}).get(_instance_architecture).get(base_os)
+                if logger.isEnabledFor(logging.DEBUG):
+                    logger.debug(f"ImageID (AMI) lookup result for {base_os}/{_instance_architecture} - {image_id}")
+
             else:
                 if len(args["instance_ami"].split(",")) != 2:
                     return errors.all_errors(
@@ -284,30 +321,35 @@ class CreateLinuxDesktop(Resource):
             user_data = (
                 '''#!/bin/bash -x
             export PATH=$PATH:/usr/local/bin
+            
             if [[ "'''
-                + base_os
-                + '''" == "centos7" ]] || [[ "'''
-                + base_os
-                + '''" == "rhel7" ]];
+            + base_os
+            + '''" =~ "centos" ]] || [[ "'''
+            + base_os
+            + '''" =~ "rhel" ]] || [[ "'''
+            + base_os
+            + '''" =~ "rocky" ]];
             then
                     yum install -y python3-pip
                     PIP=$(which pip3)
                     $PIP install awscli
                     yum install -y nfs-utils # enforce install of nfs-utils
             else
-                 yum install -y python3-pip
+                 yum install -y python3-pip cronie
                  PIP=$(which pip3)
                  $PIP install awscli
             fi
             if [[ "'''
                 + base_os
-                + """" == "amazonlinux2" ]];
+                + """" =~ "amazonlinux2" ]];
                 then
                     /usr/sbin/update-motd --disable
+                    rm -f /etc/update-motd.d/*
+
             fi
     
-            IMDS_TOKEN=$(curl -X PUT "http://169.254.169.254/latest/api/token" -H "X-aws-ec2-metadata-token-ttl-seconds: 21600")
-            GET_INSTANCE_TYPE=$(curl -H "X-aws-ec2-metadata-token: $IMDS_TOKEN" http://169.254.169.254/latest/meta-data/instance-type)
+            IMDS_TOKEN=$(curl --silent -X PUT "http://169.254.169.254/latest/api/token" -H "X-aws-ec2-metadata-token-ttl-seconds: 21600")
+            GET_INSTANCE_TYPE=$(curl --silent -H "X-aws-ec2-metadata-token: $IMDS_TOKEN" http://169.254.169.254/latest/meta-data/instance-type)
             echo export "SOCA_DCV_AUTHENTICATOR="https://"""
                 + soca_configuration["SchedulerPrivateDnsName"]
                 + """:"""
@@ -466,7 +508,7 @@ class CreateLinuxDesktop(Resource):
             server 169.254.169.123 prefer iburst minpoll 4 maxpoll 4
     
             # Use public servers from the pool.ntp.org project.
-            # Please consider joining the pool (http://www.pool.ntp.org/join.html).
+            # Please consider joining the pool (https://www.ntppool.org/join.html).
             # !!! [BEGIN] SOCA REQUIREMENT
             # You will need to open UDP egress traffic on your security group if you want to enable public pool
             #pool 2.amazon.pool.ntp.org iburst
@@ -506,9 +548,9 @@ class CreateLinuxDesktop(Resource):
                         Filters=[{"Name": "hibernation-supported", "Values": ["true"]}],
                     )
                     logger.info(
-                        f"Checking in {instance_type} support Hibernation : {check_hibernation_support}"
+                        f"Checking instance {instance_type} for Hibernation support: {check_hibernation_support}"
                     )
-                    if len(check_hibernation_support["InstanceTypes"]) == 0:
+                    if len(check_hibernation_support.get("InstanceTypes", {})) == 0:
                         if config.Config.DCV_FORCE_INSTANCE_HIBERNATE_SUPPORT is True:
                             return errors.all_errors(
                                 "DCV_LAUNCH_ERROR",
@@ -523,7 +565,7 @@ class CreateLinuxDesktop(Resource):
                 except ClientError as e:
                     return errors.all_errors(
                         "DCV_LAUNCH_ERROR",
-                        f"Error while checking hibernation support due to {e}",
+                        f"Error while checking hibernation support of instance {instance_type} due to {e}",
                     )
 
             launch_parameters = {
@@ -539,6 +581,7 @@ class CreateLinuxDesktop(Resource):
                 "session_uuid": session_uuid,
                 "base_os": base_os,
                 "disk_size": args["disk_size"],
+                "volume_type": soca_configuration.get("DefaultVolumeType", 'gp2'),
                 "cluster_id": soca_configuration["ClusterId"],
                 "metadata_http_tokens": soca_configuration["MetadataHttpTokens"],
                 "hibernate": args["hibernate"],

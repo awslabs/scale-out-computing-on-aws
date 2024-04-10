@@ -125,27 +125,57 @@ class SOCAInstall(Stack):
         _instance_arch = None
         _located_ami = None
         _base_os = user_specified_variables.base_os
-        _region = user_specified_variables.region
+        self._region = user_specified_variables.region
 
         _instance_arch = get_arch_for_instance_type(
-            region=_region, instancetype=_instance_type
+            region=self._region, instancetype=_instance_type
         )
+        #
+        # Used later to store our SchedulerEIP value (IP address)
+        #
+        self._scheduler_eip_value = None
 
-        print(
-            f"Region: {_region} BaseOS: {_base_os} Instance_type/arch: {_instance_type}/{_instance_arch}"
-        )
-        # Probe the architecture of the defined instance_type
+        # Store architectures as they may come in handy for jobs that differ from the Scheduler architecture
+        # TODO - a bit of a hack
+        self.soca_resources["custom_ami_map"] = {}
+        for _arch in {"arm64", "x86_64"}:
+            if _arch not in self.soca_resources["custom_ami_map"]:
+                self.soca_resources["custom_ami_map"][_arch] = {}
+            # TODO - This should be defined elsewhere
+            for _base_os_available in {
+                "amazonlinux2",
+                "amazonlinux2023",
+                "centos7",
+                "rhel7",
+                "rhel8",
+                "rhel9",
+                "rocky8",
+                "rocky9"
+            }:
+                if hasattr(
+                    install_props.RegionMap.__dict__[self._region].__dict__[_arch],
+                    _base_os_available,
+                ):
+                    _arch_ami = (
+                        install_props.RegionMap.__dict__[self._region]
+                        .__dict__[_arch]
+                        .__dict__[_base_os_available]
+                    )
+                    self.soca_resources[f"custom_ami_map"][_arch][
+                        _base_os_available
+                    ] = _arch_ami
+                else:
+                    self.soca_resources[f"custom_ami_map"][_arch][
+                        _base_os_available
+                    ] = ""
 
-        _located_ami = (
-            install_props.RegionMap.__dict__[_region]
-            .__dict__[_instance_arch]
-            .__dict__[_base_os]
-        )
-        print(
-            f"DEBUG - RegionMap - Looking for BaseOS {_base_os}/{_instance_arch} AMI in region {_region}: {_located_ami}"
-        )
+        # The actual AMI ID for the scheduler (based on our selected instance_type)
+        # print(f"DEBUG: Trying to resolve the AMI from the AMI - Arch: {_instance_arch} . BaseOS: {_base_os}")
+        # print(f"DEBUG: AMI RegionMap: {self.soca_resources['custom_ami_map']}")
 
-        self.soca_resources["ami_id"] = _located_ami
+        self.soca_resources["ami_id"] = (
+            self.soca_resources["custom_ami_map"].get(_instance_arch).get(_base_os)
+        )
 
         # Create SOCA environment
         self.generic_resources()
@@ -178,6 +208,12 @@ class SOCAInstall(Stack):
         # User customization (Post Configuration)
         cdk_construct_user_customization.main(self, self.soca_resources)
 
+        CfnOutput(
+            self,
+            "StackName",
+            value=f"{Aws.STACK_NAME}",
+        )
+
     def generic_resources(self):
         # Tag EC2 resources that don't support tagging in cloudformation
         self.tag_ec2_resource_lambda = aws_lambda.Function(
@@ -186,7 +222,7 @@ class SOCAInstall(Stack):
             function_name=f"{user_specified_variables.cluster_id}-TagEC2Resource",
             description="Tag EC2 resource that doesn't support tagging in CloudFormation",
             memory_size=128,
-            runtime=typing.cast(aws_lambda.Runtime, aws_lambda.Runtime.PYTHON_3_9),
+            runtime=typing.cast(aws_lambda.Runtime, aws_lambda.Runtime.PYTHON_3_11),
             timeout=Duration.minutes(1),
             log_retention=logs.RetentionDays.INFINITE,
             handler="TagEC2ResourceLambda.lambda_handler",
@@ -273,11 +309,31 @@ class SOCAInstall(Stack):
             if nat_eip_for_subnet:
                 self.soca_resources["nat_gateway_ips"].append(nat_eip_for_subnet)
 
-        # Create the EIP associated that will be associated to the scheduler
+        # Create the EIP that will be associated to the scheduler
         if install_props.Config.entry_points_subnets.lower() == "public":
             self.soca_resources["scheduler_eip"] = ec2.CfnEIP(
                 self, "SchedulerEIP", instance_id=None
             )
+            #
+            # GovCloud partition does not support the '.attr_public_ip' CDK method
+            # as of 29 Nov 2023 @jasackle
+            _pub = self.soca_resources["scheduler_eip"].get_att("PublicIp")
+            # print(f"DEBUG- scheduler_eip: {self.soca_resources['scheduler_eip'].to_string()}  - PublicIp: {_pub}")
+
+            if self._region.lower() in {
+                "us-gov-west-1",
+                "us-gov-east-1",
+                "ap-south-1",
+                "ap-southeast-4",
+                "eu-central-2",
+                "eu-south-2",
+                "il-central-1",
+            }:
+                self._scheduler_eip_value = self.soca_resources["scheduler_eip"].ref
+            else:
+                self._scheduler_eip_value = self.soca_resources[
+                    "scheduler_eip"
+                ].attr_public_ip
 
     def security_groups(self):
         """
@@ -428,7 +484,7 @@ class SOCAInstall(Stack):
         )
         if install_props.Config.entry_points_subnets.lower() == "public":
             self.soca_resources["scheduler_sg"].add_ingress_rule(
-                ec2.Peer.ipv4(f"{self.soca_resources['scheduler_eip'].ref}/32"),
+                ec2.Peer.ipv4(f"{self._scheduler_eip_value}/32"),
                 ec2.Port.tcp(443),
                 description=f"Allow HTTPS traffic from Scheduler to ELB to validate DCV sessions",
             )
@@ -1085,7 +1141,7 @@ class SOCAInstall(Stack):
                 ),
                 comparison_operator=cloudwatch.ComparisonOperator.LESS_THAN_OR_EQUAL_TO_THRESHOLD,
                 evaluation_periods=10,
-                threshold=10000000,
+                threshold=10_000_000,
             )
 
             efs_apps_cw_alarm_high = cloudwatch.Alarm(
@@ -1102,7 +1158,7 @@ class SOCAInstall(Stack):
                 ),
                 comparison_operator=cloudwatch.ComparisonOperator.GREATER_THAN_OR_EQUAL_TO_THRESHOLD,
                 evaluation_periods=10,
-                threshold=2000000000000,
+                threshold=2_000_000_000_000,
             )
             efs_apps_cw_alarm_low.add_alarm_action(cw_actions.SnsAction(sns_efs_topic))
             efs_apps_cw_alarm_high.add_alarm_action(cw_actions.SnsAction(sns_efs_topic))
@@ -1115,7 +1171,7 @@ class SOCAInstall(Stack):
                 memory_size=128,
                 role=self.soca_resources["fs_apps_lambda_role"],
                 timeout=Duration.minutes(3),
-                runtime=typing.cast(aws_lambda.Runtime, aws_lambda.Runtime.PYTHON_3_9),
+                runtime=typing.cast(aws_lambda.Runtime, aws_lambda.Runtime.PYTHON_3_11),
                 log_retention=logs.RetentionDays.INFINITE,
                 handler="EFSThroughputLambda.lambda_handler",
                 code=aws_lambda.Code.from_asset("../functions/EFSThroughputLambda"),
@@ -1257,11 +1313,28 @@ class SOCAInstall(Stack):
                 memory_size=128,
                 role=self.soca_resources["reset_ds_password_lambda_role"],
                 timeout=Duration.minutes(3),
-                runtime=typing.cast(aws_lambda.Runtime, aws_lambda.Runtime.PYTHON_3_9),
+                runtime=typing.cast(aws_lambda.Runtime, aws_lambda.Runtime.PYTHON_3_11),
                 log_retention=logs.RetentionDays.INFINITE,
                 handler="ResetDSPassword.lambda_handler",
                 code=aws_lambda.Code.from_asset("../functions/ResetDSPassword"),
             )
+
+        # print(f"DEBUG: UserSpecVars: {user_specified_variables}")
+
+        # Make sure our filesystems are fully qualified
+        if user_specified_variables.fs_apps_provider:
+            _fs_apps_provider: str = user_specified_variables.fs_apps_provider
+            _fs_apps_dns: str = f"{user_specified_variables.fs_apps}"
+        else:
+            _fs_apps_provider: str = install_props.Config.storage.apps.provider
+            _fs_apps_dns: str = f"{self.soca_resources['fs_apps'].ref}.{endpoints_suffix[install_props.Config.storage.apps.provider]}"
+
+        if user_specified_variables.fs_data_provider:
+            _fs_data_provider: str = user_specified_variables.fs_data_provider
+            _fs_data_dns: str = f"{user_specified_variables.fs_data}"
+        else:
+            _fs_data_provider: str = install_props.Config.storage.data.provider
+            _fs_data_dns: str = f"{self.soca_resources['fs_data'].ref}.{endpoints_suffix[install_props.Config.storage.data.provider]}"
 
         # Generate EC2 User Data
         user_data_substitutes = {
@@ -1270,20 +1343,12 @@ class SOCAInstall(Stack):
             "%%CLUSTER_ID%%": user_specified_variables.cluster_id,
             "%%S3_BUCKET%%": user_specified_variables.bucket,
             "%%AWS_REGION%%": Aws.REGION,
-            "%%SOCA_VERSION%%": "2.7.4",
+            "%%SOCA_VERSION%%": "2.7.5",
             "%%COMPUTE_NODE_ARN%%": self.soca_resources["compute_node_role"].role_arn,
-            "%%FS_DATA_PROVIDER%%": install_props.Config.storage.data.provider
-            if not user_specified_variables.fs_data_provider
-            else user_specified_variables.fs_data_provider,
-            "%%FS_APPS_PROVIDER%%": install_props.Config.storage.apps.provider
-            if not user_specified_variables.fs_apps_provider
-            else user_specified_variables.fs_apps_provider,
-            "%%FS_DATA_DNS%%": f"{self.soca_resources['fs_data'].ref}.{endpoints_suffix[install_props.Config.storage.data.provider]}"
-            if not user_specified_variables.fs_data
-            else f"{user_specified_variables.fs_data}.{endpoints_suffix[install_props.Config.storage.data.provider]}",
-            "%%FS_APPS_DNS%%": f"{self.soca_resources['fs_apps'].ref}.{endpoints_suffix[install_props.Config.storage.apps.provider]}"
-            if not user_specified_variables.fs_apps
-            else f"{user_specified_variables.fs_apps}.{endpoints_suffix[install_props.Config.storage.apps.provider]}",
+            "%%FS_DATA_PROVIDER%%": _fs_data_provider,
+            "%%FS_APPS_PROVIDER%%": _fs_apps_provider,
+            "%%FS_DATA_DNS%%": _fs_data_dns,
+            "%%FS_APPS_DNS%%": _fs_apps_dns,
             "%%VPC_ID%%": self.soca_resources["vpc"].vpc_id,
             "%%BASE_OS%%": user_specified_variables.base_os,
             "%%LDAP_USERNAME%%": user_specified_variables.ldap_user,
@@ -1335,6 +1400,11 @@ class SOCAInstall(Stack):
         else:
             _ebs_device_name = "/dev/sda1"
 
+        # Determine our scheduler volume_type
+        _scheduler_volume_type = ec2.EbsDeviceVolumeType.GP2
+        if install_props.Config.scheduler.volume_type.lower() == "gp3":
+            _scheduler_volume_type = ec2.EbsDeviceVolumeType.GP3
+
         self.soca_resources["scheduler_instance"] = ec2.Instance(
             self,
             f"{user_specified_variables.cluster_id}-SchedulerInstance",
@@ -1353,7 +1423,7 @@ class SOCAInstall(Stack):
                     volume=ec2.BlockDeviceVolume(
                         ebs_device=ec2.EbsDeviceProps(
                             volume_size=int(install_props.Config.scheduler.volume_size),
-                            volume_type=ec2.EbsDeviceVolumeType.GP3,
+                            volume_type=_scheduler_volume_type,
                         )
                     ),
                 )
@@ -1362,7 +1432,7 @@ class SOCAInstall(Stack):
             security_group=self.soca_resources["scheduler_sg"],
             vpc_subnets=vpc_subnets,
             user_data=ec2.UserData.custom(user_data),
-            require_imdsv2=True if install_props.Config.metadata_http_tokens == "required" else False
+            require_imdsv2=True if install_props.Config.metadata_http_tokens == "required" else False,
         )
 
         Tags.of(self.soca_resources["scheduler_instance"]).add(
@@ -1388,19 +1458,40 @@ class SOCAInstall(Stack):
 
         if install_props.Config.entry_points_subnets.lower() == "public":
             # Associate the EIP to the scheduler instance
-            ec2.CfnEIPAssociation(
-                self,
-                "AssignEIPToScheduler",
-                eip=self.soca_resources["scheduler_eip"].ref,
-                instance_id=self.soca_resources["scheduler_instance"].instance_id,
-            )
-            CfnOutput(
-                self, "SchedulerIP", value=self.soca_resources["scheduler_eip"].ref
-            )
+            #
+            # Partition differences in CloudFormation support
+            # 29 Nov 2023 @jasackle
+            if self._region.lower() in {
+                "us-gov-west-1",
+                "us-gov-east-1",
+                "ap-south-1",
+                "ap-southeast-4",
+                "eu-central-2",
+                "eu-south-2",
+                "il-central-1",
+            }:
+                ec2.CfnEIPAssociation(
+                    self,
+                    "AssignEIPToScheduler",
+                    eip=self.soca_resources["scheduler_eip"].ref,
+                    instance_id=self.soca_resources["scheduler_instance"].instance_id,
+                )
+            else:
+                # Commercial
+                ec2.CfnEIPAssociation(
+                    self,
+                    "AssignEIPToScheduler",
+                    allocation_id=self.soca_resources[
+                        "scheduler_eip"
+                    ].attr_allocation_id,
+                    instance_id=self.soca_resources["scheduler_instance"].instance_id,
+                )
+
+            CfnOutput(self, "SchedulerIP", value=self._scheduler_eip_value)
             CfnOutput(
                 self,
                 "ConnectionString",
-                value=f"ssh -i {user_specified_variables.ssh_keypair} {ssh_user}@{self.soca_resources['scheduler_eip'].ref}",
+                value=f"ssh -i {user_specified_variables.ssh_keypair} {ssh_user}@{self._scheduler_eip_value}",
             )
 
         else:
@@ -1428,7 +1519,7 @@ class SOCAInstall(Stack):
             memory_size=128,
             role=self.soca_resources["solution_metrics_lambda_role"],
             timeout=Duration.minutes(3),
-            runtime=typing.cast(aws_lambda.Runtime, aws_lambda.Runtime.PYTHON_3_9),
+            runtime=typing.cast(aws_lambda.Runtime, aws_lambda.Runtime.PYTHON_3_11),
             log_retention=logs.RetentionDays.INFINITE,
             handler="SolutionMetricsLambda.lambda_handler",
             code=aws_lambda.Code.from_asset("../functions/SolutionMetricsLambda"),
@@ -1440,6 +1531,25 @@ class SOCAInstall(Stack):
 
         for priv_sub in self.soca_resources["vpc"].private_subnets:
             private_subnets.append(priv_sub.subnet_id)
+
+
+        # Determine our mounting for /apps and /data
+        # /apps
+        if user_specified_variables.fs_apps:
+            _fs_apps_provider: str = user_specified_variables.fs_apps_provider
+            _fs_apps_mount: str = f"{user_specified_variables.fs_apps}"
+        else:
+            _fs_apps_provider: str = install_props.Config.storage.apps.provider
+            _fs_apps_mount: str = f"{self.soca_resources['fs_apps'].ref}.{endpoints_suffix[_fs_apps_provider]}"
+
+        # /data
+        if user_specified_variables.fs_data:
+            _fs_data_provider: str = user_specified_variables.fs_data_provider
+            _fs_data_mount: str = f"{user_specified_variables.fs_data}"
+        else:
+            _fs_data_provider: str = install_props.Config.storage.data.provider
+            _fs_data_mount: str = f"{self.soca_resources['fs_data'].ref}.{endpoints_suffix[_fs_data_provider]}"
+
 
         secret = {
             "VpcId": self.soca_resources["vpc"].vpc_id,
@@ -1473,32 +1583,68 @@ class SOCAInstall(Stack):
             "S3Bucket": user_specified_variables.bucket,
             "SSHKeyPair": user_specified_variables.ssh_keypair,
             "CustomAMI": self.soca_resources["ami_id"],
-            "CustomAMIMap": None,
+            "CustomAMIMap": self.soca_resources["custom_ami_map"],
             "LoadBalancerDNSName": self.soca_resources["alb"].load_balancer_dns_name,
             "LoadBalancerArn": self.soca_resources["alb"].load_balancer_arn,
             "BaseOS": user_specified_variables.base_os,
             "S3InstallFolder": user_specified_variables.cluster_id,
-            "SchedulerIP": self.soca_resources["scheduler_eip"].ref
+            "SchedulerIP": self._scheduler_eip_value
             if install_props.Config.entry_points_subnets.lower() == "public"
             else self.soca_resources["scheduler_instance"].instance_private_ip,
             "SolutionMetricsLambda": solution_metrics_lambda.function_arn,
             "DefaultMetricCollection": "true",
             "AuthProvider": install_props.Config.directoryservice.provider,
-            "FileSystemDataProvider": install_props.Config.storage.data.provider
-            if not user_specified_variables.fs_data_provider
-            else user_specified_variables.fs_data_provider,
-            "FileSystemData": f"{self.soca_resources['fs_data'].ref}.{endpoints_suffix[install_props.Config.storage.data.provider]}"
-            if not user_specified_variables.fs_data
-            else f"{user_specified_variables.fs_data}.{endpoints_suffix[install_props.Config.storage.data.provider]}",
-            "FileSystemAppsProvider": install_props.Config.storage.apps.provider
-            if not user_specified_variables.fs_apps_provider
-            else user_specified_variables.fs_apps_provider,
-            "FileSystemApps": f"{self.soca_resources['fs_apps'].ref}.{endpoints_suffix[install_props.Config.storage.apps.provider]}"
-            if not user_specified_variables.fs_apps
-            else f"{user_specified_variables.fs_apps}.{endpoints_suffix[install_props.Config.storage.apps.provider]}",
+            "FileSystemDataProvider": _fs_data_provider,
+            "FileSystemData": _fs_data_mount,
+            "FileSystemAppsProvider": _fs_apps_provider,
+            "FileSystemApps": _fs_apps_mount,
             "SkipQuotas": install_props.Config.skip_quotas,
             "MetadataHttpTokens": install_props.Config.metadata_http_tokens,
             "AnalyticsEngine": install_props.Config.analytics.engine,
+            "DefaultVolumeType": install_props.Config.scheduler.volume_type,
+            "HPCJobDeploymentMethod": "asg",  # asg or fleet
+            # Defaults for eVDI/DCV
+            "DCVDefaultVersion": install_props.Config.dcv.version,
+            "DCVAllowPreviousGenerations": False,  # Allow Previous Generation(older) instances
+            "DCVAllowBareMetal": False,  # Allow Bare Metal instances to be shown
+            "DCVAllowedInstances": [
+                "m7i-flex.*",
+                "m7i.*",
+                "m6i.*",
+                "m6g.*",
+                "m5.*",
+                "g4dn.*",
+                "g4ad.*",
+                "g5.*",
+                "g6.*",
+                "gr6.*",
+                "c6i.*",
+                "c6a.*",
+                "r6i.*",
+                "r6a.*",
+            ],  # List (with wildcard) of instances that are allowed. All rest are denied.
+            "DCVDeniedInstances": [
+                "*.48xlarge"
+            ],  # Wildcards of instance types that should be denied that otherwise may be permitted in the AllowedInstances
+            #
+            # Our default configuration uses a local compiled version of Redis
+            # This can be offloaded externally if desired post-installation
+            #
+            "Cache": {
+                "Enabled": True,  # Required to be True for now
+                "Provider":  "redis",  # Only supports redis for now
+                "TTL": {
+                    "short": 3600,
+                    "long": 86400
+                },
+                "RedisConfiguration": {
+                    "Host": "localhost",
+                    "Port": "6379",
+                    "DB": "0",
+                    "RedisAuth": "",
+                    "UseTLS": False,
+                },
+            }
         }
 
         # ES configuration
@@ -1576,6 +1722,11 @@ class SOCAInstall(Stack):
             secret_string=json.dumps(secret),
         )
 
+        if not user_specified_variables.os_endpoint:
+            self.soca_resources["soca_config"].node.add_dependency(
+                self.soca_resources["os_domain"]
+            )
+
         # Create IAM policy and attach it to both Scheduler and Compute Nodes group
         secret_manager_statement = iam.PolicyStatement(
             actions=["secretsmanager:GetSecretValue"],
@@ -1611,12 +1762,12 @@ class SOCAInstall(Stack):
         _deletion_policy = install_props.Config.analytics.deletion_policy.upper()
 
         if install_props.Config.analytics.engine == "opensearch":
-            _engine_version = opensearch.EngineVersion.OPENSEARCH_2_3
+            _engine_version = opensearch.EngineVersion.OPENSEARCH_2_11
         elif install_props.Config.analytics.engine == "elasticsearch":
             _engine_version = opensearch.EngineVersion.ELASTICSEARCH_7_9
         else:
             print(
-                f"install_props.Config.analytics.engine must be openserch or elasticsearch. Detected {install_props.Config.analytics.engine}"
+                f"install_props.Config.analytics.engine must be opensearch or elasticsearch. Detected {install_props.Config.analytics.engine}"
             )
             sys.exit(1)
 
@@ -1709,7 +1860,7 @@ class SOCAInstall(Stack):
                 description="Get ES private ip addresses",
                 memory_size=128,
                 role=self.soca_resources["get_es_private_ip_lambda_role"],
-                runtime=typing.cast(aws_lambda.Runtime, aws_lambda.Runtime.PYTHON_3_9),
+                runtime=typing.cast(aws_lambda.Runtime, aws_lambda.Runtime.PYTHON_3_11),
                 timeout=Duration.minutes(3),
                 log_retention=logs.RetentionDays.INFINITE,
                 handler="GetESPrivateIPLambda.lambda_handler",
@@ -1783,29 +1934,17 @@ class SOCAInstall(Stack):
             security_group=self.soca_resources["scheduler_sg"],
             http2_enabled=True,
             vpc=self.soca_resources["vpc"],
+            drop_invalid_header_fields=True,
             internet_facing=True
             if install_props.Config.entry_points_subnets.lower() == "public"
             else False,
         )
         # HTTP listener simply forward to HTTPS
-        self.soca_resources["alb"].add_listener(
-            "HTTPListener",
-            port=80,
-            open=False,
-            protocol=elbv2.ApplicationProtocol.HTTP,
-            default_action=elbv2.ListenerAction(
-                action_json=elbv2.CfnListener.ActionProperty(
-                    type="redirect",
-                    redirect_config=elbv2.CfnListener.RedirectConfigProperty(
-                        host="#{host}",
-                        path="/#{path}",
-                        port="443",
-                        protocol="HTTPS",
-                        query="#{query}",
-                        status_code="HTTP_301",
-                    ),
-                )
-            ),
+        self.soca_resources["alb"].add_redirect(
+            source_protocol=elbv2.ApplicationProtocol.HTTP,
+            source_port=80,
+            target_protocol=elbv2.ApplicationProtocol.HTTPS,
+            target_port=443,
         )
 
         # Create self-signed certificate (if needed) for HTTPS listener (via AWS Lambda)
@@ -2064,6 +2203,8 @@ if __name__ == "__main__":
     # List of AWS endpoints & principals suffix
     endpoints_suffix = {
         "fsx_lustre": f"fsx.{Aws.REGION}.{Aws.URL_SUFFIX}",
+        "fsx_openzfs": f"fsx.{Aws.REGION}.{Aws.URL_SUFFIX}",
+        "fsx_ontap": f"fsx.{Aws.REGION}.{Aws.URL_SUFFIX}",
         "efs": f"efs.{Aws.REGION}.{Aws.URL_SUFFIX}",
     }
 

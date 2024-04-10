@@ -4,6 +4,89 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.7.5] - 2024-04-10
+
+### Features
+- Support for [Amazon Linux 2023](https://aws.amazon.com/linux/amazon-linux-2023/) as a BaseOS for compute nodes
+  - eVDI on Amazon Linux 2023 is not currently supported
+- Support for `5 new AWS Regions`: `ap-northeast-3`, `ap-southeast-4`, `eu-central-2`, `eu-south-2`, and  `il-central-1`. 
+  - Note that not all Base OSes are available in All regions
+- Support for `RHEL8`, `RHEL9`, `Rocky8`, and `Rocky9` operating systems for both DCV and compute nodes
+- Support for newer AWS Instance types/families. This includes `hpc7a`, `hpc7g`, `r7iz`, `g6`, `gr6`, `g5`, `g5g`, `c7i`, `p5`, and many more (where supported in the region)
+- Support for [AWS GovCloud](https://aws.amazon.com/govcloud-us/) Partition installation by default
+  - Include AMIs for regions `us-gov-west-1` and `us-gov-east-1`
+  - Note that not all Base OSes are available in All regions within GovCloud
+  - Set environment variable `AWS_DEFAULT_REGION` to a GovCloud region prior to invoking `soca_installer.sh`
+- Improve compatibility and support SOCA deployments on `AWS Outposts` (compute, eVDI)
+  - The default `VolumeType` in Secrets Manager needs to be configured to reflect the AWS Outposts `gp2` support
+- Support has been added for multi-interface EFA instances such as the `p5.48xlarge`. For compute instances that support multiple EFA interfaces - all EFA interfaces will be created during provisioning.
+- The SOCA Administrator can now define the list of approved eVDI instances via new configuration parameters:
+  - `DCVAllowedInstances` - A list of patterns for allowed instance names. For example `["m7i-flex.*", "m7i.*", "m6i.*", "m5.*", "g6.*", "gr6.*", "g5.*", "g5g.*", "g4dn.*", "g4ad.*"]`
+  - (Optional) `DCVAllowBareMetal` (defaults to `False`) - Allow listing of Bare Metal instances for eVDI
+  - (Optional) `DCVAllowPreviousGenerations` (defaults to `False`) - Allow listing of previous generation(s) of instances for eVDI
+
+### Changed
+- Improved user experience using `soca_installer.sh` in high-density VPC/subnet environments
+- Improved the log message for an Invalid `subnet_id` during job submission to include the specific `subnet_id` that triggered the error
+- Updated Python from `3.9.16` to `3.9.19`
+- Updated AWS Boto3/botocore from `1.26.91` to `1.34.71`
+- Updated OpenMPI from `4.1.5` to `5.0.2`
+- Updated OpenPBS from `22.05.11` to `23.06.06`
+- Updated Monaco-Editor from `0.36.1` to `0.46.0`
+- Updated AWS EFA installer from `1.22.1` to `1.31.0`
+- Updated NICE DCV from `2023.0-14852` to `2023.1-16388`
+- Update NVM from `0.39.3` to `0.39.7`
+- Updated Node from `16.15.0` to `16.20.2`
+- Updated Lambda Runtimes to Python `3.11` where applicable
+- Misc Python 3rd party module version updates
+- Refactor installation items for newer AWS CDK methods
+- Updated default `OpenSearch` engine version to `2.11` when creating an OpenSearch deployment
+- The use of `add_nodes.py` to add `AlwaysOn` nodes now allows the parameter `--instance_ami` to be optional and will default to the `CustomAMI` in the cluster configuration
+- Download/install/configure `Redis` version `7.2.4` for new SOCA cache backend
+- The SOCA ELB/ALB is now created with the option `drop_invalid_headers` set to `True` by default.
+- Several UWSGI application server adjustments
+  - Activate UWSGI `stats` server on `127.0.0.1:9191`
+  - Activate UWSGI `offload-threads`
+  - Activate UWSGI `threaded-logger`
+  - Activate UWSGI `memory-report`
+  - Activate UWSGI `microsecond logging`
+  - Activate UWSGI logging of the `X-Forwarded-For` headers so that the client IP address is captured versus the ELB IP Address
+  - Added `uwsgitop` to assist in UWSGI performance investigations. This can be accessed via the command `uwsgitop localhost:9191` from the scheduler.
+  - Adjusted Flask session backend from `SQLite` to `redis`. This results in a much faster WebUI/session handling.
+  - **NOTE** - Upgrade scenarios should take UWSGI changes into account and manually perform Redis installation/configuration and session migration.
+- `Launch Tenancy` and `Launch Host` have been added as options when registering an AMI in SOCA. These will be used during DCV session creation.
+  - For more information on launch tenancy - see the [documentation](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/dedicated-instance.html).
+- Updated default OpenSearch instance from `m5.large.search` to `m6g.large.search`
+- Updated default VDI choices from `m5` to `m6i` instance family
+- `instance_ami` is no longer mandatory when specifying a custom `base_os`. SOCA will determine which default AMI to use automatically via the `CustomAMIMap` configuration stored on Secrets Manager.  
+- Changed default `instance_type` for all base HPC queues from `c5` to `c6i` instance family
+- Updated DCV Session default `Storage Size` to `40GB` to accommodate additional locally installed software such as GPU drivers, libs, etc.
+
+### Fixes
+- `DryRun` job submission was not taking into account the `IMDS` settings for the cluster. This could cause job submission to fail `DryRun` and not be submitted.
+- Installation using an existing `OpenSearch` / `ElasticSearch` domain was not working as expected. This has been fixed.
+- Avoid sending `CpuOptions` with `hpc7a`, `hpc7g`, `g5`, `g5g` instances. This will fix launching on these instance families.
+- Properly detect newer AWS metal instances for determining if `CpuOptions` is supported during instance launch. This will allow launching `c7i.metal-24xl`, `c7i.metal-48xl` (and others) to function properly
+- On the `scheduler` Post-Install - extract/compile `OpenMPI` on a local EBS volume instead of EFS (can reduce compile time by `50%+`)
+- During HPC Job submission within the WebUI - the multi-select UI element `Checkbox Group` was not passed correctly to the underlying job scripting
+  - `Checkbox Group` element values will be delimited by comma by default (e.g. `option1,option2`).
+  - Care should be taken to not have option values contain the delimiter character. This can be updated in `submit_job.py` as needed. (Option name fields can contain the delimiter character)
+- During DCV Session creation - the user was allowed to enter a session name that exceeded the allowable length for a CloudFormation stack name. This has been adjusted to trim the session name to appropriate length (32 characters).
+- During DCV Session creation - if the session contained an underscore (_) the session would produce an error and not be created.
+- During DCV Session creation - The `Storage Size` was allowed to be lower than a stored AMI. This will now default / auto-size to the AMI specification.
+- Bootstrap tooltips are now displayed using the correct CSS in the Remote Desktop pages
+- Previously during invocation of `soca_installer.sh` with existing resources - only VPCs and Subnets with AWS `Name` tags would be selectable. This restriction has been eased to allow resources without `Name` tags to be selectable.
+- Under certain conditions in an Active Directory (AD) environment - the `scheduler` computer object could be mistakenly replaced in AD by an incoming compute or VDI node. This was due to NetBIOS name length restrictions causing name conflicts. This has been corrected.
+
+### Known Caveats
+- Web Sessions can be stored in the back-end (redis) that relate to API calls or other situations where return of the session is not expected. These sessions will be cleaned up automatically by Redis when the TTL expires (24hours).
+- On the Remote Desktop selection for Instance Types - sorting, grouping, and custom names of the AWS instances is not configurable by the SOCA Administrator for wildcard instances allowed via wildcard (e.g. `g5.*`).
+  - This can cause 'selection fatigue' for end-users when a large number of instances types are allowed.
+  - The SOCA Administrator can configure the static list at the top before the generated list appears. See the `cluster_web_ui/templates/remote_desktop.html` (Linux) and `cluster_web_ui/templates/remote_desktop_windows.html` (Windows) files for examples/defaults.
+  - The SOCA Administrator can reduce the default instances allowed by editing the AWS Secrets Manager configuration entry for the cluster and refreshing the configuration on the cluster.
+
+
+
 ## [2.7.4] - 2023-05-08
 
 ### Features

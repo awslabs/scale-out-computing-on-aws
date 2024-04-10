@@ -1,6 +1,6 @@
 # Lab 2: Login to Remote Desktop and Copy Lab Data
 
-The goal with this lab is to login to the remote cloud desktop visualization and experience using it. You'll also copy the data required for the subsequent labs.
+The goal with this lab is to log in to the remote cloud desktop visualization and experience using it. You'll also copy the data required for the subsequent labs.
 
 ## Step 1: Log into your session
 
@@ -28,6 +28,6 @@ By now your remote desktop session should be ready and you should see the follow
 
 1. Source environment settings by typing `source setup.csh` and hit enter 
 
-In this lab you learned how to login to desktop cloud visualiztion instance, and copied the lab data.
+In this lab you learned how to log in to desktop cloud visualiztion instance, and copied the lab data.
 
 You've completed this lab. Click **Next** to move to the next lab.

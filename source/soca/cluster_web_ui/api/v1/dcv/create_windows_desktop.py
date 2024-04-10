@@ -28,6 +28,7 @@ import random
 import string
 from botocore.exceptions import ClientError
 from models import db, WindowsDCVSessions, AmiList
+import remote_desktop_common
 import dcv_cloudformation_builder
 import sys
 
@@ -60,7 +61,7 @@ def can_launch_instance(launch_parameters):
                     "Ebs": {
                         "DeleteOnTermination": True,
                         "VolumeSize": launch_parameters["disk_size"],
-                        "VolumeType": "gp3",
+                        "VolumeType": launch_parameters.get("volume_type", "gp2"),
                         "Encrypted": True,
                     },
                 },
@@ -73,6 +74,7 @@ def can_launch_instance(launch_parameters):
             SubnetId=random.choice(launch_parameters["soca_private_subnets"])
             if not launch_parameters["subnet_id"]
             else launch_parameters["subnet_id"],
+            # TODO - Add HostId if in host mode placement? Does this matter for DryRun?
             Placement={"Tenancy": launch_parameters["tenancy"]},
             UserData=launch_parameters["user_data"],
             ImageId=launch_parameters["image_id"],
@@ -112,7 +114,6 @@ def session_already_exist(session_number):
         return True
     else:
         return False
-
 
 class CreateWindowsDesktop(Resource):
     @private_api
@@ -161,7 +162,11 @@ class CreateWindowsDesktop(Resource):
                   description: owner of the session
                 tenancy:
                   type: string
-                  description: EC2 tenancy (default or dedicated)
+                  description: EC2 tenancy (default, dedicated, or host)
+                launch_host:
+                  type: string
+                  description: EC2 host ID for dedicated host tenancy
+
         responses:
           200:
             description: Pair of user/token is valid
@@ -177,6 +182,7 @@ class CreateWindowsDesktop(Resource):
         parser.add_argument("subnet_id", type=str, location="form")
         parser.add_argument("hibernate", type=str, location="form")
         parser.add_argument("tenancy", type=str, location="form")
+        parser.add_argument("launch_host", type=str, location="form")
         args = parser.parse_args()
         logger.info(f"Received parameter for new Windows DCV session: {args}")
 
@@ -210,7 +216,7 @@ class CreateWindowsDesktop(Resource):
                     "CLIENT_MISSING_PARAMETER", "instance_type (str) is required."
                 )
 
-            args["disk_size"] = 30 if args["disk_size"] is None else args["disk_size"]
+            args["disk_size"] = 40 if args["disk_size"] is None else args["disk_size"]
             try:
                 args["disk_size"] = int(args["disk_size"])
             except ValueError:
@@ -245,7 +251,7 @@ class CreateWindowsDesktop(Resource):
                     f"Session Number {args['session_number']} is already used by an active desktop. Terminate it first before being able to use the same number",
                 )
 
-            # sanitize session_name, limit to 255 chars
+            # sanitize session_name
             if args["session_name"] is None:
                 session_name = "WindowsDesktop" + str(args["session_number"])
             else:
@@ -254,59 +260,49 @@ class CreateWindowsDesktop(Resource):
                     # handle case when session name specified by user only contains invalid char
                     session_name = "WindowsDesktop" + str(args["session_number"])
 
-            # Official DCV AMI
-            # https://aws.amazon.com/marketplace/pp/B07TVL513S + https://aws.amazon.com/marketplace/pp/B082HYM34K
-            # Non graphics is everything but g3/g4
-            if args["instance_ami"] is None or args["instance_ami"] == "base":
-                dcv_windows_ami = config.Config.DCV_WINDOWS_AMI
-                if instance_type.startswith("g"):
-                    if instance_type.startswith("g4ad"):
-                        if (
-                            region not in dcv_windows_ami["graphics-amd"].keys()
-                            and args["instance_ami"] is None
-                        ):
-                            return errors.all_errors(
-                                "DCV_LAUNCH_ERROR",
-                                f"Sorry, Windows Desktop is not available on your AWS region. Base AMI are only available on { dcv_windows_ami['graphics-amd'].keys()}",
-                            )
-                        else:
-                            image_id = dcv_windows_ami["graphics-amd"][region]
-                    else:
-                        if (
-                            region not in dcv_windows_ami["graphics"].keys()
-                            and args["instance_ami"] is False
-                        ):
-                            return errors.all_errors(
-                                "DCV_LAUNCH_ERROR",
-                                f"Sorry, Windows Desktop is not available on your AWS region. Base AMI are only available on {dcv_windows_ami['graphics'].keys()}",
-                            )
-                        else:
-                            image_id = dcv_windows_ami["graphics"][region]
-                else:
-                    if (
-                        region not in dcv_windows_ami["non-graphics"].keys()
-                        and args["instance_ami"] is False
-                    ):
-                        return errors.all_errors(
-                            "DCV_LAUNCH_ERROR",
-                            f"Sorry, Windows Desktop is not available on your AWS region. Base AMI are only available on {dcv_windows_ami['non-graphics'].keys()}",
-                        )
-                    else:
-                        image_id = dcv_windows_ami["non-graphics"][region]
+            # Cleanup unwanted characters that can conflict in CloudFormation StackNames
+            # TODO - move to common
+            session_name = re.sub(
+                pattern=r"[-_=]+",
+                repl="",
+                string=str(session_name)[:32]
+            )[:32]
+
+            _image_id: str = ""
+
+            # Official DCV AMI lookup
+            if args.get("instance_ami", None) is None or args.get("instance_ami", "").lower() == "base":
+
+                _dcv_version: str = soca_configuration.get("DCVDefaultVersionId", config.Config.DCV_AMI_VERSION)
+
+                _image_id: str = remote_desktop_common.resolve_windows_dcv_ami_id(
+                    region=region,
+                    owners=['877902723034'],
+                    instance_type=instance_type,
+                    version=_dcv_version
+                )
+
+                if _image_id == "":
+                    return errors.all_errors(
+                        "DCV_LAUNCH_ERROR",
+                        f"Error obtaining Windows DCV AMI for region {region} - Version {_dcv_version} . Search_String: {_image_id}",
+                    )
+
             else:
+                # We have an instance_ami in the argument list
                 if not args["instance_ami"].startswith("ami-"):
                     return errors.all_errors(
                         "DCV_LAUNCH_ERROR",
                         f"AMI {args['instance_ami']} does not seems to be valid. Must start with ami-<id>",
                     )
                 else:
-                    if validate_ec2_image(args["instance_ami"]) is False:
-                        return errors.all_errors(
-                            "DCV_LAUNCH_ERROR",
-                            f"AMI {args['instance_ami']} does not seems to be registered on SOCA. Refer to https://awslabs.github.io/scale-out-computing-on-aws/web-interface/create-virtual-desktops-images/",
-                        )
-                    else:
-                        image_id = args["instance_ami"]
+                    _image_id = args["instance_ami"]
+
+                if validate_ec2_image(_image_id) is False:
+                    return errors.all_errors(
+                        "DCV_LAUNCH_ERROR",
+                        f"AMI {_image_id} does not seems to be registered on SOCA. Refer to https://awslabs.github.io/scale-out-computing-on-aws/web-interface/create-virtual-desktops-images/",
+                    )
 
             digits = [
                 random.choice("".join(random.choice(string.digits) for _ in range(10)))
@@ -391,8 +387,8 @@ class CreateWindowsDesktop(Resource):
                         InstanceTypes=[instance_type],
                         Filters=[{"Name": "hibernation-supported", "Values": ["true"]}],
                     )
-                    logger.info(
-                        f"Checking in {instance_type} support Hibernation : {check_hibernation_support}"
+                    logger.debug(
+                        f"Checking if {instance_type} supports Hibernation : {check_hibernation_support}"
                     )
                     if len(check_hibernation_support["InstanceTypes"]) == 0:
                         if config.Config.DCV_FORCE_INSTANCE_HIBERNATE_SUPPORT is True:
@@ -420,11 +416,13 @@ class CreateWindowsDesktop(Resource):
                 "user_data": user_data,
                 "subnet_id": args["subnet_id"],
                 "tenancy": args["tenancy"],
-                "image_id": image_id,
+                "launch_host": args["launch_host"] if "launch_host" in args else None,
+                "image_id": _image_id,
                 "session_name": session_name,
                 "session_uuid": session_uuid,
                 "base_os": "windows",
                 "disk_size": args["disk_size"],
+                "volume_type": soca_configuration.get("DefaultVolumeType", 'gp2'),
                 "cluster_id": soca_configuration["ClusterId"],
                 "metadata_http_tokens": soca_configuration["MetadataHttpTokens"],
                 "hibernate": args["hibernate"],

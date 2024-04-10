@@ -25,7 +25,7 @@ By now your remote desktop session should be ready and you should see the follow
 
     ![](../imgs/vivado_startup.png)
  
-## Step 2: Create a new project project
+## Step 2: Create a new project
 
 Next, load a sample workload using one of the included example projects:
 

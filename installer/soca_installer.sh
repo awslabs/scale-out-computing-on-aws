@@ -13,6 +13,11 @@
 #  and limitations under the License.                                                                                #
 ######################################################################################################################
 
+
+if [[ ! "$BASH_VERSION" ]] ; then
+    exec /bin/bash "$0" "$@"
+fi
+
 function realpath() {
     [[ $1 = /* ]] && echo "$1" || echo "$PWD/${1#./}"
 }
@@ -31,17 +36,16 @@ function log_success() { echo -e "${GREEN}${1}${NC}" ;}
 function log_warning() { echo -e "${YELLOW}${1}${NC}" ;}
 function log_error() { echo -e "${RED}${1}${NC}" ;}
 
-# export SOCA_PYTHON variable if your Python3.9 is located on a different place
-# ex: export SOCA_PYTHON="python3.9" if this command is added to your $PATH
-# ex: export SOCA_PYTHON="/usr/local/bin/python3.9" to specify the full path of your Python3.9 environment
+# export SOCA_PYTHON variable if your Python3 is located on a different place
+# ex: export SOCA_PYTHON="python3" if this command is added to your $PATH
+# ex: export SOCA_PYTHON="/usr/local/bin/python3" to specify the full path of your Python3 environment
 # After you export SOCA_PYTHON, re-run the installer.
 SOCA_PYTHON=${SOCA_PYTHON:-$(command -v python3)}
-
 # Remove prompt when running virtual environment (not recommended)
 SOCA_PYTHON_SKIP_VENV=${SOCA_PYTHON_SKIP_VENV:-"false"}
 
-# Python3.9 must be available to build python dependencies on Lambda
-REQUIRED_PYTHON_VERSION="3.9"
+# Python3 must be available to build python dependencies on Lambda
+REQUIRED_PYTHON_VERSION="3.11"
 
 # Download and Install PyENV if needed
 PYENV_URL="https://pyenv.run"
@@ -56,7 +60,7 @@ INSTALLER_DIRECTORY=$(dirname $(realpath "$0"))
 PYTHON_VENV="$INSTALLER_DIRECTORY/resources/src/envs/venv-py-installer"
 
 # NVM path
-NODEJS_BIN="https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.3/install.sh"
+NODEJS_BIN="https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.5/install.sh"
 
 # Color
 NC="\033[0m"
@@ -83,7 +87,7 @@ fi
 log_success "Verifying Python3 interpreter"
 # shellcheck disable=SC2181
 if [[ -z "$SOCA_PYTHON" ]]; then
-    log_error "Python3.9 is not installed. Please download and install it from https://www.python.org/downloads/release/python-3916/"
+    log_error "Python is not installed. Please download and install it from https://www.python.org/downloads/release/python-3918/"
     exit 1
 else
     PYTHON_VERSION=$($SOCA_PYTHON -c "import sys;print(f'{sys.version_info.major}.{sys.version_info.minor}')")
@@ -94,9 +98,9 @@ else
       if [[ "$PYENV_AVAILABLE" == "true" ]]; then
         log_success "List of Python $REQUIRED_PYTHON_VERSION versions installed via your PyEnv: "
         PYENV_VERSIONS=$($PYENV versions | grep $REQUIRED_PYTHON_VERSION)
-        # Install Python3.9.x if not already there
+        # Install Python version if not already there
         if [[ -z "$PYENV_VERSIONS" ]]; then
-          log_warning -rp "We could not find any Python39 version, do you want to install it? (yes/no)" INSTALL_PYENV_VERSION
+          read -rp "We could not find any Python3 version, do you want to install it? (yes/no)" INSTALL_PYENV_VERSION
           case $INSTALL_PYENV_VERSION in
             yes )
               $PYENV install $REQUIRED_PYTHON_VERSION
@@ -117,7 +121,7 @@ else
 
       # Pyenv not installed
       else
-        log_warning "This script must be executing via python3.9 which is not installed. We recommend installing python3.9 via PyEnv"
+        log_warning "This script must be executing via python $REQUIRED_PYTHON_VERSION which is not installed. We recommend installing python $REQUIRED_PYTHON_VERSION via PyEnv"
         read -rp "Install PyEnv and $REQUIRED_PYTHON_VERSION (yes/no)" INSTALL_PYENV_AND_VERSION
           case $INSTALL_PYENV_AND_VERSION in
             yes )  true
@@ -127,7 +131,7 @@ else
             * ) log_error "Please answer yes or no."
             exit 1 ;;
           esac
-          curl $PYENV_URL | bash
+          curl --silent $PYENV_URL | bash
           if [[ $? -ne 0 ]]; then
             log_error "Unable to access PyEnv, fix errors above"
             exit 1
@@ -190,7 +194,7 @@ if [[ ! -d $NVM_DIR ]]; then
   source "$NVM_DIR/nvm.sh"  # This loads nvm
   # shellcheck disable=SC1090
   source "$NVM_DIR/bash_completion"
-  nvm install v16.15.0
+  nvm install v18.19.0
   npm install -g aws-cdk
 else
   source "$NVM_DIR/nvm.sh"  # This loads nvm

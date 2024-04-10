@@ -182,7 +182,7 @@ class StopDesktop(Resource):
                     db.session.commit()
                     return {
                         "success": True,
-                        "message": f"Your graphical session {session_name} is about to be terminated",
+                        "message": f"Your graphical session {session_name} is about to be terminated as requested",
                     }, 200
                 except ClientError as e:
                     return errors.all_errors(

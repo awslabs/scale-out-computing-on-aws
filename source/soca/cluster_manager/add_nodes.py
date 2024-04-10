@@ -38,26 +38,32 @@ servicequotas = boto3.client("service-quotas", config=configuration.boto_extra_c
 soca_configuration = configuration.get_soca_configuration()
 
 
-def find_running_cpus_per_instance(instance_list):
-    running_vcpus = 0
+def find_running_cpus_per_instance(instance_list) -> int:
+    # The term 'vcpu' is used for both vcpu and phycpu for quota
+    # calculation purposes.
+    # It comes down to what each instance counts torwards the quota
+    running_vcpus: int = 0
     ec2_paginator = ec2.get_paginator("describe_instances")
     ec2_iterator = ec2_paginator.paginate(
         Filters=[
-            {"Name": "instance-type", "Values": instance_list},
-            {"Name": "instance-state-name", "Values": ["running", "pending"]},
+            {
+                "Name": "instance-type",
+                "Values": instance_list
+            },
+            {
+                "Name": "instance-state-name",
+                "Values": ["running", "pending"]
+            },
         ],
     )
 
     for page in ec2_iterator:
         for reservation in page["Reservations"]:
             for instance in reservation["Instances"]:
-                if "CpuOptions" in instance.keys():
-                    running_vcpus += instance["CpuOptions"]["CoreCount"] * 2
-                else:
-                    if "xlarge" in instance["InstanceType"]:
-                        running_vcpus += 4
-                    else:
-                        running_vcpus += 2
+                _core_count: int = instance.get("CpuOptions", {}).get("CoreCount", 1)
+                _threads_per_core: int = instance.get("CpuOptions", {}).get("ThreadsPerCore", 1)
+                running_vcpus += (_core_count * _threads_per_core)
+
     return running_vcpus
 
 
@@ -68,12 +74,18 @@ def verify_ri_saving_availabilities(instance_type, instance_type_info):
             "current_ri_purchased": 0,
         }
 
-        # List all instance from this type currently running
+        # List all instances from this type currently running
         ec2_paginator = ec2.get_paginator("describe_instances")
         ec2_iterator = ec2_paginator.paginate(
             Filters=[
-                {"Name": "instance-type", "Values": [instance_type]},
-                {"Name": "instance-state-name", "Values": ["running", "pending"]},
+                {
+                    "Name": "instance-type",
+                    "Values": [instance_type]
+                },
+                {
+                    "Name": "instance-state-name",
+                    "Values": ["running", "pending"]
+                },
             ],
         )
 
@@ -93,8 +105,14 @@ def verify_ri_saving_availabilities(instance_type, instance_type_info):
         # Now list of many RI we have for this instance type
         get_ri_count = ec2.describe_reserved_instances(
             Filters=[
-                {"Name": "instance-type", "Values": [instance_type]},
-                {"Name": "state", "Values": ["active"]},
+                {
+                    "Name": "instance-type",
+                    "Values": [instance_type]
+                },
+                {
+                    "Name": "state",
+                    "Values": ["active"]
+                },
             ]
         )
 
@@ -171,6 +189,7 @@ def verify_vcpus_limit(instance_type, desired_capacity, quota_info):
         )
 
     if not quota_info or instance_type not in quota_info.keys():
+        # TODO - Use AWS API describe_instance_types
         all_instances_available = ec2._service_model.shape_for("InstanceType").enum
         all_instances_for_quota = [
             instance_family
@@ -181,7 +200,7 @@ def verify_vcpus_limit(instance_type, desired_capacity, quota_info):
         required_api_calls = ceil(len(all_instances_for_quota) / 190)
         for i in range(0, required_api_calls):
             # DescribeInstances has a limit of 200 attributes per filter
-            instances_to_check = all_instances_for_quota[i * 190 : (i + 1) * 190]
+            instances_to_check = all_instances_for_quota[i * 190: (i + 1) * 190]
             if instances_to_check:
                 running_vcpus += find_running_cpus_per_instance(instances_to_check)
 
@@ -206,13 +225,30 @@ def verify_vcpus_limit(instance_type, desired_capacity, quota_info):
 def can_launch_capacity(
     instance_type, desired_capacity, image_id, subnet_id, security_group
 ):
-    if not isinstance(soca_configuration["SkipQuotas"], bool):
+    # Allow skipping DryRun and Quotas - default to False if they are not set in the config
+    _config_skip_dryrun: bool = soca_configuration.get("SkipDryRun", False)
+    _config_skip_quotas: bool = soca_configuration.get("SkipQuotas", False)
+
+    # We still perform a check on the value in case it is set to _something_ , but _something_ isn't a boolean
+    if not isinstance(_config_skip_quotas, bool):
         print(
-            f"SkipQuotas: {soca_configuration['SkipQuotas']} is not a valid boolean. Default to False"
+            f"SkipQuotas: {_config_skip_quotas} is not a valid boolean. Default to False"
         )
         skip_quota = False
     else:
-        skip_quota = soca_configuration["SkipQuotas"]
+        skip_quota = _config_skip_quotas
+
+    if not isinstance(_config_skip_dryrun, bool):
+        print(
+            f"SkipDryRun: {_config_skip_dryrun} is not a valid boolean. Default to False"
+        )
+        skip_dryrun = False
+    else:
+        skip_dryrun = _config_skip_dryrun
+
+    if skip_dryrun and skip_quota:
+        # No need to even send the API calls if we have both knobs set to Skip
+        return True
 
     for instance in instance_type:
         try:
@@ -223,7 +259,10 @@ def can_launch_capacity(
                 SecurityGroupIds=[security_group],
                 MaxCount=int(desired_capacity),
                 MinCount=int(desired_capacity),
-                DryRun=True,
+                MetadataOptions={
+                    "HttpTokens": soca_configuration.get("MetadataHttpTokens", "required"),
+                },
+                DryRun=True
             )
 
         except ClientError as e:
@@ -257,515 +296,473 @@ def can_launch_capacity(
 
 
 def check_config(**kwargs):
-    error = False
-    # Convert str to bool when possible
-    for k, v in kwargs.items():
-        if str(v).lower() in ["true", "yes", "y", "on"]:
-            kwargs[k] = True
-        if str(v).lower() in ["false", "no", "n", "off"]:
-            kwargs[k] = False
+    try:
+        error = []
+        skip = False
+        # Convert str to bool when possible
+        for k, v in kwargs.items():
+            if str(v).lower() in ["true", "yes", "y", "on"]:
+                kwargs[k] = True
+            if str(v).lower() in ["false", "no", "n", "off"]:
+                kwargs[k] = False
 
-    # Transform instance_type as list in case multiple type are specified
-    kwargs["instance_type"] = kwargs["instance_type"].split("+")
+        # Transform instance_type as list in case multiple type are specified
+        kwargs["instance_type"] = kwargs["instance_type"].split("+")
 
-    # Transform weighted_capacity as a list in case multiple instance types are specified
-    # Confirm that the length of weighted_capacity list is consistent with the length of instance_type list
-    weighted_capacity = []
-    if kwargs["weighted_capacity"] is not False:
-        for item in kwargs["weighted_capacity"].split("+"):
-            try:
-                item = int(item)
-            except ValueError:
-                error = return_message(
-                    "All values specified for --weighted_capacity must be integers. Found: "
-                    + str(item)
-                )
-            weighted_capacity.append(item)
-        kwargs["weighted_capacity"] = weighted_capacity
-        if len(kwargs["instance_type"]) != len(kwargs["weighted_capacity"]):
-            error = return_message(
-                "Number of --weighted_capacity entries is not consistent with --instance_type entries"
-            )
-
-    # Validate terminate_when_idle
-    if "terminate_when_idle" not in kwargs.keys():
-        kwargs["terminate_when_idle"] = 0
-
-    # Must convert true,True into bool() and false/False
-    if (
-        kwargs["job_id"] is None
-        and kwargs["keep_forever"] is False
-        and int(kwargs["terminate_when_idle"]) == 0
-    ):
-        error = return_message(
-            "--job_id, --keep_forever True, or --terminate_when_idle N>0 must be specified"
-        )
-
-    # Ensure jobId is not None when using keep_forever
-    if kwargs["job_id"] is None and (
-        kwargs["keep_forever"] is True or int(kwargs["terminate_when_idle"]) > 0
-    ):
-        kwargs["job_id"] = kwargs["stack_uuid"]
-
-    # Ensure anonymous metric is either True or False.
-    if kwargs["anonymous_metrics"] not in [True, False]:
-        kwargs["anonymous_metrics"] = True
-
-    # Ensure force_ri is either True or False.
-    if kwargs["force_ri"] not in [True, False]:
-        kwargs["force_ri"] = False
-
-    if kwargs["force_ri"] is True and kwargs["spot_price"] is False:
-        # Job can only run on Reserved Instance. We ignore if SpotFleet is enabled
+        # Get Instance information
         try:
-            instance_type_info
-        except NameError:
-            instance_type_info = {}
-
-        for instance_type in kwargs["instance_type"]:
-            check_ri = verify_ri_saving_availabilities(
-                instance_type, instance_type_info
-            )
-            if (
-                check_ri[instance_type]["current_instance_in_use"]
-                + int(kwargs["desired_capacity"])
-            ) > check_ri[instance_type]["current_ri_purchased"]:
-                error = return_message(
-                    "Not enough RI to cover for this job. Instance type: {}, number of running instances: {}, number of purchased RIs: {}, capacity requested: {}. Either purchase more RI or allow usage of On Demand".format(
-                        instance_type,
-                        check_ri[instance_type]["current_instance_in_use"],
-                        check_ri[instance_type]["current_ri_purchased"],
-                        kwargs["desired_capacity"],
-                    )
-                )
+            instance_attributes = ec2.describe_instance_types(InstanceTypes=[kwargs["instance_type"][0]])
+            if len(instance_attributes["InstanceTypes"]) == 0:
+                skip = True
+                error.append(f"No instance returned from DescribeInstanceTypes")
+        except ClientError as e:
+            skip = True
+            if e.response["Error"].get("Code") == "InvalidInstanceType":
+                error.append(f"Instance type does not seems to be valid. Update boto3 to refresh the list if needed")
             else:
-                # Update the number of current_instance_in_use with the number of new instance that this job will launch
-                instance_type_info[instance_type] = {
-                    "current_instance_in_use": check_ri[instance_type][
-                        "current_instance_in_use"
-                    ]
-                    + int(kwargs["desired_capacity"])
+                error.append(f"Unable to get instance information due to {e}")
+        except Exception as e:
+            skip = True
+            error.append(f"Unable to run describe_instance_types API due to {e}")
+
+        if not skip:
+            # Transform weighted_capacity as a list in case multiple instance types are specified
+            # Confirm that the length of weighted_capacity list is consistent with the length of instance_type list
+            weighted_capacity = []
+            if kwargs["weighted_capacity"] is not False:
+                for item in kwargs["weighted_capacity"].split("+"):
+                    try:
+                        item = int(item)
+                    except ValueError:
+                        error.append(f"All values specified for --weighted_capacity must be integers. Found {item}")
+                    weighted_capacity.append(item)
+                kwargs["weighted_capacity"] = weighted_capacity
+                if len(kwargs["instance_type"]) != len(kwargs["weighted_capacity"]):
+                    error.append("Number of --weighted_capacity entries is not consistent with --instance_type entries")
+
+            # Validate terminate_when_idle
+            if "terminate_when_idle" not in kwargs.keys():
+                kwargs["terminate_when_idle"] = 0
+
+            # Must convert true,True into bool() and false/False
+            if (
+                kwargs["job_id"] is None
+                and kwargs["keep_forever"] is False
+                and int(kwargs["terminate_when_idle"]) == 0
+            ):
+                error.append("--job_id, --keep_forever True, or --terminate_when_idle N>0 must be specified")
+
+            # Ensure jobId is not None when using keep_forever
+            if kwargs["job_id"] is None and (
+                kwargs["keep_forever"] is True or int(kwargs["terminate_when_idle"]) > 0
+            ):
+                kwargs["job_id"] = kwargs["stack_uuid"]
+
+            # Ensure anonymous metric is either True or False.
+            if kwargs["anonymous_metrics"] not in [True, False]:
+                kwargs["anonymous_metrics"] = True
+
+            # Ensure force_ri is either True or False.
+            if kwargs["force_ri"] not in [True, False]:
+                kwargs["force_ri"] = False
+
+            if kwargs["force_ri"] is True and kwargs["spot_price"] is False:
+                # Job can only run on Reserved Instance. We ignore if SpotFleet is enabled
+                try:
+                    instance_type_info
+                except NameError:
+                    instance_type_info = {}
+
+                for instance_type in kwargs["instance_type"]:
+                    check_ri = verify_ri_saving_availabilities(
+                        instance_type, instance_type_info
+                    )
+                    if (
+                        check_ri[instance_type]["current_instance_in_use"]
+                        + int(kwargs["desired_capacity"])
+                    ) > check_ri[instance_type]["current_ri_purchased"]:
+                        error.append(f"Not enough RI to cover for this job. Instance type: {instance_type}, number of running instances: { check_ri[instance_type]['current_instance_in_use']}, number of purchased RIs: {check_ri[instance_type]['current_ri_purchased']}, capacity requested: {kwargs['desired_capacity']}. Either purchase more RI or allow usage of On Demand")
+                    else:
+                        # Update the number of current_instance_in_use with the number of new instance that this job will launch
+                        instance_type_info[instance_type] = {
+                            "current_instance_in_use": check_ri[instance_type][
+                                "current_instance_in_use"
+                            ]
+                            + int(kwargs["desired_capacity"])
+                        }
+
+            # Default System metrics to False unless explicitly set to True
+            if kwargs["system_metrics"] is not True:
+                kwargs["system_metrics"] = False
+
+            if not isinstance(int(kwargs["desired_capacity"]), int):
+                error.append("Desired Capacity must be an int")
+
+            if "tags" not in kwargs.keys() or kwargs["tags"] is None:
+                kwargs["tags"] = {}
+            else:
+                try:
+                    kwargs["tags"] = ast.literal_eval(kwargs["tags"])
+                    if not isinstance(kwargs["tags"], dict):
+                        error.append("Tags must be a valid dictionary")
+                except ValueError:
+                    error.append("Tags must be a valid dictionary")
+
+            # FSx Management
+            kwargs["fsx_lustre_configuration"] = {
+                "fsx_lustre": kwargs["fsx_lustre"],
+                "s3_backend": False,
+                "existing_fsx": False,
+                "import_path": False,
+                "export_path": False,
+                "deployment_type": kwargs["fsx_lustre_deployment_type"],
+                "per_unit_throughput": False,
+                "capacity": 1200,
+            }
+
+            if kwargs["fsx_lustre"] is not False:
+                fsx_deployment_type_allowed = [
+                    "scratch_1",
+                    "scratch_2",
+                    "persistent_1",
+                    "persistent_2",
+                ]
+                fsx_lustre_per_unit_throughput_allowed = {
+                    "persistent_1": [50, 100, 200],
+                    "persistent_2": [125, 250, 500, 1000],
                 }
 
-    # Default System metrics to False unless explicitly set to True
-    if kwargs["system_metrics"] is not True:
-        kwargs["system_metrics"] = False
-
-    if not isinstance(int(kwargs["desired_capacity"]), int):
-        return_message("Desired Capacity must be an int")
-
-    if "tags" not in kwargs.keys() or kwargs["tags"] is None:
-        kwargs["tags"] = {}
-    else:
-        try:
-            kwargs["tags"] = ast.literal_eval(kwargs["tags"])
-            if not isinstance(kwargs["tags"], dict):
-                error = return_message("Tags must be a valid dictionary")
-        except ValueError:
-            error = return_message("Tags must be a valid dictionary")
-
-    # FSx Management
-    kwargs["fsx_lustre_configuration"] = {
-        "fsx_lustre": kwargs["fsx_lustre"],
-        "s3_backend": False,
-        "existing_fsx": False,
-        "import_path": False,
-        "export_path": False,
-        "deployment_type": kwargs["fsx_lustre_deployment_type"],
-        "per_unit_throughput": False,
-        "capacity": 1200,
-    }
-
-    if kwargs["fsx_lustre"] is not False:
-        fsx_deployment_type_allowed = [
-            "scratch_1",
-            "scratch_2",
-            "persistent_1",
-            "persistent_2",
-        ]
-        fsx_lustre_per_unit_throughput_allowed = {
-            "persistent_1": [50, 100, 200],
-            "persistent_2": [125, 250, 500, 1000],
-        }
-
-        # Default to SCRATCH_2 if incorrect value is specified
-        if (
-            kwargs["fsx_lustre_deployment_type"].lower()
-            not in fsx_deployment_type_allowed
-        ):
-            return_message(
-                "FSx Deployment Type must be: " + ",".join(fsx_deployment_type_allowed)
-            )
-        else:
-            kwargs["fsx_lustre_configuration"]["fsx_lustre_deployment_type"] = kwargs[
-                "fsx_lustre_deployment_type"
-            ].upper()
-
-        # If deployment_type is PERSISTENT, configure Per unit throughput and default to 200mb/s
-        if kwargs["fsx_lustre_configuration"]["fsx_lustre_deployment_type"].lower() in {
-            "persistent_1",
-            "persistent_2",
-        }:
-            if not isinstance(int(kwargs["fsx_lustre_per_unit_throughput"]), int):
-                return_message("FSx Per Unit Throughput must be an int")
-            else:
+                # Default to SCRATCH_2 if incorrect value is specified
                 if (
-                    kwargs["fsx_lustre_per_unit_throughput"]
-                    not in fsx_lustre_per_unit_throughput_allowed[
-                        kwargs["fsx_lustre_configuration"][
-                            "fsx_lustre_deployment_type"
-                        ].lower()
-                    ]
+                    kwargs["fsx_lustre_deployment_type"].lower()
+                    not in fsx_deployment_type_allowed
                 ):
-                    return_message(
-                        f"FSx Per Unit Throughput must one of: {fsx_lustre_per_unit_throughput_allowed[kwargs['fsx_lustre_configuration']['fsx_lustre_deployment_type'].lower()]}"
-                    )
-                else:
-                    kwargs["fsx_lustre_configuration"]["per_unit_throughput"] = int(
-                        kwargs["fsx_lustre_per_unit_throughput"]
-                    )
+                    error.append(f"FSx Deployment Type must be: {','.join(fsx_deployment_type_allowed)}")
 
-        if kwargs["fsx_lustre"] is not True:
-            # when fsx_lustre is set to True, only create a FSx without S3 backend
-            if kwargs["fsx_lustre"].startswith("fs-"):
-                kwargs["fsx_lustre_configuration"]["existing_fsx"] = kwargs[
-                    "fsx_lustre"
-                ]
+                else:
+                    kwargs["fsx_lustre_configuration"]["fsx_lustre_deployment_type"] = kwargs[
+                        "fsx_lustre_deployment_type"
+                    ].upper()
+
+                # If deployment_type is PERSISTENT, configure Per unit throughput and default to 200mb/s
+                if kwargs["fsx_lustre_configuration"]["fsx_lustre_deployment_type"].lower() in {
+                    "persistent_1",
+                    "persistent_2",
+                }:
+                    if not isinstance(int(kwargs["fsx_lustre_per_unit_throughput"]), int):
+                        error.append("FSx Per Unit Throughput must be an int")
+                    else:
+                        if (
+                            kwargs["fsx_lustre_per_unit_throughput"]
+                            not in fsx_lustre_per_unit_throughput_allowed[
+                                kwargs["fsx_lustre_configuration"][
+                                    "fsx_lustre_deployment_type"
+                                ].lower()
+                            ]
+                        ):
+                            error.append(
+                                f"FSx Per Unit Throughput must one of: {fsx_lustre_per_unit_throughput_allowed[kwargs['fsx_lustre_configuration']['fsx_lustre_deployment_type'].lower()]}"
+                            )
+                        else:
+                            kwargs["fsx_lustre_configuration"]["per_unit_throughput"] = int(
+                                kwargs["fsx_lustre_per_unit_throughput"]
+                            )
+
+                if kwargs["fsx_lustre"] is not True:
+                    # when fsx_lustre is set to True, only create a FSx without S3 backend
+                    if kwargs["fsx_lustre"].startswith("fs-"):
+                        kwargs["fsx_lustre_configuration"]["existing_fsx"] = kwargs[
+                            "fsx_lustre"
+                        ]
+                    else:
+                        if kwargs["fsx_lustre"].startswith("s3://"):
+                            kwargs["fsx_lustre_configuration"]["s3_backend"] = kwargs[
+                                "fsx_lustre"
+                            ]
+                        else:
+                            kwargs["fsx_lustre_configuration"]["s3_backend"] = (
+                                "s3://" + kwargs["fsx_lustre"]
+                            )
+
+                        # Verify if SOCA has permissions to access S3 backend
+                        try:
+                            s3.get_bucket_acl(Bucket=kwargs["fsx_lustre"].split("s3://")[-1])
+                        except exceptions.ClientError:
+                            error.append(
+                                f"SOCA does not have access to this bucket ({ kwargs['fsx_lustre']}). Refer to the documentation to update IAM policy."
+                            )
+
+                        # Verify if user specified custom Import/Export path.
+                        # Syntax is fsx_lustre=<bucket>+<export_path>+<import_path>
+                        check_user_specified_path = kwargs["fsx_lustre"].split("+")
+                        if check_user_specified_path.__len__() == 1:
+                            pass
+                        elif check_user_specified_path.__len__() == 2:
+                            # import path default to bucket root if not specified
+                            kwargs["fsx_lustre_configuration"][
+                                "export_path"
+                            ] = check_user_specified_path[1]
+                            kwargs["fsx_lustre_configuration"]["import_path"] = kwargs[
+                                "fsx_lustre_configuration"
+                            ]["s3_backend"]
+                        elif check_user_specified_path.__len__() == 3:
+                            # When customers specified both import and export path
+                            kwargs["fsx_lustre_configuration"][
+                                "export_path"
+                            ] = check_user_specified_path[1]
+                            kwargs["fsx_lustre_configuration"][
+                                "import_path"
+                            ] = check_user_specified_path[2]
+                        else:
+                            error.append(f"Error setting up Import/Export path: {kwargs['fsx_lustre']}). Syntax is <bucket_name>+<export_path>+<import_path>. If import_path is not specified it defaults to bucket root level")
+
+                if kwargs["fsx_lustre_size"] is not False:
+                    fsx_lustre_capacity_allowed = [1200, 2400, 3600, 7200, 10800]
+                    if int(kwargs["fsx_lustre_size"]) not in fsx_lustre_capacity_allowed:
+                        error.append(f"fsx_lustre_size must be: {','.join(str(x) for x in fsx_lustre_capacity_allowed)}")
+
+                    else:
+                        kwargs["fsx_lustre_configuration"]["capacity"] = kwargs[
+                            "fsx_lustre_size"
+                        ]
+
+            SpotFleet = (
+                True
+                if (
+                    kwargs["spot_price"] is not False
+                    and kwargs["spot_allocation_count"] is False
+                    and (
+                        int(kwargs["desired_capacity"]) > 1
+                        or kwargs["instance_type"].__len__() > 1
+                    )
+                )
+                else False
+            )
+
+            if kwargs["subnet_id"] is False:
+                if SpotFleet is True:
+                    kwargs["subnet_id"] = soca_configuration["PrivateSubnets"]
+                else:
+                    kwargs["subnet_id"] = [random.choice(soca_configuration["PrivateSubnets"])]
             else:
-                if kwargs["fsx_lustre"].startswith("s3://"):
-                    kwargs["fsx_lustre_configuration"]["s3_backend"] = kwargs[
-                        "fsx_lustre"
-                    ]
+                if isinstance(kwargs["subnet_id"], int):
+                    if kwargs["subnet_id"] == 2:
+                        kwargs["subnet_id"] = random.sample(
+                            soca_configuration["PrivateSubnets"], 2
+                        )
+                    elif kwargs["subnet_id"] == 3:
+                        kwargs["subnet_id"] = random.sample(
+                            soca_configuration["PrivateSubnets"], 3
+                        )
+                    else:
+                        error.append(
+                            "Approved value for subnet_id are either the actual subnet ID or 2 or 3"
+                        )
                 else:
-                    kwargs["fsx_lustre_configuration"]["s3_backend"] = (
-                        "s3://" + kwargs["fsx_lustre"]
-                    )
+                    kwargs["subnet_id"] = kwargs["subnet_id"].split("+")
+                    for subnet in kwargs["subnet_id"]:
+                        if subnet not in soca_configuration["PrivateSubnets"]:
+                            error.append(f"Invalid subnet_id ({subnet}). Must be one of {','.join(soca_configuration['PrivateSubnets'])}")
 
-                # Verify if SOCA has permissions to access S3 backend
-                try:
-                    s3.get_bucket_acl(Bucket=kwargs["fsx_lustre"].split("s3://")[-1])
-                except exceptions.ClientError:
-                    error = return_message(
-                        "SOCA does not have access to this bucket ("
-                        + kwargs["fsx_lustre"]
-                        + "). Refer to the documentation to update IAM policy."
-                    )
+            # Handle placement group logic
+            if "placement_group" not in kwargs.keys():
+                pg_user_defined = False
+                # Default PG to True if not present
+                kwargs["placement_group"] = True if SpotFleet is False else False
+            else:
+                pg_user_defined = True
+                if kwargs["placement_group"] not in [True, False]:
+                    kwargs["placement_group"] = False
+                    error.append("Incorrect placement_group. Must be True or False")
 
-                # Verify if user specified custom Import/Export path.
-                # Syntax is fsx_lustre=<bucket>+<export_path>+<import_path>
-                check_user_specified_path = kwargs["fsx_lustre"].split("+")
-                if check_user_specified_path.__len__() == 1:
+            if int(kwargs["desired_capacity"]) > 1:
+                if (
+                    kwargs["subnet_id"].__len__() > 1
+                    and pg_user_defined is True
+                    and kwargs["placement_group"] is True
+                    and SpotFleet is False
+                ):
+                    # more than 1 subnet specified but placement group is also configured, default to the first subnet and enable PG
+                    kwargs["subnet_id"] = [kwargs["subnet_id"][0]]
+                else:
+                    if kwargs["subnet_id"].__len__() > 1 and pg_user_defined is False:
+                        kwargs["placement_group"] = False
+            else:
+                if int(kwargs["desired_capacity"]) == 1:
+                    kwargs["placement_group"] = False
+                else:
+                    # default to user specified value
                     pass
-                elif check_user_specified_path.__len__() == 2:
-                    # import path default to bucket root if not specified
-                    kwargs["fsx_lustre_configuration"][
-                        "export_path"
-                    ] = check_user_specified_path[1]
-                    kwargs["fsx_lustre_configuration"]["import_path"] = kwargs[
-                        "fsx_lustre_configuration"
-                    ]["s3_backend"]
-                elif check_user_specified_path.__len__() == 3:
-                    # When customers specified both import and export path
-                    kwargs["fsx_lustre_configuration"][
-                        "export_path"
-                    ] = check_user_specified_path[1]
-                    kwargs["fsx_lustre_configuration"][
-                        "import_path"
-                    ] = check_user_specified_path[2]
-                else:
-                    error = return_message(
-                        "Error setting up Import/Export path: "
-                        + kwargs["fsx_lustre"]
-                        + "). Syntax is <bucket_name>+<export_path>+<import_path>. If import_path is not specified it defaults to bucket root level"
-                    )
 
-        if kwargs["fsx_lustre_size"] is not False:
-            fsx_lustre_capacity_allowed = [1200, 2400, 3600, 7200, 10800]
-            if int(kwargs["fsx_lustre_size"]) not in fsx_lustre_capacity_allowed:
-                error = return_message(
-                    "fsx_lustre_size must be: "
-                    + ",".join(str(x) for x in fsx_lustre_capacity_allowed)
-                )
-            else:
-                kwargs["fsx_lustre_configuration"]["capacity"] = kwargs[
-                    "fsx_lustre_size"
-                ]
+            if kwargs["subnet_id"].__len__() > 1:
+                if kwargs["placement_group"] is True and SpotFleet is False:
+                    # if placement group is True and more than 1 subnet is defined, force default to 1 subnet
+                    kwargs["subnet_id"] = [kwargs["subnet_id"][0]]
 
-    SpotFleet = (
-        True
-        if (
-            kwargs["spot_price"] is not False
-            and kwargs["spot_allocation_count"] is False
-            and (
-                int(kwargs["desired_capacity"]) > 1
-                or kwargs["instance_type"].__len__() > 1
-            )
-        )
-        else False
-    )
+            # Validate additional security group ids
+            if kwargs["security_groups"]:
+                sgs_id = kwargs["security_groups"].split("+")
+                if sgs_id.__len__() > 4:
+                    error.append("You can specify a maximum of 4 additional security groups")
+                try:
+                    ec2.describe_security_groups(GroupIds=sgs_id)["SecurityGroups"]
+                    kwargs["security_groups"] = sgs_id
+                except Exception as err:
+                    error.append(f"Unable to validate one SG from {sgs_id} due to {err}")
 
-    if kwargs["subnet_id"] is False:
-        if SpotFleet is True:
-            kwargs["subnet_id"] = soca_configuration["PrivateSubnets"]
-        else:
-            kwargs["subnet_id"] = [random.choice(soca_configuration["PrivateSubnets"])]
-    else:
-        if isinstance(kwargs["subnet_id"], int):
-            if kwargs["subnet_id"] == 2:
-                kwargs["subnet_id"] = random.sample(
-                    soca_configuration["PrivateSubnets"], 2
-                )
-            elif kwargs["subnet_id"] == 3:
-                kwargs["subnet_id"] = random.sample(
-                    soca_configuration["PrivateSubnets"], 3
-                )
-            else:
-                error = return_message(
-                    "Approved value for subnet_id are either the actual subnet ID or 2 or 3"
-                )
-        else:
-            kwargs["subnet_id"] = kwargs["subnet_id"].split("+")
-            for subnet in kwargs["subnet_id"]:
-                if subnet not in soca_configuration["PrivateSubnets"]:
-                    error = return_message(
-                        "Incorrect subnet_id. Must be one of "
-                        + ",".join(soca_configuration["PrivateSubnets"])
-                    )
+            # Validate custom IAM Instance Profile
+            if kwargs["instance_profile"]:
+                try:
+                    kwargs["instance_profile"] = iam.get_instance_profile(
+                        InstanceProfileName=kwargs["instance_profile"]
+                    )["InstanceProfile"]["Arn"]
+                except Exception as err:
+                    error.append(f"Unable to validate custom IAM instance profile {kwargs['instance_profile']} due to {err}")
 
-    # Handle placement group logic
-    if "placement_group" not in kwargs.keys():
-        pg_user_defined = False
-        # Default PG to True if not present
-        kwargs["placement_group"] = True if SpotFleet is False else False
-    else:
-        pg_user_defined = True
-        if kwargs["placement_group"] not in [True, False]:
-            kwargs["placement_group"] = False
-            error = return_message("Incorrect placement_group. Must be True or False")
-
-    if int(kwargs["desired_capacity"]) > 1:
-        if (
-            kwargs["subnet_id"].__len__() > 1
-            and pg_user_defined is True
-            and kwargs["placement_group"] is True
-            and SpotFleet is False
-        ):
-            # more than 1 subnet specified but placement group is also configured, default to the first subnet and enable PG
-            kwargs["subnet_id"] = [kwargs["subnet_id"][0]]
-        else:
-            if kwargs["subnet_id"].__len__() > 1 and pg_user_defined is False:
-                kwargs["placement_group"] = False
-    else:
-        if int(kwargs["desired_capacity"]) == 1:
-            kwargs["placement_group"] = False
-        else:
-            # default to user specified value
-            pass
-
-    if kwargs["subnet_id"].__len__() > 1:
-        if kwargs["placement_group"] is True and SpotFleet is False:
-            # if placement group is True and more than 1 subnet is defined, force default to 1 subnet
-            kwargs["subnet_id"] = [kwargs["subnet_id"][0]]
-
-    # Validate additional security group ids
-    if kwargs["security_groups"]:
-        sgs_id = kwargs["security_groups"].split("+")
-        if sgs_id.__len__() > 4:
-            error = return_message(
-                "You can only specify a maximum of 4 additional security groups"
-            )
-        try:
-            ec2.describe_security_groups(GroupIds=sgs_id)["SecurityGroups"]
-            kwargs["security_groups"] = sgs_id
-        except Exception as err:
-            error = return_message(
-                f"Unable to validate one SG from {sgs_id} due to {err}"
-            )
-
-    # Validate custom IAM Instance Profile
-    if kwargs["instance_profile"]:
-        try:
-            kwargs["instance_profile"] = iam.get_instance_profile(
-                InstanceProfileName=kwargs["instance_profile"]
-            )["InstanceProfile"]["Arn"]
-        except Exception as err:
-            error = return_message(
-                f"Unable to validate custom IAM instance profile {kwargs['instance_profile']} due to {err}"
-            )
-
-    # Check core_count and ht_support
-    try:
-        instance_attributes = ec2.describe_instance_types(
-            InstanceTypes=[kwargs["instance_type"][0]]
-        )
-        if len(instance_attributes["InstanceTypes"]) == 0:
-            error = return_message(
-                "Unable to check instance: " + kwargs["instance_type"][0]
-            )
-        else:
+            # Check core_count and ht_support
             # boto3 does not return Default Cores/ThreadsPerCore T2 instances does not have DefaultCores
             if kwargs["instance_type"][0] in ["t2.micro", "t2.nano", "t2.small"]:
                 kwargs["ht_support"] = False
             elif kwargs["instance_type"][0] in [
-                "t2.medium",
-                "t2.large",
-                "t2.xlarge",
-                "t2.2xlarge",
+                        "t2.medium",
+                        "t2.large",
+                        "t2.xlarge",
+                        "t2.2xlarge",
             ]:
                 # do not set ht_support. Will default to None if not explicitly set by the user
                 pass
             else:
-                kwargs["core_count"] = instance_attributes["InstanceTypes"][0][
-                    "VCpuInfo"
-                ]["DefaultCores"]
-                if (
-                    instance_attributes["InstanceTypes"][0]["VCpuInfo"][
-                        "DefaultThreadsPerCore"
-                    ]
-                    == 1
-                ):
-                    # Set ht_support to False for instances with DefaultThreadsPerCore = 1 (e.g. graviton)
+                kwargs["core_count"] = instance_attributes["InstanceTypes"][0]["VCpuInfo"]["DefaultCores"]
+                if (instance_attributes["InstanceTypes"][0]["VCpuInfo"][ "DefaultThreadsPerCore"] == 1):
+                    # Set ht_support to False for instances with DefaultThreadsPerCore = 1 (e.g. Graviton)
                     kwargs["ht_support"] = False
-    except ClientError as e:
-        if e.response["Error"].get("Code") == "InvalidInstanceType":
-            error = return_message("InvalidInstanceType: " + kwargs["instance_type"][0])
-        else:
-            error = return_message(
-                "Unable to check instance: " + kwargs["instance_type"][0]
-            )
 
-    # Validate Spot Allocation Strategy
-    mapping = {
-        "lowest-price": {
-            "ASG": "lowest-price",
-            "SpotFleet": "lowestPrice",
-            "accepted_values": ["lowest-price", "lowestprice"],
-        },
-        "diversified": {
-            "ASG": "capacity-optimized",
-            "SpotFleet": "diversified",
-            "accepted_values": ["diversified"],
-        },
-        "capacity-optimized": {
-            "ASG": "capacity-optimized",
-            "SpotFleet": "capacityOptimized",
-            "accepted_values": ["capacityoptimized", "capacity-optimized", "optimized"],
-        },
-    }
+                # Keep instance_attributes from the API response for later use
+                kwargs["instance_attributes"] = instance_attributes["InstanceTypes"][0]
 
-    if kwargs["spot_allocation_strategy"] is not False:
-        for k, v in mapping.items():
-            if kwargs["spot_allocation_strategy"].lower() in v["accepted_values"]:
-                if SpotFleet is True:
-                    kwargs["spot_allocation_strategy"] = v["SpotFleet"]
-                    break
-                else:
-                    kwargs["spot_allocation_strategy"] = v["ASG"]
-                    break
-        spot_allocation_strategy_allowed = [
-            "lowestPrice",
-            "lowest-price",
-            "diversified",
-            "capacityOptimized",
-            "capacity-optimized",
-        ]
-        if kwargs["spot_allocation_strategy"] not in spot_allocation_strategy_allowed:
-            error = return_message(
-                "spot_allocation_strategy_allowed ("
-                + str(kwargs["spot_allocation_strategy"])
-                + ") must be one of the following value: "
-                + ", ".join(spot_allocation_strategy_allowed)
-            )
-    else:
-        kwargs["spot_allocation_strategy"] = (
-            "capacityOptimized" if SpotFleet is True else "capacity-optimized"
-        )
 
-    # Validate Spot Allocation Percentage
-    if kwargs["spot_allocation_count"] is not False:
-        if isinstance(kwargs["spot_allocation_count"], int):
-            if int(kwargs["spot_allocation_count"]) > kwargs["desired_capacity"]:
-                error = return_message(
-                    "spot_allocation_count ("
-                    + str(kwargs["spot_allocation_count"])
-                    + ") must be an lower or equal to the number of nodes provisioned for this simulation ("
-                    + str(kwargs["desired_capacity"])
-                    + ")"
+            # Validate Spot Allocation Strategy
+            mapping = {
+                "lowest-price": {
+                    "ASG": "lowest-price",
+                    "SpotFleet": "lowestPrice",
+                    "accepted_values": ["lowest-price", "lowestprice"],
+                },
+                "diversified": {
+                    "ASG": "capacity-optimized",
+                    "SpotFleet": "diversified",
+                    "accepted_values": ["diversified"],
+                },
+                "capacity-optimized": {
+                    "ASG": "capacity-optimized",
+                    "SpotFleet": "capacityOptimized",
+                    "accepted_values": ["capacityoptimized", "capacity-optimized", "optimized"],
+                },
+            }
+
+            if kwargs["spot_allocation_strategy"] is not False:
+                for k, v in mapping.items():
+                    if kwargs["spot_allocation_strategy"].lower() in v["accepted_values"]:
+                        if SpotFleet is True:
+                            kwargs["spot_allocation_strategy"] = v["SpotFleet"]
+                            break
+                        else:
+                            kwargs["spot_allocation_strategy"] = v["ASG"]
+                            break
+                spot_allocation_strategy_allowed = [
+                    "lowestPrice",
+                    "lowest-price",
+                    "diversified",
+                    "capacityOptimized",
+                    "capacity-optimized",
+                ]
+                if kwargs["spot_allocation_strategy"] not in spot_allocation_strategy_allowed:
+                    error.append(f"spot_allocation_strategy_allowed ({kwargs['spot_allocation_strategy']}) must be one of the following value: {', '.join(spot_allocation_strategy_allowed)}")
+            else:
+                kwargs["spot_allocation_strategy"] = (
+                    "capacityOptimized" if SpotFleet is True else "capacity-optimized"
                 )
-        else:
-            error = return_message(
-                "spot_allocation_count ("
-                + str(kwargs["spot_allocation_count"])
-                + ") must be an integer"
-            )
 
-    # Validate ht_support
-    if kwargs["ht_support"] is None:
-        kwargs["ht_support"] = False
-    else:
-        if kwargs["ht_support"] not in [True, False]:
-            error = return_message(
-                "ht_support ("
-                + str(kwargs["ht_support"])
-                + ") must be either True or False"
-            )
+            # Validate Spot Allocation Percentage
+            if kwargs["spot_allocation_count"] is not False:
+                if isinstance(kwargs["spot_allocation_count"], int):
+                    if int(kwargs["spot_allocation_count"]) > kwargs["desired_capacity"]:
+                        error.append(f"spot_allocation_count ({kwargs['spot_allocation_count']}) must be an lower or equal to the number of nodes provisioned for this simulation ({(kwargs['desired_capacity'])})")
+                else:
+                    error.append(f"spot_allocation_count ({kwargs['spot_allocation_count']})) must be an integer")
 
-    # Validate Base OS
-    if kwargs["base_os"] is not False:
-        base_os_allowed = ["rhel7", "centos7", "amazonlinux2"]
-        if kwargs["base_os"] not in base_os_allowed:
-            error = return_message(
-                "base_os ("
-                + str(kwargs["base_os"])
-                + ") must be one of the following value: "
-                + ",".join(base_os_allowed)
-            )
-    else:
-        kwargs["base_os"] = soca_configuration["BaseOS"]
+            # Validate ht_support
+            if kwargs["ht_support"] is None:
+                kwargs["ht_support"] = False
+            else:
+                if kwargs["ht_support"] not in [True, False]:
+                    error.append(f"ht_support ({kwargs['ht_support']}) must be either True or False")
 
-    # Validate Spot Price
-    if kwargs["spot_price"] is not False:
-        if kwargs["spot_price"] == "auto" or isinstance(kwargs["spot_price"], float):
-            pass
-        else:
-            error = return_message('spot_price must be either "auto" or a float value"')
+            # Validate Base OS
+            if kwargs["base_os"] is not False:
+                base_os_allowed = ["rhel7", "rhel8", "rhel9", "centos7", "centos8", "rocky8", "rocky9", "amazonlinux2", "amazonlinux2023"]
+                if kwargs["base_os"] not in base_os_allowed:
+                    error.append(f"base_os ({kwargs['base_os']}) must be one of the following value: {','.join(base_os_allowed)}")
+            else:
+                kwargs["base_os"] = soca_configuration["BaseOS"]
 
-    # Validate EFA
-    try:
-        if kwargs["efa_support"] not in [True, False]:
-            kwargs["efa_support"] = False
-        else:
+            # Validate Spot Price
+            if kwargs["spot_price"] is not False:
+                if kwargs["spot_price"] == "auto" or isinstance(kwargs["spot_price"], float):
+                    pass
+                else:
+                    error.append('spot_price must be either "auto" or a float value"')
+
+            # Validate EFA
+            if kwargs["efa_support"] not in [True, False]:
+                kwargs["efa_support"] = False
+
             if kwargs["efa_support"] is True:
+                # TODO - This won't really work with multiple instance types since
+                # our instance_attributes is for a single instance type.
                 for instance_type in kwargs["instance_type"]:
-                    check_efa_support = ec2.describe_instance_types(
-                        InstanceTypes=[instance_type],
-                        Filters=[
-                            {"Name": "network-info.efa-supported", "Values": ["true"]}
-                        ],
+                    _is_efa_supported: bool = kwargs.get("instance_attributes", {}).get("NetworkInfo", {}).get("EfaSupported", False)
+                    _max_efa_interfaces: int = kwargs.get("instance_attributes", {}).get("NetworkInfo", {}).get("EfaInfo", {}).get("MaximumEfaInterfaces", 0)
+
+                    if _is_efa_supported is False or _max_efa_interfaces <= 0:
+                        error.append(f"You have requested EFA support but instance {instance_type} does not support EFA ({_is_efa_supported}/{_max_efa_interfaces} interfaces)")
+                    # Make sure we store our max EFA interfaces for future use
+                    kwargs["max_efa_interfaces"] = _max_efa_interfaces
+
+            # Validate Keep EBS
+            if kwargs["keep_ebs"] not in [True, False]:
+                kwargs["keep_ebs"] = False
+
+            _instance_architecture = kwargs.get("instance_attributes", {}).get("ProcessorInfo", {}).get("SupportedArchitectures", [])[-1]
+
+            # Validate there is an AMI selected, if not - use the default
+            if kwargs.get("instance_ami", None) is None:
+                # TODO - Validate the selected AMI and the selected instance_type have matching architectures
+                kwargs["instance_ami"] = soca_configuration.get("CustomAMIMap", {}).get(_instance_architecture).get(kwargs["base_os"])
+                if kwargs.get("instance_ami", None) is None:
+                    error.append(
+                        f"Unable to find AMI for {kwargs['base_os']} in this region"
                     )
 
-                    if len(check_efa_support["InstanceTypes"]) == 0:
-                        error = return_message(
-                            "You have requested EFA support but your instance  ("
-                            + instance_type
-                            + ") does not support EFA"
-                        )
-    except ClientError as e:
-        if e.response["Error"].get("Code") == "InvalidInstanceType":
-            error = return_message("InvalidInstanceType: " + kwargs["instance_type"])
+            else:
+                # todo, change to API call
+                _regex_ami = r"^ami-[a-fA-F0-9]{8,17}$"
+                if not re.match(_regex_ami, kwargs["instance_ami"]):
+                    error.append(
+                        f"This AMI {kwargs['instance_ami']} does not seems to be valid"
+                    )
+
+
+        if error:
+            return return_message(message=f"ERROR={',ERROR='.join(error)}", success=False)
         else:
-            error = return_message(
-                "Unable to check EFA support for instance: " + kwargs["instance_type"]
-            )
+            return kwargs
 
-    # Validate Keep EBS
-    if kwargs["keep_ebs"] not in [True, False]:
-        kwargs["keep_ebs"] = False
+    except Exception as e:
+        exc_type, exc_obj, exc_tb = sys.exc_info()
+        fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
+        return f"Unable to validate config due to {e}, {exc_type}, {fname}, {exc_tb.tb_lineno}"
 
-    if error is not False:
-        return error
-    else:
-        return kwargs
 
 
 def return_message(message, success=False):
@@ -787,6 +784,7 @@ def main(**kwargs):
             "ht_support": False,
             "keep_ebs": False,
             "root_size": 10,
+            "volume_type": soca_configuration.get("DefaultVolumeType", 'gp2'),
             "scratch_size": 0,
             "security_groups": False,
             "instance_profile": False,
@@ -810,18 +808,7 @@ def main(**kwargs):
         except Exception as e:
             exc_type, exc_obj, exc_tb = sys.exc_info()
             fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
-            return return_message(
-                "Unable to verify parameters "
-                + str(e)
-                + ": error:"
-                + str(exc_type)
-                + " "
-                + str(fname)
-                + " "
-                + str(exc_tb.tb_lineno)
-                + " "
-                + str(kwargs)
-            )
+            return return_message(f"Unable to verify parameters {e}, {exc_type}, {fname}, {exc_tb.tb_lineno}, {kwargs}")
 
         # If error is detected, return error message
         if "message" in params.keys():
@@ -868,7 +855,8 @@ def main(**kwargs):
             },
             "BaseOS": {
                 "Key": "base_os",
-                "Default": soca_configuration["BaseOS"],
+                "Default": params.get("base_os", soca_configuration.get("BaseOS", "amazonlinux2")),
+
             },
             "ClusterId": {
                 "Key": None,
@@ -893,6 +881,10 @@ def main(**kwargs):
             "Efa": {
                 "Key": "efa_support",
                 "Default": False,
+            },
+            "MaxEfaInterfaces": {
+                "Key": "max_efa_interfaces",
+                "Default": params.get("max_efa_interfaces", 0),
             },
             "FileSystemApps": {
                 "Key": None,
@@ -924,7 +916,7 @@ def main(**kwargs):
             },
             "ImageId": {
                 "Key": "instance_ami",
-                "Default": soca_configuration["CustomAMI"],
+                "Default": params.get("instance_ami", soca_configuration["CustomAMI"]),
             },
             "CustomIamInstanceProfile": {"Key": "instance_profile", "Default": False},
             "InstanceType": {"Key": "instance_type", "Default": None},
@@ -941,6 +933,7 @@ def main(**kwargs):
             },
             "PlacementGroup": {"Key": "placement_group", "Default": True},
             "RootSize": {"Key": "root_size", "Default": 10},
+            "VolumeType": {"Key": "volume_type", "Default": soca_configuration.get("DefaultVolumeType", "gp2")},
             "S3Bucket": {"Key": None, "Default": soca_configuration["S3Bucket"]},
             "S3InstallFolder": {
                 "Key": None,
@@ -980,13 +973,12 @@ def main(**kwargs):
             "SystemMetrics": {"Key": "system_metrics", "Default": False},
             "TerminateWhenIdle": {"Key": "terminate_when_idle", "Default": 0},
             "ThreadsPerCore": {"Key": "ht_support", "Default": False},
-            "Version": {"Key": None, "Default": soca_configuration["Version"]},
+            "Version": {"Key": None, "Default": soca_configuration.get("Version", "unknown-version")},
             "Region": {"Key": None, "Default": soca_configuration.get("Region", "")},
             "Misc": {"Key": None, "Default": soca_configuration.get("Misc", "")},
             "VolumeTypeIops": {"Key": "scratch_iops", "Default": 0},
             "WeightedCapacity": {"Key": "weighted_capacity", "Default": False},
         }
-
         cfn_stack_parameters = {}
         for k, v in parameters_list.items():
             if v["Key"] is not None:
@@ -996,7 +988,7 @@ def main(**kwargs):
                     cfn_stack_parameters[k] = params[v["Key"]]
             else:
                 if v["Default"] is None:
-                    error = return_message("Unable to detect value for " + k)
+                    error = return_message(f"Unable to detect value for {k}")
                     return error
                 else:
                     cfn_stack_parameters[k] = v["Default"]
@@ -1112,7 +1104,7 @@ if __name__ == "__main__":
         default=False,
         help="If True, job can only run if we have reserved instance available",
     )
-    parser.add_argument("--base_os", default=False, help="Specify custom Base OK")
+    parser.add_argument("--base_os", default=False, help="Specify custom Base OS")
     parser.add_argument(
         "--terminate_when_idle",
         default=0,
@@ -1135,7 +1127,7 @@ if __name__ == "__main__":
         default="SCRATCH_2",
         help="Type of your FSx for Lustre",
     )
-    parser.add_argument("--instance_ami", required=True, nargs="?", help="AMI to use")
+    parser.add_argument("--instance_ami", required=False, nargs="?", help="AMI to use")
     parser.add_argument(
         "--job_id", nargs="?", help="Job ID for which the capacity is being provisioned"
     )
@@ -1150,6 +1142,9 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--root_size", default=10, nargs="?", help="Size of Root partition in GB"
+    )
+    parser.add_argument(
+        "--volume_type", default='gp3', nargs="?", help="Root Volume Type"
     )
     parser.add_argument(
         "--scratch_iops", default=0, nargs="?", help="IOPS for /scratch"

@@ -31,7 +31,7 @@ from botocore import config as botocore_config
 
 
 def boto_extra_config():
-    aws_solution_user_agent = {"user_agent_extra": "AwsSolution/SO0072/2.7.4"}
+    aws_solution_user_agent = {"user_agent_extra": "AwsSolution/SO0072/2.7.5"}
     return botocore_config.Config(**aws_solution_user_agent)
 
 

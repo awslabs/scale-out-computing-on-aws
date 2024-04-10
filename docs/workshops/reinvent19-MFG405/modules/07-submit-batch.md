@@ -8,7 +8,7 @@ This module provides instructions for running an example batch workload in the c
 
 1. Minimize the Vivado GUI and open a new terminal window.
 
-1. Clone the example workload from the `aws-fpga-sa-demo` Github repo into your user's home directory on the NFS file system.
+1. Clone the example workload from the `aws-fpga-sa-demo` GitHub repo into your user's home directory on the NFS file system.
 
     ```bash
     cd $HOME
@@ -33,7 +33,7 @@ Next, you'll submit four jobs into the cluster, each job requesting a specific i
 
     `qsub -l instance_type=m4.xlarge -- $HOME/aws-fpga-sa-demo/eda-workshop/run-sim.sh --scratch-dir $HOME`
 
-1. **Watch job status**. As soon as jobs are sent to the queue, the dispatcher script will start up a new compute instance to execute each job.  Run the `qstat` command to view the status of the jobs.  You can also view job status in the web UI by clicking on **My Job Queue** in the left side navigation bar.
+1. **Watch job status**. As soon as jobs are sent to the queue, the dispatcher script will start up a new compute instance to execute each job.  Run the `qstat` command to view the status of the jobs.  You can also view job status in the web UI by clicking on **My Job Queue** on the left side navigation bar.
 
     ![](../../../imgs/howtojob-10.png)
 

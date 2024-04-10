@@ -18,6 +18,7 @@ set -ex
 source /etc/environment
 source /root/config.cfg
 AWS=$(command -v aws)
+CPUS=$(nproc)
 
 function get_secret {
     # When using custom AMI, the scheduler is fully operational even before SecretManager is ready.
@@ -42,16 +43,24 @@ function get_secret {
 # First flush the current crontab to prevent this script to run on the next reboot
 crontab -r
 
-# Determine the S3 bucket AWS region
-S3_BUCKET_REGION=$(curl -s --head ${SOCA_INSTALL_BUCKET}.s3.amazonaws.com | grep bucket-region | awk '{print $2}' | tr -d '\r\n')
+# Determine the S3 bucket partition and AWS region
 
+# AWS_DEFAULT_REGION should come from our config
+# We probe the S3 endpoint to get the bucket-region header
+# which contains the underlying S3 region for the bucket
+# Each partition is unique however and we must be partition-aware
+if [[ ${AWS_DEFAULT_REGION} =~ ^us-gov-[a-z]+-[0-9]+$ ]]; then
+  S3_BUCKET_REGION=$(curl -s --head "${SOCA_INSTALL_BUCKET}".s3.us-gov-west-1.amazonaws.com | grep bucket-region | awk '{print $2}' | tr -d '\r\n')
+else
+  S3_BUCKET_REGION=$(curl -s --head "${SOCA_INSTALL_BUCKET}".s3.amazonaws.com | grep bucket-region | awk '{print $2}' | tr -d '\r\n')
+fi
 # Retrieve SOCA configuration under soca.tar.gz and extract it on /apps/
-$AWS --region ${S3_BUCKET_REGION} s3 cp s3://$SOCA_INSTALL_BUCKET/$SOCA_INSTALL_BUCKET_FOLDER/soca.tar.gz /root
-mkdir -p /apps/soca/$SOCA_CONFIGURATION
-tar -xvf /root/soca.tar.gz -C /apps/soca/$SOCA_CONFIGURATION --no-same-owner
-cp /root/config.cfg /apps/soca/$SOCA_CONFIGURATION/cluster_node_bootstrap/config.cfg
-mkdir -p /apps/soca/$SOCA_CONFIGURATION/cluster_manager/logs
-chmod +x /apps/soca/$SOCA_CONFIGURATION/cluster_manager/socaqstat.py
+$AWS --region "${S3_BUCKET_REGION}" s3 cp s3://"$SOCA_INSTALL_BUCKET"/"$SOCA_INSTALL_BUCKET_FOLDER"/soca.tar.gz /root
+mkdir -p /apps/soca/"$SOCA_CONFIGURATION"
+tar -xvf /root/soca.tar.gz -C /apps/soca/"$SOCA_CONFIGURATION" --no-same-owner
+cp /root/config.cfg /apps/soca/"$SOCA_CONFIGURATION"/cluster_node_bootstrap/config.cfg
+mkdir -p /apps/soca/"$SOCA_CONFIGURATION"/cluster_manager/logs
+chmod +x /apps/soca/"$SOCA_CONFIGURATION"/cluster_manager/socaqstat.py
 
 # Generate default queue_mapping file based on default AMI chosen by customer
 cat <<EOT >> /apps/soca/$SOCA_CONFIGURATION/cluster_manager/settings/queue_mapping.yml
@@ -81,8 +90,9 @@ queue_type:
     allowed_security_group_ids: []
     allowed_instance_profiles: []
     # Default job parameters: https://awslabs.github.io/scale-out-computing-on-aws/tutorials/integration-ec2-job-parameters/
-    instance_ami: "$SOCA_INSTALL_AMI" # Required
-    instance_type: "c5.large" # Required
+    # instance_ami: "$SOCA_INSTALL_AMI" # If you want to enforce a default AMI, make sure it match value of base_os
+    # base_os: "$SOCA_BASE_OS" # To enforce a specific operating system for your HPC nodes
+    instance_type: "c6i.large" # Required
     ht_support: "false"
     root_size: "10"
     #scratch_size: "100"
@@ -106,8 +116,9 @@ queue_type:
     # Default job parameters: https://awslabs.github.io/scale-out-computing-on-aws/tutorials/integration-ec2-job-parameters/
     # Scaling mode (can be either single_job, or multiple_jobs): single_job runs a single job per EC2 instance, multiple_jobs allows running multiple jobs on the same EC2 instance
     scaling_mode: "multiple_jobs" # Allowed values: single_job, multiple_jobs
-    instance_ami: "$SOCA_INSTALL_AMI" # Required
-    instance_type: "c5.large+c5.xlarge+c5.2xlarge" # Required
+    instance_type: "c6i.large+c6i.xlarge+c6i.2xlarge" # Required
+    # instance_ami: "$SOCA_INSTALL_AMI" # If you want to enforce a default AMI, make sure it match value of base_os
+    # base_os: "$SOCA_BASE_OS" # To enforce a specific operating system for your HPC nodes
     # Terminate when idle: The value specifies the default duration (in mins) where the compute instances would be terminated after being detected as free (no jobs running) for N consecutive minutes
     terminate_when_idle: 3 # Required when scaling_mode is set to multiple_jobs
     ht_support: "true" 
@@ -134,8 +145,9 @@ queue_type:
     allowed_security_group_ids: []
     allowed_instance_profiles: []
     # Default job parameters: https://awslabs.github.io/scale-out-computing-on-aws/tutorials/integration-ec2-job-parameters/
-    instance_ami: "$SOCA_INSTALL_AMI"  # Required
-    instance_type: "c5.large"  # Required
+    # instance_ami: "$SOCA_INSTALL_AMI" # If you want to enforce a default AMI, make sure it match value of base_os
+    # base_os: "$SOCA_BASE_OS" # To enforce a specific operating system for your HPC nodes
+    instance_type: "c6i.large"  # Required
     ht_support: "false"
     root_size: "10"
     #spot_price: "auto"
@@ -150,7 +162,7 @@ openssl req -new -newkey rsa:4096 -days 3650 -nodes -x509 \
     -keyout cert.key -out cert.crt
 
 # Wait for PBS to restart
-sleep 60
+sleep 20
 
 ## Update PBS Hooks with the current script location
 sed -i "s/%SOCA_CONFIGURATION/$SOCA_CONFIGURATION/g" /apps/soca/$SOCA_CONFIGURATION/cluster_hooks/queuejob/check_queue_acls.py
@@ -326,7 +338,7 @@ then
 fi
 
 # Install required Node module
-npm install --prefix /apps/soca/"$SOCA_CONFIGURATION"/cluster_web_ui/static monaco-editor@0.36.1
+npm install --prefix /apps/soca/"$SOCA_CONFIGURATION"/cluster_web_ui/static monaco-editor@0.46.0
 
 # Start Web UI
 chmod +x /apps/soca/"$SOCA_CONFIGURATION"/cluster_web_ui/socawebui.sh
@@ -358,7 +370,7 @@ sanitized_username="$3"
 sanitized_password="$4"
 admin_api_key=$(cat /apps/soca/$SOCA_CONFIGURATION/cluster_web_ui/keys/admin_api_key.txt)
 
-curl -k -H "X-SOCA-TOKEN: $admin_api_key" \
+curl --silent -k -H "X-SOCA-TOKEN: $admin_api_key" \
  --data-urlencode "user=$sanitized_username" \
  --data-urlencode "password=$sanitized_password" \
  --data-urlencode "sudoers=1" \
@@ -368,7 +380,7 @@ curl -k -H "X-SOCA-TOKEN: $admin_api_key" \
  -X POST https://127.0.0.1:8443/api/ldap/user >> /root/create_new_user.log 2>&1
 
 # Re-enable access
-if [[ "$SOCA_BASE_OS" == "amazonlinux2" ]] || [[ "$SOCA_BASE_OS" == "rhel7" ]]; then
+if [[ "$SOCA_BASE_OS" =~ "amazonlinux2" ]] || [[ "$SOCA_BASE_OS" == "rhel7" ]] || [[ "$SOCA_BASE_OS" == "rhel8" ]] || [[ "$SOCA_BASE_OS" == "rhel9" ]]; then
      usermod --shell /bin/bash ec2-user
 fi
 
@@ -377,7 +389,7 @@ if [[ "$SOCA_BASE_OS" == "centos7" ]]; then
 fi
 
 # Avoid customer to use system account to submit job
-if [[ "$SOCA_BASE_OS" == "amazonlinux2" ]] || [[ "$SOCA_BASE_OS" == "rhel7" ]]; then
+if [[ "$SOCA_BASE_OS" =~ "amazonlinux2" ]] || [[ "$SOCA_BASE_OS" == "rhel7" ]] || [[ "$SOCA_BASE_OS" == "rhel8" ]] || [[ "$SOCA_BASE_OS" == "rhel9" ]]; then
     echo "alias qsub='echo -e \" !!!! Do not submit job with system account. \n\n Please use LDAP account instead. !!!! \"'" >> /home/ec2-user/.bash_profile
 fi
 
@@ -386,7 +398,7 @@ if [[ "$SOCA_BASE_OS" == "centos7" ]]; then
 fi
 
 # Enforce minimum permissions
-chmod 600 /apps/soca/$SOCA_CONFIGURATION
+chmod 600 /apps/soca/"$SOCA_CONFIGURATION"
 
 # Verify PBS
 if [[ -z "$(pgrep pbs)" ]]; then
@@ -429,13 +441,17 @@ Cluster: $SOCA_CONFIGURATION
 
 
 # Clean directories
-rm -rf /root/openpbs-${OPENPBS_VERSION} /root/${OPENPBS_TGZ}
-
-# Install OpenMPI under /apps/openmpi/<openmpi_version>
+rm -rf /root/openpbs-"${OPENPBS_VERSION}" /root/"${OPENPBS_TGZ}"
+MACHINE_ARCH=$(uname -m)
+# Compile OpenMPI under /root/openmpi/<openmpi_version>
+# Install OpenMPI under /apps/openmpi/<openmpi_version>.<machine_architecture>
 # This will take a while and is not system blocking, so adding at the end of the install process
-mkdir -p /apps/soca/$SOCA_CONFIGURATION/openmpi/installer
+# compiling locally reduces time vs. on EFS
+
+mkdir -p /root/soca/"$SOCA_CONFIGURATION"/openmpi/installer
 mkdir -p /apps/openmpi
-cd /apps/soca/$SOCA_CONFIGURATION/openmpi/installer
+
+cd /root/soca/"$SOCA_CONFIGURATION"/openmpi/installer
 
 wget "$OPENMPI_URL"
 if [[ $(md5sum "$OPENMPI_TGZ" | awk '{print $1}') != "$OPENMPI_HASH" ]];  then
@@ -443,8 +459,8 @@ if [[ $(md5sum "$OPENMPI_TGZ" | awk '{print $1}') != "$OPENMPI_HASH" ]];  then
     exit 1
 fi
 
-tar xvf "$OPENMPI_TGZ"
+tar xzf "$OPENMPI_TGZ"
 cd openmpi-"$OPENMPI_VERSION"
 ./configure --prefix="/apps/openmpi/$OPENMPI_VERSION"
-make
+make -j "${CPUS}"
 make install

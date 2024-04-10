@@ -20,6 +20,7 @@ import datetime
 from models import db, AmiList
 import boto3
 import errors
+import math
 from sqlalchemy import exc
 from sqlalchemy.exc import SQLAlchemyError
 
@@ -67,6 +68,12 @@ class ManageImage(Resource):
                 root_size:
                   type: string
                   description: Minimum size of your EC2 AMI
+                launch_tenancy:
+                  type: string
+                  description: Launch tenancy setting for the AMI. Defaults to 'default'.
+                launch_host:
+                  type: string
+                  description: Launch host when using launch_tenancy of 'host'.
 
 
         responses:
@@ -80,11 +87,37 @@ class ManageImage(Resource):
         parser.add_argument("os", type=str, location="form")
         parser.add_argument("ami_label", type=str, location="form")
         parser.add_argument("root_size", type=str, location="form")
+        parser.add_argument("launch_tenancy", type=str, location="form")
+        parser.add_argument("launch_host", type=str, location="form")
+
 
         args = parser.parse_args()
         ami_id = args["ami_id"]
         ami_label = str(args["ami_label"])
         os = args["os"]
+        launch_tenancy = str(args["launch_tenancy"])
+        launch_host = str(args["launch_host"]) if "launch_host" in args else None
+
+        # Launch Tenancy
+
+        if not launch_tenancy:
+            launch_tenancy = "default"
+            launch_host = None
+
+        if launch_tenancy.lower() not in {'default', 'dedicated', 'host'}:
+            return errors.all_errors(
+                "IMAGE_REGISTER_ERROR", f"AMI launch_tenancy must be 'default', 'dedicated', or 'host'. Got {launch_tenancy}"
+            )
+
+        if ami_label.lower() == "base":
+            return errors.all_errors(
+                "IMAGE_REGISTER_ERROR",
+                f"AMI Label 'base' is restricted to SOCA and cannot be used. Please pick a different name"
+            )
+
+        # Remove launch_host if we are not in host mode
+        if launch_tenancy.lower() not in {'host'}:
+            launch_host = None
 
         if (
             args["os"] is None
@@ -94,37 +127,68 @@ class ManageImage(Resource):
         ):
             return errors.all_errors(
                 "CLIENT_MISSING_PARAMETER",
-                "os (str), ami_id (str), ami_label (str) and root_size (str)  are required.",
+                "os (str), ami_id (str), ami_label (str) and root_size (str) are required.",
             )
 
-        if args["os"].lower() not in ["centos7", "rhel7", "amazonlinux2", "amazonlinux2023", "windows"]:
+        # TODO Move this to a config / common area
+        _allowed_dcv_base_os = ["centos7", "rocky8", "rocky9", "rhel7",  "rhel8", "rhel9", "amazonlinux2", "windows"]
+        if args.get("os", "amazonlinux2").lower() not in _allowed_dcv_base_os:
             return errors.all_errors(
-                "CLIENT_MISSING_PARAMETER",
-                "os must be centos7, rhel7, amazonlinux2, or windows",
+                "IMAGE_REGISTER_ERROR",
+                f"os must be one of {','.join(_allowed_dcv_base_os)}",
             )
 
         try:
-            root_size = int(args["root_size"])
+            # Round up to the next integer size versus using int() or round() which can round _down_
+            root_size: int = math.ceil(float(args["root_size"]))
+
         except ValueError:
             return errors.all_errors(
                 "IMAGE_REGISTER_ERROR", f"{root_size} must be a valid integer"
             )
+
         soca_labels = get_ami_info()
 
-        # Register AMI to SOCA
+        # A valid/Registered AMI to SOCA?
         if ami_label not in soca_labels.keys():
             try:
                 ec2_response = ec2_client.describe_images(
                     ImageIds=[ami_id],
-                    Filters=[{"Name": "state", "Values": ["available"]}],
+                    Filters=[
+                        {
+                            "Name": "state",
+                            "Values": ["available"]
+                        }
+                    ],
                 )
-                if len(ec2_response["Images"]) != 0:
+                if logger.isEnabledFor(logging.DEBUG):
+                    logger.debug(f"API response - AMI {ami_id}: {ec2_response}")
+
+                if len(ec2_response["Images"]) > 0:
+                    # Grab the root size from the AMI to make sure our admin-input size is at least that size.
+                    # This prevents situations where the admin may undersize the AMI setting.
+                    # The size is taken from the first (0th) EBS volume within the AMI.
+                    _ami_root_size: int = ec2_response["Images"][0]["BlockDeviceMappings"][0]["Ebs"]["VolumeSize"]
+
+                    _extra_logging: str = ""
+                    if _ami_root_size <= root_size:
+                        logger.debug(f"AMI {ami_id} root size requirement ({_ami_root_size}) is <= {root_size}")
+                    else:
+                        logger.info(f"AMI {ami_id} root size requirement ({_ami_root_size}GB) is > specified size ({root_size}GB) - Auto-adjusting to {_ami_root_size}GB")
+                        _extra_logging = f"(root_size auto-adjusted to {_ami_root_size}GB)"
+                        root_size = math.ceil(_ami_root_size)
+
+                    _ami_arch = ec2_response["Images"][0]["Architecture"]
+
                     new_ami = AmiList(
                         ami_id=ami_id,
                         ami_type=os.lower(),
                         ami_label=ami_label,
+                        ami_arch=_ami_arch,
                         is_active=True,
                         ami_root_disk_size=root_size,
+                        launch_tenancy=launch_tenancy,
+                        launch_host=launch_host,
                         created_on=datetime.datetime.utcnow(),
                     )
                     try:
@@ -132,7 +196,7 @@ class ManageImage(Resource):
                         db.session.commit()
                         return {
                             "success": True,
-                            "message": f"{ami_id} registered successfully in SOCA as {ami_label}",
+                            "message": f"{ami_id} registered successfully in SOCA as {ami_label} {_extra_logging}",
                         }, 200
                     except SQLAlchemyError as e:
                         db.session.rollback()
@@ -142,6 +206,7 @@ class ManageImage(Resource):
                             f"{ami_id} registration not successful",
                         )
                 else:
+                    # TODO - Need to auto-register the default DCVDefaultVersion during installation?
                     logger.error(f"{ami_id} is not available in AWS account")
                     return errors.all_errors(
                         "IMAGE_REGISTER_ERROR",

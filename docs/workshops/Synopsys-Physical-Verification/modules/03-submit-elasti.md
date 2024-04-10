@@ -14,7 +14,7 @@ Synopsys IC Validator (ICV) has the ability to request CPUs when it needs additi
 
 1. Run the `qstat` command to view the status of the jobs. 
 
-1. You can also view job status by clicking on **My Job Queue** in the left side navigation bar in SOCA portal under **PROFILE** section as shown in the screen shot below:
+1. You can also view job status by clicking on **My Job Queue** on the left side navigation bar in SOCA portal under **PROFILE** section as shown in the screen shot below:
 
     ![](../imgs/my-job-queue.png)
 
@@ -41,7 +41,7 @@ Synopsys IC Validator (ICV) has the ability to request CPUs when it needs additi
 
 1. Monitor the progress of the ELASTI test case by typing this command: `icv_dashboard -keys hSdSVaCfhpv elastic_run/run_details/saed32nm_1p9m_drc_rules.dp.log &`
 
-1. As the job progresses, ICV will request more CPU resources or release idle resources. In this example, it will submit a new job to the cluster so it can obtain additional resources dynamically. You an monitor the status of the jobs by typing `` watch -n 10 "qstat -u `whoami`" `` command in the terminal to keep monitoring the status of jobs every 10 seconds.
+1. As the job progresses, ICV will request more CPU resources or release idle resources. In this example, it will submit a new job to the cluster so it can obtain additional resources dynamically. You can monitor the status of the jobs by typing `` watch -n 10 "qstat -u `whoami`" `` command in the terminal to keep monitoring the status of jobs every 10 seconds.
 
 1. Depending on resource availability in the cluster, SOCA might need to create additional instances for the new job. Once the resources become available and the job status changes to running, the CPU history section in the ICV dashboard would be updated to reflect the additioanl CPUs as shown below.
 

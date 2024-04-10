@@ -28,7 +28,7 @@ IC Validator offers Explorer functions both on DRC and LVS. This lab only talks 
 
     ![](../imgs/icvwb-icv-vue.jpg)
 
-1. Load the DRC explorer vue file by browsing to EXP_TOP.vue. Click on the browse icon then double click on explorer_run directory and select EXP_TOP.vue
+1. Load the DRC explorer vue file by browsing to EXP_TOP.vue. Click on the browse icon then double-click on explorer_run directory and select EXP_TOP.vue
 
 ## Step 4: Heat Map
 
@@ -53,7 +53,7 @@ IC Validator offers Explorer functions both on DRC and LVS. This lab only talks 
 
     ![](../imgs/icvwb-vue-heat-map-overlay-layout.jpg)
 
-1. You can highlight error marker from the heat map. Select **M4.S.1** rule from the violation section. Then right click on the heat map window, then click on "Highlight top-cell error in current window". This option highlights errors for violations in the current zoomed violation heat map window.
+1. You can highlight error marker from the heat map. Select **M4.S.1** rule from the violation section. Then right-click on the heat map window, then click on "Highlight top-cell error in current window". This option highlights errors for violations in the current zoomed violation heat map window.
 
     ![](../imgs/icvwb-vue-heat-map-m4.jpg)
 

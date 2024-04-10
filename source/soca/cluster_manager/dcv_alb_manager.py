@@ -20,10 +20,12 @@ sys.path.append(os.path.dirname(__file__))
 import configuration
 
 
-def get_ec2_graphical_instances(cluster_id):
-    instance_list = {}
-    ec2_paginator = ec2_client.get_paginator("describe_instances")
-    ec2_iterator = ec2_paginator.paginate(
+def get_ec2_dcv_instances(cluster_id: str):
+    _instance_list = {}
+
+    print(f"Determining DCV instances for cluster_id: {cluster_id}")
+    _ec2_paginator = ec2_client.get_paginator("describe_instances")
+    _ec2_iterator = _ec2_paginator.paginate(
         Filters=[
             {
                 "Name": "instance-state-name",
@@ -31,26 +33,35 @@ def get_ec2_graphical_instances(cluster_id):
                     "running",
                 ],
             },
-            {"Name": "tag:soca:NodeType", "Values": ["dcv"]},
-            {"Name": "tag:soca:ClusterId", "Values": [cluster_id]},
+            {
+                "Name": "tag:soca:NodeType",
+                "Values": ["dcv"]
+            },
+            {
+                "Name": "tag:soca:ClusterId",
+                "Values": [cluster_id]
+            },
         ],
     )
 
-    for page in ec2_iterator:
-        for reservation in page["Reservations"]:
-            for instance in reservation["Instances"]:
-                private_dns = instance["PrivateDnsName"].split(".")[0]
-                instance_list[private_dns] = {
-                    "private_dns": private_dns,
-                    "alb_rule": "/" + private_dns + "/*",
-                    "instance_id": instance["InstanceId"],
-                }
+    for _page in _ec2_iterator:
+        for _reservation in _page.get("Reservations", {}):
+            for _instance in _reservation.get("Instances", {}):
+                _private_dns = _instance.get("PrivateDnsName", "unknown.unknown").split(".")[0]
+                if _private_dns:
+                    _instance_list[_private_dns] = {
+                        "private_dns": _private_dns,
+                        "alb_rule": f"/{_private_dns}/*",
+                        "instance_id": _instance["InstanceId"],
+                    }
+                else:
+                    print(f"Error: private_dns is empty for instance {_instance['InstanceId']}")
 
-    return instance_list
+    return _instance_list
 
 
-def register_instance_to_target_group(target_group_arn, instance_id):
-    print("Registering EC2 instance " + instance_id + " to TG " + target_group_arn)
+def register_instance_to_target_group(target_group_arn: str, instance_id: str) -> bool:
+    print(f"Registering EC2 instance {instance_id} to TG {target_group_arn}")
     register_ec2 = elbv2_client.register_targets(
         TargetGroupArn=target_group_arn,
         Targets=[
@@ -61,27 +72,32 @@ def register_instance_to_target_group(target_group_arn, instance_id):
     )
 
     if register_ec2["ResponseMetadata"]["HTTPStatusCode"] == 200:
+        print(f"EC2 instance {instance_id} registered to TG {target_group_arn}")
         return True
     else:
+        print(f"Error: EC2 instance {instance_id} not registered to TG {target_group_arn}")
+        print(register_ec2)
         return False
 
 
-def create_new_target_group(instance_dns, vpc_id, instance_id, cluster_id):
-    print("Creating new target group for " + instance_dns)
+def create_new_target_group(instance_dns: str, vpc_id: str, instance_id: str, cluster_id: str):
+    print(f"Creating new target group for {instance_dns}")
     new_target_group = elbv2_client.create_target_group(
-        Name="soca-" + instance_dns,
+        Name=f"soca-{instance_dns}",
         Protocol="HTTPS",
         Port=8443,
         VpcId=vpc_id,
         HealthCheckProtocol="HTTPS",
         HealthCheckPort="8443",
         HealthCheckEnabled=True,
-        HealthCheckPath="/" + instance_dns + "/",
+        HealthCheckPath=f"/{instance_dns}/",
         HealthCheckIntervalSeconds=30,
         HealthCheckTimeoutSeconds=5,
         HealthyThresholdCount=2,
         UnhealthyThresholdCount=2,
-        Matcher={"HttpCode": "200"},
+        Matcher={
+            "HttpCode": "200"
+        },
         TargetType="instance",
     )
     if new_target_group["ResponseMetadata"]["HTTPStatusCode"] == 200:
@@ -99,14 +115,18 @@ def create_new_target_group(instance_dns, vpc_id, instance_id, cluster_id):
 
 
 def create_new_alb_rule(
-    instance_dns, target_group_arn, current_priority_rules, listener_arn
+    instance_dns: str, target_group_arn: str, current_priority_rules, listener_arn: str
 ):
-    min_priority = 1
-    max_priority = (
-        100  # adjust this value if your AWS account allow more than 100 rules per alb
-    )
+    #
+    min_priority = 10_000
+
+    # adjust this value if your AWS account allow more than 100 rules per alb
+    # TODO - Check the existing rules and determine a spot to insert
+    max_priority = 40_000
+    _priority_spacing = 10
+
     priority = random.randint(min_priority, max_priority)
-    print("Checking if priority " + str(priority) + " is available")
+    print(f"Checking if priority {priority} is available")
     # print("List of rules already taken" + str(current_priority_rules))
     while priority in current_priority_rules:
         priority = random.randint(min_priority, max_priority)
@@ -114,14 +134,26 @@ def create_new_alb_rule(
     new_target_group = elbv2_client.create_rule(
         ListenerArn=listener_arn,
         Priority=int(priority),
-        Conditions=[{"Field": "path-pattern", "Values": ["/" + instance_dns + "/*"]}],
-        Actions=[{"Type": "forward", "TargetGroupArn": target_group_arn}],
+        Conditions=[
+            {
+                "Field": "path-pattern",
+                "Values": [
+                    f"/{instance_dns}/*"
+                ]
+            }
+        ],
+        Actions=[
+            {
+                "Type": "forward",
+                "TargetGroupArn": target_group_arn
+            }
+        ],
     )
 
     print(new_target_group)
 
 
-def get_current_listener_rules(listener_arn):
+def get_current_listener_rules(listener_arn: str):
     rules = {}
     priority_taken = []
     for rule in elbv2_client.describe_rules(ListenerArn=listener_arn)["Rules"]:
@@ -137,28 +169,35 @@ def get_current_listener_rules(listener_arn):
     return {"rules": rules, "priority_taken": priority_taken}
 
 
-def get_current_target_groups(alb_arn):
-    target_groups = {}
-    for tg in elbv2_client.describe_target_groups(PageSize=400)["TargetGroups"]:
-        if not tg["LoadBalancerArns"]:
-            pass
-        else:
-            if tg["LoadBalancerArns"][0] == alb_arn:
-                target_groups[tg["TargetGroupName"]] = tg["TargetGroupArn"]
-    return target_groups
+def get_current_target_groups(alb_arn: str):
+    _target_groups = {}
+    print(f"Getting current target groups for ELB {alb_arn}")
+
+    elb_paginator = elbv2_client.get_paginator("describe_target_groups")
+    elb_iterator = elb_paginator.paginate(LoadBalancerArn=alb_arn)
+
+    for _page in elb_iterator:
+        for _tg in _page.get("TargetGroups", {}):
+            if _tg:
+                # print(f"Found target group {_tg['TargetGroupName']}")
+                _target_groups[_tg["TargetGroupName"]] = _tg["TargetGroupArn"]
+
+    return _target_groups
 
 
-def delete_target_groups(target_group_arn):
-    print("Deleting target group: " + target_group_arn)
+def delete_target_groups(target_group_arn: str):
+    print(f"Deleting target group: {target_group_arn}")
     elbv2_client.delete_target_group(TargetGroupArn=target_group_arn)
+    # TODO - error checking
+    # TODO - return values
 
 
-def delete_rule(rule_arn):
-    print("Deleting ELB rule " + rule_arn)
+def delete_rule(rule_arn: str):
+    print(f"Deleting ELB rule {rule_arn}")
     elbv2_client.delete_rule(RuleArn=rule_arn)
 
 
-def return_alb_listener(alb_arn):
+def return_alb_listener(alb_arn: str):
     get_listener_arn = False
     for listener in elbv2_client.describe_listeners(LoadBalancerArn=alb_arn)[
         "Listeners"
@@ -170,17 +209,20 @@ def return_alb_listener(alb_arn):
 
 if __name__ == "__main__":
     soca_configuration = configuration.get_soca_configuration()
-    cluster_id = soca_configuration["ClusterId"]
-    vpc_id = soca_configuration["VpcId"]
-    alb_arn = soca_configuration["LoadBalancerArn"]
+    cluster_id = soca_configuration.get("ClusterId")
+    vpc_id = soca_configuration.get("VpcId")
+    alb_arn = soca_configuration.get("LoadBalancerArn")
+    #
+    # TODO - make sure our cluster_id, vpc_id, alb_arn are correct before client init
+
     elbv2_client = boto3.client("elbv2", config=configuration.boto_extra_config())
     ec2_client = boto3.client("ec2", config=configuration.boto_extra_config())
-    dcv_queues = ["desktop"]
 
     listener_arn = return_alb_listener(alb_arn)
-    graphical_instances = get_ec2_graphical_instances(cluster_id)
+    dcv_instances = get_ec2_dcv_instances(cluster_id)
     current_target_groups = get_current_target_groups(alb_arn)
     alb_listener_rules = get_current_listener_rules(listener_arn)
+
     alb_rules = alb_listener_rules["rules"]
     alb_rules_dns = []
     for entry in alb_rules.values():
@@ -189,7 +231,7 @@ if __name__ == "__main__":
 
     # First, let's add any new instance to ALB. Create TG/Rules if needed
     print("Checking if new DCV hosts need to be added  ...")
-    for instance_dns, instance_data in graphical_instances.items():
+    for instance_dns, instance_data in dcv_instances.items():
         if instance_data["alb_rule"] in alb_rules_dns:
             print(
                 instance_dns + " already registered to the load balancer. Nothing to do"
@@ -228,7 +270,7 @@ if __name__ == "__main__":
     for current_rule in alb_rules_dns:
         # transform /ip-180-0-172-39/* in ip-180-0-172-39
         instance_dns = current_rule.replace("/", "").replace("*", "")
-        if instance_dns not in graphical_instances.keys():
+        if instance_dns not in dcv_instances.keys():
             print(
                 current_rule
                 + " is pointing to an EC2 resource which does not exist anymore"

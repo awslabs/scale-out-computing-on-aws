@@ -31,6 +31,7 @@ index = Blueprint("index", __name__, template_folder="templates")
 
 @index.route("/ping", methods=["GET"])
 def ping():
+    session.clear()
     return "Alive", 200
 
 
@@ -44,25 +45,24 @@ def home():
 
 @index.route("/login", methods=["GET"])
 def login():
-    redirect = request.args.get("fwd", None)
-    if redirect is None:
+    redirect_url = request.args.get("fwd", None)
+    if redirect_url is None:
         return render_template("login.html", redirect=False)
     else:
-        return render_template("login.html", redirect=redirect)
+        return render_template("login.html", redirect=redirect_url)
 
 
 @index.route("/logout", methods=["GET"])
 @login_required
 def logout():
-    session_data = ["user", "sudoers", "api_key"]
-    for param in session_data:
-        session.pop(param, None)
+    session.clear()
     return redirect("/")
 
 
 @index.route("/robots.txt", methods=["GET"])
 def robots():
     # in case SOCA is accidentally set to wide open, this prevents the website from being indexed on Search Engines
+    session.clear()
     return "Disallow: /"
 
 
@@ -129,8 +129,9 @@ def oauth():
         else:
             return redirect(cognito_root_url)
     else:
+        # TODO - This should be made generic to avoid user enumeration
         if sso_auth["message"] == "user_not_found":
-            flash("This user does not seems to have an account on SOCA", "error")
+            flash("This user does not seem to have an account in SOCA", "error")
         else:
             flash(str(sso_auth["message"]), "error")
         return redirect("/login")

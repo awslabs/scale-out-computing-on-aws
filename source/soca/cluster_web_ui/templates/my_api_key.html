@@ -132,7 +132,7 @@ hdrs = {"X-SOCA-TOKEN": "{{ user_token }}",
         "X-SOCA-USER": "{{ user }}",}
 api_endpoint="{{ scheduler_host }}api/scheduler/job"
 data = {"job_id": "%YOUR_JOB_ID%"}
-req = requests.get(api_endpoint, headers=hdrs, data=data, verify=False) # change verify=True when using a trusted SSL cert
+req = requests.get(api_endpoint, headers=hdrs, params=data, verify=False) # change verify=True when using a trusted SSL cert
 print(req.status_code)
 print(req.json())
                                   </code></pre>

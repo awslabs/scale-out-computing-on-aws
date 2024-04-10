@@ -2,7 +2,7 @@
 
 ## Step 1: Open Cluster Dashboard
 
-Return to the your cluster web UI and click on the **Analytics** section on the left sidebar.
+Return to the cluster web UI and click on the **Analytics** section on the left sidebar.
 
 ![](../../../imgs/ws-analytics-5.png)
 

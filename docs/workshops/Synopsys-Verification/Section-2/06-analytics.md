@@ -34,7 +34,7 @@ Then under the Kibana section, click on **Dashboard**
 Then click on **Cluster dashboard**. The cluster administrator can setup various visualizations in the dashboard.  
 
 !!! note
-    The results of what you'll see in the cluster might be different than the example images below. Move your cursor above the visualizations to see pop-ups with more relevant information. You can also zoom in or out on the charts with date/time on the x-axis to see more details.
+    The results of what you'll see in the cluster might be different from the example images below. Move your cursor above the visualizations to see pop-ups with more relevant information. You can also zoom in or out on the charts with date/time on the x-axis to see more details.
 
 Here are a few examples:
 

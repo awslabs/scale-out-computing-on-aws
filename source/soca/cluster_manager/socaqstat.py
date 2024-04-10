@@ -77,7 +77,7 @@ if __name__ == "__main__":
     queue_parameter_values = {}
     try:
         stream_resource_mapping = open(queue_settings_file, "r")
-        docs = yaml.load_all(stream_resource_mapping, Loader=yaml.FullLoader)
+        docs = yaml.safe_load_all(stream_resource_mapping)
         for doc in docs:
             for items in doc.values():
                 for type, info in items.items():

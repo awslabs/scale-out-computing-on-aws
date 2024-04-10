@@ -14,6 +14,7 @@
 import os
 import sys
 import random
+import re
 from troposphere import Base64, GetAtt
 from troposphere import Ref, Template, Sub
 from troposphere import Tags as base_Tags  # without PropagateAtLaunch
@@ -25,6 +26,7 @@ from troposphere.ec2 import (
     EBSBlockDevice,
     IamInstanceProfile,
     LaunchTemplateBlockDeviceMapping,
+    Placement
 )
 import troposphere.ec2 as ec2
 
@@ -48,6 +50,7 @@ class CustomResourceSendAnonymousMetrics(AWSCustomObject):
         "Version": (str, True),
         "Region": (str, True),
         "Misc": (str, True),
+        "VolumeType": (str, True),  # The volume_type of the Root Volume
     }
 
 
@@ -56,7 +59,7 @@ def main(**launch_parameters):
         t = Template()
         t.set_version("2010-09-09")
         t.set_description(
-            "(SOCA) - Base template to deploy DCV nodes  version 2.7.4"
+            "(SOCA) - Base template to deploy DCV nodes version 2.7.5"
         )
         allow_anonymous_data_collection = launch_parameters["DefaultMetricCollection"]
         # Launch Actual Capacity
@@ -66,6 +69,26 @@ def main(**launch_parameters):
         else:
             _ebs_device_name = "/dev/sda1"
 
+        # Make sure that the requested disk size is proper
+        # This allows the admin to define an min size for DCV sessions
+        # and register this size as part of the AMI registration process.
+        # This in turn cannot be smaller than the AMI size either.
+
+        _root_size_gb_list = []
+
+        # What did the user ask for?
+        if "disk_size" not in launch_parameters or not launch_parameters.get("disk_size", False):
+            _root_size_gb_list.append(40)  # DEFAULT size fallback
+        else:
+            _root_size_gb_list.append(int(launch_parameters["disk_size"]))
+
+        # What does the SOCA image require?
+
+        # What does the AMI require?
+        # launch_parameters["image_id"]
+
+
+
         ltd.BlockDeviceMappings = [
             LaunchTemplateBlockDeviceMapping(
                 DeviceName=_ebs_device_name,
@@ -73,7 +96,7 @@ def main(**launch_parameters):
                     VolumeSize=40
                     if launch_parameters["disk_size"] is False
                     else int(launch_parameters["disk_size"]),
-                    VolumeType="gp3",
+                    VolumeType=launch_parameters.get("volume_type", "gp2"),
                     DeleteOnTermination=True,
                     Encrypted=True,
                 ),
@@ -120,6 +143,22 @@ def main(**launch_parameters):
             HttpEndpoint="enabled", HttpTokens=launch_parameters["metadata_http_tokens"]
         )
 
+        # Instance Launch Tenancy in the Launch Template
+        _desired_tenancy: str = str(launch_parameters["tenancy"]).lower() if "tenancy" in launch_parameters else "default"
+
+        # Only set HostId if we need it (dedicated host mode)
+        if _desired_tenancy.lower() == "host":
+            _desired_host_id: str = str(launch_parameters["host_id"]).lower()
+            ltd.Placement = Placement(
+                Tenancy=_desired_tenancy,
+                HostId=_desired_host_id
+            )
+        else:
+            # We do not need set a HostId for default(shared) or dedicated(aka dedicated instance)
+            ltd.Placement = Placement(
+                Tenancy=_desired_tenancy
+            )
+
         lt = LaunchTemplate("DesktopLaunchTemplate")
         lt.LaunchTemplateName = (
             launch_parameters["cluster_id"]
@@ -129,7 +168,17 @@ def main(**launch_parameters):
         lt.LaunchTemplateData = ltd
         t.add_resource(lt)
 
-        instance = ec2.Instance(str(launch_parameters["session_name"]))
+        # The session name may contain chars that are not permitted
+        # in troposphere for the object. We have already sanitized
+        # for the most part - but - and _ may still appear here.
+        _session_name: str = re.sub(
+            pattern=r"[-_=]+",
+            repl="",
+            string=str(launch_parameters["session_name"])[:32]
+        )[:32]
+
+        instance = ec2.Instance(_session_name)
+
         instance.SubnetId = (
             random.choice(launch_parameters["soca_private_subnets"])
             if not launch_parameters["subnet_id"]
@@ -152,6 +201,7 @@ def main(**launch_parameters):
             metrics.Efa = "false"
             metrics.ScratchSize = "0"
             metrics.RootSize = str(launch_parameters["disk_size"])
+            metrics.VolumeType = launch_parameters.get("volume_type", "gp2")
             metrics.SpotPrice = "false"
             metrics.BaseOS = str(launch_parameters["base_os"])
             metrics.StackUUID = str(launch_parameters["session_uuid"])

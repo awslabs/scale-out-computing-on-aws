@@ -18,10 +18,12 @@ installer_path = "/".join(os.path.dirname(os.path.abspath(__file__)).split("/")[
 sys.path.append(installer_path)
 from installer.resources.src.prompt import get_input as get_input
 import os
+from rich import print
+from rich.console import Console
+from rich.table import Column, Table
 
 try:
     import boto3
-    from colored import fg, bg, attr
     import ipaddress
 
 except ImportError:
@@ -43,12 +45,15 @@ class FindExistingResource:
         self.es = session.client("es")
         self.iam = session.client("iam")
         self.install_parameters = {}
+        self.cache = {}
+        self.console = Console(record=True)
 
     def find_vpc(self):
+        vpc_table = Table(title=f"Select the VPC # in {self.region} for SOCA deployment", show_lines=True, highlight=True)
+        for _col_name in ["#", "VPC ID", "VPC Name", "VPC CIDRs"]:
+            vpc_table.add_column(_col_name, justify="center")
+
         try:
-            print(
-                f"\n====== What {fg('misty_rose_3')}VPC{attr('reset')} in {self.region} do you want to use? ======\n"
-            )
             vpcs_by_name = {}
             vpc_paginator = self.ec2.get_paginator("describe_vpcs")
             vpc_iterator = vpc_paginator.paginate(
@@ -62,32 +67,54 @@ class FindExistingResource:
 
             for page in vpc_iterator:
                 for vpc in page["Vpcs"]:
-                    resource_name = False
+                    resource_name: str = vpc.get("VpcId", "")
                     if "Tags" in vpc.keys():
                         for tag in vpc["Tags"]:
                             if tag["Key"] == "Name":
                                 resource_name = tag["Value"]
-                    # WARNING - This will skip unnamed VPCs
+                    # WARNING - This would previously skip unnamed VPCs
+                    # which could include the default VPC
+                    # Instead - we set the name to the vpcID above just in case
                     if not resource_name:
                         continue
                     vpcs_by_name[resource_name] = vpc
             vpcs = {}
             count = 1
+
             for resource_name in sorted(vpcs_by_name):
                 vpc = vpcs_by_name[resource_name]
+
+                _cidr_for_vpc: list = []
+
+                if vpc.get('CidrBlockAssociationSet', {}):
+                    for _association in vpc.get('CidrBlockAssociationSet', {}):
+                        if _association.get('CidrBlockState', {}).get('State', 'unknown-state').lower() == 'associated':
+                            _cidr_for_vpc.append(_association.get('CidrBlock'))
+
+                if vpc.get('Ipv6CidrBlockAssociationSet', {}):
+                    for _association in vpc.get('Ipv6CidrBlockAssociationSet', {}):
+                        if _association.get('Ipv6CidrBlockState', {}).get('State', 'unknown-state').lower() == 'associated':
+                            _cidr_for_vpc.append(_association.get('Ipv6CidrBlock'))
+
+                _cidr_str: str = '\n'.join(_cidr_for_vpc)
+
                 vpcs[count] = {
                     "id": vpc["VpcId"],
                     "description": f"{resource_name if resource_name else ''} {vpc['VpcId']} {vpc['CidrBlock']}",
                     "cidr": vpc["CidrBlock"],
                 }
+                vpc_table.add_row(f"[green]{count}[/green]", f"[cyan]{vpc['VpcId']}[/cyan]", f"[magenta]{resource_name}[/magenta]", str(_cidr_str))
                 count += 1
-            [
-                print("    {:2} > {}".format(key, value["description"]))
-                for key, value in vpcs.items()
-            ]
-            allowed_choices = list(vpcs.keys())
+
+            print(vpc_table)
+
+            allowed_choices = list(range(1, count))
             choice = get_input(
-                f"Choose the VPC you want to use?", None, allowed_choices, int
+                prompt=f"Choose the VPC you want to use?",
+                specified_value=None,
+                expected_answers=allowed_choices,
+                expected_type=int,
+                show_expected_answers=True
             )
             return {"success": True, "message": vpcs[choice]}
 
@@ -96,22 +123,45 @@ class FindExistingResource:
 
     def find_elasticsearch(self, vpc_id):
         try:
-            print(
-                f"\n====== What {fg('misty_rose_3')}OpenSearch / ElasticSearch cluster{attr('reset')} do you want to use? [region: {self.region}, vpc: {vpc_id}] ======\n"
-            )
             es = {}
-            count = 1
-            # note: list_domain_names() does not seem to support pagination
+            count = 0
             for es_cluster in self.es.list_domain_names()["DomainNames"]:
-                es[count] = {
-                    "name": es_cluster["DomainName"],
-                    "engine": es_cluster.get("EngineType", "unknown-engine"),
-                }
                 count += 1
-            [
-                print("    {} > {} ({})".format(key, value["name"], value["engine"]))
-                for key, value in es.items()
-            ]
+                _domain_name = es_cluster.get("DomainName", "unknown-domain-name")
+                domain_info = self.es.describe_elasticsearch_domain(
+                    DomainName=_domain_name
+                )
+
+                _domain_created: bool = domain_info.get("DomainStatus", {}).get("Created", False)
+                _domain_deleted: bool = domain_info.get("DomainStatus", {}).get("Deleted", False)
+
+                if _domain_created and not _domain_deleted:
+                    _endpoint = None
+                    if domain_info["DomainStatus"]["VPCOptions"]["VPCId"] == vpc_id:
+                        for scope, endpoint in domain_info.get("DomainStatus", {}).get("Endpoints", {}).items():
+                            _endpoint = endpoint
+
+                        es[count] = {
+                            "name": _domain_name,
+                            "engine": es_cluster.get("EngineType", "unknown-engine"),
+                            "endpoint": _endpoint
+                        }
+                        # Only increment the count in the loop for valid domain listings
+                        count += 1
+
+            if count <= 0:
+                # This happens when you select existing resources but there are none found
+                # So we have to error at this stage.
+                print(f"[red]FATAL ERROR: Unable to location any valid Analytics engines in region {self.region} - VPC {vpc_id}. Please confirm and try again or re-run and select 'new' to create a new one.[default]")
+                sys.exit(1)
+
+            print(
+                f"\n====== What [misty_rose3]OpenSearch / ElasticSearch cluster[default] do you want to use? [region: {self.region}, vpc: {vpc_id}] ======\n"
+            )
+
+            for key, value in es.items():
+                print(f"    {key} > {value.get('name')} ({value.get('engine')}) via {value.get('endpoint')}")
+
             allowed_choices = list(es.keys())
             choice = get_input(
                 f"Choose the OpenSearch/ElasticSearch Cluster you want to use?",
@@ -119,14 +169,6 @@ class FindExistingResource:
                 allowed_choices,
                 int,
             )
-
-            # note: describe_elasticsearch_domain() does not seem to support pagination
-            domain_info = self.es.describe_elasticsearch_domain(
-                DomainName=es[choice]["name"]
-            )
-            if domain_info["DomainStatus"]["VPCOptions"]["VPCId"] == vpc_id:
-                for scope, endpoint in domain_info["DomainStatus"]["Endpoints"].items():
-                    es[choice]["endpoint"] = endpoint
 
             return {"success": True, "message": es[choice]}
 
@@ -136,7 +178,7 @@ class FindExistingResource:
     def find_directory_services(self, vpc_id):
         try:
             print(
-                f"\n====== What {fg('misty_rose_3')}Directory Services (Microsoft AD){attr('reset')} do you want to use? [region: {self.region}, vpc: {vpc_id}] ======\n"
+                f"\n====== What [misty_rose3]Directory Services (Microsoft AD)[default] do you want to use? [region: {self.region}, vpc: {vpc_id}] ======\n"
             )
             ds = {}
 
@@ -175,16 +217,26 @@ class FindExistingResource:
             return {"success": False, "message": str(err)}
 
     def get_subnets(self, vpc_id, environment, selected_subnets=None):
+
+        subnet_table = Table(
+            title=f"Select Subnet # in {self.region} / VPC {vpc_id} for SOCA deployment",
+            show_lines=True,
+            highlight=True
+        )
+
+        for _col_name in ('#', 'Subnet ID', 'Name', 'CIDRs', 'Availability Zone', 'Features'):
+            subnet_table.add_column(_col_name, justify="center")
+
         if selected_subnets is None:
             selected_subnets = []
         try:
             if environment == "private":
                 print(
-                    f"\n====== Select {fg('misty_rose_3')}3 subnets to use for your compute nodes (private subnets preferably) {attr('reset')} ======\n"
+                    f"\n====== Select [misty_rose3]3 subnets to use for your compute nodes (private subnets preferably) [default] ======\n"
                 )
             else:
                 print(
-                    f"\n====== Select {fg('misty_rose_3')}3 subnets to use for the main Scheduler and Load Balancer (public subnets preferably) {attr('reset')} ======\n"
+                    f"\n====== Select [misty_rose3]3 subnets to use for the main Scheduler and Load Balancer (public subnets preferably) [default] ======\n"
                 )
 
             subnets_by_name = {}
@@ -195,7 +247,10 @@ class FindExistingResource:
                         "Name": "vpc-id",
                         "Values": [vpc_id],
                     },
-                    {"Name": "ipv6-native", "Values": ["false"]},
+                    {
+                        "Name": "ipv6-native",
+                        "Values": ["false"]
+                    },
                     {
                         "Name": "state",
                         "Values": ["available"],
@@ -204,12 +259,14 @@ class FindExistingResource:
             )
             for page in subnet_iterator:
                 for subnet in page["Subnets"]:
-                    resource_name = False
+                    resource_name = subnet.get("SubnetId", "")
                     if "Tags" in subnet.keys():
                         for tag in subnet["Tags"]:
                             if tag["Key"] == "Name":
                                 resource_name = tag["Value"]
-                    # WARNING - This will skip unnamed subnets
+                    # This would previously skip unnamed subnets
+                    # This now should allow for subnets to be default
+                    # named of their ID, or their Name tag
                     if not resource_name:
                         continue
                     subnets_by_name[resource_name] = subnet
@@ -222,10 +279,31 @@ class FindExistingResource:
                     f"{subnet['SubnetId']},{subnet['AvailabilityZone']}"
                     not in selected_subnets
                 ):
-                    outpost_arn = subnet.get("OutpostArn", False)
+
+                    # Collect some metadata on the subnet
+                    _available_ips = subnet.get("AvailableIpAddressCount", 0)
+
+                    is_default = True if subnet.get("DefaultForAz", False) else False
+
+                    outpost_arn = subnet.get("OutpostArn", '')
                     is_outpost = True if outpost_arn else False
                     outpost_str = f"Outpost" if is_outpost else ""
-                    subnet_description = f"{resource_name if resource_name else ''} {subnet['CidrBlock']}, AZ: {subnet['AvailabilityZone']}/{subnet['AvailabilityZoneId']} {outpost_str}"
+
+                    # Collect IPv6 CIDR
+                    _ipv6_cidrs: list = []
+                    for association in subnet.get("Ipv6CidrBlockAssociationSet", []):
+                        if association.get("Ipv6CidrBlockState", {}).get("State", "unknown") != "associated":
+                            continue
+                        _ipv6_cidrs.append(association['Ipv6CidrBlock'])
+
+                    _ipv6_cidr = "\n".join(_ipv6_cidrs) if len(_ipv6_cidrs) else ""
+                    _cidr_str = f"{subnet['CidrBlock']} ({_available_ips} free)\n{_ipv6_cidr}"
+
+                    _owner_str: str = subnet['OwnerId']
+
+                    _az_str: str = f"AZ: {subnet['AvailabilityZone']}\nAZ-ID: {subnet['AvailabilityZoneId']}"
+                    subnet_description = f"{resource_name if resource_name else ''} {_cidr_str}, AZ: {_az_str} {outpost_str}"
+
                     subnets[count] = {
                         "id": subnet["SubnetId"],
                         "availability_zone": subnet["AvailabilityZone"],
@@ -233,41 +311,66 @@ class FindExistingResource:
                         "is_outpost": is_outpost,
                         "description": subnet_description,
                     }
+
+                    _feature_str: str = ""
+                    if is_default:
+                        _feature_str += "Default"
+                    # Mark subnets where we see SOCA in the name
+                    if "soca" in resource_name.lower():
+                        _feature_str += "SOCA"
+                    if is_outpost:
+                        outpost_arn = ':'.join(outpost_arn.split(':')[3:])
+                        _feature_str += f"Outpost:\n{outpost_arn}"
+
+                    subnet_table.add_row(
+                        f"[green]{count}[/green]",
+                        f"[cyan]{subnet['SubnetId']}\nOwner: {_owner_str}[/cyan]",
+                        f"[magenta]{resource_name}[/magenta]",
+                        _cidr_str,
+                        f"[yellow]{_az_str}[/yellow]",
+                        _feature_str,
+                    )
                     count += 1
 
-            [
-                print("    {:2} > {}".format(key, value["description"]))
-                for key, value in subnets.items()
-            ]
+            # [
+            #     print("    {:2} > {}".format(key, value["description"]))
+            #     for key, value in subnets.items()
+            # ]
+            print(subnet_table)
 
             selected_subnets_count = get_input(
-                f"How many of these subnets do you want to use?",
-                None,
-                list(range(1, count)),
-                int,
+                prompt=f"How many of these subnets do you want to use?",
+                specified_value=None,
+                expected_answers=list(range(1, count)),
+                expected_type=int,
+                show_default_answer=False,
+                show_expected_answers=False,
             )
             while selected_subnets_count < 2:
                 print(
-                    f"{fg('red')} You must use at least 2 subnets for high availability {attr('reset')}"
+                    f"[red] You must use at least 2 subnets for high availability [default]"
                 )
                 selected_subnets_count = get_input(
-                    f"How many of these subnets do you want to use?",
-                    None,
-                    list(range(1, count)),
-                    int,
+                    prompt=f"How many of these subnets do you want to use?",
+                    specified_value=None,
+                    expected_answers=list(range(1, count)),
+                    expected_type=int,
                 )
 
             selected_subnets = []
             while len(selected_subnets) != selected_subnets_count:
                 allowed_choices = list(subnets.keys())
                 if len(allowed_choices) == 0:
-                    return {"success": False, "message": "Not enough subnets available"}
+                    return {"success": False, "message": f"Not enough subnets available in VPC {vpc_id}"}
                 choice = get_input(
-                    f"Choose your subnet #{len(selected_subnets) + 1} ?",
-                    None,
-                    allowed_choices,
-                    int,
+                    prompt=f"Choose your subnet #{len(selected_subnets) + 1} ?",
+                    specified_value=None,
+                    expected_answers=allowed_choices,
+                    expected_type=int,
+                    show_default_answer=False,
+                    show_expected_answers=False
                 )
+
                 selected_subnets.append(
                     f"{subnets[choice]['id']},{subnets[choice]['availability_zone']}"
                 )
@@ -277,82 +380,74 @@ class FindExistingResource:
         except Exception as err:
             return {"success": False, "message": str(err)}
 
-    def get_fs(self, environment, vpc_id, selected_fs=None):
+    def get_fs(self, environment: str, vpc_id: str, filesystems: dict, selected_fs=None) -> dict:
+
+        fs_table = Table(
+            title=f"Select the VPC File system for {environment}",
+            show_lines=True,
+            highlight=True
+        )
+        # for _col_name in ["#", "Type", "ID", "Name", "Size", "DNSName", "Features"]:
+        for _col_name in ["#", "Type", "ID", "Name", "Size", "Features"]:
+            fs_table.add_column(_col_name, justify="center")
+
+        #print(f"DEBUG - Filesystems passed to get_fs(): {filesystems}")
+
+        if len(filesystems) == 0:
+            return {"success": False, "message": f"No filesystems found in VPC {vpc_id}"}
+
         if selected_fs is None:
             selected_fs = []
+        # else:
+        #     print(f"DEBUG - Selected FSes: {selected_fs}")
+
+        # Make a nice table with the FSes passed to us
+        _fs_type_str: str = ''
+        for _key, _value in filesystems.items():
+            _fs_type = _value["fs_type"]
+            _fs_family: str = ''
+            _fs_subfamily: str = ''
+            # Handle 'fsx_ontap' and 'fsx_openzfs' examples
+            if '_' in _fs_type:
+                _fs_family, _fs_subfamily = _fs_type.lower().split("_")[0:2]
+                # Properly list FSx
+                _fs_family = _fs_family.replace("fsx", "FSx")
+                _fs_subfamily = _fs_subfamily.replace('lustre', 'Lustre')
+                _fs_subfamily = _fs_subfamily.replace('openzfs', 'OpenZFS')
+                _fs_subfamily = _fs_subfamily.replace('ontap', 'ONTAP')
+            else:
+                # efs -> EFS
+                _fs_family = _fs_type.upper()
+                _fs_subfamily = ''
+
+            _fs_type_str = f"{_fs_family}"
+            _fs_type_str += f"/{_fs_subfamily}" if _fs_subfamily else ""
+
+            fs_table.add_row(
+                f"[green]{_key}[/green]",
+                _fs_type_str,
+                _value.get("id", ""),
+                _value.get("name", ""),
+                _value.get("size", ""),
+                # DNSName makes the table span very large
+                # _value.get("dns_name", ""),
+                _value.get("features", "")
+            )
+
+        print(fs_table)
+
         try:
             print(
-                f"\n====== What {fg('misty_rose_3')}Filesystem{attr('reset')} do you want to use for {fg('misty_rose_3')}{environment}{attr('reset')}? [region: {self.region}, vpc: {vpc_id}]  ======\n"
+                f"\n====== What [misty_rose3]Filesystem[default] do you want to use for [misty_rose3]{environment}[default]? [region: {self.region}, vpc: {vpc_id}]  ======\n"
             )
-            filesystems = {}
+
             count = 1
 
-            efs_paginator = self.efs.get_paginator("describe_file_systems")
-            efs_iterator = efs_paginator.paginate()
+            # [
+            #     print("    {} > {}".format(key, value["description"]))
+            #     for key, value in filesystems.items()
+            # ]
 
-            for page in efs_iterator:
-                for filesystem in page["FileSystems"]:
-                    # check for lifecycle
-                    if filesystem.get("LifeCycleState", "unknown").upper() not in {
-                        "AVAILABLE",
-                        "UPDATING",
-                    }:
-                        continue
-
-                    verified_vpc = False
-                    for mount_target in self.efs.describe_mount_targets(
-                        FileSystemId=filesystem["FileSystemId"]
-                    )["MountTargets"]:
-                        if mount_target["VpcId"] == vpc_id:
-                            verified_vpc = True
-
-                    if verified_vpc is True:
-                        if filesystem["FileSystemId"] not in selected_fs:
-                            filesystems[count] = {
-                                "id": f"{filesystem['FileSystemId']}",
-                                "fs_type": "efs",
-                                "description": f"EFS: {filesystem['Name'] if 'Name' in filesystem.keys() else 'EFS: '} {filesystem['FileSystemId']}.efs.{self.region}.amazonaws.com",
-                            }
-                            count += 1
-
-            efs_count = count - 1
-
-            fsx_paginator = self.fsx.get_paginator("describe_file_systems")
-            fsx_iterator = fsx_paginator.paginate()
-
-            for page in fsx_iterator:
-                for filesystem in page["FileSystems"]:
-                    # Check for proper Lifecycle
-                    if filesystem.get("Lifecycle", "unknown-lifecycle").upper() not in {
-                        "AVAILABLE",
-                        "UPDATING",
-                    }:
-                        continue
-
-                    fsx_type = filesystem.get("FileSystemType", "unknown-type")
-
-                    # TODO - Add more FSx support here
-                    # if fsx_type.upper() not in {'WINDOWS', 'LUSTRE', 'ONTAP', 'OPENZFS'}:
-                    if fsx_type.upper() not in {"LUSTRE"}:
-                        continue
-
-                    resource_name = False
-                    if filesystem["VpcId"] == vpc_id:
-                        if filesystem["FileSystemId"] not in selected_fs:
-                            for tag in filesystem["Tags"]:
-                                if tag["Key"] == "Name":
-                                    resource_name = tag["Value"]
-                            filesystems[count] = {
-                                "id": f"{filesystem['FileSystemId']}",
-                                "fs_type": "fsx_lustre",
-                                "description": f"FSx/{fsx_type.upper()}: {resource_name if resource_name else f'FSx/{fsx_type.upper()}: '} {filesystem['FileSystemId']}.fsx.{self.region}.amazonaws.com",
-                            }
-                            count += 1
-
-            [
-                print("    {} > {}".format(key, value["description"]))
-                for key, value in filesystems.items()
-            ]
             allowed_choices = list(filesystems.keys())
             choice = get_input(
                 f"Choose the filesystem to use for {environment}?",
@@ -361,10 +456,13 @@ class FindExistingResource:
                 int,
             )
 
+            # Use fully qualified name when we can
+            _dns_name: str = filesystems.get(choice).get("dns_name", "")
+
             return {
                 "success": True,
-                "message": filesystems[choice]["id"],
-                "provider": filesystems[choice]["fs_type"],
+                "message": _dns_name if _dns_name else filesystems[choice]["id"],
+                "provider": filesystems[choice]["fs_type"].lower(),
             }
 
         except Exception as err:
@@ -375,7 +473,7 @@ class FindExistingResource:
             scheduler_sg = []
         try:
             print(
-                f"\n====== Choose the {fg('misty_rose_3')}security group to use for the {environment.upper()}{attr('reset')} [region: {self.region}, vpc: {vpc_id}] ======\n"
+                f"\n====== Choose the [misty_rose3]security group to use for the {environment.upper()}[default] [region: {self.region}, vpc: {vpc_id}] ======\n"
             )
             sgs_by_name = {}
             sg_paginator = self.ec2.get_paginator("describe_security_groups")
@@ -423,7 +521,7 @@ class FindExistingResource:
             selected_roles = []
         try:
             print(
-                f"\n====== Choose the {fg('misty_rose_3')}IAM role to use for the {environment.upper()}{attr('reset')} ======\n"
+                f"\n====== Choose the [misty_rose3]IAM role to use for the {environment.upper()}[default] ======\n"
             )
             roles = {}
             count = 1
@@ -457,7 +555,7 @@ class FindExistingResource:
             print(err)
             return {"success": False, "message": str(err)}
 
-    def get_rules_for_security_group(self, sg_ids):
+    def get_rules_for_security_group(self, sg_ids) -> dict:
         try:
             rules = {}
             for sg_id in sg_ids:
@@ -551,7 +649,7 @@ class FindExistingResource:
 
                 if fs_mount_provider.lower() == "efs":
                     efs_ids.append(cfn_params[fs_mount])
-                elif fs_mount_provider.lower() == "fsx_lustre":
+                elif fs_mount_provider.lower() in {"fsx_lustre", "fsx_openzfs"}:
                     fsx_ids.append(cfn_params[fs_mount])
                 else:
                     print(f"ERROR: Do not know about provider: {fs_mount_provider}")
@@ -587,32 +685,50 @@ class FindExistingResource:
             return {"success": False, "message": str(err)}
 
     def validate_sg_rules(self, cfn_params, check_fs=True):
+        security_groups: list = []
         try:
             # Begin Verify Security Group Rules
             print(
-                f"\n====== Please wait a little as we {fg('misty_rose_3')}validate your security group rules {attr('reset')} ======\n"
+                f"\n====== Please wait a little as we [misty_rose3]validate your security group rules [default] ======\n"
             )
-            security_groups = [
-                cfn_params["scheduler_sg"],
-                cfn_params["compute_node_sg"],
-            ]
-            if "vpc_endpoint_sg" in cfn_params:
-                security_groups.append(cfn_params["vpc_endpoint_sg"])
-            sg_rules = self.get_rules_for_security_group(security_groups)
-            if check_fs is True:
-                fs_sg = self.get_fs_security_groups(cfn_params)
 
-            if sg_rules["success"] is True:
-                scheduler_sg_rules = sg_rules["message"][cfn_params["scheduler_sg"]]
-                compute_node_sg_rules = sg_rules["message"][
-                    cfn_params["compute_node_sg"]
-                ]
-                vpc_endpoint_sg_rules = sg_rules["message"].get(
-                    cfn_params.get("vpc_endpoint_sg", None), None
-                )
+            for _sg_name in {'scheduler_sg', 'compute_node_sg', 'vpc_endpoint_sg'}:
+                if cfn_params.get(_sg_name, ''):
+                    # print(f"DEBUG - Adding fetch for SG: {_sg_name}")
+                    security_groups.append(cfn_params.get(_sg_name))
+
+            sg_rules = {'message': 'Unknown Error'}
+
+            eval_required = False
+            if len(security_groups):
+                eval_required = True
+                # print(f"DEBUG - Fetching Security groups for evaluation: {security_groups}")
+                sg_rules = self.get_rules_for_security_group(security_groups)
+                # print(f"DEBUG - sg_rules Now: {sg_rules}")
             else:
-                print(f"{fg('red')}Error: {sg_rules['message']} {attr('reset')}")
+                pass
+                # print(f"DEBUG - No Security groups to evaluate")
+
+            if check_fs is True:
+                # print(f"DEBUG - Getting Filesystem SG: {cfn_params}")
+                fs_sg = self.get_fs_security_groups(cfn_params)
+                # print(f"DEBUG - FS-SG Now: {fs_sg}")
+
+            if eval_required is True and not sg_rules.get("success", False):
+                print(f"[red]Error: {sg_rules['message']} [default]")
                 sys.exit(1)
+
+            # Skip the rest if we are generating the SGs
+            if not eval_required:
+                return {"success": True, "message": ""}
+
+            scheduler_sg_rules = sg_rules["message"][cfn_params["scheduler_sg"]]
+            compute_node_sg_rules = sg_rules["message"][
+                cfn_params["compute_node_sg"]
+            ]
+            vpc_endpoint_sg_rules = sg_rules["message"].get(
+                cfn_params.get("vpc_endpoint_sg", None), None
+            )
 
             errors = {}
             # status == True means that the check passed
@@ -789,7 +905,7 @@ class FindExistingResource:
                         pass
                     else:
                         print(
-                            f"{fg('yellow')}ATTENTION!! {error_info['error']} {attr('reset')}\nHow to solve: {error_info['resolution']}\n"
+                            f"[yellow]ATTENTION!! {error_info['error']} [default]\nHow to solve: {error_info['resolution']}\n"
                         )
                         sg_errors[error_info["error"]] = error_info["resolution"]
                         confirm_sg_settings = True
@@ -805,7 +921,7 @@ class FindExistingResource:
                     sys.exit(1)
             else:
                 print(
-                    f"{fg('green')} Security Groups seem to be configured correctly{attr('reset')}"
+                    f"[green] Security Groups seem to be configured correctly[default]"
                 )
 
             return {"success": True, "message": ""}

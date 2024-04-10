@@ -53,7 +53,7 @@ Follow these instructions to start a full remote desktop experience in your new 
 
 After you click **Launch my session**, a new job is submitted into the queue that will instruct AWS to provision a server with 8 vCPUs and 32GB of memory and install all desktop required packages including Gnome. 
 
-You will see an message asking you to wait up to 20 minutes before being able to access your remote desktop, but it should take around 10 minutes to deploy the remote desktop server.
+You will see a message asking you to wait up to 20 minutes before being able to access your remote desktop, but it should take around 10 minutes to deploy the remote desktop server.
 
 !!! note
     You can monitor the deployment of the remote desktop server by observing the status of the CloudFormation stack with a name ending in `job-0`.  If after 5 minutes the status of the stack is not `CREATE_COMPLETE`, please raise your hand for assistance.

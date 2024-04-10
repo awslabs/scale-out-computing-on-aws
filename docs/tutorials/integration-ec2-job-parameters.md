@@ -239,12 +239,15 @@ Below is a list of parameters you can specify when you request your simulation t
 #### fsx_lustre_deployment_type
 
 - Description: Choose what type of FSx for Lustre you want to deploy
-- Allowed Valuess: `SCRATCH_1` `SCRATCH_2` `PERSISTENT_1` (case insensitive)
+- Allowed Values: `SCRATCH_1` `SCRATCH_2` `PERSISTENT_1` `PERSISTENT_2` (case insensitive)
 - Default Value: `SCRATCH_2`
-- Example: `-l fsx_lustre_deployment_type=scratch_2`: Provision a FSx for Lustre with SCRATCH_2 type
+- Example: `-l fsx_lustre_deployment_type=scratch_2`: Provision a FSx for Lustre with `SCRATCH_2` type
 
 !!!note    
-    If `fsx_lustre_size` is not specified, default to 1200 GB (smallest size supported)
+    If `fsx_lustre_size` is not specified, default to 1200 GB (the smallest size supported)
+
+!!!note    
+    Confirm supported region deployment types in the FSx/Lustre User Guide - https://docs.aws.amazon.com/fsx/latest/LustreGuide/using-fsx-lustre.html
 
 !!!warning "Pre-Requisite"
     This parameter is ignored unless you have specified `fsx_lustre=True`
@@ -257,7 +260,7 @@ Below is a list of parameters you can specify when you request your simulation t
 - Example: `-l fsx_lustre_per_unit_throughput=250`:
 
 !!!note    
-    Per Unit Throughput is only avaible when using `PERSISTENT_1` FSx for Lustre
+    Per Unit Throughput is only available when using `PERSISTENT_1` or `PERSISTENT_2` deployment types.
 
 !!!warning "Pre-Requisite"
     This parameter is ignored unless you have specified `fsx_lustre=True`   

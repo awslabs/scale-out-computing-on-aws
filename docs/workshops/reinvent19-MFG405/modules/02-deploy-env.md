@@ -2,7 +2,7 @@
 
 Your temporary AWS account has been pre-provisioned with a multiuser computing environment.  **You'll use this pre-built cluster for the workshop labs**.
 
-We also want you to have hands-on experience deploying you're own cluster, and in this module we will have you walk through the process of launching a second cluster in your temporary AWS account.  This second cluster will be provisioned in the background while you work on the rest of the workshop in the pre-built cluster.
+We also want you to have hands-on experience deploying your own cluster, and in this module we will have you walk through the process of launching a second cluster in your temporary AWS account.  This second cluster will be provisioned in the background while you work on the rest of the workshop in the pre-built cluster.
 
 ## Step 1: Launch stack
 
@@ -26,7 +26,7 @@ This automated AWS CloudFormation template deploys a scale-out computing environ
     !!! warning
          The stack name must be less than 20 characters and must be lower-case only.
 
-1. Under **Parameters**, modify the the last four parameters, which are marked with **REQUIRED**.  Leave all other fields with their default values.  These are variables passed the CloudFormation automation that deploys the environment.
+1. Under **Parameters**, modify the last four parameters, which are marked with **REQUIRED**.  Leave all other fields with their default values.  These are variables passed the CloudFormation automation that deploys the environment.
 
     |Parameter|Default|Description
     ----------|-------|-----------

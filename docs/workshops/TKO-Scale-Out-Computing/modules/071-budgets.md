@@ -24,7 +24,7 @@ To enable this feature, you will first need to verify the project assigned to ea
 1. Find the account ID for your temporary AWS account.
 
     1. Click [here](https://console.aws.amazon.com/billing/home?#/account) to go to the Account page of the AWS console.
-    1. Copy the twelve digit **Account Id** number located underneath the Account Settings section.
+    1. Copy the twelve-digit **Account Id** number located underneath the Account Settings section.
 
 1. Log back into the scheduler instance via SSH and edit the `/apps/soca/$SOCA_CONFIGURATION/cluster_hooks/queuejob/check_project_budget.py` script and paste the AWS account ID as the value for the `aws_account_id` variable. Save the file when done.
 
@@ -97,7 +97,7 @@ To enable this feature, you will first need to verify the project assigned to ea
     ```
 
     !!!danger "Important"
-        The config section ("Project 1") must match the name of the budget your created in AWS Budgets (it's case sensitive)
+        The config section ("Project 1") must match the name of the budget your created in AWS Budgets (it's case-sensitive)
 
 1. Save this file and try to submit a job. This time the job will be accepted.
 

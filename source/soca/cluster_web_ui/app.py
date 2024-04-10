@@ -91,9 +91,10 @@ from swagger_ui import api_doc
 import config
 from apscheduler.jobstores.sqlalchemy import SQLAlchemyJobStore
 from flask_apscheduler import APScheduler
-
+import remote_desktop_common
 # from apscheduler.schedulers.background import BackgroundScheduler
 from models import db
+import soca_samples
 import os
 import stat
 
@@ -313,7 +314,15 @@ with app.app_context():
     basedir = os.path.abspath(os.path.dirname(__file__))
     os.chmod(os.path.join(basedir, "db.sqlite"), stat.S_IWUSR + stat.S_IRUSR)
     app_session = Session(app)
-    app_session.app.session_interface.db.create_all()
+
+    # This only takes place in SQL mode
+    if config.Config.SESSION_TYPE == "sqlalchemy":
+        app_session.app.session_interface.db.create_all()
+
+    # Create default content
+    soca_samples.insert_default_dcv_base_ami()
+    soca_samples.insert_default_test_web_based_job_submission_application()
+
     app.config.from_object(Config())
     api_doc(
         app,

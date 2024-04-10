@@ -5,7 +5,7 @@ Once the solution has been deployed, we will configure the environment to use a 
 1. Obtain IP address of scheduler server
     1. In the AWS console, navigate to the CloudFormation page.
 
-    1. Select the root stack named "soca-xxxxxxxxxxxx", where 'x' is a randomized alpha-numeric string, and click **Outputs**.
+    1. Select the root stack named "soca-xxxxxxxxxxxx", where 'x' is a randomized alphanumeric string, and click **Outputs**.
 
         ![](../imgs/cfn-ee-stack.png)
 
@@ -22,7 +22,7 @@ Once the solution has been deployed, we will configure the environment to use a 
     
     Example: `vi /apps/soca/$SOCA_CONFIGURATION/cluster_manager/settings/queue_mapping.yml`
 
-1. Change the the highlighted values in the file to match the example below.
+1. Change the highlighted values in the file to match the example below.
 
     !!! note
         Indentation matters in this file.  Therefore, we advise against copying and pasting this entire block into the file, as this can result in malformed formatting.  Instead, please edit the value of each highlighted line individually.

@@ -28,6 +28,10 @@ import math
 logger = logging.getLogger("application")
 submit_job = Blueprint("submit_job", __name__, template_folder="templates")
 
+# Options delimiter character for Checkbox group values
+# should be a single char - such as a comma (,) (default) , or pipe (|) depending on site policy
+MULTI_SELECT_DELIMITER = ','
+
 
 @submit_job.route("/submit_job", methods=["GET"])
 @login_required
@@ -179,19 +183,29 @@ def send_job():
                     + job_to_submit
                 )
 
-    for param in request.form:
-        if param != "csrf_token":
-            if param.lower() == "user":
+    for param_name in request.form:
+        param_value = request.form.get(param_name)
+
+        if param_name.endswith('[]'):  # Multi-select (Checkbox Group) look like: name[]
+            param_value = MULTI_SELECT_DELIMITER.join(request.form.getlist(param_name))
+            # Now remove the [] from the param name to make it easier for the user in the job scripting
+            param_name = param_name[:-2]
+
+        if logger.isEnabledFor(logging.DEBUG):
+            logger.debug(f"Processing Form inputs for macro expansion - Parameter name: ({param_name}), Value: ({param_value})")
+
+        if param_name != "csrf_token":
+            if param_name.lower() == "user":
                 job_to_submit = job_to_submit.replace(
-                    "%" + param + "%", session["user"]
+                    "%" + param_name + "%", session["user"]
                 )
-            elif param == "HOME":
+            elif param_name == "HOME":
                 job_to_submit = job_to_submit.replace(
-                    "%" + param + "%", config.Config.USER_HOME + "/" + session["user"]
+                    "%" + param_name + "%", config.Config.USER_HOME + "/" + session["user"]
                 )
             else:
                 job_to_submit = job_to_submit.replace(
-                    "%" + param + "%", request.form[param]
+                    "%" + param_name + "%", param_value
                 )
 
     payload = base64.b64encode(job_to_submit.encode()).decode()

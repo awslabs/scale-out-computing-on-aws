@@ -5,7 +5,7 @@ While the cluster you deployed in the previous lab is running in the background,
 1. Obtain IP address of scheduler server
     1. In the AWS console, navigate to the CloudFormation page.
 
-    1. Select the root stack named "mod-xxxxxxxxxxxx", where 'x' is a randomized alpha-numeric string, and click **Outputs**.
+    1. Select the root stack named "mod-xxxxxxxxxxxx", where 'x' is a randomized alphanumeric string, and click **Outputs**.
 
         ![](../imgs/cfn-ee-stack.png)
 
@@ -22,7 +22,7 @@ While the cluster you deployed in the previous lab is running in the background,
     
     Example: `sudo vi /apps/soca/cluster_manager/settings/queue_mapping.yml`
 
-1. Change the the highlighted values in the file to match the example below.
+1. Change the highlighted values in the file to match the example below.
 
     !!! note
         We strongly recommend that you do not copy and paste this entire block into the file.  Instead, please edit the value of each highlighted line individually.

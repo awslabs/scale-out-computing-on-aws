@@ -16,7 +16,6 @@
 <!-- Bootstrap core JavaScript-->
 <script src="{{ url_for('static', filename='vendor/jquery/jquery.js') }}"></script>
 <script src="{{ url_for('static', filename='js/popper.min.js') }}"></script>
-<script src="{{ url_for('static', filename='vendor/bootstrap/js/bootstrap.bundle.min.js') }}"></script>
 
 <!-- Page Specific -->
 
@@ -68,9 +67,13 @@
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
     <meta http-equiv="Pragma" content="no-cache" />
     <meta http-equiv="Expires" content="0" />
+
 {% elif page == 'submit_job' %}
     <script src="{{ url_for('static', filename='vendor/jquery-formbuilder/form-render.min.js') }}"></script>
     <script src="{{ url_for('static', filename='vendor/jquery-ui/jquery-ui.min.js') }}"></script>
 
 {% else %}
 {% endif %}
+
+<!-- load bootstrap bundle at the end -->
+<script src="{{ url_for('static', filename='vendor/bootstrap/js/bootstrap.bundle.min.js') }}"></script>

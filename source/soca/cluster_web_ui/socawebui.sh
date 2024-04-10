@@ -26,6 +26,23 @@ UWSGI_PROCESSES=5
 UWSGI_THREADS=$(nproc)
 UWSGI_FILE='wsgi.py'
 BUFFER_SIZE=32768
+#
+# Select UWSGI options to build the command-line
+#
+# Stats
+UWSGI_OPTIONS+="--stats 127.0.0.1:9191 "
+# Produce memory reporting in stats
+UWSGI_OPTIONS+="--memory-report "
+# Log the X-Forwarded-for instead of the ELB source IP addresses
+UWSGI_OPTIONS+="--log-x-forwarded-for "
+# Allow offloading threads
+UWSGI_OPTIONS+="--offload-threads ${UWSGI_THREADS} "
+# Allow logging via threaded logger
+UWSGI_OPTIONS+="--threaded-logger "
+# Log in microseconds
+UWSGI_OPTIONS+="--log-micros "
+# Needed for proper shutdown
+UWSGI_OPTIONS+="--die-on-term "
 
 if [[ $EUID -ne 0 ]]; then
    echo "This script must be run as root"
@@ -99,7 +116,7 @@ case "$1" in
         fi
 
         # Launching process
-        $UWSGI_BIN --master --https $UWSGI_BIND,cert.crt,cert.key --wsgi-file $UWSGI_FILE --processes $UWSGI_PROCESSES --threads $UWSGI_THREADS --daemonize logs/uwsgi.log --enable-threads --buffer-size $BUFFER_SIZE --check-static /apps/soca/$SOCA_CONFIGURATION/cluster_web_ui/static
+        $UWSGI_BIN --master --https $UWSGI_BIND,cert.crt,cert.key --wsgi-file $UWSGI_FILE --processes $UWSGI_PROCESSES --threads $UWSGI_THREADS --daemonize logs/uwsgi.log --enable-threads --buffer-size $BUFFER_SIZE --check-static /apps/soca/$SOCA_CONFIGURATION/cluster_web_ui/static ${UWSGI_OPTIONS}
 
     else
        echo 'SOCA is already running with PIDs: ' $status_check_process

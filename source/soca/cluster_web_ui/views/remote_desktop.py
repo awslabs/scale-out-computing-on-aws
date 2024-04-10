@@ -11,6 +11,7 @@
 #  and limitations under the License.                                                                                #
 ######################################################################################################################
 
+import time
 import logging
 import config
 from flask import (
@@ -29,6 +30,9 @@ from models import db, LinuxDCVSessions, AmiList
 import pytz
 from datetime import datetime, timezone
 import read_secretmanager
+import redis
+import os
+import remote_desktop_common
 
 remote_desktop = Blueprint("remote_desktop", __name__, template_folder="templates")
 client_ec2 = boto3.client("ec2", config=config.boto_extra_config())
@@ -44,9 +48,12 @@ def get_ami_info(image=False):
             .filter(AmiList.ami_type != "windows")
             .all()
         ):
-            ami_info[session_info.ami_label] = {
+            ami_info[f"{session_info.ami_label}_{session_info.ami_arch}"] = {
+                "ami_label": session_info.ami_label,
                 "ami_id": session_info.ami_id,
                 "ami_base_os": session_info.ami_type,
+                "ami_arch": session_info.ami_arch,
+                "ami_root_size":  session_info.ami_root_disk_size
             }
     else:
         check_image = (
@@ -55,10 +62,16 @@ def get_ami_info(image=False):
             .first()
         )
         if check_image:
-            ami_info[check_image.ami_label] = {
+            ami_info[f"{check_image.ami_label}_{check_image.ami_arch}"] = {
+                "ami_label": check_image.ami_label,
                 "ami_id": check_image.ami_id,
                 "ami_base_os": check_image.ami_type,
+                "ami_arch": check_image.ami_arch,
+                "ami_root_size": check_image.ami_root_disk_size
             }
+
+    if logger.isEnabledFor(logging.DEBUG):
+        logger.debug(f"linux - get_ami_info(): Returning {ami_info}")
     return ami_info
 
 
@@ -82,14 +95,15 @@ def index():
 
     logger.info(user_sessions)
     max_number_of_sessions = config.Config.DCV_LINUX_SESSION_COUNT
-    # List of instances not available for DCV. Adjust as needed
-    blocked_instances = config.Config.DCV_RESTRICTED_INSTANCE_TYPE
-    all_instances_available = client_ec2._service_model.shape_for("InstanceType").enum
-    all_instances = [
-        p
-        for p in all_instances_available
-        if not any(substr in p for substr in blocked_instances)
-    ]
+
+    all_instances = remote_desktop_common.generate_allowed_instances_list(
+        baseos='linux',
+        architecture='x86_64'
+    )
+
+    if logger.isEnabledFor(logging.DEBUG):
+        logger.debug(f"Got back all instances: {all_instances}")
+
     try:
         tz = pytz.timezone(config.Config.TIMEZONE)
     except pytz.exceptions.UnknownTimeZoneError:
@@ -101,6 +115,11 @@ def index():
     server_time = (
         (datetime.now(timezone.utc)).astimezone(tz).strftime("%Y-%m-%d (%A) %H:%M")
     )
+
+    _all_amis = get_ami_info()
+    _ami_default_linux_x86 = dict((key, value) for key, value in _all_amis.items() if value["ami_arch"] == "x86_64")
+    _ami_default_linux_arm64 = dict((key, value) for key, value in _all_amis.items() if value["ami_arch"] == "arm64")
+
     return render_template(
         "remote_desktop.html",
         user=session["user"],
@@ -116,7 +135,8 @@ def index():
         max_number_of_sessions=max_number_of_sessions,
         server_time=server_time,
         server_timezone_human=config.Config.TIMEZONE,
-        ami_list=get_ami_info(),
+        ami_default_linux_x86=_ami_default_linux_x86,
+        ami_default_linux_arm64=_ami_default_linux_arm64
     )
 
 
@@ -181,7 +201,7 @@ def delete():
 
     if delete_desktop.status_code == 200:
         if action == "terminate":
-            flash(f"Your desktop is about to be terminated", "success")
+            flash(f"Your desktop is about to be terminated as requested", "success")
         else:
             flash(f"Your desktop is about to be changed to {action} state", "success")
     else:

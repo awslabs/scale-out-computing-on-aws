@@ -4,7 +4,7 @@ The goal of this module is to login to SOCA web interface and start a remote des
 
 ## Step 1: Login to SOCA Web UI
 
-1. Click one of the links below depending on the session you're attending to login to corresponding SOCA web interface.
+1. Click one of the links below depending on the session you're attending to log in to corresponding SOCA web interface.
 
     Workshop sessions are not active at this time!!
 

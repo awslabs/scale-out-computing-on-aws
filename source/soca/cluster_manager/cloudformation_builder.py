@@ -46,7 +46,7 @@ from troposphere.fsx import FileSystem, LustreConfiguration
 import troposphere.ec2 as ec2
 
 # CPUOptions are not supported on these families
-CPU_OPTIONS_UNSUPPORTED_FAMILY = ("a1", "hpc6a", "t2")
+CPU_OPTIONS_UNSUPPORTED_FAMILY = ("a1", "c6g", "c7g", "hpc6a", "hpc7a", "hpc7g", "t2", "g5", "g5g")
 
 # EBS Optimization is unsupported on these instance types
 EBS_OPTIMIZATION_UNSUPPORTED_INSTANCE_TYPES = (
@@ -96,7 +96,7 @@ class CustomResourceSendAnonymousMetrics(AWSCustomObject):
 
 
 def is_bare_metal(instance_type: str) -> bool:
-    return True if instance_type.lower().endswith("metal") else False
+    return True if "metal" in instance_type.lower() else False
 
 
 def is_cpu_options_supported(instance_type: str) -> bool:
@@ -105,9 +105,7 @@ def is_cpu_options_supported(instance_type: str) -> bool:
     # https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/cpu-options-supported-instances-values.html
 
     _instance_family = instance_type.split(".")[0].lower()
-    if is_bare_metal(instance_type) or _instance_family.startswith(
-        CPU_OPTIONS_UNSUPPORTED_FAMILY
-    ):
+    if is_bare_metal(instance_type) or _instance_family.startswith(CPU_OPTIONS_UNSUPPORTED_FAMILY):
         return False
 
     return True
@@ -126,8 +124,9 @@ def main(**params):
         t = Template()
         t.set_version("2010-09-09")
         t.set_description(
-            "(SOCA) - Base template to deploy compute nodes. Version 2.7.4"
+            "(SOCA) - Base template to deploy compute nodes. Version 2.7.5"
         )
+
         allow_anonymous_data_collection = params["MetricCollectionAnonymous"]
         debug = False
         mip_usage = False
@@ -145,28 +144,33 @@ def main(**params):
 export PATH=$PATH:/usr/local/bin
 if [[ "'''
             + params["BaseOS"]
-            + '''" == "centos7" ]] || [[ "'''
+            + '''" =~ "centos" ]] || [[ "'''
             + params["BaseOS"]
-            + '''" == "rhel7" ]];
+            + '''" =~ "rhel" ]] || [[ "'''
+            + params["BaseOS"]
+            + '''" =~ "rocky" ]];
 then
      yum install -y python3-pip
      PIP=$(which pip3)
      $PIP install awscli
      yum install -y nfs-utils # enforce install of nfs-utils
 else
-     yum install -y python3-pip
+     # AmazonLinux 2  / AmazonLinux2023
+     yum install -y python3-pip cronie
      PIP=$(which pip3)
      $PIP install awscli
 fi
+
 if [[ "'''
             + params["BaseOS"]
-            + '''" == "amazonlinux2" ]];
+            + '''" =~ "amazonlinux" ]];
     then
         /usr/sbin/update-motd --disable
+        rm -f /etc/update-motd.d/*
 fi
 
-IMDS_TOKEN=$(curl -X PUT "http://169.254.169.254/latest/api/token" -H "X-aws-ec2-metadata-token-ttl-seconds: 21600")
-GET_INSTANCE_TYPE=$(curl -H "X-aws-ec2-metadata-token: $IMDS_TOKEN" http://169.254.169.254/latest/meta-data/instance-type)
+IMDS_TOKEN=$(curl --silent -X PUT "http://169.254.169.254/latest/api/token" -H "X-aws-ec2-metadata-token-ttl-seconds: 21600")
+GET_INSTANCE_TYPE=$(curl --silent -H "X-aws-ec2-metadata-token: $IMDS_TOKEN" http://169.254.169.254/latest/meta-data/instance-type)
 echo export "SOCA_CONFIGURATION="'''
             + str(params["ClusterId"])
             + '''"" >> /etc/environment
@@ -306,16 +310,38 @@ if [[ "$FS_DATA_PROVIDER" == "fsx_lustre" ]] || [[ "$FS_APPS_PROVIDER" == "fsx_l
     fi
 fi
 
-if [[ "$FS_DATA_PROVIDER" == "efs" ]]; then
-    echo "$FS_DATA:/ /data nfs4 nfsvers=4.1,rsize=1048576,wsize=1048576,hard,timeo=600,retrans=2,noresvport 0 0" >> /etc/fstab
+#
+# /data
+#
+if [[ "$FS_DATA_PROVIDER" == "efs" ]] || [[ "$FS_DATA_PROVIDER" == "fsx_openzfs" ]]; then
+    NFS_OPTS_DATA="nfsvers=4.1,rsize=1048576,wsize=1048576,hard,timeo=600,retrans=2"
+    if [[ "$FS_DATA_PROVIDER" == "fsx_openzfs" ]]; then
+      SOURCE_MOUNT="/fsx"
+    else
+      SOURCE_MOUNT="/"
+      NFS_OPTS_DATA+=",noresvport"
+    fi
+    echo "$FS_DATA:$SOURCE_MOUNT /data nfs4 $NFS_OPTS_DATA 0 0" >> /etc/fstab
+
 elif [[ "$FS_DATA_PROVIDER" == "fsx_lustre" ]]; then
     FSX_ID=$(echo $FS_DATA | cut -d. -f1)
     FSX_DATA_MOUNT_NAME=$($AWS fsx describe-file-systems --file-system-ids $FSX_ID  --query FileSystems[].LustreConfiguration.MountName --output text)
     echo "$FS_DATA@tcp:/$FSX_DATA_MOUNT_NAME /data lustre defaults,noatime,flock,_netdev 0 0" >> /etc/fstab
 fi
 
-if [[ "$FS_APPS_PROVIDER" == "efs" ]]; then
-    echo "$FS_APPS:/ /apps nfs4 nfsvers=4.1,rsize=1048576,wsize=1048576,hard,timeo=600,retrans=2,noresvport 0 0" >> /etc/fstab
+#
+# /apps
+#
+if [[ "$FS_APPS_PROVIDER" == "efs" ]] || [[ "$FS_DATA_PROVIDER" == "fsx_openzfs" ]]; then
+    NFS_OPTS_APPS="nfsvers=4.1,rsize=1048576,wsize=1048576,hard,timeo=600,retrans=2"
+    if [[ "$FS_APPS_PROVIDER" == "fsx_openzfs" ]]; then
+      SOURCE_MOUNT="/fsx"
+    else
+      SOURCE_MOUNT="/"
+      NFS_OPTS_DATA+=",noresvport"
+    fi
+    echo "$FS_APPS:$SOURCE_MOUNT /apps nfs4 $NFS_OPTS_APPS 0 0" >> /etc/fstab
+
 elif [[ "$FS_APPS_PROVIDER" == "fsx_lustre" ]]; then
     FSX_ID=$(echo $FS_APPS | cut -d. -f1)
     FSX_APPS_MOUNT_NAME=$($AWS fsx describe-file-systems --file-system-ids $FSX_ID  --query FileSystems[].LustreConfiguration.MountName --output text)
@@ -333,9 +359,39 @@ do
     mount -a
 done
 
+# Now that we have /apps, pull in bootstrap helpers
+# Note: /apps/ partition is automatically added to /etc/fstab as part of the ASG UserData script
+for i in /apps/soca/"$SOCA_CONFIGURATION"/cluster_node_bootstrap/bootstrap.d/*.sh ; do
+  if [[ -r "$i" ]]; then
+    if [[ "$\{-#*i\}" != "$-" ]]; then
+      . "$i"
+    else
+      . "$i" >/dev/null
+    fi
+  fi
+done
+
+# After pulling in bootstrap helpers - make sure we have essential packages
+# using the auto_install helper
+if [[ "'''
+            + params["BaseOS"]
+            + '''" =~ "centos" ]] || [[ "'''
+            + params["BaseOS"]
+            + '''" =~ "rhel" ]] || [[ "'''
+            + params["BaseOS"]
+            + '''" =~ "rocky" ]];
+then
+     auto_install python3-pip
+else
+     # AmazonLinux 2 / AmazonLinux2023
+     auto_install python3-pip cronie
+     PIP=$(which pip3)
+     $PIP install awscli
+fi
+
 # Configure Chrony
 yum remove -y ntp
-yum install -y chrony
+auto_install chrony
 mv /etc/chrony.conf  /etc/chrony.conf.original
 echo -e """
 # use the local instance NTP service, if available
@@ -414,6 +470,7 @@ cp /apps/soca/$SOCA_CONFIGURATION/cluster_node_bootstrap/config.cfg /root/
         ltd.IamInstanceProfile = IamInstanceProfile(Arn=instance_profile)
         ltd.KeyName = params["SSHKeyPair"]
         ltd.ImageId = params["ImageId"]
+
         if params["SpotPrice"] is not False and params["SpotAllocationCount"] is False:
             ltd.InstanceMarketOptions = InstanceMarketOptions(
                 MarketType="spot",
@@ -425,6 +482,10 @@ cp /apps/soca/$SOCA_CONFIGURATION/cluster_node_bootstrap/config.cfg /root/
                 ),
             )
         ltd.InstanceType = instances_list[0]
+
+        #
+        # EFA Interface deployments
+        #
         ltd.NetworkInterfaces = [
             NetworkInterfaces(
                 InterfaceType="efa"
@@ -435,6 +496,20 @@ cp /apps/soca/$SOCA_CONFIGURATION/cluster_node_bootstrap/config.cfg /root/
                 Groups=security_groups,
             )
         ]
+        if params.get("Efa", False) is not False:
+            _max_efa_interfaces: int = params.get("MaxEfaInterfaces", 0)
+
+            for _i in range(1, _max_efa_interfaces):
+                ltd.NetworkInterfaces.append(
+                    NetworkInterfaces(
+                        InterfaceType="efa",
+                        DeleteOnTermination=True,
+                        DeviceIndex=1 if (_i > 0) else 0,
+                        NetworkCardIndex=_i,
+                        Groups=security_groups,
+                    )
+                )
+
         ltd.UserData = Base64(Sub(UserData))
 
         if params["BaseOS"] in {"amazonlinux2", "amazonlinux2023"}:
@@ -442,12 +517,17 @@ cp /apps/soca/$SOCA_CONFIGURATION/cluster_node_bootstrap/config.cfg /root/
         else:
             _ebs_device_name = "/dev/sda1"
         _ebs_scratch_device_name = "/dev/xvdbx"
+
+
+        # What is our default root volume_type?
+        _volume_type: str = params.get("VolumeType", "gp2")
+
         ltd.BlockDeviceMappings = [
             LaunchTemplateBlockDeviceMapping(
                 DeviceName=_ebs_device_name,
                 Ebs=EBSBlockDevice(
                     VolumeSize=params["RootSize"],
-                    VolumeType="gp3",
+                    VolumeType=_volume_type,
                     DeleteOnTermination="false"
                     if params["KeepEbs"] is True
                     else "true",
@@ -464,7 +544,7 @@ cp /apps/soca/$SOCA_CONFIGURATION/cluster_node_bootstrap/config.cfg /root/
                         VolumeSize=params["ScratchSize"],
                         VolumeType="io2"
                         if int(params["VolumeTypeIops"]) > 0
-                        else "gp3",
+                        else _volume_type,
                         Iops=params["VolumeTypeIops"]
                         if int(params["VolumeTypeIops"]) > 0
                         else Ref("AWS::NoValue"),
@@ -668,6 +748,7 @@ cp /apps/soca/$SOCA_CONFIGURATION/cluster_node_bootstrap/config.cfg /root/
             if params["FSxLustreConfiguration"]["existing_fsx"] is False:
                 fsx_lustre = FileSystem("FSxForLustre")
                 fsx_lustre.FileSystemType = "LUSTRE"
+                fsx_lustre.FileSystemTypeVersion = "2.15"
                 fsx_lustre.StorageCapacity = params["FSxLustreConfiguration"][
                     "capacity"
                 ]

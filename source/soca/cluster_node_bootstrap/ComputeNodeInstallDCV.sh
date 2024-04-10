@@ -15,69 +15,154 @@
 source /etc/environment
 source /root/config.cfg
 
-DCV_HOST_ALTNAME=$(hostname | cut -d. -f1)
-AWS=$(which aws)
-IMDS_TOKEN=$(curl -X PUT "http://169.254.169.254/latest/api/token" -H "X-aws-ec2-metadata-token-ttl-seconds: 21600")
-INSTANCE_FAMILY=$(curl -H "X-aws-ec2-metadata-token: $IMDS_TOKEN" --silent http://169.254.169.254/latest/meta-data/instance-type | cut -d. -f1)
-echo "Detected Instance family $INSTANCE_FAMILY"
-GPU_INSTANCE_FAMILY=(g3 g4 g4dn)
-
-# Check if we're using a custom AMI
-if [[ -z "$(rpm -qa gnome-terminal)" ]]; then
-    # Install Gnome or  Mate Desktop
-    if [[ $SOCA_BASE_OS == "rhel7" ]]; then
-      yum groupinstall "Server with GUI" -y
-    elif [[ $SOCA_BASE_OS == "amazonlinux2" ]]; then
-      yum install -y $(echo ${DCV_AMAZONLINUX_PKGS[*]})
+for i in /apps/soca/"${SOCA_CONFIGURATION}"/cluster_node_bootstrap/bootstrap.d/*.sh ; do
+  if [[ -r "$i" ]]; then
+    if [[ "${-#*i}" != "$-" ]]; then
+      . "$i"
     else
-      # Centos7
-      yum groupinstall "GNOME Desktop" -y
+      . "$i" >/dev/null
     fi
+  fi
+done
+
+echo "Detected Instance family $INSTANCE_FAMILY"
+mkdir -p /root/gpu_drivers
+
+echo "GPU INSTANCE FAMILY ${GPU_INSTANCE_FAMILY[@]}"
+echo "NVIDIA INSTANCE FAMILY ${NVIDIA_GPU_INSTANCE_FAMILY[@]}"
+echo "AMD INSTANCE FAMILY ${AMD_GPU_INSTANCE_FAMILY[@]}"
+
+# DCV PreRequisites
+if [[ -z "$(rpm -qa gnome-terminal)" ]]; then
+  if [[ $SOCA_BASE_OS == "amazonlinux2" ]]; then
+      yum install -y $(echo ${DCV_AMAZONLINUX_PKGS[*]})
+  elif [[ ${SOCA_BASE_OS} == "rhel7" ]]; then
+    yum groups mark convert
+    yum groupinstall "Server with GUI" -y --skip-broken
+  elif [[ ${SOCA_BASE_OS} == "centos7" ]]; then
+    yum groups mark convert
+    yum groupinstall "GNOME Desktop" -y --skip-broken
+  elif [[ ${SOCA_BASE_OS} =~ ^(rhel8|rhel9|rocky8|rocky9)$ ]]; then
+    yum groupinstall "Server with GUI" -y --skip-broken --disablerepo=epel-cisco-openh264
+    sed -i 's/#WaylandEnable=false/WaylandEnable=false/' /etc/gdm/custom.conf
+    systemctl restart gdm
+    # The following is a workaroud to disable the pop-up "Authentication required to refresh system repositories"
+    # see details in https://bugzilla.redhat.com/show_bug.cgi?id=1857654
+    echo "[Disable Package Management all Users]
+  Identity=unix-user:*
+  Action=org.freedesktop.packagekit.system-sources-refresh
+  ResultAny=no
+  ResultInactive=no
+  ResultActive=no" > /etc/polkit-1/localauthority/50-local.d/repos.pkla
+    systemctl restart polkit
+    # The next commands remove the "System Not Registered" notification
+    # see details in https://access.redhat.com/solutions/6976776
+    sed -i 's,Exec=/usr/libexec/gsd-subman,#Exec=/usr/libexec/gsd-subman,' /etc/xdg/autostart/org.gnome.SettingsDaemon.Subscription.desktop
+    yum -y remove subscription-manager-cockpit
+  else
+    echo "No additional customization needed for this OS"
+  fi
+else
+  echo "Found gnome-terminal pre-installed... skipping dcv prereq installation..."
 fi
+
+pushd /root/gpu_drivers
+
+# Install latest NVIDIA driver if GPU instance is detected
+if [[ "${GPU_INSTANCE_FAMILY[@]}" =~ "${INSTANCE_FAMILY}" ]]; then
+  echo "Detected GPU Instance"
+  if [[ "${NVIDIA_GPU_INSTANCE_FAMILY[@]}" =~ "${INSTANCE_FAMILY}" ]]; then
+    echo "Detected NVIDIA GPU"
+    gpu_instance_install_nvidia_driver
+    gpu_instance_optimize_gpu_clock_speed_nvidia
+  elif [[ "${AMD_GPU_INSTANCE_FAMILY[@]}" =~ "${INSTANCE_FAMILY}" ]]; then
+    echo "Detected AMD GPU"
+    gpu_instance_install_amd_driver
+  fi
+fi
+
+popd
 
 # Automatic start Gnome upon reboot
 systemctl set-default graphical.target
 
-# Install latest NVIDIA driver if GPU instance is detected
-if [[ "${GPU_INSTANCE_FAMILY[@]}" =~ "${INSTANCE_FAMILY}" ]]; then
-  # clean previously installed drivers
-  echo "Detected GPU instance .. installing NVIDIA Drivers"
-  rm -f /root/NVIDIA-Linux-x86_64*.run
-  # Determine the S3 bucket AWS region for the drivers
-  DRIVER_BUCKET_REGION=$(curl -s --head ec2-linux-nvidia-drivers.s3.amazonaws.com | grep bucket-region | awk '{print $2}' | tr -d '\r\n')
-  $AWS --region ${DRIVER_BUCKET_REGION} s3 cp --quiet --recursive s3://ec2-linux-nvidia-drivers/latest/ .
-  rm -rf /tmp/.X*
-  /bin/sh /root/NVIDIA-Linux-x86_64*.run -q -a -n -X -s
-  NVIDIAXCONFIG=$(which nvidia-xconfig)
-  $NVIDIAXCONFIG --preserve-busid --enable-all-gpus
-fi
-
 cd ~
-# Download and Install DCV
-machine=$(uname -m)
-echo "Installing DCV"
-if [[ $machine == "x86_64" ]]; then
-    wget $DCV_X86_64_URL
-    if [[ $(md5sum $DCV_X86_64_TGZ | awk '{print $1}') != $DCV_X86_64_HASH ]];  then
-        echo -e "FATAL ERROR: Checksum for DCV failed. File may be compromised." > /etc/motd
-        exit 1
-    fi
-    tar zxvf $DCV_X86_64_TGZ
-    cd nice-dcv-$DCV_X86_64_VERSION
-elif [[ $machine == "aarch64" ]]; then
-    wget $DCV_AARCH64_URL
-    if [[ $(md5sum $DCV_AARCH64_TGZ | awk '{print $1}') != $DCV_AARCH64_HASH ]];  then
-        echo -e "FATAL ERROR: Checksum for DCV failed. File may be compromised." > /etc/motd
-        exit 1
-    fi
-    tar zxvf $DCV_AARCH64_TGZ
-    cd nice-dcv-$DCV_AARCH64_VERSION
-fi
-rpm -ivh nice-xdcv-*.${machine}.rpm --nodeps
-rpm -ivh nice-dcv-server-*.${machine}.rpm --nodeps
-rpm -ivh nice-dcv-web-viewer-*.${machine}.rpm --nodeps
 
-# Enable DCV support for USB remotization
+if [[ ${SOCA_BASE_OS} =~ ^(rhel7|centos7|amazonlinux2)$ ]]; then
+  if [[ ${MACHINE} == "x86_64" ]]; then
+    DCV_URL=${DCV_7_X86_64_URL}
+    DCV_HASH=${DCV_7_X86_64_HASH}
+    DCV_TGZ=${DCV_7_X86_64_TGZ}
+    DCV_VERSION=${DCV_7_X86_64_VERSION}
+  elif [[ $MACHINE == "aarch64" ]]; then
+    DCV_URL=${DCV_7_AARCH64_URL}
+    DCV_HASH=${DCV_7_AARCH64_HASH}
+    DCV_TGZ=${DCV_7_AARCH64_TGZ}
+    DCV_VERSION=${DCV_7_AARCH64_VERSION}
+  else
+    echo -e "FATAL ERROR: Unrecognized Machine type: Detected ${MACHINE}, expected x86_64 or aarch64"
+    exit 1
+  fi
+
+elif [[ ${SOCA_BASE_OS} =~ ^(rhel8|rocky8)$ ]]; then
+  if [[ ${MACHINE} == "x86_64" ]]; then
+    DCV_URL=${DCV_8_X86_64_URL}
+    DCV_HASH=${DCV_8_X86_64_HASH}
+    DCV_TGZ=${DCV_8_X86_64_TGZ}
+    DCV_VERSION=${DCV_8_X86_64_VERSION}
+  elif [[ $MACHINE == "aarch64" ]]; then
+    DCV_URL=${DCV_8_AARCH64_URL}
+    DCV_HASH=${DCV_8_AARCH64_HASH}
+    DCV_TGZ=${DCV_8_AARCH64_TGZ}
+    DCV_VERSION=${DCV_8_AARCH64_VERSION}
+  else
+    echo -e "FATAL ERROR: Unrecognized Machine type: Detected ${MACHINE}, expected x86_64 or aarch64"
+    exit 1
+  fi
+elif [[ ${SOCA_BASE_OS} =~ ^(rhel9|rocky9)$ ]]; then
+   if [[ ${MACHINE} == "x86_64" ]]; then
+    DCV_URL=${DCV_9_X86_64_URL}
+    DCV_HASH=${DCV_9_X86_64_HASH}
+    DCV_TGZ=${DCV_9_X86_64_TGZ}
+    DCV_VERSION=${DCV_9_X86_64_VERSION}
+  elif [[ $MACHINE == "aarch64" ]]; then
+    DCV_URL=${DCV_9_AARCH64_URL}
+    DCV_HASH=${DCV_9_AARCH64_HASH}
+    DCV_TGZ=${DCV_9_AARCH64_TGZ}
+    DCV_VERSION=${DCV_9_AARCH64_VERSION}
+  else
+    echo -e "FATAL ERROR: Unrecognized Machine type: Detected ${MACHINE}, expected x86_64 or aarch64"
+    exit 1
+  fi
+else
+  echo -e "FATAL ERROR: Unrecognized Base OS : Detected  ${SOCA_BASE_OS} "
+  exit 1
+fi
+
+echo "Detected following DCV download information:"
+echo "DCV_URL ${DCV_URL}"
+echo "DCV_HASH ${DCV_HASH}"
+echo "DCV_TGZ ${DCV_TGZ}"
+echo "DCV_VERSION ${DCV_VERSION}"
+
+# Download and Install DCV
+echo "Downloading DCV ..."
+wget $DCV_URL
+if [[ $(md5sum $DCV_TGZ | awk '{print $1}') != $DCV_HASH ]];  then
+    echo -e "FATAL ERROR: Checksum for DCV failed. File may be compromised." > /etc/motd
+    exit 1
+fi
+echo "Extracting DCV archive ..."
+tar zxvf $DCV_TGZ
+cd nice-dcv-$DCV_VERSION
+
+echo "Installing DCV ..."
+
+rpm -ivh nice-xdcv-*.${MACHINE}.rpm --nodeps
+rpm -ivh nice-dcv-server-*.${MACHINE}.rpm --nodeps
+rpm -ivh nice-dcv-web-viewer-*.${MACHINE}.rpm --nodeps
+
+echo "Enable DCV support for USB remotization .. "
 yum install -y dkms
 DCVUSBDRIVERINSTALLER=$(which dcvusbdriverinstaller)
 $DCVUSBDRIVERINSTALLER --quiet
@@ -86,8 +171,6 @@ $DCVUSBDRIVERINSTALLER --quiet
 if [[ "${GPU_INSTANCE_FAMILY[@]}" =~ "${INSTANCE_FAMILY}" ]]; then
     echo "Detected GPU instance, adding support for nice-dcv-gl"
     rpm -ivh nice-dcv-gl*.rpm --nodeps
-    #DCVGLADMIN=$(which dcvgladmin)
-    #$DCVGLADMIN enable
 fi
 
 # Configure DCV
@@ -95,6 +178,8 @@ mv /etc/dcv/dcv.conf /etc/dcv/dcv.conf.orig
 IDLE_TIMEOUT=1440 # in minutes. Disconnect DCV (but not terminate the session) after 1 day if not active
 USER_HOME=$(eval echo ~$SOCA_DCV_OWNER)
 DCV_STORAGE_ROOT="$USER_HOME/storage-root" # Create the storage root location if needed
+
+
 mkdir -p $DCV_STORAGE_ROOT
 chown $SOCA_DCV_OWNER $DCV_STORAGE_ROOT
 
@@ -114,7 +199,7 @@ gl-displays = [\":1.0\"]
 [display/linux]
 use-glx-fallback-provider=false
 [connectivity]
-web-url-path=\"/$DCV_HOST_ALTNAME\"
+web-url-path=\"/$SERVER_HOSTNAME_ALT\"
 idle-timeout=$IDLE_TIMEOUT
 [security]
 auth-token-verifier=\"$SOCA_DCV_AUTHENTICATOR\"

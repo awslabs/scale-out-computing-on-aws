@@ -15,7 +15,7 @@ Next, you'll submit four jobs into the cluster, each job requests a specific ins
 
 1. Run the `qstat` command to view the status of the jobs. 
 
-1. You can also view job status by clicking on **My Job Queue** in the left side navigation bar in SOCA portal under **PROFILE** section as shown in the screen shot below:
+1. You can also view job status by clicking on **My Job Queue** on the left side navigation bar in SOCA portal under **PROFILE** section as shown in the screen shot below:
 
     ![](../imgs/my-job-queue.png)
 

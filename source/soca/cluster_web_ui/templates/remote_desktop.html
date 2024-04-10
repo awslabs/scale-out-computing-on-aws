@@ -107,8 +107,8 @@
                                                                       <div class="form-inline">
                                                                           <div class="col-md-8">
                                                                               <form action="/remote_desktop/schedule" method="POST">
-                                                                                  <strong
-                                                                                          {% if session_data.session_schedule[day] == "0-0" %} style="color: #e02d1b"{% else %} style="color: #16bf9f" {% endif %}>{{ day | capitalize }} </strong> &nbsp;
+                                                                                  <strong {% if session_data.session_schedule[day] == "0-0" %} style="color: #e02d1b"{% else %} style="color: #16bf9f" {% endif %} >
+                                                                                      {{ day | capitalize }} </strong> &nbsp;
                                                                                   <select  class="custom-select"  id="schedule_mode" onchange="manageSchedule('{{ day }}-{{ n }}', this.value)">
                                                                                       <option value="custom" {% if session_data.session_schedule[day] != "0-0" and  session_data.session_schedule[day] != "0-1440" %}selected{% endif %}>Custom Schedule</option>
                                                                                       <option value="0-0" {% if session_data.session_schedule[day] == "0-0" %}selected{% endif %}>Stopped all day</option>
@@ -229,11 +229,11 @@
                                                                           <div class="col-sm-9">
                                                                               <select class="form-control" name='instance_type' id="instance_type">
                                                                                   <option value="" disabled="disabled">-- Quick Launch 2D --</option>
-                                                                                  <option selected="true" value="m5.large">2D - Small (2 vCPUs - 8 GB ram)</option>
-                                                                                  <option value="m5.2xlarge">2D - Medium (8 vCPUs - 32 GB ram)</option>
-                                                                                  <option value="m5.4xlarge">2D - Large (16 vCPUs - 64 GB ram)</option>
-                                                                                  <option value="m5.12xlarge">2D - Extra Large (48 vCPUs - 192 GB ram)</option>
-                                                                                  <option value="m5.24xlarge">2D - XXL Large (96 vCPUs - 384 GB ram)</option>
+                                                                                  <option selected="true" value="m6i.large">2D - Small (2 vCPUs - 8 GB ram)</option>
+                                                                                  <option value="m6i.2xlarge">2D - Medium (8 vCPUs - 32 GB ram)</option>
+                                                                                  <option value="m6i.4xlarge">2D - Large (16 vCPUs - 64 GB ram)</option>
+                                                                                  <option value="m6i.12xlarge">2D - Extra Large (48 vCPUs - 192 GB ram)</option>
+                                                                                  <option value="m6i.24xlarge">2D - XXL Large (96 vCPUs - 384 GB ram)</option>
                                                                                   <option value="" disabled="disabled">-- Quick Launch 3D --</option>
                                                                               <option value="g4dn.xlarge">3D - Small (4 vCPUs - 16 GB ram - 1 T4 GPU)</option>
                                                                               <option value="g4dn.4xlarge">3D - Medium (16 vCPUs - 64 GB ram - 1 T4 GPU)</option>
@@ -509,22 +509,30 @@
                                       <div class="form-group row">
                                         <label for="walltime" data-toggle="tooltip" data-placement="top" title="Pick a simple name to identify your graphical session" class="col-sm-4 col-form-label">Session Name</label>
                                         <div class="col-sm-8">
-                                            <input id="session_name" class="form-control"  placeholder="Desktop{{ n }}" type="text"  name="session_name" maxlength="255">
+                                            <input id="session_name" class="form-control"  placeholder="Desktop{{ n }}" type="text"  name="session_name" maxlength="30">
                                         </div>
                                       </div>
                                       <div class="form-group row">
                                           <label for="disk_size" data-toggle="tooltip" data-placement="top" title="Select the size (in GB) of your main SSD disk used for / partition." class="col-sm-4 col-form-label">Storage Size</label>
                                           <div class="col-sm-8">
-                                            <input id="disk_size" value="10" min="10" class="form-control" type="number" name="disk_size">
+                                            <input id="disk_size" value="40" min="40" class="form-control" type="number" name="disk_size">
                                           </div>
                                       </div>
                                       <div class="form-group row">
                                           <label for="instance_ami" data-toggle="tooltip" data-placement="top" title="Specify an image with pre-installed applications" class="col-sm-4 col-form-label">Software Stack</label>
                                           <div class="col-sm-8">
                                               <select class="form-control" name='instance_ami' id="instance_ami">
-                                                  <option selected value="base">Base (No Software)</option>
-                                                    {% for ami_label, ami_info in ami_list.items() %}
-                                                      <option value="{{ ami_info.ami_id }},{{ ami_info.ami_base_os }}">{{ ami_label }} ({{ ami_info.ami_id }})</option>
+                                                  <option value="" disabled="disabled">-- x86_64 (Intel/AMD) --</option>
+                                                  {% for ami_uuid, ami_info in ami_default_linux_x86.items() | sort %}
+                                                      {%  if ami_info.ami_id %}
+                                                          <option value="{{ ami_info.ami_id }},{{ ami_info.ami_base_os }}">{{ ami_info.ami_label }} - {{ ami_info.ami_id }} (Minimum {{ ami_info.ami_root_size }}GB Storage Size) </option>
+                                                      {%  endif %}
+                                                  {% endfor %}
+                                                  <option value="" disabled="disabled">-- arm64 (Graviton) --</option>
+                                                  {% for ami_uuid, ami_info in ami_default_linux_arm64.items() | sort %}
+                                                      {%  if ami_info.ami_id %}
+                                                          <option value="{{ ami_info.ami_id }},{{ ami_info.ami_base_os }}">{{ ami_info.ami_label }} - {{ ami_info.ami_id }} (Minimum {{ ami_info.ami_root_size }}GB Storage Size) </option>
+                                                      {%  endif %}
                                                   {% endfor %}
                                               </select>
                                           </div>
@@ -534,11 +542,11 @@
                                           <div class="col-sm-8">
                                               <select class="form-control" name='instance_type' id="instance_type">
                                                   <option value="" disabled="disabled">-- Quick Launch 2D --</option>
-                                                  <option selected="true" value="m5.large">2D - Small (2 vCPUs - 8 GB ram)</option>
-                                                  <option value="m5.2xlarge">2D - Medium (8 vCPUs - 32 GB ram)</option>
-                                                  <option value="m5.4xlarge">2D - Large (16 vCPUs - 64 GB ram)</option>
-                                                  <option value="m5.12xlarge">2D - Extra Large (48 vCPUs - 192 GB ram)</option>
-                                                  <option value="m5.24xlarge">2D - XXL Large (96 vCPUs - 384 GB ram)</option>
+                                                  <option selected="true" value="m6i.large">2D - Small (2 vCPUs - 8 GB ram)</option>
+                                                  <option value="m6i.2xlarge">2D - Medium (8 vCPUs - 32 GB ram)</option>
+                                                  <option value="m6i.4xlarge">2D - Large (16 vCPUs - 64 GB ram)</option>
+                                                  <option value="m6i.12xlarge">2D - Extra Large (48 vCPUs - 192 GB ram)</option>
+                                                  <option value="m6i.24xlarge">2D - XXL Large (96 vCPUs - 384 GB ram)</option>
                                                   <option value="" disabled="disabled">-- Quick Launch 3D --</option>
                                                   <option value="g4dn.xlarge">3D - Small (4 vCPUs - 16 GB ram - 1 T4 GPU)</option>
                                                   <option value="g4dn.4xlarge">3D - Medium (16 vCPUs - 64 GB ram - 1 T4 GPU)</option>

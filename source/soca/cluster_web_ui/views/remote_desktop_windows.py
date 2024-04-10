@@ -32,6 +32,7 @@ import pytz
 import read_secretmanager
 from botocore.exceptions import ClientError
 from cryptography.fernet import Fernet
+import remote_desktop_common
 
 remote_desktop_windows = Blueprint(
     "remote_desktop_windows", __name__, template_folder="templates"
@@ -47,7 +48,12 @@ def get_ami_info():
     for session_info in AmiList.query.filter_by(
         is_active=True, ami_type="windows"
     ).all():
-        ami_info[session_info.ami_label] = session_info.ami_id
+        ami_info[session_info.ami_label] = {
+            'ami_id': session_info.ami_id,
+            'ami_root_size':  session_info.ami_root_disk_size
+        }
+    if logger.isEnabledFor(logging.DEBUG):
+        logger.debug(f"windows - get_ami_info(): Returning {ami_info}")
     return ami_info
 
 
@@ -68,7 +74,7 @@ def can_launch_instance(launch_parameters):
                         "VolumeSize": 40
                         if launch_parameters["disk_size"] is False
                         else int(launch_parameters["disk_size"]),
-                        "VolumeType": "gp3",
+                        "VolumeType": launch_parameters.get("volume_type", "gp2"),
                         "Encrypted": True,
                     },
                 },
@@ -135,14 +141,13 @@ def index():
         user_sessions = {}
 
     max_number_of_sessions = config.Config.DCV_WINDOWS_SESSION_COUNT
-    # List of instances not available for DCV. Adjust as needed
-    blocked_instances = config.Config.DCV_RESTRICTED_INSTANCE_TYPE
-    all_instances_available = client_ec2._service_model.shape_for("InstanceType").enum
-    all_instances = [
-        p
-        for p in all_instances_available
-        if not any(substr in p for substr in blocked_instances)
-    ]
+
+    all_instances = remote_desktop_common.generate_allowed_instances_list(
+        baseos='windows',
+        architecture='x86_64'
+    )
+
+
     try:
         tz = pytz.timezone(config.Config.TIMEZONE)
     except pytz.exceptions.UnknownTimeZoneError:
@@ -180,7 +185,7 @@ def index():
 @remote_desktop_windows.route("/remote_desktop_windows/create", methods=["POST"])
 @login_required
 def create():
-    logger.info(f"Received following parameters {request.form} for new Windows Windows")
+    logger.info(f"Received following parameters {request.form} for new Windows session")
     create_desktop = post(
         f"{config.Config.FLASK_ENDPOINT}/api/dcv/desktop/{request.form['session_number']}/windows",
         headers={"X-SOCA-USER": session["user"], "X-SOCA-TOKEN": session["api_key"]},
@@ -237,7 +242,7 @@ def delete():
         )  # nosec
     if delete_desktop.status_code == 200:
         if action == "terminate":
-            flash(f"Your desktop is about to be terminated", "success")
+            flash(f"Your desktop is about to be terminated as requested", "success")
         else:
             flash(f"Your desktop is about to be changed to {action} state", "success")
     else:

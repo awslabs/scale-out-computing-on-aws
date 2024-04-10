@@ -62,6 +62,8 @@ def ami_create():
     choose_os = request.form.get("os")
     ami_label = str(request.form.get("ami_label"))
     root_size = request.form.get("root_size")
+    launch_tenancy = request.form.get("launch_tenancy")
+    launch_host = request.form.get("launch_host")
     logger.info(f"Received following parameters {request.form} to create DCV image")
     list_images = post(
         f"{config.Config.FLASK_ENDPOINT}/api/dcv/image",
@@ -71,12 +73,14 @@ def ami_create():
             "ami_label": ami_label,
             "root_size": root_size,
             "ami_id": ami_id,
+            "launch_tenancy": launch_tenancy,
+            "launch_host": launch_host
         },
         verify=False,
     )  # nosec
     if list_images.status_code == 200:
         flash(
-            f"Your image {ami_label} has been registered successfully with EC2 ID: {ami_id}",
+            f"Your image {ami_label} (Tenancy: {launch_tenancy}) has been registered successfully with EC2 ID: {ami_id}",
             "success",
         )
     else:
