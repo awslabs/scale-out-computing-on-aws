@@ -23,7 +23,7 @@ flask-debugtoolbar==0.13.1
 Flask-WTF==1.1.1
 gunicorn==21.2.0
 itsdangerous==2.1.2
-Jinja2==3.1.2
+Jinja2==3.1.4
 jmespath==1.0.1
 ldif==4.2.3
 MarkupSafe==2.1.3
