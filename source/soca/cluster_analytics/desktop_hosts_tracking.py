@@ -99,6 +99,7 @@ def build_client(engine):
                 ssl_assert_hostname=False,
                 ssl_show_warn=False,
                 connection_class=RequestsHttpConnection,
+		headers={"Content-Type": "application/json"}
             )
         else:
             return Elasticsearch([os_endpoint],
