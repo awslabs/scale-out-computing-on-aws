@@ -77,7 +77,7 @@ New-Item -Path "Microsoft.PowerShell.Core\Registry::\HKEY_USERS\S-1-5-18\Softwar
 New-ItemProperty -Path "Microsoft.PowerShell.Core\Registry::\HKEY_USERS\S-1-5-18\Software\GSettings\com\nicesoftware\dcv\security" -Name "disable-display-sleep" -PropertyType "DWord" -Value 1 -Force
 
 Write-ToLog -Message "Change password for local Admin user"
-$Password = ConvertTo-SecureString -String "%SOCA_LOCAL_ADMIN_PASSWORD%" -AsPlainText –Force
+$Password = ConvertTo-SecureString -String "%SOCA_LOCAL_ADMIN_PASSWORD%" -AsPlainText -Force
 $UserAccount = Get-LocalUser -Name "Administrator"
 $UserAccount | Set-LocalUser -Password $Password
 
