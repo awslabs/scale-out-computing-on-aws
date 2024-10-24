@@ -1,0 +1,19 @@
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# Begin - Auto Logon
+function Configure-Logon {
+    Write-ToLog -Message "Auto Logon (managed by config.py, only works if not using Active Directory)"
+    $AutoLogon = "{{ context.get('/job/WindowsAutoLogon') }}"
+    if ($SocaDirectoryProvider -notin $SocaUserDirectoryProviderIsActiveDirectory)
+    {
+        if ($AutoLogon -eq "true")
+        {
+            New-ItemProperty -Path "HKLM:\Software\Microsoft\Windows NT\CurrentVersion\Winlogon" -Name "AutoAdminLogon" -PropertyType "DWord" -Value 1 -Force
+            New-ItemProperty -Path "HKLM:\Software\Microsoft\Windows NT\CurrentVersion\Winlogon" -Name "DefaultUserName" -PropertyType "String" -Value $LocalUser -Force
+            New-ItemProperty -Path "HKLM:\Software\Microsoft\Windows NT\CurrentVersion\Winlogon" -Name "DefaultPassword" -PropertyType "String" -Value "{{ context.get('/Job/LocalAdminPassword') }}" -Force
+        }
+    }
+}
+Configure-Logon
+# End - Auto Logon

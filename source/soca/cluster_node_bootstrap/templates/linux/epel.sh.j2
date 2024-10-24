@@ -1,0 +1,34 @@
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# Begin: Install EPEL
+function install_epel () {
+    {% if context.get("/configuration/BaseOS") == "amazonlinux2" %}
+      amazon-linux-extras install -y epel
+    {% elif context.get("/configuration/BaseOS") == "amazonlinux2023"  %}
+      log_info "EPEL is not supported on Amazon Linux 2023 https://docs.aws.amazon.com/linux/al2023/ug/compare-with-al2.html#epel"
+    {% elif context.get("/configuration/BaseOS") == "centos7" %}
+      packages_install epel-release
+    {% elif context.get("/configuration/BaseOS") == "rhel7" %}
+      if ! verify_package_installed epel-release; then
+         log_info "EPEL rpm has been removed from official Fedora Repo as RHEL7 is EOL, fetching it from SOCA filesystem"
+         packages_install "/apps/soca/{{ context.get("/configuration/ClusterId") }}/resources/eol_archives/epel/epel-release-latest-7.noarch.rpm"
+      fi
+    {% elif context.get("/configuration/BaseOS") == "rhel8" %}
+        EPEL_URL="{{ context.get("/system/epel/el8/url") }}"
+        EPEL_RPM="{{ context.get("/system/epel/el8/rpm") }}"
+    {% elif context.get("/configuration/BaseOS") == "rhel9" %}
+        EPEL_URL="{{ context.get("/system/epel/el9/url") }}"
+        EPEL_RPM="{{ context.get("/system/epel/el9/rpm") }}"
+    {% elif context.get("/configuration/BaseOS") in ("rocky8", "rocky9")  %}
+      packages_install epel-release
+    {% else %}
+        exit_fail "Unknown Base OS for EPEL"
+    {% endif %}
+
+    {% if context.get("/configuration/BaseOS") in ("rhel8", "rhel9") %}
+      curl --silent "${EPEL_URL}" -o "${EPEL_RPM}"
+      packages_install "${EPEL_RPM}"
+    {% endif %}
+}
+install_epel

@@ -15,54 +15,65 @@ import json
 import boto3
 import datetime
 import os
+import logging
+
+cw_client = boto3.client("cloudwatch")
+efs_client = boto3.client("efs")
+
+logging.getLogger().setLevel(logging.INFO)
 
 
 def lambda_handler(event, context):
-    cw_client = boto3.client("cloudwatch")
-    efs_client = boto3.client("efs")
-    # print("Received event: " + json.dumps(event, indent=2))
+    logging.info(f"Received SNS event: {json.dumps(event)}")
     message = json.loads(event["Records"][0]["Sns"]["Message"])
-    FileSystemId = message["Trigger"]["Dimensions"][0]["value"]
-    print("FilesystemID: " + FileSystemId)
+    _fs_id = message["Trigger"]["Dimensions"][0]["value"]
+    logging.info(f"FilesystemID: {_fs_id}")
+    logging.info(f"Thresholds: BurstCreditLowThreshold={os.environ['EFSBurstCreditLowThreshold']} BurstCreditHighThreshold={os.environ['EFSBurstCreditHighThreshold']}")
 
     now = datetime.datetime.now()
     start_time = now - datetime.timedelta(seconds=300)
     end_time = min(now, start_time + datetime.timedelta(seconds=300))
+
     response = cw_client.get_metric_statistics(
         Namespace="AWS/EFS",
         MetricName="BurstCreditBalance",
-        Dimensions=[{"Name": "FileSystemId", "Value": FileSystemId}],
+        Dimensions=[{"Name": "FileSystemId", "Value": _fs_id}],
         Period=60,
         StartTime=start_time,
         EndTime=end_time,
         Statistics=["Average"],
     )
-    efsAverageBurstCreditBalance = response["Datapoints"][0]["Average"]
-    print("EFS AverageBurstCreditBalance: " + str(efsAverageBurstCreditBalance))
 
-    response = efs_client.describe_file_systems(FileSystemId=FileSystemId)
+    efsAverageBurstCreditBalance = response["Datapoints"][0]["Average"]
+    logging.info(f"EFS AverageBurstCreditBalance: {efsAverageBurstCreditBalance}")
+
+    response = efs_client.describe_file_systems(FileSystemId=_fs_id)
+    logging.info(f"EFS Lookup Response: {response}")
+
     ThroughputMode = response["FileSystems"][0]["ThroughputMode"]
-    print("EFS ThroughputMode: " + str(ThroughputMode))
+    logging.info(f"EFS ThroughputMode: {ThroughputMode}")
 
     if efsAverageBurstCreditBalance < int(os.environ["EFSBurstCreditLowThreshold"]):
         # CreditBalance is less than LowThreshold --> Change to ProvisionedThroughput
         if ThroughputMode == "bursting":
             # Update filesystem to Provisioned
+            logging.info(f"Updating EFS: {_fs_id} to Provisioned ThroughputMode with 50 MiB/sec")
             response = efs_client.update_file_system(
-                FileSystemId=FileSystemId,
+                FileSystemId=_fs_id,
                 ThroughputMode="provisioned",
-                ProvisionedThroughputInMibps=5.0,
+                ProvisionedThroughputInMibps=50.0,
             )
-            print(
-                "Updating EFS: "
-                + FileSystemId
-                + " to Provisioned ThroughputMode with 5 MiB/sec"
-            )
+            logging.info(f"EFS Update Response: {response}")
+
+
     elif efsAverageBurstCreditBalance > int(os.environ["EFSBurstCreditHighThreshold"]):
         # CreditBalance is greater than HighThreshold --> Change to Bursting
         if ThroughputMode == "provisioned":
             # Update filesystem to Bursting
+            logging.info(f"Updating EFS: {_fs_id} to Bursting ThroughputMode")
+
             response = efs_client.update_file_system(
-                FileSystemId=FileSystemId, ThroughputMode="bursting"
+                FileSystemId=_fs_id, ThroughputMode="bursting"
             )
-            print("Updating EFS: " + FileSystemId + " to Bursting ThroughputMode")
+            logging.info(f"Response: {response}")
+

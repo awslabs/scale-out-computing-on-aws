@@ -1,0 +1,16 @@
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# This file is executed at the end of the bootstrap sequence
+if [[ "${SOCA_NODE_TYPE}" == "login_node" ]]; then
+  # Add any customization you only want to run on login nodes
+  log_info "No customization"
+elif [[ "${SOCA_NODE_TYPE}" == "dcv_node" ]]; then
+  # Add any customization you only want to run on dcv nodes
+  log_info "No customization"
+elif [[ "${SOCA_NODE_TYPE}" == "compute_node" ]]; then
+  # Add any customization you only want to run on compute_node nodes
+  log_info "No customization"
+fi
+
+# Code written below this line  will be executed on all machine

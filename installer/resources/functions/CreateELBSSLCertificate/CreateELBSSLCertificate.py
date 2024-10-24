@@ -29,22 +29,27 @@ from cryptography.hazmat.primitives import serialization
 from cryptography.x509.oid import NameOID
 import datetime
 
+
 def generate_cert(event, context):
     output = {}
     client_acm = boto3.client("acm")
     # print(event)
-    request_type = event["RequestType"]
+    request_type = event.get("RequestType")
     # print(request_type)
-    if event["RequestType"] == "Delete":
+    if request_type == "Delete":
         cfnresponse.send(event, context, cfnresponse.SUCCESS, {}, "Deleting")
         return
 
     else:
-        check_existing = client_acm.list_certificates(CertificateStatuses=["ISSUED"])
-        for cert in check_existing["CertificateSummaryList"]:
-            # print(cert)
-            if "SOCA.DEFAULT.CREATE.YOUR.OWN.CERT" == cert["DomainName"]:
-                output["ACMCertificateArn"] = cert["CertificateArn"]
+        _acm_paginator = client_acm.get_paginator("list_certificates")
+        _acm_iterator = _acm_paginator.paginate(CertificateStatuses=["ISSUED"])
+        for _page in _acm_iterator:
+            for cert in _page["CertificateSummaryList"]:
+                # print(cert)
+                if "SOCA.DEFAULT.CREATE.YOUR.OWN.CERT" == cert["DomainName"]:
+                    output["ACMCertificateArn"] = cert["CertificateArn"]
+                    # FIXME TODO - First match wins only - need to compare Tags?
+                    break
 
         if "ACMCertificateArn" in output.keys():
             cfnresponse.send(
@@ -99,7 +104,12 @@ def generate_cert(event, context):
                 output["ACMCertificateArn"] = response["CertificateArn"]
                 client_acm.add_tags_to_certificate(
                     CertificateArn=response["CertificateArn"],
-                    Tags=[{"Key": "Name", "Value": "Soca_ALB_Certificate"}],
+                    Tags=[
+                        {
+                            "Key": "Name",
+                            "Value": "Soca_ALB_Certificate"
+                        }
+                    ],
                 )
                 cfnresponse.send(
                     event, context, cfnresponse.SUCCESS, output, "Created Self Signed"

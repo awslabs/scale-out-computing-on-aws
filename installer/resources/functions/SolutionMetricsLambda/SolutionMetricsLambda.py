@@ -52,7 +52,7 @@ def metrics(solution_id, uuid, data, url, request_timestamp):
 
 def lambda_handler(event, context):
     try:
-        request_timestamp = str(datetime.datetime.utcnow().isoformat())
+        request_timestamp = str(datetime.datetime.now(datetime.UTC).isoformat())
         solution_id = "SO0072"
         uuid = event["RequestId"]
         data = {

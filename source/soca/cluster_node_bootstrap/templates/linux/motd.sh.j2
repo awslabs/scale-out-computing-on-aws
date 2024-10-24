@@ -1,0 +1,44 @@
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# Begin - Setup MOTD
+function setup_motd () {
+
+  {% if context.get("/configuration/BaseOS") in ('amazonlinux2', 'amazonlinux2023')  %}
+    # Disable automatic motd update if using ALI
+    /usr/sbin/update-motd --disable
+    {% if context.get("/configuration/BaseOS") == "amazonlinux2" %}
+      rm /etc/cron.d/update-motd || echo "update-motd not found, skipping"
+    {% endif %}
+    rm -f /etc/update-motd.d/*
+  {% endif %}
+
+  echo -e "
+   _____  ____   ______ ___
+  / ___/ / __ \ / ____//   |
+  \__ \ / / / // /    / /| |
+ ___/ // /_/ // /___ / ___ |
+/____/ \____/ \____//_/  |_|
+" > /etc/motd
+
+  {% if context.get("/job/NodeType") == "login_node" %}
+  echo "
+Login Node Ready - login_node" >> /etc/motd
+
+  {% elif context.get("/job/NodeType") == "dcv_node" %}
+  echo "
+Virtual Desktop Node Ready - dcv_node " >> /etc/motd
+
+  {% elif context.get("/job/NodeType") == "compute_node" %}
+  echo "
+HPC Job Node Ready - compute_node - {{ context.get("/job/JobId") }}" >> /etc/motd
+
+  {% elif context.get("/job/NodeType") == "controller" %}
+  echo "
+Cluster: {{ context.get("/configuration/ClusterId") }}
+> source /etc/environment to load SOCA paths" >> /etc/motd
+  {% endif %}
+
+}
+setup_motd
+# End - Setup MOTD

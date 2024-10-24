@@ -1,0 +1,218 @@
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# Begin: OpenLDAP Server Template
+{% if context.get("/configuration/BaseOS") in ("amazonlinux2", "amazonlinux2023", "centos7", "rhel7", "rhel8", "rhel9", "rocky8", "rocky9") %}
+function openldap_server_install () {
+  log_info "Configuring OpenLDAP Server"
+  pushd /root/
+  # Note: OpenLDAP is installed via system_packages
+  systemctl enable slapd
+  systemctl start slapd
+  local OPENLDAP_SERVICE_ACCOUNT_SECRET=$(get_secret "{{ context.get("/configuration/UserDirectory/service_account_secret_arn") }}")
+  local SOCA_LDAP_DOMAIN_NAME="{{ context.get("/configuration/UserDirectory/domain_name") }}"
+  local SOCA_LDAP_BASE="{{ context.get("/configuration/UserDirectory/domain_base") }}"
+  local SOCA_LDAP_ENDPOINT="{{ context.get("/configuration/UserDirectory/endpoint") }}"
+  local SOCA_LDAP_PEOPLE_SEARCH_BASE="{{ context.get("/configuration/UserDirectory/people_search_base") | lower }}"
+  local SOCA_LDAP_GROUP_SEARCH_BASE="{{ context.get("/configuration/UserDirectory/group_search_base") | lower }}"
+  local SOCA_LDAP_ADMINS_SEARCH_BASE="{{ context.get("/configuration/UserDirectory/admins_search_base") | lower }}"
+
+  local SOCA_LDAP_PEOPLE_OU_NAME=$(echo ${SOCA_LDAP_PEOPLE_SEARCH_BASE} | awk -F'[,=]' '{print $2}')
+  local SOCA_LDAP_GROUP_OU_NAME=$(echo ${SOCA_LDAP_GROUP_SEARCH_BASE} | awk -F'[,=]' '{print $2}')
+  local SOCA_LDAP_ADMIN_OU_NAME=$(echo ${SOCA_LDAP_ADMINS_SEARCH_BASE} | awk -F'[,=]' '{print $2}')
+
+  local SOCA_LDAP_BASE_NAME=$(echo ${SOCA_LDAP_BASE} | awk -F'[,=]' '{print $2}')
+  local ADMIN_LDAP_SERVICE_ACCOUNT_DN=$(echo ${OPENLDAP_SERVICE_ACCOUNT_SECRET} | jq -r ". | fromjson.username")
+  local ADMIN_LDAP_SERVICE_ACCOUNT_NAME=$(echo ${ADMIN_LDAP_SERVICE_ACCOUNT_DN} | awk -F'[,=]' '{print $2}')
+
+  local ADMIN_LDAP_SERVICE_ACCOUNT_PASSWORD=$(echo ${OPENLDAP_SERVICE_ACCOUNT_SECRET} | jq -r ". | fromjson.password")
+  local ADMIN_LDAP_SERVICE_ACCOUNT_PASSWORD_ENCRYPTED=$(/sbin/slappasswd -s "${ADMIN_LDAP_SERVICE_ACCOUNT_PASSWORD}" -h "{SSHA}")
+
+  # Note: you can disable ldap:/// by removing the entry below
+  log_info "Preparing ldaps:// listener"
+  cp /etc/sysconfig/slapd /etc/sysconfig/slapd.soca.backup
+  sed -i '/^[[:space:]]*SLAPD_URLS=/d' /etc/sysconfig/slapd
+  echo """SLAPD_URLS="ldapi:/// ldap:/// ldaps:///"""" >> /etc/sysconfig/slapd
+
+  log_info "Generate 10y certificate for LDAPs"
+  openssl req -new -newkey rsa:2048 -days 3650 -nodes -x509 \
+      -subj "/CN=${SOCA_LDAP_DOMAIN_NAME}" \
+      -keyout /etc/openldap/certs/soca.key -out /etc/openldap/certs/soca.crt
+
+  chown ldap:ldap /etc/openldap/certs/soca.key /etc/openldap/certs/soca.crt
+  chmod 600 /etc/openldap/certs/soca.key /etc/openldap/certs/soca.crt
+
+  {% if context.get("/configuration/BaseOS") in ("amazonlinux2023", "amazonlinux2","centos7", "rhel7", "rhel8", "rhel9", "rocky8", "rocky9")  %}
+      log_info "Adding OpenLDAP self-signed certificate to system CA trust store"
+      cp /etc/openldap/certs/soca.crt /etc/pki/ca-trust/source/anchors/
+      log_info "Updating system CA Trust Store"
+      update-ca-trust
+  {% endif %}
+  # Create OpenLDAP config
+  {% if context.get("/configuration/BaseOS") == "amazonlinux2023" %}
+    OPEN_LDAP_CONFIG_KEY="{2}mdb"
+  {% else %}
+    OPEN_LDAP_CONFIG_KEY="{2}hdb"
+  {% endif %}
+
+  echo -e "
+dn: olcDatabase=${OPEN_LDAP_CONFIG_KEY},cn=config
+changetype: modify
+replace: olcSuffix
+olcSuffix: ${SOCA_LDAP_BASE}
+
+dn: olcDatabase=${OPEN_LDAP_CONFIG_KEY},cn=config
+changetype: modify
+replace: olcRootDN
+olcRootDN: ${ADMIN_LDAP_SERVICE_ACCOUNT_DN}
+
+dn: olcDatabase=${OPEN_LDAP_CONFIG_KEY},cn=config
+changetype: modify
+replace: olcRootPW
+olcRootPW: ${ADMIN_LDAP_SERVICE_ACCOUNT_PASSWORD_ENCRYPTED}" > db.ldif
+
+  echo -e "
+dn: cn=config
+changetype: modify
+replace: olcTLSCertificateFile
+olcTLSCertificateFile: /etc/openldap/certs/soca.crt
+-
+replace: olcTLSCertificateKeyFile
+olcTLSCertificateKeyFile: /etc/openldap/certs/soca.key
+-
+replace: olcTLSCACertificateFile
+olcTLSCACertificateFile: /etc/openldap/certs/soca.crt" > add_tls.ldif
+
+  echo -e "
+dn: olcDatabase=${OPEN_LDAP_CONFIG_KEY},cn=config
+changetype: modify
+replace: olcAccess
+olcAccess: {0}to attrs=userPassword by self write by anonymous auth by group.exact="ou=admins,${SOCA_LDAP_BASE}" write by * none
+-
+add: olcAccess
+olcAccess: {1}to * by dn.base="gidNumber=0+uidNumber=0,cn=peercred,cn=external,cn=auth" write by dn.base="${SOCA_LDAP_BASE}" write by * read" > change_user_password.ldif
+
+  echo -e "
+dn: cn=sudo,cn=schema,cn=config
+objectClass: olcSchemaConfig
+cn: sudo
+olcAttributeTypes: ( 1.3.6.1.4.1.15953.9.1.1 NAME 'sudoUser' DESC 'User(s) who may  run sudo' EQUALITY caseExactIA5Match SUBSTR caseExactIA5SubstringsMatch SYNTAX 1.3.6.1.4.1.1466.115.121.1.26 )
+olcAttributeTypes: ( 1.3.6.1.4.1.15953.9.1.2 NAME 'sudoHost' DESC 'Host(s) who may run sudo' EQUALITY caseExactIA5Match SUBSTR caseExactIA5SubstringsMatch SYNTAX 1.3.6.1.4.1.1466.115.121.1.26 )
+olcAttributeTypes: ( 1.3.6.1.4.1.15953.9.1.3 NAME 'sudoCommand' DESC 'Command(s) to be executed by sudo' EQUALITY caseExactIA5Match SYNTAX 1.3.6.1.4.1.1466.115.121.1.26 )
+olcAttributeTypes: ( 1.3.6.1.4.1.15953.9.1.4 NAME 'sudoRunAs' DESC 'User(s) impersonated by sudo (deprecated)' EQUALITY caseExactIA5Match SYNTAX 1.3.6.1.4.1.1466.115.121.1.26 )
+olcAttributeTypes: ( 1.3.6.1.4.1.15953.9.1.5 NAME 'sudoOption' DESC 'Options(s) followed by sudo' EQUALITY caseExactIA5Match SYNTAX 1.3.6.1.4.1.1466.115.121.1.26 )
+olcAttributeTypes: ( 1.3.6.1.4.1.15953.9.1.6 NAME 'sudoRunAsUser' DESC 'User(s) impersonated by sudo' EQUALITY caseExactIA5Match SYNTAX 1.3.6.1.4.1.1466.115.121.1.26 )
+olcAttributeTypes: ( 1.3.6.1.4.1.15953.9.1.7 NAME 'sudoRunAsGroup' DESC 'Group(s) impersonated by sudo' EQUALITY caseExactIA5Match SYNTAX 1.3.6.1.4.1.1466.115.121.1.26 )
+olcObjectClasses: ( 1.3.6.1.4.1.15953.9.2.1 NAME 'sudoRole' SUP top STRUCTURAL DESC 'Sudoer Entries' MUST ( cn ) MAY ( sudoUser $ sudoHost $ sudoCommand $ sudoRunAs $ sudoRunAsUser $ sudoRunAsGroup $ sudoOption $ description ) )" > sudoers.ldif
+
+  /bin/ldapmodify -Y EXTERNAL -H ldapi:/// -f db.ldif
+  /bin/ldapmodify -Y EXTERNAL -H ldapi:/// -f add_tls.ldif
+  /bin/ldapmodify -Y EXTERNAL -H ldapi:/// -f change_user_password.ldif
+  /bin/ldapadd -Y EXTERNAL -H ldapi:/// -f sudoers.ldif
+  /bin/ldapadd -Y EXTERNAL -H ldapi:/// -f /etc/openldap/schema/cosine.ldif
+  /bin/ldapadd -Y EXTERNAL -H ldapi:/// -f /etc/openldap/schema/nis.ldif
+  /bin/ldapadd -Y EXTERNAL -H ldapi:/// -f /etc/openldap/schema/inetorgperson.ldif
+
+  log_info "Creating SOCA OpenLDAP base"
+  echo -e "
+# Root Entry
+dn: ${SOCA_LDAP_BASE}
+dc: ${SOCA_LDAP_BASE_NAME}
+objectClass: top
+objectClass: domain
+
+# Admin Entry
+dn: ${ADMIN_LDAP_SERVICE_ACCOUNT_DN}
+objectClass: organizationalRole
+cn: ${ADMIN_LDAP_SERVICE_ACCOUNT_NAME}
+description: LDAP Manager
+
+# People OU
+dn: ${SOCA_LDAP_PEOPLE_SEARCH_BASE}
+objectClass: organizationalUnit
+ou: ${SOCA_LDAP_PEOPLE_OU_NAME}
+
+# Group OU
+dn: ${SOCA_LDAP_GROUP_SEARCH_BASE}
+objectClass: organizationalUnit
+ou: ${SOCA_LDAP_GROUP_OU_NAME}
+
+# Sudoers OU
+dn: ${SOCA_LDAP_ADMINS_SEARCH_BASE}
+objectClass: organizationalUnit
+ou: ${SOCA_LDAP_ADMIN_OU_NAME}
+"> base.ldif
+
+  /bin/ldapadd -x -w "${ADMIN_LDAP_SERVICE_ACCOUNT_PASSWORD}" -D "${ADMIN_LDAP_SERVICE_ACCOUNT_DN}" -f base.ldif
+
+  authconfig --enablesssd \
+      --enablesssdauth \
+      --enableldap \
+      --enableldapauth \
+      --ldapserver="${SOCA_LDAP_ENDPOINT}" \
+      --ldapbasedn="${SOCA_LDAP_BASE}" \
+      --enablelocauthorize \
+      --enablemkhomedir \
+      --enablecachecreds \
+      --updateall
+
+  echo "sudoers: files sss" >> /etc/nsswitch.conf
+
+  ## Configure SSSD
+  echo -e "[domain/default]
+enumerate = True
+autofs_provider = ldap
+cache_credentials = True
+ldap_search_base = ${SOCA_LDAP_BASE}
+id_provider = ldap
+auth_provider = ldap
+chpass_provider = ldap
+sudo_provider = ldap
+ldap_tls_reqcert = never
+ldap_sudo_search_base = ${SOCA_LDAP_ADMIN_SEARCH_BASE}
+ldap_uri = ${SOCA_LDAP_ENDPOINT}
+ldap_id_use_start_tls = True
+use_fully_qualified_names = False
+ldap_tls_cacertdir = /etc/openldap/certs/
+ldap_sudo_full_refresh_interval=86400
+ldap_sudo_smart_refresh_interval=3600
+
+[sssd]
+services = nss, pam, autofs, sudo
+full_name_format = %2\$s\%1\$s
+domains = default
+
+[nss]
+homedir_substring = /data/home
+
+[pam]
+
+[sudo]
+
+
+[autofs]
+
+[ssh]
+
+[pac]
+
+[ifp]
+
+[secrets]" > /etc/sssd/sssd.conf
+  chmod 600 /etc/sssd/sssd.conf
+
+  log_info "Disable TLS Cert Checking enforcement to allow self-signed certificate"
+  sed -i '/^[[:space:]]*TLS_REQCERT/d' /etc/openldap/ldap.conf
+  cp /etc/openldap/ldap.conf /etc/openldap/ldap.conf.soca.backup
+  echo "TLS_REQCERT never" >> /etc/openldap/ldap.conf
+
+  systemctl enable sssd
+  systemctl enable slapd
+  sleep 5
+  systemctl restart sssd
+  systemctl restart slapd
+  popd
+}
+openldap_server_install
+{% endif %}
+# End: OpenLDAP Server Template

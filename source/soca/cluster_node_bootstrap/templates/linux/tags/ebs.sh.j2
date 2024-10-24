@@ -1,0 +1,38 @@
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# Begin - Tags EBS
+function tags_ebs_volumes () {
+  log_info "[BEGIN] tags_ebs_volumes"
+  local AWS_INSTANCE_ID=$(instance_id)
+  local EBS_IDS=$(aws_cli ec2 describe-volumes --filters Name=attachment.instance-id,Values="${AWS_INSTANCE_ID}" --region "{{ context.get("/configuration/Region") }}" --query "Volumes[*].[VolumeId]" --out text | tr "\n" " ")
+  local CLUSTER_ID={{ context.get("/configuration/ClusterId") }}
+  {% if context.get("/job/NodeType") == "controller" %}
+    local TAGS="Key=Name,Value=\"${CLUSTER_ID}-Controller\" Key=soca:ClusterId,Value=\"${CLUSTER_ID}\""
+  {% elif context.get("/job/NodeType") == "login_node" %}
+    local TAGS="Key=Name,Value=\"${CLUSTER_ID}-LoginNode\" Key=soca:ClusterId,Value=\"${CLUSTER_ID}\""
+  {% elif context.get("/job/NodeType") == "dcv_node" %}
+    local NAME_VALUE="${CLUSTER_ID}-DCV-{{ context.get("/dcv/SessionOwner") }}-{{ context.get("/dcv/SessionName") }}"
+    local TAGS="Key=Name,Value=\"${NAME_VALUE}\" Key=soca:JobOwner,Value=\"{{ context.get("/dcv/SessionOwner") }}\" Key=soca:JobProject,Value=\"dcv\" Key=soca:ClusterId,Value=\"${CLUSTER_ID}\""
+   {% else %}
+   local NAME_VALUE="${CLUSTER_ID}-Job-{{ context.get("/job/JobId") }}\""
+    local TAGS="Key=Name,Value=\"${NAME_VALUE}\" Key=soca:JobOwner,Value=\"{{ context.get("/job/JobOwner") }}\" Key=soca:JobProject,Value=\"${SOCA_JOB_PROJECT// /_}\" Key=soca:JobId,Value=\"{{ context.get("/job/JobId") }}\" Key=soca:JobQueue,Value=\"{{ context.get("/job/JobQueue") }}\" Key=soca:ClusterId,Value=\"${CLUSTER_ID}\""
+  {% endif %}
+
+  local CURRENT_ATTEMPT=0
+  local MAX_TAG_ATTEMPT=5
+
+  while ! aws_cli ec2 create-tags --resources ${EBS_IDS} --tag ${TAGS}; do
+    SLEEP_TIME=$(( RANDOM % 100 ))
+     if [[ ${CURRENT_ATTEMPT} -gt ${MAX_TAG_ATTEMPT} ]]; then
+      log_warning "Unable to tag these EBS volumes"
+      break
+    fi
+    log_info "ec2 tag failed due to EC2 API error, retrying in ${SLEEP_TIME} seconds  and Loop ${CURRENT_ATTEMPT}/${MAX_TAG_ATTEMPT}..."
+    sleep ${SLEEP_TIME}
+    ((CURRENT_ATTEMPT++))
+  done
+  log_info "[COMPLETED] tags_ebs_volumes"
+}
+tags_ebs_volumes
+# End  - Tags EBS

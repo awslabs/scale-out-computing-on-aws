@@ -1,0 +1,85 @@
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# Begin: Install GPU Drivers - Is GPU Instance Type
+{% include "templates/linux/gpu/nvidia_drivers.sh.j2" %}
+
+{% include "templates/linux/gpu/amd_drivers.sh.j2" %}
+
+function install_gpu_drivers () {
+
+  # Identify Instance Type and Instance Family and install applicable GPU Drivers
+  #
+  # Types of Drivers:
+  # * Tesla drivers
+  #   These drivers are intended primarily for compute workloads, which use GPUs for computational tasks such as parallelized floating-point
+  #   calculations for machine learning and fast Fourier transforms for high performance computing applications.
+  # * GRID drivers
+  #   These drivers are certified to provide optimal performance for professional visualization applications that render content such
+  #   as 3D models or high-resolution videos.
+
+  # refer to: https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/install-nvidia-driver.html
+
+  local NVIDIA_TESLA_PUBLIC_DRIVER_PRODUCTION="{{ context.get("/system/gpu/gpu_settings/nvidia/tesla_drivers/public_driver_version") }}"
+  local NVIDIA_TESLA_PUBLIC_DRIVER_LTSB="{{ context.get("/system/gpu/gpu_settings/nvidia/tesla_drivers/public_driver_version_ltsb") }}" # Long Term Servicing Branch, for older instance type
+  local GPU_MANUFACTURER=$(ec2_describe_instance_types "GpuInfo.Gpus[].Manufacturer")
+  local INSTANCE_FAMILY=$(instance_family) # INSTANCE_FAMILY is loaded from common.sh.j2
+
+  log_info "Detected GPU instance type: ${INSTANCE_FAMILY}. Installing GPU Drivers for GPU ${GPU_MANUFACTURER} ..."
+
+
+  # This section has to be updated every time AWS release a new Accelerated Compute instance
+  # https://docs.aws.amazon.com/ec2/latest/instancetypes/ac.html
+  # Ex: socactl config set --key "/system/gpu/gpu_settings/nvidia/tesla_drivers_only" --value "(p3|p4d|p4de|p5|p5e|g5g|g6e|NEWINSTANCEFAMILY)"
+
+  ##################################
+  # BEGIN NVIDIA GPU CONFIGURATION #
+  # NVIDIA GPU Driver Matrix: https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/install-nvidia-driver.html#nvidia-driver-instance-type
+  ##################################
+  local INSTANCE_SUPPORT_TESLA_DRIVERS_ONLY="{{ context.get("/system/gpu/gpu_settings/nvidia/tesla_drivers_only") }}"
+  local INSTANCE_SUPPORT_TESLA_DRIVERS_LTSB_ONLY="{{ context.get("/system/gpu/gpu_settings/nvidia/tesla_drivers_ltsb_only") }}"
+  if [[ ${GPU_MANUFACTURER} == "NVIDIA" ]]; then
+    log_info "Detected NVIDIA GPU"
+
+     {% include "templates/linux/gpu/disable_nouveau_driver.sh.j2" %}
+
+    if [[ "${INSTANCE_FAMILY}" =~ ^${INSTANCE_SUPPORT_TESLA_DRIVERS_LTSB_ONLY}$  ]]; then
+      log_info "This instance family ${INSTANCE_FAMILY} use an old NVIDIA GPU, using LTSB drivers ..."
+      install_nvidia_public_tesla_drivers ${NVIDIA_TESLA_PUBLIC_DRIVER_LTSB}
+
+    elif [[ "${INSTANCE_FAMILY}" =~ ^"${INSTANCE_SUPPORT_TESLA_DRIVERS_ONLY}"$  ]]; then
+      log_info "This instance family ${INSTANCE_FAMILY} only supports Tesla public driver"
+      install_nvidia_public_tesla_drivers ${NVIDIA_TESLA_PUBLIC_DRIVER_PRODUCTION}
+
+    else
+
+      log_info "${INSTANCE_FAMILY} supports both GRID and Tesla drivers"
+      {% if context.get("/job/NodeType") == "dcv_node" %}
+        log_info "DCV Virtual Desktop Machine detected for ${INSTANCE_FAMILY}, Installing NVIDIA Grid drivers"
+        install_nvidia_grid_drivers
+      {% else %}
+        log_info "FALLBACK - This Instance ${INSTANCE_FAMILY} does support Tesla and Grid. DCV session not detected, so we fallback to Tesla driver. Edit install_drivers.sh.j2 if you are using a new EC2 instance which is not already there"
+        install_nvidia_public_tesla_drivers ${NVIDIA_TESLA_PUBLIC_DRIVER_PRODUCTION}
+      {% endif %}
+    fi
+
+  fi
+  ################################
+  # END NVIDIA GPU CONFIGURATION #
+  ################################
+
+  ###############################
+  # BEGIN AMD GPU CONFIGURATION #
+  # AMD GPU Driver: https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/install-amd-driver.html
+  ###############################
+  if [[ ${GPU_MANUFACTURER} == "AMD" ]]; then
+    log_info "Detected AMD GPU"
+    install_amd_gpu_drivers
+  fi
+  #############################
+  # END AMD GPU CONFIGURATION #
+  #############################
+
+}
+install_gpu_drivers
+# End: Install GPU Drivers

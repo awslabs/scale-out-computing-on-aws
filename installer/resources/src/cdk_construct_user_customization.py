@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
 
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: Apache-2.0
+
 from aws_cdk import aws_ec2 as ec2
 from aws_cdk import aws_s3 as s3
 import random

@@ -1,0 +1,59 @@
+#!/bin/bash -x
+
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# Important: Keep this file < 16 KBs (AWS EC2 UserData requirement)
+
+{% include "templates/linux/common/log.sh.j2" %}
+
+{% include "templates/linux/http_proxy.sh.j2" %}
+
+source /etc/environment
+
+{% if context.get("/configuration/BaseOS") == "centos7" %}
+  {% include "templates/linux/patch_centos7_repos.sh.j2" %}
+{% endif %}
+
+{% include "templates/linux/packages_management.sh.j2" %}
+
+{% include "templates/linux/awscli.sh.j2" %}
+
+{% include "templates/linux/common/wrapper_awscli.sh.j2" %}
+
+{% include "templates/linux/aws_ssm_agent.sh.j2" %}
+
+{% include "templates/linux/mount_apps_data.sh.j2" %}
+
+# Wait until initial Controller script has completed as this is the one setting up the filesystem structure
+NODE_BOOTSTRAP_FOLDER="{{ context.get("/job/BootstrapPath") }}/$(hostname -s)/$(date +%s)"
+
+VERIFY_FILE_COUNT=0
+while [[ ! -d "/apps/soca/{{ context.get("/configuration/ClusterId") }}/cluster_node_bootstrap/" ]]; do
+     echo "Waiting for the initial Controller setup sequence, checking if /apps/soca/{{ context.get("/configuration/ClusterId") }} exist,  ... trying again in 60 seconds"
+     if [[ ${VERIFY_FILE_COUNT} -gt 30 ]]; then
+      exit_fail "Unable to verify filesystem"
+     fi
+    ((VERIFY_FILE_COUNT++))
+    sleep 60
+done
+
+mkdir -p "${NODE_BOOTSTRAP_FOLDER}"
+
+# Wait until all parameters have been added to CDK
+while ! aws_cli ssm get-parameter --name "/soca/{{ context.get("/configuration/ClusterId") }}/cdk_completed" > /dev/null 2>&1; do
+    log_info "/soca/{{ context.get("/configuration/ClusterId") }}/cdk_completed not found on SSM, CDK & CloudFormation are probably still in creation, waiting a little longer"
+    sleep 120
+done
+
+# Generate bootstrap script
+export SOCA_CONFIGURATION="{{ context.get("/configuration/ClusterId") }}"
+export AWS_DEFAULT_REGION="{{ context.get("/configuration/Region") }}"
+
+/bin/bash /apps/soca/{{ context.get("/configuration/ClusterId") }}/cluster_manager/tools/j2generator/j2generator.sh --get-template "compute_node/02_setup.sh.j2" \
+    --output-file "${NODE_BOOTSTRAP_FOLDER}/02_setup.sh" \
+    --ssm-key "/" \
+    --add-value "KEY=/job/NodeType VALUE=login_node TYPE=str" \
+    --template-dirs "/apps/soca/{{ context.get("/configuration/ClusterId") }}/cluster_node_bootstrap/"
+
+/bin/bash ${NODE_BOOTSTRAP_FOLDER}/02_setup.sh >>  ${NODE_BOOTSTRAP_FOLDER}/02_setup.sh.log 2>&1

@@ -1,0 +1,153 @@
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# Begin: Install & Configure DCV Server
+
+function install_dcv_server () {
+
+  local DCV_SESSION_NAME="{{ context.get("/dcv/SessionName") }}"
+  local DCV_SESSION_OWNER="{{ context.get("/dcv/SessionOwner") }}"
+  local DCV_SESSION_ID="{{ context.get("/dcv/SessionId") }}"
+  local DCV_AUTH_TOKEN_VERIFIER="{{ context.get("/dcv/AuthTokenVerifier") }}"
+  local MACHINE=$(uname -m)
+  local SERVER_HOSTNAME=$(hostname)
+  local SERVER_HOSTNAME_ALT=$(echo $SERVER_HOSTNAME | cut -d. -f1)
+
+
+  {% if context.get("/configuration/BaseOS") in ("amazonlinux2") %}
+    {% set DCV_VERSION_FAMILY = "al2" %}
+  {% elif context.get("/configuration/BaseOS") in ("rhel7", "centos7") %}
+    {% set DCV_VERSION_FAMILY = "el7" %}
+  {% elif context.get("/configuration/BaseOS") in ("rhel8", "rocky8") %}
+    {% set DCV_VERSION_FAMILY = "el8" %}
+  {% elif context.get("/configuration/BaseOS") in ("rhel9", "rocky9") %}
+    {% set DCV_VERSION_FAMILY = "el9" %}
+  {% else %}
+    exit_fail "Unrecognized Base OS for DCV Server"
+  {% endif %}
+
+  if [[ ${MACHINE} == "x86_64" ]]; then
+    local DCV_URL="{{ context.get("/system/dcv/" ~ DCV_VERSION_FAMILY ~ "/x86_64/url") }}"
+    local DCV_HASH="{{ context.get("/system/dcv/" ~ DCV_VERSION_FAMILY ~ "/x86_64/sha256") }}"
+    local DCV_TGZ="{{ context.get("/system/dcv/" ~ DCV_VERSION_FAMILY ~ "/x86_64/tgz") }}"
+    local DCV_VERSION="{{ context.get("/system/dcv/" ~ DCV_VERSION_FAMILY ~ "/x86_64/version") }}"
+  elif [[ ${MACHINE} == "aarch64" ]]; then
+    local DCV_URL="{{ context.get("/system/dcv/" ~ DCV_VERSION_FAMILY ~ "/aarch64/url") }}"
+    local DCV_HASH="{{ context.get("/system/dcv/" ~ DCV_VERSION_FAMILY ~ "/aarch64/sha256") }}"
+    local DCV_TGZ="{{ context.get("/system/dcv/" ~ DCV_VERSION_FAMILY ~ "/aarch64/tgz") }}"
+    local DCV_VERSION="{{ context.get("/system/dcv/" ~ DCV_VERSION_FAMILY ~ "/aarch64/version") }}"
+  else
+    exit_fail "Unrecognized machine type. Must be either x86_64 or aarch64"
+  fi
+
+  log_info "Detected following DCV download information:"
+  log_info "DCV_URL ${DCV_URL}"
+  log_info "DCV_HASH ${DCV_HASH}"
+  log_info "DCV_TGZ ${DCV_TGZ}"
+  log_info "DCV_VERSION ${DCV_VERSION}"
+
+  # Download and Install DCV
+  mkdir -p /root/soca_bootstrap/dcvserver
+  pushd /root/soca_bootstrap/dcvserver
+  log_info "Downloading DCV ..."
+  wget ${DCV_URL}
+  if [[ $(sha256sum ${DCV_TGZ} | awk '{print $1}') != ${DCV_HASH} ]];  then
+     exit_fail "Checksum for DCV failed. File may be compromised."
+  fi
+
+  log_info "Extracting DCV archive ..."
+  tar zxvf ${DCV_TGZ}
+  cd nice-dcv-${DCV_VERSION}
+
+  log_info "Installing DCV ..."
+
+  rpm -ivh nice-xdcv-*.${MACHINE}.rpm --nodeps
+  rpm -ivh nice-dcv-server-*.${MACHINE}.rpm --nodeps
+  rpm -ivh nice-dcv-web-viewer-*.${MACHINE}.rpm --nodeps
+
+  log_info "Enable DCV support for USB remotization .. "
+  packages_install dkms
+  DCVUSBDRIVERINSTALLER=$(which dcvusbdriverinstaller)
+  $DCVUSBDRIVERINSTALLER --quiet
+
+  # Enable GPU support
+  if [[ -n ${GPU_DETECTED} ]]; then
+    log_info "Detected GPU instance, adding support for nice-dcv-gl"
+    rpm -ivh nice-dcv-gl*.rpm --nodeps
+  fi
+
+  # Configure DCV
+  mv /etc/dcv/dcv.conf /etc/dcv/dcv.conf.orig
+  local IDLE_TIMEOUT={{ context.get("/system/dcv/idle_timeout") }}
+  local USER_HOME=$(eval echo ~${DCV_SESSION_OWNER})
+  local DCV_STORAGE_ROOT="$USER_HOME/{{ context.get("/system/dcv/session_storage") }}" # Create the storage root location if needed
+
+  log_info "Creating DCV Session Storage if needed ${DCV_STORAGE_ROOT} and applying permissions"
+  mkdir -p ${DCV_STORAGE_ROOT}
+  chown ${DCV_SESSION_OWNER} ${DCV_STORAGE_ROOT}
+
+  echo -e """
+[license]
+[log]
+[session-management]
+virtual-session-xdcv-args=\"-listen tcp\"
+[session-management/defaults]
+[session-management/automatic-console-session]
+storage-root=\"${DCV_STORAGE_ROOT}\"
+[display]
+# add more if using an instance with more GPU
+cuda-devices=[\"0\"]
+[connectivity]
+web-url-path=\"/${SERVER_HOSTNAME_ALT}\"
+idle-timeout=${IDLE_TIMEOUT}
+[security]
+auth-token-verifier=\"${DCV_AUTH_TOKEN_VERIFIER}\"
+no-tls-strict=true
+os-auto-lock=false
+""" > /etc/dcv/dcv.conf
+
+  log_info "Disabling X11 DPMS"
+  echo -e """
+Section \"Extensions\"
+    Option      \"DPMS\" \"Disable\"
+EndSection""" > /etc/X11/xorg.conf.d/99-disable-dpms.conf
+
+  # This order is important, make sure X is running BEFORE dcvserver.
+  # Also make sure there is no other X server running when you Start X below (e.g: stop gdm etc ...)
+  log_info "Automatic start Gnome upon reboot"
+  systemctl set-default graphical.target
+
+  log_info "Start X"
+  systemctl isolate multi-user.target
+  systemctl isolate graphical.target
+
+  log_info "Creating SOCA DCV Service to start/stop DCV session via socadcv "
+  echo -e "
+[Unit]
+Description=SOCA DCV Setup Service
+
+[Service]
+User=root
+Type=oneshot
+ExecStart=/bin/bash -c 'if systemctl is-active --quiet gdm; then systemctl stop gdm; fi; systemctl start gdm; for i in {1..10}; do if [[ -e /tmp/.X11-unix/X0 ]]; then break; else sleep 1; fi; done; if systemctl is-active --quietdcvserver; then systemctl stop dcvserver; fi; systemctl start dcvserver;'
+ExecStartPost=/usr/bin/su - ${DCV_SESSION_OWNER} -c '/usr/bin/dcv create-session --owner ${DCV_SESSION_OWNER} --storage-root \"/data/home/socaadmin/dcv_session_storage\" ${DCV_SESSION_ID}'
+ExecStop=/bin/bash -c '/usr/bin/dcv close-session ${DCV_SESSION_ID}'
+
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target" > /etc/systemd/system/socadcv.service
+  log_info "Enabling & start SOCA DCV Service as reboot"
+  systemctl enable socadcv
+
+  log_info "Launching DCV session dcv create-session --user ${DCV_SESSION_OWNER} --owner ${DCV_SESSION_OWNER} --type virtual --storage-root ${DCV_STORAGE_ROOT} ${DCV_SESSION_ID}"
+   systemctl start socadcv
+
+  log_info "Stopping Firewall if needed"
+  systemctl stop firewalld
+  systemctl disable firewalld
+  popd
+
+}
+install_dcv_server
+# End: Install & Configure DCV Server

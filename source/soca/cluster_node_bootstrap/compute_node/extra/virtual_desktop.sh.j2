@@ -1,0 +1,11 @@
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+log_info "Checking if host is a Virtual Desktop machine"
+{% if context.get("/job/NodeType") == "dcv_node" %}
+  log_info "DCV (Virtual Desktop) Node Detected, installing Desktop + DCV"
+  {% include "templates/linux/dcv/system_requirements.sh.j2" %}
+  {% include "templates/linux/dcv/dcv_server.sh.j2" %}
+{% else %}
+  log_info "This host is not a dvc (virtual desktop) node"
+{% endif %}

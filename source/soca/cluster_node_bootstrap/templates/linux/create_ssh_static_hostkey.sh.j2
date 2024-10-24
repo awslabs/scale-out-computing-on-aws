@@ -1,0 +1,48 @@
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# Begin - Create Static HostKey
+{% if context.get("/configuration/BaseOS") in ("amazonlinux2", "amazonlinux2023", "centos7", "rhel7", "rhel8", "rhel9", "rocky8", "rocky9") %}
+function create_static_hostkey {
+  log_info "[BEGIN] system_sshd_create_static_HostKey"
+  # Create static SSH HostKey for login nodes as these hosts can be recycled behind the ALB
+  # This is to avoid getting SSH Fingerprint warnings
+
+  log_info "Commenting existing HostKey sections"
+  cp /etc/ssh/sshd_config /etc/ssh/sshd_config.original
+  sed -i '/^HostKey/ s/^/#/' /etc/ssh/sshd_config
+  local STATIC_KEY_FOLDER="/apps/soca/{{  context.get("/configuration/ClusterId") }}/cluster_node_bootstrap/custom_automation/static_ssh_keys"
+  local RSA_KEY_NAME="soca_ssh_host_rsa_key"
+  local ED25519_KEY_NAME="soca_ssh_host_ed25519_key"
+  local ECDSA_KEY_NAME="soca_ssh_host_ecdsa_key"
+
+  # Generate new keys if needed
+  if [[ ! -d ${STATIC_KEY_FOLDER} ]]; then
+    log_info "${STATIC_KEY_FOLDER} does not exist, creating it and generating static SSH keys"
+    mkdir -p "${STATIC_KEY_FOLDER}"
+    pushd ${STATIC_KEY_FOLDER}
+    ssh-keygen -t rsa -b 4096 -f ${RSA_KEY_NAME} -N ""
+    ssh-keygen -t ed25519 -f ${ED25519_KEY_NAME} -N ""
+    ssh-keygen -t ecdsa -b 521 -f ${ECDSA_KEY_NAME} -N ""
+    popd
+  else
+    log_info "${STATIC_KEY_FOLDER} already exist, copying key from the directory to /etc/ssh"
+  fi
+
+  # Copy Static Keys to local /etc/ssh
+  cp -f "${STATIC_KEY_FOLDER}"/* /etc/ssh/
+
+  # Add new HostKey section
+  {
+   echo "HostKey /etc/ssh/${RSA_KEY_NAME}"
+   echo "HostKey /etc/ssh/${ED25519_KEY_NAME}"
+   echo "HostKey /etc/ssh/${ECDSA_KEY_NAME}"
+   } >> /etc/ssh/sshd_config
+
+  # Restart sshd
+  systemctl restart sshd
+  log_info "[COMPLETED] system_sshd_create_static_hostkey"
+}
+create_static_hostkey
+{% endif %}
+# End - Create Static HostKey

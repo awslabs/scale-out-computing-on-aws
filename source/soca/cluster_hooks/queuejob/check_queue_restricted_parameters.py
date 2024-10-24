@@ -44,9 +44,7 @@ pbs.logmsg(pbs.LOG_DEBUG, "queue_acl: job_queue  " + str(job_queue))
 
 # Validate queue_mapping YAML is not malformed
 try:
-    queue_settings_file = (
-        "/apps/soca/%SOCA_CONFIGURATION/cluster_manager/settings/queue_mapping.yml"
-    )
+    queue_settings_file = "/apps/soca/%SOCA_CONFIGURATION/cluster_manager/orchestrator/settings/queue_mapping.yml"
     queue_reader = open(queue_settings_file, "r")
     docs = yaml.safe_load(queue_reader)
 except Exception as err:

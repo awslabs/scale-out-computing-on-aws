@@ -1,0 +1,22 @@
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# Begin: Install AWS SSM agent
+{%- if context.get("/configuration/BaseOS") in ("amazonlinux2", "amazonlinux2023", "centos7", "rhel7", "rhel8", "rhel9", "rocky8", "rocky9") %}
+function install_ssm_agent () {
+  log_info "# Begin: Install AWS SSM agent"
+  local MACHINE=$(uname -m)
+  if ! systemctl status amazon-ssm-agent; then
+      if [[ ${MACHINE} == "x86_64" ]]; then
+          packages_install "{{ context.get("/system/ssm/x86_64") }}"
+      elif [[ ${MACHINE} == "aarch64" ]]; then
+          packages_install "{{ context.get("/system/ssm/aarch64") }}"
+      fi
+      systemctl enable amazon-ssm-agent || true
+      systemctl restart amazon-ssm-agent
+  fi
+  log_info "# End: Install AWS SSM Agent"
+}
+install_ssm_agent
+{% endif %}
+# End: Install AWS SSM Agent

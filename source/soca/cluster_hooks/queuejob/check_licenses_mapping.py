@@ -35,23 +35,16 @@ if (
     )
 import yaml
 
-
 e = pbs.event()
 j = e.job
 
 # Validate license_mapping YAML is not malformed
+license_settings_file = "/apps/soca/%SOCA_CONFIGURATION/cluster_manager/orchestrator/settings/licenses_mapping.yml"
+
 try:
-    license_settings_file = (
-        "/apps/soca/%SOCA_CONFIGURATION/cluster_manager/settings/licenses_mapping.yml"
-    )
     lic_reader = open(license_settings_file, "r")
     lic_data = yaml.safe_load(lic_reader)
     e.accept()
 except Exception as err:
-    message = (
-        "Job cannot be submitted. Unable to read "
-        + license_settings_file
-        + ". Double check the YAML syntax is correct and you don't have any invalid indent.\n Error: "
-        + str(err)
-    )
+    message = f"Job cannot be submitted. Unable to read {license_settings_file}.  Double check the YAML syntax is correct and you don't have any invalid indent.\n Error: {err} "
     e.reject(message)

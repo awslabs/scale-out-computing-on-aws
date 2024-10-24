@@ -1,0 +1,114 @@
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# Begin: Install AWS CloudWatch agent
+{% if context.get("/configuration/BaseOS") in ("amazonlinux2", "amazonlinux2023", "centos7", "rhel7", "rhel8", "rhel9", "rocky8", "rocky9") %}
+function install_aws_cloudwatch_agent () {
+  # AWS CloudWatch agent is disabled by default
+  # change to "enabled" to activate CloudWatch log agent
+  # If needed, customize the CloudWatch Configuration File specified below
+  local METRIC_COLLECTION="disabled"
+  local MACHINE=$(uname -m)
+  if [[ "${METRIC_COLLECTION}" == "enabled" ]]; then
+
+    log_info "Installing CloudWatch Agent"
+    local DOWNLOAD_LINK_PATTERN="{{ context.get("/system/cloudwatch_agent/download_link_pattern") }}"
+    local AWS_REGION="{{ context.get("/configuration/Region") }}"
+    {%- if context.get("/configuration/BaseOS") in ("amazonlinux2", "amazonlinux2023") %}
+    local OS="amazon_linux"
+    local EXT="rpm"
+    {%- elif context.get("/configuration/BaseOS") in ("rhel7", "rhel8", "rhel9", "rocky8", "rocky9") %}
+    local OS="redhat"
+    local EXT="rpm"
+    {%- elif context.get("/configuration/BaseOS") == "centos7" %}
+    local OS="centos"
+    local EXT="rpm"
+    {%- endif %}
+
+    case $MACHINE in
+      aarch64)
+        local ARCHITECTURE="arm64"
+        ;;
+      x86_64)
+        local ARCHITECTURE="amd64"
+        ;;
+    esac
+
+    LOCAL CLOUDWATCH_AGENT_DOWNLOAD_LINK=$(echo "${DOWNLOAD_LINK_PATTERN}" | sed -e "s/%region%/${AWS_REGION}/g" -e "s/%os%/${OS}/g" -e "s/%architecture%/${ARCHITECTURE}/g" -e "s/%ext%/${EXT}/g")
+    log_info "Downloading CloudWatch Agent from ${DOWNLOAD_LINK}"
+
+    wget "${CLOUDWATCH_AGENT_DOWNLOAD_LINK}"
+    local CLOUDWATCH_AGENT_PACKAGE_NAME="$(basename ${CLOUDWATCH_AGENT_DOWNLOAD_LINK})"
+    rpm -U ./${CLOUDWATCH_AGENT_PACKAGE_NAME}
+
+    # CloudWatch Configuration File, update as needed
+    cat > /opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.json << EOF
+{
+  "general": {
+    "state_file": "/var/awslogs/state/agent-state"
+  },
+  "logs": {
+    "/var/log/messages": {
+      "datetime_format": "%b %d %H:%M:%S",
+      "file": "/var/log/messages",
+      "buffer_duration": 5000,
+      "log_stream_name": "{instance_id}",
+      "initial_position": "start_of_file",
+      "log_group_name": "/soca/var/log/messages"
+    }
+  },
+  "metrics": {
+    "append_dimensions": {
+      "InstanceId": "{instance_id}"
+    },
+    "metrics_collected": {
+      "cpu": {
+        "measurement": [
+          "cpu_usage_idle",
+          "cpu_usage_iowait",
+          "cpu_usage_user",
+          "cpu_usage_system"
+        ],
+        "metrics_collection_interval": 60,
+        "totalcpu": true
+      },
+      "disk": {
+        "measurement": [
+          "used_percent"
+        ],
+        "metrics_collection_interval": 60,
+        "resources": [
+          "*"
+        ]
+      },
+      "mem": {
+        "measurement": [
+          "mem_used_percent"
+        ],
+        "metrics_collection_interval": 60
+      },
+      "net": {
+        "measurement": [
+          "bytes_in",
+          "bytes_out",
+          "packets_in",
+          "packets_out"
+        ],
+        "metrics_collection_interval": 60
+      }
+    }
+  }
+}
+
+EOF
+
+    /opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent-ctl -a fetch-config -m ec2 -s -c file:/opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.json
+    log_info "Configured AWS CloudWatch Log Agent"
+  else
+    log_info "AWS CloudWatch Log Agent is disabled, skipping installation"
+  fi
+
+}
+install_aws_cloudwatch_agent
+{% endif %}
+# End: Install AWS CloudWatch Agent

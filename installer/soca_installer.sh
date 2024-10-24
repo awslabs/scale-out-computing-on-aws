@@ -1,5 +1,7 @@
 #!/bin/bash
 
+shopt -s extglob
+
 ######################################################################################################################
 #  Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.                                                #
 #                                                                                                                    #
@@ -44,8 +46,69 @@ SOCA_PYTHON=${SOCA_PYTHON:-$(command -v python3)}
 # Remove prompt when running virtual environment (not recommended)
 SOCA_PYTHON_SKIP_VENV=${SOCA_PYTHON_SKIP_VENV:-"false"}
 
+
+# Determine our running OS
+SYSTEM=$(uname -s)
+
+# Check if we have a supported OS
+CHECK_GLIBC=false
+
+case $SYSTEM in
+    "Linux")
+      log_success "Running on Linux - delaying SOCA_NODE_VERSION until after GLIBC check"
+      CHECK_GLIBC=true
+      ;;
+    "Darwin")
+      log_success "Running on macOS"
+      CHECK_GLIBC=false
+      SOCA_NODE_VERSION=20
+
+      ;;
+    # Add More install OSes here
+    *)
+      log_error "Unsupported installation OS - ${SYSTEM}"
+      SOCA_NODE_VERSION=18
+      exit 1
+      ;;
+esac
+
+if [[ "$CHECK_GLIBC" = true ]]; then
+  log_success "Checking if ldd is available"
+  SYSTEM_LDD_BIN=$(command -v ldd)
+
+  if [[ -z "$SYSTEM_LDD_BIN" ]]; then
+    log_error "ldd is not installed. Please install it first"
+    exit 1
+  else
+    SYSTEM_GLIBC_VERSION=$($SYSTEM_LDD_BIN --version | head -n 1 | awk '{print $4}')
+  fi
+
+  if [[ -z "$SYSTEM_GLIBC_VERSION" ]]; then
+    log_error "Unable to determine System GLIBC version with the LDD command."
+    exit 1
+  fi
+
+  case $SYSTEM_GLIBC_VERSION in
+    # AL2
+    "2.26")
+      SOCA_NODE_VERSION=16
+      ;;
+    # AL2023
+    "2.34")
+      SOCA_NODE_VERSION=20
+      ;;
+    *)
+      log_warning "Unknown System GLIBC version ${SYSTEM_GLIBC_VERSION}. Defaulting to Node version 16 for compatibility"
+      SOCA_NODE_VERSION=16
+      ;;
+  esac
+  log_success "System GLIBC version is ${SYSTEM_GLIBC_VERSION} / Selected Node version: ${SOCA_NODE_VERSION}"
+
+fi
+
+
 # Python3 must be available to build python dependencies on Lambda
-REQUIRED_PYTHON_VERSION="3.11"
+SOCA_PYTHON_VERSION=${SOCA_PYTHON_VERSION:-"3.12"}
 
 # Download and Install PyENV if needed
 PYENV_URL="https://pyenv.run"
@@ -60,7 +123,7 @@ INSTALLER_DIRECTORY=$(dirname $(realpath "$0"))
 PYTHON_VENV="$INSTALLER_DIRECTORY/resources/src/envs/venv-py-installer"
 
 # NVM path
-NODEJS_BIN="https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.5/install.sh"
+NODEJS_BIN="https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.1/install.sh"
 
 # Color
 NC="\033[0m"
@@ -78,55 +141,55 @@ log_success "======= Checking system pre-requisites ======="
 
 log_success "Check if PyEnv is installed"
 PYENV=$(command -v pyenv)
-if [[ $? -eq 0 ]]; then
-  PYENV_AVAILABLE="true"
+if [[ -z "${PYENV}" ]]; then
+  PYENV_AVAILABLE=false
 else
-  PYENV_AVAILABLE="false"
+  PYENV_AVAILABLE=true
 fi
 
 log_success "Verifying Python3 interpreter"
 # shellcheck disable=SC2181
 if [[ -z "$SOCA_PYTHON" ]]; then
-    log_error "Python is not installed. Please download and install it from https://www.python.org/downloads/release/python-3918/"
+    log_error "Python is not installed. Please download and install it from https://www.python.org/downloads/release/python-3119/"
     exit 1
 else
     PYTHON_VERSION=$($SOCA_PYTHON -c "import sys;print(f'{sys.version_info.major}.{sys.version_info.minor}')")
     # Check if current python shell is using the required version
-    if [[ "$PYTHON_VERSION" != "$REQUIRED_PYTHON_VERSION" ]]; then
-      log_warning "Your version of Python ($PYTHON_VERSION) does not match the supported version ($REQUIRED_PYTHON_VERSION)"
+    if [[ "$PYTHON_VERSION" != "$SOCA_PYTHON_VERSION" ]]; then
+      log_warning "Your version of Python ($PYTHON_VERSION) does not match the supported version ($SOCA_PYTHON_VERSION)"
       # If pyenv is installed,
-      if [[ "$PYENV_AVAILABLE" == "true" ]]; then
-        log_success "List of Python $REQUIRED_PYTHON_VERSION versions installed via your PyEnv: "
-        PYENV_VERSIONS=$($PYENV versions | grep $REQUIRED_PYTHON_VERSION)
+      if [[ "${PYENV_AVAILABLE}" == true ]]; then
+        log_success "List of Python ${SOCA_PYTHON_VERSION} versions installed via your PyEnv: "
+        PYENV_VERSIONS=$($PYENV versions | grep "${SOCA_PYTHON_VERSION}")
         # Install Python version if not already there
         if [[ -z "$PYENV_VERSIONS" ]]; then
-          read -rp "We could not find any Python3 version, do you want to install it? (yes/no)" INSTALL_PYENV_VERSION
+          read -rp "We could not find any Python3 ${SOCA_PYTHON_VERSION} version, do you want to install it? (yes/no) " INSTALL_PYENV_VERSION
           case $INSTALL_PYENV_VERSION in
             yes )
-              $PYENV install $REQUIRED_PYTHON_VERSION
+              $PYENV install "${SOCA_PYTHON_VERSION}"
             ;;
             no ) exit 1;;
             * ) log_error "Please answer yes or no."
             exit 1 ;;
           esac
         fi
-        $PYENV versions | grep $REQUIRED_PYTHON_VERSION
+        $PYENV versions | grep "${SOCA_PYTHON_VERSION}"
         read -rp "Which version do you want to use? " PYENV_INSTALLED_VERSION
-        $PYENV local $PYENV_INSTALLED_VERSION
+        $PYENV local "${PYENV_INSTALLED_VERSION}"
         if [[ $? -ne 0 ]]; then
           log_error "Incorrect version. Please specify one version listed above."
           exit 1
         fi
-        SOCA_PYTHON=$($PYENV which python)
+        SOCA_PYTHON=$($PYENV which python3)
 
       # Pyenv not installed
       else
-        log_warning "This script must be executing via python $REQUIRED_PYTHON_VERSION which is not installed. We recommend installing python $REQUIRED_PYTHON_VERSION via PyEnv"
-        read -rp "Install PyEnv and $REQUIRED_PYTHON_VERSION (yes/no)" INSTALL_PYENV_AND_VERSION
+        log_warning "This script must be executing via python $SOCA_PYTHON_VERSION which is not installed. We recommend installing python $SOCA_PYTHON_VERSION via PyEnv"
+        read -rp "Install PyEnv and $SOCA_PYTHON_VERSION (yes/no) " INSTALL_PYENV_AND_VERSION
           case $INSTALL_PYENV_AND_VERSION in
             yes )  true
             ;;
-            no ) log_error "Exiting installer .. please install Python 3.9 manually or via PyEnv (https://github.com/pyenv/pyenv)"
+            no ) log_error "Exiting installer .. please install Python ${SOCA_PYTHON_VERSION} manually or via PyEnv (https://github.com/pyenv/pyenv)"
               exit 1;;
             * ) log_error "Please answer yes or no."
             exit 1 ;;
@@ -140,8 +203,13 @@ else
           command -v pyenv >/dev/null || export PATH="$PYENV_ROOT/bin:$PATH"
           eval "$(pyenv init -)"
           PYENV=$(command -v pyenv)
-          $PYENV install $REQUIRED_PYTHON_VERSION
-          $PYENV local $REQUIRED_PYTHON_VERSION
+          echo "Installing  Python ${SOCA_PYTHON_VERSION} via PyEnv"
+          $PYENV install "${SOCA_PYTHON_VERSION}"
+          if [[ $? -ne 0 ]]; then
+            log_error "Unable to install Python ${SOCA_PYTHON_VERSION} via PyEnv. Consult above errors and try again"
+            exit 1
+          fi
+          $PYENV local "${SOCA_PYTHON_VERSION}"
           SOCA_PYTHON=$($PYENV which python)
       fi
       log_success "$SOCA_PYTHON detected, continuing installation ..."
@@ -194,7 +262,12 @@ if [[ ! -d $NVM_DIR ]]; then
   source "$NVM_DIR/nvm.sh"  # This loads nvm
   # shellcheck disable=SC1090
   source "$NVM_DIR/bash_completion"
-  nvm install v18.19.0
+  #
+  # Determine the best version of Node to install
+  #
+  echo "Installing Node version ${SOCA_NODE_VERSION}"
+  nvm install "${SOCA_NODE_VERSION}"
+  echo "Installing AWS CDK (latest)"
   npm install -g aws-cdk
 else
   source "$NVM_DIR/nvm.sh"  # This loads nvm
@@ -208,7 +281,7 @@ command -v aws > /dev/null
 if [[ $? -ne 0 ]]; then
     log_success "AWSCLI not detected."
     while true; do
-    read -rp "Do you want to automatically install aws cli and configure it? You will need to have a valid pair of access/secret key. You can generate them on the AWS Console IAM section (yes/no) " AWSCLIINSTALL
+    read -rp "Do you want to automatically install AWS CLI and configure it? You will need to valid credentials (access/secret key or IAM instance profile)(yes/no) " AWSCLIINSTALL
     case $AWSCLIINSTALL in
         yes ) $PIP3 install awscli
           log_success "AWS CLI installed. Running 'aws configure' to configure your AWS CLI environment:"

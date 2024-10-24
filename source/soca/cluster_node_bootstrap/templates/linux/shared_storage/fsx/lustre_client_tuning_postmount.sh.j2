@@ -1,0 +1,30 @@
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+{% if context.get("/configuration/BaseOS") in ("amazonlinux2", "amazonlinux2023", "centos7", "rhel7", "rhel8", "rhel9", "rocky8", "rocky9") %}
+function fsx_lustre_client_tuning_postmount {
+  log_info "Running FSxL Performance tuning post-mount"
+  # https://docs.aws.amazon.com/fsx/latest/LustreGuide/performance.html#performance-tips
+  local GB_MEM=$(free --si -g | grep -E '^Mem:' | awk '{print $2}')
+  local NCPUS=$(nproc)
+  log_info "Detected ${NCPUS} CPUs / ${GB_MEM} GiB memory for Lustre performance tuning"
+  if [[ "${NPROCS}" -ge 64 ]]; then
+    log_info "Applying CPU count Lustre performance tuning"
+    lctl set_param osc.*OST*.max_rpcs_in_flight=32
+    lctl set_param mdc.*.max_rpcs_in_flight=64
+    lctl set_param mdc.*.max_mod_rpcs_in_flight=50
+  else
+    log_info "No CPU performance tuning needed as CPUS core is less than 64 cores, detected ${NCPUS}"
+  fi
+
+  if [[ "${GB_MEM}" -ge 64 ]]; then
+    log_info "Applying memory size Lustre performance tuning"
+    lctl set_param ldlm.namespaces.*.lru_max_age=600000
+  else
+    log_info "No memory performance tuning needed as total memory is less than 64 GB, detected ${GB_MEM}"
+  fi
+  lctl lustre_build_version
+  log_info "FsxL Performance tuning post-mount completed"
+}
+fsx_lustre_client_tuning_postmount
+{% endif %}

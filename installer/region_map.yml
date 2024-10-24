@@ -1,0 +1,495 @@
+---
+
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+RegionMap:
+  af-south-1:
+    arm64:
+      amazonlinux2: ami-0a354482c566e2824
+      amazonlinux2023: ami-0139c38d9e36ea861
+      centos7: ami-0e88079e08c51419c
+      rhel8: ami-0b92598545410e0cb
+      rhel9: ami-004fa02bf75e98725
+      rocky8: ami-08f4ce464b9d6a6fc
+      rocky9: ami-08c7fcbbc1f54cd98
+    x86_64:
+      amazonlinux2: ami-0ac5c4cabd112b75e
+      amazonlinux2023: ami-05cb2de2b80a96127
+      centos7: ami-0cf2f235226a4d1f2
+      rhel7: ami-0fe7507703898a688
+      rhel8: ami-069db5f1c20a2686f
+      rhel9: ami-0eb4ecadc6f00aa18
+      rocky8: ami-0f6740cc2de201555
+      rocky9: ami-01702eb7f1afb8f3a
+  ap-east-1:
+    arm64:
+      amazonlinux2: ami-04d5bd4537881ddfc
+      amazonlinux2023: ami-0b4669a40177dad77
+      centos7: ami-04b61d6a053ad2539
+      rhel8: ami-02f28c7684cc5bcd6
+      rhel9: ami-01b5b5dbe567f137f
+      rocky8: ami-0678776a680899a7b
+      rocky9: ami-071d3eda7bb3cf0b7
+    x86_64:
+      amazonlinux2: ami-0d9131acf2e5153f3
+      amazonlinux2023: ami-0d84b919ea93d1ed4
+      centos7: ami-039ac400e94785a1d
+      rhel7: ami-0d113ed541942504a
+      rhel8: ami-0a96460b8523b28a6
+      rhel9: ami-05f8f8ac71b41b1a0
+      rocky8: ami-0c839768188cedbda
+      rocky9: ami-0de566aa7b182e06e
+  ap-northeast-1:
+    arm64:
+      amazonlinux2: ami-0340beb1bfe68fdd8
+      amazonlinux2023: ami-05779067e4eff0b9d
+      centos7: ami-0052528bdd809d899
+      rhel8: ami-04829c4e2dbb67968
+      rhel9: ami-0e5a8c3128efc21db
+      rocky8: ami-038c72f93d429ad9c
+      rocky9: ami-06d27ac4b987f2a83
+    x86_64:
+      amazonlinux2: ami-07281c2a30e5bc1ab
+      amazonlinux2023: ami-00c79d83cf718a893
+      centos7: ami-06e6d2122baa563c4
+      rhel7: ami-05016d58118cb4881
+      rhel8: ami-062921cd4e5cbddc1
+      rhel9: ami-0f7b9942f8fafc91b
+      rocky8: ami-0025f1507e375f161
+      rocky9: ami-085b32ca1b99f52a2
+  ap-northeast-2:
+    arm64:
+      amazonlinux2: ami-06ed748d65fc1ec35
+      amazonlinux2023: ami-0f7d648870b5808e2
+      centos7: ami-052d9a481ce0de50a
+      rhel8: ami-0d9a4fbad4a21167f
+      rhel9: ami-07f684f3f74f0f5a7
+      rocky8: ami-02dcfe91e6aa408f7
+      rocky9: ami-0c27b4fbaaef5d9c4
+    x86_64:
+      amazonlinux2: ami-0dba641460bd4aa31
+      amazonlinux2023: ami-008d41dbe16db6778
+      centos7: ami-061f5322ab2662c82
+      rhel7: ami-004ed0ba77095ba25
+      rhel8: ami-03439f5ccc1eeb443
+      rhel9: ami-037aeec34c5f1368f
+      rocky8: ami-05d54bac15231e6fa
+      rocky9: ami-0fea45a5778f85b6e
+  ap-northeast-3:
+    arm64:
+      amazonlinux2: ami-0f8db31c788684b93
+      amazonlinux2023: ami-0bdb80cc3063234ea
+      rhel8: ami-029fa8456f4a3f7f8
+      rhel9: ami-0ad39597d7ae2a072
+      rocky8: ami-051c0c81283d59235
+      rocky9: ami-0ad8bb60bb4419f16
+    x86_64:
+      amazonlinux2: ami-00f225f37c5c78645
+      amazonlinux2023: ami-0754d03b26ea44c28
+      rhel7: ami-0558aa3a1b91c9d74
+      rhel8: ami-0a1b789240188786f
+      rhel9: ami-024474b8479130f91
+      rocky8: ami-039262f94e381ba82
+      rocky9: ami-080e290c93c147124
+  ap-south-1:
+    arm64:
+      amazonlinux2: ami-081fbf5041b40f37e
+      amazonlinux2023: ami-04ad8c7fcc828fad4
+      centos7: ami-0a69d3ff816398377
+      rhel8: ami-01bcef20fc6eb08aa
+      rhel9: ami-090d7a4cfb09fc583
+      rocky8: ami-081e22d3cbc2a6a6f
+      rocky9: ami-05b74b20ca7ad0315
+    x86_64:
+      amazonlinux2: ami-0c042aeb1107dbd8c
+      amazonlinux2023: ami-02b49a24cfb95941c
+      centos7: ami-09f129ee53d3523c0
+      rhel7: ami-0ea2ce8b668f422ce
+      rhel8: ami-0619404f9180a28b3
+      rhel9: ami-0182ac7811b44186e
+      rocky8: ami-053ac9a936bd4459e
+      rocky9: ami-05b4c01d3bcc6a0ae
+  ap-south-2:
+    arm64:
+      amazonlinux2: ami-09432dc17283de5c8
+      amazonlinux2023: ami-0f792b26cf63c6e1a
+      rhel8: ami-07ccdeb7035403a53
+      rhel9: ami-0dbda9313f1e1b55e
+      rocky8: ami-0ada75ede616e61f7
+      rocky9: ami-076f4ee3e4440141f
+    x86_64:
+      amazonlinux2: ami-06151c3844e0e1a05
+      amazonlinux2023: ami-0768cf5c163af7ac3
+      rhel7: ami-06ed2b77cde70d481
+      rhel8: ami-04b72ecf330628136
+      rhel9: ami-09dd73be11b8d5c2e
+      rocky8: ami-03e7e740ffbaecda1
+      rocky9: ami-04b28945c45f28358
+  ap-southeast-1:
+    arm64:
+      amazonlinux2: ami-0d5ca53543144d55f
+      amazonlinux2023: ami-0f42a990b54db3476
+      centos7: ami-091062b883853b295
+      rhel8: ami-09fb875d515bb54a2
+      rhel9: ami-00cc6098cd7e18d07
+      rocky8: ami-0736cc1b89639489a
+      rocky9: ami-0204c38a94c080290
+    x86_64:
+      amazonlinux2: ami-07548161ae91256a2
+      amazonlinux2023: ami-0d07675d294f17973
+      centos7: ami-03bfba2e75432064e
+      rhel7: ami-0883712f4e7f557f7
+      rhel8: ami-06c6e7482af1d6a44
+      rhel9: ami-0f787d83be0529e6b
+      rocky8: ami-0506f2d559a79a962
+      rocky9: ami-09e8a28b17f72fb50
+  ap-southeast-2:
+    arm64:
+      amazonlinux2: ami-0400c234c13fd2279
+      amazonlinux2023: ami-0e0f47a02ac41b1de
+      centos7: ami-0cfdc63b39f103cab
+      rhel8: ami-01fad098d31ecc1b6
+      rhel9: ami-075b4d9cc937b425d
+      rocky8: ami-02b9a6992a20eed2b
+      rocky9: ami-003e9e061be0f2e23
+    x86_64:
+      amazonlinux2: ami-0ab9dc99bf651c06d
+      amazonlinux2023: ami-01fb4de0e9f8f22a7
+      centos7: ami-0264ead5294ad1773
+      rhel7: ami-01edb389be6d2ae7f
+      rhel8: ami-0b09cff8760f58dd2
+      rhel9: ami-0432e15c1437f2360
+      rocky8: ami-0c470b32d41481ad6
+      rocky9: ami-025f45c2605dafe41
+  ap-southeast-3:
+    arm64:
+      amazonlinux2: ami-0e8edf7ac7fbfef8f
+      amazonlinux2023: ami-0ffff84ac2854cba7
+      rhel8: ami-0de497766cad09308
+      rhel9: ami-00289cc8ab7bd2439
+      rocky8: ami-0f1fbf3a2713e29d4
+      rocky9: ami-0e165ae6a76720340
+    x86_64:
+      amazonlinux2: ami-01d1607fc398c0459
+      amazonlinux2023: ami-097858637f7b56773
+      rhel7: ami-0e1bd60bacf164ead
+      rhel8: ami-00b0e9829ee9c113a
+      rhel9: ami-0a61e4031380b2161
+      rocky8: ami-04835cbf92d9614b9
+      rocky9: ami-0f5e630a2ed384bdf
+  ap-southeast-4:
+    arm64:
+      amazonlinux2: ami-040d2c216228b86ca
+      amazonlinux2023: ami-063ae3f13fa400b17
+      rhel8: ami-0b44e32559cf47c6f
+      rhel9: ami-05fa044061c253b36
+      rocky9: ami-0e7b1761af52a7031
+    x86_64:
+      amazonlinux2: ami-074a098b061c6ab42
+      amazonlinux2023: ami-09b3eb224a8b6932f
+      rhel7: ami-06da521590d467aa7
+      rhel8: ami-0f3fc5dd0a38bcf89
+      rhel9: ami-0071466cf05615815
+      rocky9: ami-08da0cc5b97c692c9
+  ca-central-1:
+    arm64:
+      amazonlinux2: ami-081db5083c01af956
+      amazonlinux2023: ami-0775b0ad41b6845a7
+      centos7: ami-052a1a6ef4db58dd8
+      rhel8: ami-072ddbec425779305
+      rhel9: ami-0a68e15b19da168fe
+      rocky8: ami-0f5efe7bfd55c960f
+      rocky9: ami-0682870a0dcf19c0a
+    x86_64:
+      amazonlinux2: ami-06396c79efa907b53
+      amazonlinux2023: ami-07e35c3920b92d884
+      centos7: ami-01ebef6e00efb2c20
+      rhel7: ami-08ba906b09cdf48ff
+      rhel8: ami-0535511ddcedcb8e3
+      rhel9: ami-0cf98c1d97b16ef87
+      rocky8: ami-0829e4c2a7a2dcce1
+      rocky9: ami-0f1b03832721f928c
+  eu-central-1:
+    arm64:
+      amazonlinux2: ami-04785ab756640e2e9
+      amazonlinux2023: ami-0ed7bb7f9b9a40ea3
+      centos7: ami-0162ae2b9d245b9a5
+      rhel8: ami-024697e6d998e27a9
+      rhel9: ami-0ea2a765094f230d5
+      rocky8: ami-0ef838b0ab2b120cf
+      rocky9: ami-0b399cfd3061e19b9
+    x86_64:
+      amazonlinux2: ami-0857949e0aef0e356
+      amazonlinux2023: ami-0de02246788e4a354
+      centos7: ami-0afcbcee3dfbce929
+      rhel7: ami-058a887d3af3bc23e
+      rhel8: ami-0e69ff31742298df3
+      rhel9: ami-0955dc0147853401b
+      rocky8: ami-03ca52fa7cdd00b6a
+      rocky9: ami-09a799aba9115ff1c
+  eu-central-2:
+    arm64:
+      amazonlinux2: ami-0d341405324f90eab
+      amazonlinux2023: ami-05319e0c55fe13ed6
+      rhel8: ami-050a27a017a682d0f
+      rhel9: ami-08e5ddb1c05f81c74
+      rocky8: ami-099016c45078e5e6f
+      rocky9: ami-06729316edde4a8a7
+    x86_64:
+      amazonlinux2: ami-013b6b1b1ae5a7937
+      amazonlinux2023: ami-0501f3dfc19235d5f
+      rhel7: ami-092d941941bc1cb73
+      rhel8: ami-01be58e96ad925f93
+      rhel9: ami-0f02fc65afb6a12f3
+      rocky8: ami-0a5aa73e9c888d9d7
+      rocky9: ami-007dbefeee6334ace
+  eu-north-1:
+    arm64:
+      amazonlinux2: ami-059f5e191d8cb537a
+      amazonlinux2023: ami-0a44bcbb8b18f238d
+      centos7: ami-00658799cfc32659e
+      rhel8: ami-0431eb8c7bc6f2251
+      rhel9: ami-07cce4e99c2bfdcb5
+      rocky8: ami-0658a56ca2e6da22e
+      rocky9: ami-0e34e748282708942
+    x86_64:
+      amazonlinux2: ami-049700179228bce36
+      amazonlinux2023: ami-090abff6ae1141d7d
+      centos7: ami-0e5125a0f19c52a2b
+      rhel7: ami-0930c6515d30d4867
+      rhel8: ami-0717dacde6ae13b14
+      rhel9: ami-02722f587bb648dd8
+      rocky8: ami-07337a8cbe0c562e0
+      rocky9: ami-02bf4e993e94759b3
+  eu-south-1:
+    arm64:
+      amazonlinux2: ami-009350bd2ff25224e
+      amazonlinux2023: ami-09704c764e9de3a9d
+      centos7: ami-0c28ae8b6a03e9904
+      rhel8: ami-0bab66ff7585d6ad9
+      rhel9: ami-0d87d09da3dcee256
+    x86_64:
+      amazonlinux2: ami-08b3efe7e87abea98
+      amazonlinux2023: ami-0c318278dac68c29a
+      centos7: ami-0a3a6d4d737db3bc1
+      rhel7: ami-03e09da05c106a5bc
+      rhel8: ami-0e0e7abafd8de2b70
+      rhel9: ami-0a2dd9baaebb20ee3
+  eu-south-2:
+    arm64:
+      amazonlinux2: ami-0a6880704ccb18897
+      amazonlinux2023: ami-0574c4ed0061b320b
+      rhel8: ami-0470657c021b28ae5
+      rhel9: ami-05ec99291c411bed0
+    x86_64:
+      amazonlinux2: ami-0e80b33683898382c
+      amazonlinux2023: ami-0a57c72ab235b0e48
+      rhel7: ami-04341b15cf57b1df9
+      rhel8: ami-040a0a18421945f69
+      rhel9: ami-018feaa58cde4abb5
+  eu-west-1:
+    arm64:
+      amazonlinux2: ami-093d190b544720b88
+      amazonlinux2023: ami-037ad15a9d1339e27
+      centos7: ami-0c47424ef2c94b774
+      rhel8: ami-0cfe284654eda9eea
+      rhel9: ami-016e6894567bb7f3e
+      rocky8: ami-00df4f99525a1f494
+      rocky9: ami-022c04080609e74e3
+    x86_64:
+      amazonlinux2: ami-01fe8a5feb270c44b
+      amazonlinux2023: ami-04e49d62cf88738f1
+      centos7: ami-00d464afa64e1fc69
+      rhel7: ami-018e4344af2a62450
+      rhel8: ami-07cca573a2270b39a
+      rhel9: ami-05463a02d11667441
+      rocky8: ami-0c14153c77f34b870
+      rocky9: ami-0d7fe083c4ee72551
+  eu-west-2:
+    arm64:
+      amazonlinux2: ami-08a9de798c694deb4
+      amazonlinux2023: ami-0b83ed92f096185dc
+      centos7: ami-02868404201349f83
+      rhel8: ami-0a4e416c141e7fbbc
+      rhel9: ami-08f6bf74ea1856ebb
+      rocky8: ami-0b1f446eaa206a516
+      rocky9: ami-09e7c72f178c8efc1
+    x86_64:
+      amazonlinux2: ami-0815423524a4fa683
+      amazonlinux2023: ami-0c0493bbac867d427
+      centos7: ami-0de2f45684e59282c
+      rhel7: ami-0c2f9865057c3dfe1
+      rhel8: ami-0f4561039a3fd82b1
+      rhel9: ami-0deb5b5350843668b
+      rocky8: ami-020c6cfb9f8b61b53
+      rocky9: ami-0d6fdacca4c48fc91
+  eu-west-3:
+    arm64:
+      amazonlinux2: ami-0e96273640767abc7
+      amazonlinux2023: ami-06fb5949d912354fe
+      centos7: ami-07dd7b23f721e7bbc
+      rhel8: ami-037d4165bb3537742
+      rhel9: ami-0d0ad9ed0040c6437
+      rocky8: ami-0e9181a90bb5ae7b5
+      rocky9: ami-07dbf6e3bb1d88bdc
+    x86_64:
+      amazonlinux2: ami-071600ac81869d08b
+      amazonlinux2023: ami-0e141aee2812422a2
+      centos7: ami-051806c39fa542e22
+      rhel7: ami-053b42a6733c52f17
+      rhel8: ami-095ce16b90f2025bd
+      rhel9: ami-03b52fe793d616862
+      rocky8: ami-07b9b3580fd50d52d
+      rocky9: ami-0a0e4217ecb395f7c
+  il-central-1:
+    arm64:
+      amazonlinux2: ami-0de8b17347798ac8e
+      amazonlinux2023: ami-04a12d15a9f78dda7
+      rhel8: ami-0ac3ac00e41c0d1ba
+      rhel9: ami-0d8f86190f94f996f
+      rocky9: ami-0623aeb9b0a465192
+    x86_64:
+      amazonlinux2: ami-0640020bef3d224e2
+      amazonlinux2023: ami-068333e9ba1375032
+      rhel7: ami-0fa62108f2a0dfad2
+      rhel8: ami-00d4763fabd6fd6ce
+      rhel9: ami-08b563656e23abbd1
+      rocky8: ami-0377ead6e1ad34093
+      rocky9: ami-05882b763f1cbf1c1
+  me-central-1:
+    arm64:
+      amazonlinux2: ami-02672867c9282e2d2
+      amazonlinux2023: ami-029c42ed55c1c3346
+      rhel8: ami-0adec92bbdd168097
+      rhel9: ami-079a9c7b2be6a96cc
+      rocky8: ami-0fc2d19cf2e40bd59
+      rocky9: ami-08dc317fb8afd6f40
+    x86_64:
+      amazonlinux2: ami-0be16447e80cf7beb
+      amazonlinux2023: ami-031a2b1167c7825e1
+      rhel8: ami-04a8ac5b1e577d6a8
+      rhel9: ami-0804fcd0c9d5602a3
+      rocky8: ami-04261ed32e4298d90
+      rocky9: ami-09bf99fc628c0912c
+  me-south-1:
+    arm64:
+      amazonlinux2: ami-0a2679e50498ec4f9
+      amazonlinux2023: ami-0099f0427ab2d38f0
+      centos7: ami-02d946c5a59126c32
+      rhel8: ami-07d2dc6177a38c4e2
+      rhel9: ami-0266afcf2bfeabfb0
+    x86_64:
+      amazonlinux2: ami-0476fdc6ebc9d5d1b
+      amazonlinux2023: ami-0cb9129ea67ae7772
+      centos7: ami-09ce1cd69cab28540
+      rhel7: ami-0b6a0e920d35d15a7
+      rhel8: ami-0ebfa8c20abfe50d4
+      rhel9: ami-05885909e5d92d1cd
+  sa-east-1:
+    arm64:
+      amazonlinux2: ami-0eef653098fbdf7fe
+      amazonlinux2023: ami-09c93fe46ff4f809a
+      centos7: ami-05b835a95ace17eee
+      rhel8: ami-02d8715b96a441766
+      rhel9: ami-05d536bbd6689bd7f
+      rocky8: ami-06d4e0be515dfc2fb
+      rocky9: ami-0d15dd8a934c316c7
+    x86_64:
+      amazonlinux2: ami-0b4f2520bb50d26fe
+      amazonlinux2023: ami-02fa57d93f94ce999
+      centos7: ami-015f6bf0657816a2d
+      rhel7: ami-0562b80a8716922c9
+      rhel8: ami-07cbf119a99868262
+      rhel9: ami-05ba0c0708665878f
+      rocky8: ami-0070a028fc72c8f48
+      rocky9: ami-0fa2c87c934f04252
+  us-east-1:
+    arm64:
+      amazonlinux2: ami-0adec96dc0cdc7bca
+      amazonlinux2023: ami-023508951a94f0c71
+      centos7: ami-0144a5a84f5699847
+      rhel8: ami-0b354996440c75a09
+      rhel9: ami-0677a1dd1ad031d74
+      rocky8: ami-0ad512af1b9f6ef91
+      rocky9: ami-0fc64ba2d77588988
+    x86_64:
+      amazonlinux2: ami-075d39ebbca89ed55
+      amazonlinux2023: ami-066784287e358dad1
+      centos7: ami-0aedf6b1cb669b4c7
+      rhel7: ami-045393c081cabeb1f
+      rhel8: ami-0140c344ea05bbd7a
+      rhel9: ami-0fc8883cbe9d895c8
+      rocky8: ami-011ef2017d41cb239
+      rocky9: ami-09fb459fad4613d55
+  us-east-2:
+    arm64:
+      amazonlinux2: ami-030cb86c12b18e236
+      amazonlinux2023: ami-01dafc80107095530
+      centos7: ami-0fb25f99cfe1c665e
+      rhel8: ami-09c943cd75e225dac
+      rhel9: ami-0ca193da3899e17cf
+      rocky8: ami-0aa5b64f9b561d20f
+      rocky9: ami-047e0292bc00ae1de
+    x86_64:
+      amazonlinux2: ami-09e5a7cd9561f8ea9
+      amazonlinux2023: ami-0490fddec0cbeb88b
+      centos7: ami-033adaf0b583374d4
+      rhel7: ami-00342897eb8ba6355
+      rhel8: ami-03b59d2a779dad4d3
+      rhel9: ami-05e5be364adedee9c
+      rocky8: ami-02391db2758465a87
+      rocky9: ami-051a0f669bb174783
+  us-west-1:
+    arm64:
+      amazonlinux2: ami-02872c3485cc3d231
+      amazonlinux2023: ami-0ca3c47f559a03429
+      centos7: ami-0de261f921415431f
+      rhel8: ami-072b58b8616ffa79a
+      rhel9: ami-0aab7cc073aa90e60
+      rocky8: ami-0f2bb3fdc66a1ac0e
+      rocky9: ami-0391c18923891fd73
+    x86_64:
+      amazonlinux2: ami-0d34a8cd52a5c5dc7
+      amazonlinux2023: ami-04fdea8e25817cd69
+      centos7: ami-0bcd12d19d926f8e9
+      rhel7: ami-039ca986f21216c27
+      rhel8: ami-05d4a6f46c54dcb89
+      rhel9: ami-0449c60bfdb76e0f0
+      rocky8: ami-054c64de4b29296be
+      rocky9: ami-0330dd4a36fc4e130
+  us-west-2:
+    arm64:
+      amazonlinux2: ami-0546915e103409aa4
+      amazonlinux2023: ami-018360301dddadc80
+      centos7: ami-0fbf55055efe5787e
+      rhel8: ami-09250b61092f883c3
+      rhel9: ami-04379fa947a959c92
+      rocky8: ami-06459b48b47a92d77
+      rocky9: ami-020c8c50eac470f20
+    x86_64:
+      amazonlinux2: ami-08578967e04feedea
+      amazonlinux2023: ami-02d3770deb1c746ec
+      centos7: ami-04f798ca92cc13f74
+      rhel7: ami-01788be7cc93be6ee
+      rhel8: ami-0be9dd52e05f424f3
+      rhel9: ami-0c2f1f1137a85327e
+      rocky8: ami-0f74cc83310468775
+      rocky9: ami-04d0e02543f123fcf
+  us-gov-east-1:
+    arm64:
+      amazonlinux2: ami-091e95168e02a07ad
+      amazonlinux2023: ami-0469357509c4be210
+    x86_64:
+      amazonlinux2: ami-08fcd8d2370a19ec4
+      amazonlinux2023: ami-0a0465cf2e5617b6b
+      rhel7: ami-04291455a9270b455
+  us-gov-west-1:
+    arm64:
+      amazonlinux2: ami-0acacc987af9c1ad6
+      amazonlinux2023: ami-09930e9f0b834209c
+    x86_64:
+      amazonlinux2: ami-093bd0b2efd952c55
+      amazonlinux2023: ami-027df2a503cc3237f
+      rhel7: ami-09616d1f2ecd77e9b
+

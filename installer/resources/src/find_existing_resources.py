@@ -20,7 +20,8 @@ from installer.resources.src.prompt import get_input as get_input
 import os
 from rich import print
 from rich.console import Console
-from rich.table import Column, Table
+from rich.table import Table
+from collections import defaultdict
 
 try:
     import boto3
@@ -44,13 +45,16 @@ class FindExistingResource:
         self.ds = session.client("ds")
         self.es = session.client("es")
         self.iam = session.client("iam")
+        self.pcs = session.client("pcs")
         self.install_parameters = {}
         self.cache = {}
         self.console = Console(record=True)
 
+
+
     def find_vpc(self):
         vpc_table = Table(title=f"Select the VPC # in {self.region} for SOCA deployment", show_lines=True, highlight=True)
-        for _col_name in ["#", "VPC ID", "VPC Name", "VPC CIDRs"]:
+        for _col_name in ["#", "VPC ID", "VPC Name", "VPC CIDRs", "Information"]:
             vpc_table.add_column(_col_name, justify="center")
 
         try:
@@ -80,6 +84,8 @@ class FindExistingResource:
                     vpcs_by_name[resource_name] = vpc
             vpcs = {}
             count = 1
+            # List of VPCs that match the required attributes (VPC attributes)
+            _vpc_allowed_list: list = []
 
             for resource_name in sorted(vpcs_by_name):
                 vpc = vpcs_by_name[resource_name]
@@ -98,17 +104,57 @@ class FindExistingResource:
 
                 _cidr_str: str = '\n'.join(_cidr_for_vpc)
 
+                # check VPC for some required attributes
+                _vpc_allowed: bool = True
+                _vpc_attributes: dict = {
+                    "enableDnsSupport": False,
+                    "enableDnsHostnames": False,
+                }
+
+                _info_txt_list: list = []
+
+                for _vpc_attribute in _vpc_attributes:
+                    _vpc_cap = _vpc_attribute[0].upper() + _vpc_attribute[1:]  # enableDnsSupport -> EnableDnsSupport (to match JSON values)
+                    _vpc_attribute_support: dict = self.ec2.describe_vpc_attribute(
+                        VpcId=vpc.get("VpcId", ""),
+                        Attribute=_vpc_attribute,
+                    )
+                    # print(f"DEBUG - Checking VPC for {_vpc_cap} - {_vpc_attribute_support}")
+                    _vpc_attributes[_vpc_attribute] = _vpc_attribute_support.get(_vpc_cap, {}).get("Value", False)
+                    if not _vpc_attributes[_vpc_attribute]:
+                        _info_txt_list.append(f"[bold red]Error-{_vpc_attribute} missing[/]")
+                        _vpc_allowed = False
+
                 vpcs[count] = {
                     "id": vpc["VpcId"],
                     "description": f"{resource_name if resource_name else ''} {vpc['VpcId']} {vpc['CidrBlock']}",
                     "cidr": vpc["CidrBlock"],
+                    "dns_support":  _vpc_attributes["enableDnsSupport"],
+                    "dns_hostnames": _vpc_attributes["enableDnsHostnames"],
                 }
-                vpc_table.add_row(f"[green]{count}[/green]", f"[cyan]{vpc['VpcId']}[/cyan]", f"[magenta]{resource_name}[/magenta]", str(_cidr_str))
+
+                vpc_table.add_row(
+        f"[green]{count}[/green]",
+                    f"[cyan]{vpc['VpcId']}[/cyan]",
+                    f"[magenta]{resource_name}[/magenta]",
+                    str(_cidr_str),
+                    "\n".join(_info_txt_list),
+                )
+
+                if _vpc_allowed:
+                    _vpc_allowed_list.append(count)
+
                 count += 1
 
             print(vpc_table)
 
-            allowed_choices = list(range(1, count))
+            # Only allow selection of valid VPCs (that have properly configured VPC attributes)
+            if not _vpc_allowed_list:
+                print(f"[red]FATAL ERROR: Unable to location any valid VPCs in region {self.region}. Please see the VPC Table for specific errors.[default]")
+                sys.exit(1)
+
+            allowed_choices = list(_vpc_allowed_list)
+
             choice = get_input(
                 prompt=f"Choose the VPC you want to use?",
                 specified_value=None,
@@ -124,50 +170,88 @@ class FindExistingResource:
     def find_elasticsearch(self, vpc_id):
         try:
             es = {}
-            count = 0
-            for es_cluster in self.es.list_domain_names()["DomainNames"]:
-                count += 1
-                _domain_name = es_cluster.get("DomainName", "unknown-domain-name")
-                domain_info = self.es.describe_elasticsearch_domain(
+            count = 1
+            # No Paginator support 27 Sep 2024
+            for _analytics_cluster in self.es.list_domain_names(EngineType="OpenSearch").get("DomainNames", []):
+                _domain_name = _analytics_cluster.get("DomainName", "")
+                if not _domain_name:
+                    continue
+
+                _domain_info = self.es.describe_elasticsearch_domain(
                     DomainName=_domain_name
                 )
 
-                _domain_created: bool = domain_info.get("DomainStatus", {}).get("Created", False)
-                _domain_deleted: bool = domain_info.get("DomainStatus", {}).get("Deleted", False)
+                _domain_status: dict = _domain_info.get("DomainStatus", {})
 
-                if _domain_created and not _domain_deleted:
+                if not _domain_status:
+                    continue
+
+                _domain_created: bool = _domain_status.get("Created", False)
+                _domain_deleted: bool = _domain_status.get("Deleted", False)
+                _domain_upgrade_processing: bool = _domain_status.get("UpgradeProcessing", False)
+                _domain_version: str = _domain_status.get("ElasticsearchVersion", "")
+
+                if _domain_created and not _domain_deleted and not _domain_upgrade_processing:
                     _endpoint = None
-                    if domain_info["DomainStatus"]["VPCOptions"]["VPCId"] == vpc_id:
-                        for scope, endpoint in domain_info.get("DomainStatus", {}).get("Endpoints", {}).items():
-                            _endpoint = endpoint
+                    _domain_vpc: str = _domain_status.get("VPCOptions", {}).get("VPCId", "")
 
-                        es[count] = {
-                            "name": _domain_name,
-                            "engine": es_cluster.get("EngineType", "unknown-engine"),
-                            "endpoint": _endpoint
-                        }
-                        # Only increment the count in the loop for valid domain listings
-                        count += 1
+                    # No VPC info
+                    if not _domain_vpc:
+                        continue
+
+                    # Not our VPC
+                    if _domain_vpc != vpc_id:
+                        continue
+
+                    for scope, endpoint in _domain_status.get("Endpoints", {}).items():
+                        _endpoint = endpoint
+                    if not _endpoint:
+                        # The domain is not ready for us - no endpoints found
+                        continue
+
+                    es[count] = {
+                        "name": _domain_name,
+                        "engine": _analytics_cluster.get("EngineType", "unknown-engine"),
+                        "version": _domain_version,
+                        "endpoint": _endpoint
+                    }
+                    # Only increment the count in the loop for valid domain listings
+                    count += 1
 
             if count <= 0:
                 # This happens when you select existing resources but there are none found
                 # So we have to error at this stage.
-                print(f"[red]FATAL ERROR: Unable to location any valid Analytics engines in region {self.region} - VPC {vpc_id}. Please confirm and try again or re-run and select 'new' to create a new one.[default]")
+                print(f"[red]FATAL ERROR: Unable to locate any valid Analytics engines in region {self.region} - VPC {vpc_id}. Please confirm and try again or re-run and select 'new' to create a new one.[default]")
                 sys.exit(1)
 
             print(
-                f"\n====== What [misty_rose3]OpenSearch / ElasticSearch cluster[default] do you want to use? [region: {self.region}, vpc: {vpc_id}] ======\n"
+                f"\n====== What [misty_rose3]OpenSearch cluster[default] do you want to use? [region: {self.region}, vpc: {vpc_id}] ======\n"
             )
 
+            _opensearch_table = Table(show_header=True, show_lines=True, header_style="bold")
+            _opensearch_table.add_column("ID", justify="center")
+            _opensearch_table.add_column("Name", justify="center")
+            _opensearch_table.add_column("Engine", justify="center")
+            _opensearch_table.add_column("Endpoint", justify="center")
+
             for key, value in es.items():
-                print(f"    {key} > {value.get('name')} ({value.get('engine')}) via {value.get('endpoint')}")
+                _opensearch_table.add_row(
+                    str(key),
+                    value.get('name'),
+                    value.get('version'),
+                    value.get('endpoint')
+                )
+                # print(f"    {key} > {value.get('name')} ({value.get('engine')}) via {value.get('endpoint')}")
+
+            print(_opensearch_table)
 
             allowed_choices = list(es.keys())
             choice = get_input(
-                f"Choose the OpenSearch/ElasticSearch Cluster you want to use?",
-                None,
-                allowed_choices,
-                int,
+                prompt=f"Choose the OpenSearch Cluster you want to use?",
+                specified_value=None,
+                expected_answers=allowed_choices,
+                expected_type=int,
+                show_expected_answers=False,
             )
 
             return {"success": True, "message": es[choice]}
@@ -312,15 +396,18 @@ class FindExistingResource:
                         "description": subnet_description,
                     }
 
-                    _feature_str: str = ""
+                    # Populate some feature notes for the subnet
+                    _feature_list: list = []
                     if is_default:
-                        _feature_str += "Default"
+                        _feature_list.append("Default")
+
                     # Mark subnets where we see SOCA in the name
                     if "soca" in resource_name.lower():
-                        _feature_str += "SOCA"
+                        _feature_list.append("SOCA")
+
                     if is_outpost:
                         outpost_arn = ':'.join(outpost_arn.split(':')[3:])
-                        _feature_str += f"Outpost:\n{outpost_arn}"
+                        _feature_list.append(f"Outpost:\n{outpost_arn}")
 
                     subnet_table.add_row(
                         f"[green]{count}[/green]",
@@ -328,14 +415,10 @@ class FindExistingResource:
                         f"[magenta]{resource_name}[/magenta]",
                         _cidr_str,
                         f"[yellow]{_az_str}[/yellow]",
-                        _feature_str,
+                        "\n".join(_feature_list),
                     )
                     count += 1
 
-            # [
-            #     print("    {:2} > {}".format(key, value["description"]))
-            #     for key, value in subnets.items()
-            # ]
             print(subnet_table)
 
             selected_subnets_count = get_input(
@@ -380,6 +463,7 @@ class FindExistingResource:
         except Exception as err:
             return {"success": False, "message": str(err)}
 
+
     def get_fs(self, environment: str, vpc_id: str, filesystems: dict, selected_fs=None) -> dict:
 
         fs_table = Table(
@@ -391,9 +475,9 @@ class FindExistingResource:
         for _col_name in ["#", "Type", "ID", "Name", "Size", "Features"]:
             fs_table.add_column(_col_name, justify="center")
 
-        #print(f"DEBUG - Filesystems passed to get_fs(): {filesystems}")
+        # print(f"DEBUG - Filesystems passed to get_fs(): {filesystems}")
 
-        if len(filesystems) == 0:
+        if not filesystems:
             return {"success": False, "message": f"No filesystems found in VPC {vpc_id}"}
 
         if selected_fs is None:

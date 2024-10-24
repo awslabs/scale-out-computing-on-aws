@@ -1,0 +1,46 @@
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# Begin: Install Python on the Controller Host
+# This function install SOCA python. It's only executing by the Controller Host during the first boot.
+# SOCA python is the backbone of SOCA, responsible to run all scripts under cluster_manager, cluster_analytics, cluster_web_ui etc ...
+# It's not recommended to change this template
+{% if context.get("/configuration/BaseOS") in ("amazonlinux2", "amazonlinux2023", "centos7", "rhel7", "rhel8", "rhel9", "rocky8", "rocky9") %}
+function install_soca_python () {
+  log_info "Installing SOCA Python"
+  pushd /root
+  local PYTHON_VERSION="{{ context.get("/system/python/version") }}"
+  local PYTHON_URL="{{ context.get("/system/python/url") }}"
+  local PYTHON_TGZ="{{ context.get("/system/python/tgz") }}"
+  local PYTHON_SHA256="{{ context.get("/system/python/sha256") }}"
+  local PYTHON_INSTALLED_VERS=$(/apps/soca/"{{ context.get("/configuration/ClusterId") }}"/python/latest/bin/python3 --version | awk {'print $NF'})
+
+  if [[ "${PYTHON_INSTALLED_VERS}" != "${PYTHON_VERSION}" ]]; then
+    log_info "SOCA Python not detected, installing"
+    mkdir -p /root/soca_python/"{{ context.get("/configuration/ClusterId") }}"/python/installer
+    cd /root/soca_python/"{{ context.get("/configuration/ClusterId") }}"/python/installer
+    wget "${PYTHON_URL}"
+    if [[ $(sha256sum "${PYTHON_TGZ}" | awk '{print $1}') != "${PYTHON_SHA256}" ]];  then
+        echo -e "FATAL ERROR: Checksum for Python failed. File may be compromised." > /etc/motd
+        exit 1
+    fi
+    tar xvf ${PYTHON_TGZ}
+    cd "Python-${PYTHON_VERSION}"
+    ./configure LDFLAGS="-L/usr/lib64/openssl" CPPFLAGS="-I/usr/include/openssl" -enable-loadable-sqlite-extensions --prefix="/apps/soca/{{ context.get("/configuration/ClusterId") }}/python/${PYTHON_VERSION}"
+    make -j $(nproc)
+    make install
+    ln -sf "/apps/soca/{{ context.get("/configuration/ClusterId") }}/python/${PYTHON_VERSION}" "/apps/soca/{{ context.get("/configuration/ClusterId") }}/python/latest"
+  else
+    log_info "Python already installed and at correct version (${PYTHON_VERSION})."
+  fi
+
+  # Install Python required libraries
+  echo "{%- include  "templates/linux/soca_python_requirements.txt.j2" -%}" > /root/requirements.txt
+
+  /apps/soca/{{ context.get("/configuration/ClusterId") }}/python/${PYTHON_VERSION}/bin/pip3 install -r /root/requirements.txt
+  popd
+  log_info "Python and relevant dependency installed"
+}
+install_soca_python
+{% endif %}
+# End: : Install Python on the Controller Host

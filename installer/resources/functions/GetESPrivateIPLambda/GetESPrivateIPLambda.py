@@ -21,50 +21,71 @@ Get prefix list id
 logging.getLogger().setLevel(logging.INFO)
 
 
+ec2_client = boto3.client("ec2")
+
+
 def lambda_handler(event, context):
     try:
         logging.info(f"event: {event}")
-        requestType = event["RequestType"]
-        if requestType == "Delete":
+        request_type: str = event.get("RequestType", "")
+        logging.info(f"Request Type: {request_type}")
+
+        if request_type == "Delete":
             cfnresponse.send(event, context, cfnresponse.SUCCESS, {}, "")
             return
-        ClusterId = event["ResourceProperties"]["ClusterId"]
-        logging.info("ClusterId: " + ClusterId)
-        ec2_client = boto3.client("ec2")
-        response = ec2_client.describe_network_interfaces(
+
+        cluster_id: str = event.get("ResourceProperties", []).get("ClusterId", "")
+        logging.info(f"ClusterId: {cluster_id}")
+
+        if not cluster_id:
+            msg = "ClusterId not provided"
+            logging.error(msg)
+            cfnresponse.send(event, context, cfnresponse.FAILED, {"error": msg}, msg)
+
+
+        _ec2_paginator = ec2_client.get_paginator("describe_network_interfaces")
+        _ec2_page_iterator = _ec2_paginator.paginate(
             Filters=[
-                {"Name": "description", "Values": ["ES " + ClusterId]},
+                {"Name": "description", "Values": ["ES " + cluster_id]},
                 {"Name": "requester-id", "Values": ["amazon-elasticsearch"]},
             ]
         )
-        ipAddresses = []
-        for networkInterface in response["NetworkInterfaces"]:
-            logging.debug(networkInterface)
-            az = networkInterface["AvailabilityZone"]
-            logging.info("AZ: " + az)
-            for privateIpAddress in networkInterface["PrivateIpAddresses"]:
-                logging.debug(privateIpAddress)
-                ipAddress = privateIpAddress["PrivateIpAddress"]
-                logging.info("ipAddress:" + ipAddress)
-                ipAddresses.append(ipAddress)
-        if len(ipAddresses) == 0:
+
+        ip_addresses: list = []
+        logging.info("Getting IP addresses")
+        for response in _ec2_page_iterator:
+            for networkInterface in response.get("NetworkInterfaces", []):
+                logging.debug(networkInterface)
+
+                az = networkInterface.get("AvailabilityZone", "")
+                logging.info(f"AZ: {az}")
+                if not az:
+                    continue
+
+                for private_ip_address in networkInterface.get("PrivateIpAddresses", []):
+                    logging.debug(private_ip_address)
+                    ip_address = private_ip_address.get("PrivateIpAddress", "")
+                    logging.info(f"ipAddress: {ip_address}")
+                    if ip_address not in ip_addresses:
+                        ip_addresses.append(ip_address)
+
+
+        if not ip_addresses:
             msg = "No IP addresses found"
             logging.error(msg)
             cfnresponse.send(event, context, cfnresponse.FAILED, {"error": msg}, msg)
         else:
-            ipAddressesStr = ",".join(ipAddresses)
+            ip_addresses_str = ",".join(ip_addresses)
             cfnresponse.send(
                 event,
                 context,
                 cfnresponse.SUCCESS,
-                {"IpAddresses": ipAddressesStr},
-                str(ipAddresses),
+                {"IpAddresses": ip_addresses_str},
+                str(ip_addresses),
             )
     except:
         logging.exception("Caught exception")
-        error_message = (
-            f"Exception getting private IP addresses for ES soca-{ClusterId}"
-        )
+        error_message = "Exception getting private IP addresses for ES"
         cfnresponse.send(
             event, context, cfnresponse.FAILED, {"error": error_message}, error_message
         )

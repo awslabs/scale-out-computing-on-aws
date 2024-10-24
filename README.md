@@ -1,4 +1,19 @@
-# Scale-Out Computing on AWS - HPC made easy :palm_tree:
+# Scale-Out Computing on AWS - CAE Made Easy :palm_tree:
+
+Scale-Out Computing on AWS (SOCA) is a complete environment designed to help you run and operate a Computer Aided Simulations (CAE) environment on AWS and run CAE simulations at scale.
+Key Features:
+
+- Web Interface
+- Linux and Windows Virtual Desktops (with or without dedicated GPUs)
+- CAE Simulations job submission via CLI or Web portal
+- Integration with OpenLDAP or Microsoft Active Directory
+- Multi Operating System Support (Windows, Amazon Linux, Red Hat Enterprise Linux, CentOS, Rocky ...)
+- Native support for Engineering Licenses Server (e.g: FlexLM)
+- Smart Instance Provisioning (on-demand, spot, alwayson ...)
+- Integration with all storage providers (EBS, FSx Lustre/NetApp ONTAP, local NVME, Elastic File System ...)
+- Budgets and Cost Management
+- SSO
+- Analytics Dashboards and more ! 
 
 ## :book: Documentation
 
@@ -8,23 +23,6 @@
 
 Refer to [https://awslabs.github.io/scale-out-computing-on-aws/tutorials/install-soca-cluster/](https://awslabs.github.io/scale-out-computing-on-aws/tutorials/install-soca-cluster/) for installation instructions.
 
-## :pencil2: File Structure
-Scale-Out Computing on AWS project consists in a collection of CloudFormation templates, Shell scripts and Python code.
-```bash
-.
-├── soca
-│   ├── cluster_analytics                               [ Scripts to ingest cluster/job data into ELK ]
-│   ├── cluster_hooks                                   [ Scheduler Hooks ]
-│   ├── cluster_logs_management                         [ Scripts to manage cluster log rotation ]
-│   ├── cluster_manager                                 [ Scripts to control Soca cluster ]
-│   ├── cluster_web_ui                                  [ Web Interface ]
-│   └── cluster_node_bootstrap                          [ Script to configure compute nodes]
-└── scripts
-   ├── config.cfg                                      [ List of all packages to install ]
-   ├── Scheduler.sh                                    [ Configure Schedule Node ]
-   └── SchedulerPostReboot.sh                          [ Post Reboot Scheduler Node actions ]
-
-```
 
 This solution collects anonymous operational metrics to help AWS improve the quality of features of the solution. For more information, including how to disable this capability, please see the [https://docs.aws.amazon.com/solutions/latest/scale-out-computing-on-aws/appendix-d.html](https://docs.aws.amazon.com/solutions/latest/scale-out-computing-on-aws/appendix-d.html).
 

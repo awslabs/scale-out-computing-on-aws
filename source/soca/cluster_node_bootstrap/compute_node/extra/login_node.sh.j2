@@ -1,0 +1,13 @@
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+log_info "Checking if host is a Login Node machine"
+{% if context.get("/job/NodeType") == "login_node" %}
+  log_info "Login Node Detected, performing additional actions ... "
+
+  # Create Static Host Key for sshd to avoid SSH fingerprint error as Login Nodes can be replaced via AutoScaling
+  {% include "templates/linux/create_ssh_static_hostkey.sh.j2" %}
+
+{% else %}
+  log_info "This host is not a login node."
+{% endif %}

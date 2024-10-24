@@ -1,0 +1,92 @@
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# These functions are available on all services (compute node, login node, scheduler ...) via `common.sh.j2`
+
+function packages_remove () {
+  # Remove specified packages
+  if [[ $# -eq 0 ]]; then
+    log_info "No package list specified. Exiting... "
+    exit_fail
+  fi
+
+  {% if context.get("/configuration/BaseOS") in ("amazonlinux2", "amazonlinux2023", "centos7", "rhel7") %}
+    packages_exec_command yum remove -y "${@}"
+  {% elif context.get("/configuration/BaseOS") in ("rhel8", "rhel9", "rocky8", "rocky9") %}
+    packages_exec_command dnf remove -y "${@}"
+  {% elif context.get("/configuration/BaseOS") == "ubuntu2204" %}
+    packages_exec_command apt-get remove -y "${@}"
+  {% endif %}
+}
+
+function packages_install () {
+  # Install specified packages
+  if [[ $# -eq 0 ]]; then
+    log_info "No package list specified. Exiting... "
+    exit_fail
+  fi
+
+  {% if context.get("/configuration/BaseOS") in ("amazonlinux2", "amazonlinux2023", "centos7", "rhel7") %}
+    packages_exec_command yum install -y "${@}"
+  {% elif context.get("/configuration/BaseOS") in ("rhel8", "rhel9", "rocky8", "rocky9") %}
+    packages_exec_command dnf install -y "${@}"
+  {% elif context.get("/configuration/BaseOS") == "ubuntu2204" %}
+    packages_exec_command apt-get install -y "${@}"
+  {% endif %}
+}
+
+function verify_package_installed () {
+  # Return "true" is a given package is installed
+  if [[ $# -eq 0 ]]; then
+    log_info "No package list specified. Exiting... "
+    exit_fail
+  fi
+
+  {% if context.get("/configuration/BaseOS") in ("amazonlinux2", "amazonlinux2023", "centos7", "rhel7", "rhel8", "rhel9", "rocky8", "rocky9") %}
+    rpm -q ${1} &> /dev/null &&  return 0 || return 1
+  {% endif %}
+}
+
+function packages_clean () {
+  # Remove un-necessary packages
+  {% if context.get("/configuration/BaseOS") in ("amazonlinux2", "amazonlinux2023", "centos7", "rhel7") %}
+    packages_exec_command yum clean all
+  {% elif context.get("/configuration/BaseOS") in ("rhel8", "rhel9", "rocky8", "rocky9") %}
+    packages_exec_command dnf clean all
+  {% elif context.get("/configuration/BaseOS") == "ubuntu2204" %}
+    packages_exec_command apt-get clean
+  {% endif %}
+}
+
+function packages_generic_command() {
+  # generic wrapper for commands other than install/remove
+  {% if context.get("/configuration/BaseOS") in ("amazonlinux2", "amazonlinux2023", "centos7", "rhel7") %}
+    packages_exec_command yum "${@}"
+  {% elif context.get("/configuration/BaseOS") in ("rhel8", "rhel9", "rocky8", "rocky9") %}
+    packages_exec_command dnf "${@}"
+  {% elif context.get("/configuration/BaseOS") == "ubuntu2204" %}
+    packages_exec_command apt-get "${@}"
+  {% endif %}
+}
+
+function packages_exec_command () {
+  # wrapper for all exec commands
+  local MAX_ATTEMPTS=10
+  local ATTEMPT_NUMBER=1
+  local EXEC_COMMAND=("$@")
+  log_info "Attempting to run ${EXEC_COMMAND}"
+  while [[ ${ATTEMPT_NUMBER} -le ${MAX_ATTEMPTS} ]]; do
+    log_info "Attempt ${ATTEMPT_NUMBER}/${MAX_ATTEMPTS})"
+    "${EXEC_COMMAND[@]}"
+    if [[ $? -eq 0 ]]; then
+      log_info "Command successful after: ${ATTEMPT_NUMBER}/${MAX_ATTEMPTS} attempts"
+      return
+    else
+      log_error "Command failed on Attempt ${ATTEMPT_NUMBER}/${MAX_ATTEMPTS} . Sleeping for 60sec for retry"
+      sleep 60
+      ((ATTEMPT_NUMBER++))
+    fi
+  done
+  log_error "Command failed after all attempts, exiting .."
+  exit_fail
+}

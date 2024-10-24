@@ -1,0 +1,139 @@
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# Begin: Mount FSx Lustre
+{% if context.get("/configuration/BaseOS") in ("amazonlinux2", "amazonlinux2023", "centos7", "rhel7", "rhel8", "rhel9", "rocky8", "rocky9") %}
+
+{% if "templates/linux/shared_storage/mount_fsx_lustre.sh.j2" not in included_templates %}
+   {% if included_templates is not defined %}
+     # Ensure function is only included once
+      {% set included_templates = ["templates/linux/shared_storage/mount_fsx_lustre.sh.j2"] %}
+   {% else %}
+      {% set included_templates = included_templates + ["templates/linux/shared_storage/mount_fsx_lustre.sh.j2"] %}
+   {% endif %}
+
+{% if context.get("/configuration/BaseOS") in ("rhel7", "rhel8", "rhel9", "rocky8", "rocky9") %}
+function rhel_driver_install {
+  log_info "Installing FSx Lustre Driver for RHEL based distro"
+  local EL_VERSION=${1}
+  local REPO_VERSION_REWRITE=${2}
+
+  if [[ ! ${EL_VERSION} =~ ^(7|8|9)$ ]]; then
+    log_error "EL Version must be either 7, 8 or 9"
+  else
+    log_info "Getting FSx Lustre repo for RHEL distros version ${EL_VERSION}"
+    wget https://fsx-lustre-client-repo-public-keys.s3.amazonaws.com/fsx-rpm-public-key.asc -O /tmp/fsx-rpm-public-key.asc
+    {% if context.get("/configuration/BaseOS") in ("centos7", "rhel7", "rhel8", "rhel9", "rocky8", "rocky9") %}
+    rpm --import /tmp/fsx-rpm-public-key.asc
+    {% endif %}
+    wget https://fsx-lustre-client-repo.s3.amazonaws.com/el/"${EL_VERSION}"/fsx-lustre-client.repo -O /etc/yum.repos.d/aws-fsx.repo
+
+    if [[ -n "${REPO_VERSION_REWRITE}" ]]; then
+      echo "SED Rewrite enabled {$REPO_VERSION_REWRITE}"
+      sed -i "${REPO_VERSION_REWRITE}" /etc/yum.repos.d/aws-fsx.repo
+    fi
+
+    packages_clean
+    packages_install kmod-lustre-client lustre-client
+  fi
+  log_info "FSx Driver installed"
+}
+{% endif %}
+
+function mount_fsx_lustre {
+  log_info "Preparing FSx Lustre mount"
+  local FSX_ENDPOINT="${1}" # FSxL DNS
+  local MOUNT_POINT="${2}" # Local linux folder to use as mountpoint
+  local FSX_ID=$(echo "${FSX_ENDPOINT}" | cut -d. -f1)
+  local GET_FSX_MOUNT_NAME=$(echo "${FSX_ENDPOINT}" | cut -d"@tcp:/" -f2)
+  local KERNEL=$(uname -r)
+  local MACHINE=$(uname -m)
+
+  for ((LIFECYCLE_VERIFICATION=1; LIFECYCLE_VERIFICATION<=30; LIFECYCLE_VERIFICATION++)); do
+      log_info "Verifying if ${FSX_ID} is in AVAILABLE state ..."
+      if [[ $(aws_cli fsx describe-file-systems --file-system-ids "${FSX_ID}" --query FileSystems[].Lifecycle --output text) == "AVAILABLE" ]]; then
+        break
+      else
+        log_error "FSx Lustre Not available yet .. trying again in 60 seconds, attempt ${LIFECYCLE_VERIFICATION}"
+      fi
+      if [[ ${LIFECYCLE_VERIFICATION} -eq 30 ]]; then
+          log_error "Unable to determine if the filesystem is in AVAILABLE state after 30 attempts. Exiting."
+          exit_fail
+      fi
+      sleep 60
+    done
+
+  if [[ -z ${FSX_MOUNT_MOUNT_NAME} ]]; then
+    log_info "FSX Mount Name not specified, trying to retrieve it"
+    GET_FSX_MOUNT_NAME=$(aws_cli fsx describe-file-systems --file-system-ids "${FSX_ID}" --query FileSystems[].LustreConfiguration.MountName --output text)
+    log_info "Mount Name: ${GET_FSX_MOUNT_NAME}"
+  fi
+
+  if grep -qF "${FSX_ENDPOINT}@tcp:/${GET_FSX_MOUNT_NAME} ${MOUNT_POINT}" /etc/fstab; then
+    log_error "This entry seems to already exist on /etc/fstab, skipping it"
+    echo -n "success"
+    return
+  fi
+
+  if mount | grep -q "${MOUNT_POINT}"; then
+    log_error "${MOUNT_POINT} is already mounted to a different disk"
+    exit_fail
+  fi
+
+  log_info "Creating ${MOUNT_POINT} if it does not exist"
+  mkdir -p ${MOUNT_POINT}
+
+  log_info "Preparing to install Lustre driver on kernel version: ${KERNEL} running on: ${MACHINE}"
+  if ! verify_package_installed lustre-client; then
+    # Install FSx for Lustre Client
+    # https://docs.aws.amazon.com/fsx/latest/LustreGuide/install-lustre-client.html
+    log_info "FSx Lustre Client not installed, installing it .. "
+    {% if context.get("/configuration/BaseOS") == "amazonlinux2" %}
+      amazon-linux-extras install -y lustre
+    {% elif context.get("/configuration/BaseOS") == "amazonlinux2023" %}
+      packages_install lustre-client
+    {% elif context.get("/configuration/BaseOS") in ("rhel7", "centos7") %}
+      case "$KERNEL$MACHINE" in
+        *"3.10.0-957"*)
+          packages_install https://downloads.whamcloud.com/public/lustre/lustre-2.10.8/el7/client/RPMS/x86_64/kmod-lustre-client-2.10.8-1.el7.x86_64.rpm
+          packages_install https://downloads.whamcloud.com/public/lustre/lustre-2.10.8/el7/client/RPMS/x86_64/lustre-client-2.10.8-1.el7.x86_64.rpm;;
+        *"3.10.0-1062"*) rhel_driver_install 7 "s#7#7.7#" ;;
+        *"3.10.0-1127"*) rhel_driver_install 7 "s#7#7.8#" ;;
+        *"3.10.0-1160"*) rhel_driver_install 7 ;;
+        *"4.18.0-193"*)  rhel_driver_install 7 ;;
+        *) log_error "ERROR: Can't install FSx for Lustre client as kernel version: ${KERNEL} isn't matching expected versions for EL7" ;;
+      esac
+
+    {% elif context.get("/configuration/BaseOS") in ("rhel8", "rocky8") %}
+        case "$KERNEL$MACHINE" in
+          *"4.18.0-553"*) rhel_driver_install 8 ;;
+          *"4.18.0-513"*) rhel_driver_install 8 's#8#8.9#' ;;
+          *"4.18.0-477"*) rhel_driver_install 8 's#8#8.8#' ;;
+          *"4.18.0-425"*) rhel_driver_install 8 's#8#8.7#' ;;
+          *"4.18.0-372"*) rhel_driver_install 8 's#8#8.6#' ;;
+          *"4.18.0-348"*) rhel_driver_install 8 's#8#8.5#' ;;
+          *"4.18.0-305"*) rhel_driver_install 8 's#8#8.4#' ;;
+          *"4.18.0-240"*) rhel_driver_install 8 's#8#8.3#' ;;
+          *"4.18.0-193"*) rhel_driver_install 8 's#8#8.2#' ;;
+          *) log_error "Can't install FSx for Lustre client as kernel version $KERNEL isn't matching expected versions for EL8"
+            ;;
+        esac
+
+    {% elif context.get("/configuration/BaseOS") in ("rhel9", "rocky9") %}
+        case "$KERNEL$MACHINE" in
+          *"5.14.0-427"*) rhel_driver_install 9 ;;
+          *"5.14.0-362"*) rhel_driver_install 9 's#9#9.3#' ;;
+          *"5.14.0-70"*) rhel_driver_install 9 's#9#9.0#' ;;
+          *) log_error "Can't install FSx for Lustre client as kernel version $KERNEL isn't matching expected versions for EL9";;
+        esac
+    {% endif %}
+    else
+      log_info "FSx Lustre Driver already installed ..."
+    fi
+
+    echo "${FSX_ENDPOINT}@tcp:/${GET_FSX_MOUNT_NAME} ${MOUNT_POINT} lustre defaults,noatime,flock,_netdev 0 0" >> /etc/fstab
+    log_info "Completed FSx Lustre mount for ${FSX_ENDPOINT} on ${MOUNT_POINT}"
+}
+{% endif %}
+{% endif %}
+# End: Mount FSx Lustre

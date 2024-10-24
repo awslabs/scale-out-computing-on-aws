@@ -1,0 +1,39 @@
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# Begin: Configure OpenMPI
+{% if context.get("/configuration/BaseOS") in ("amazonlinux2", "amazonlinux2023", "centos7", "rhel7", "rhel8", "rhel9", "rocky8", "rocky9") %}
+function install_openmpi () {
+  log_info "Begin: Configure OpenMPI"
+  # Compile OpenMPI under /root/openmpi/openmpi_version
+  # This will take a while and is not system blocking, so adding at the end of the install process
+  local OPENMPI_VERSION="{{ context.get("/system/openmpi/version") }}"
+  local OPENMPI_URL="{{ context.get("/system/openmpi/url") }}"
+  local OPENMPI_TGZ="{{ context.get("/system/openmpi/tgz") }}"
+  local OPENMPI_SHA256="{{ context.get("/system/openmpi/sha256") }}"
+
+  if [[ ! -d "/apps/openmpi/${OPENMPI_VERSION}" ]]; then
+    log_info "/apps/openmpi/${OPENMPI_VERSION} does not exist, installing OpenMPI ..."
+    mkdir -p /root/soca_bootstrap/{{ context.get("/configuration/ClusterId") }}/openmpi/installer
+    mkdir -p "/apps/openmpi/${OPENMPI_VERSION}"
+    cd "/root/soca_bootstrap/{{context.get("/configuration/ClusterId") }}/openmpi/installer"
+
+    wget ${OPENMPI_URL}
+
+    if [[ $(sha256sum "${OPENMPI_TGZ}" | awk '{print $1}') != "${OPENMPI_SHA256}" ]];  then
+        echo -e "FATAL ERROR: Checksum for OpenMPI failed. File may be compromised." > /etc/motd
+        exit 1
+    fi
+
+    tar xzf "${OPENMPI_TGZ}"
+    cd "openmpi-${OPENMPI_VERSION}"
+    ./configure --prefix="/apps/openmpi/${OPENMPI_VERSION}"
+    make -j "${NCPU}"
+    make install
+  else
+    log_info "/apps/openmpi/${OPENMPI_VERSION} already exist, skipping OpenMPI install"
+  fi
+}
+install_openmpi
+{% endif %}
+# End: Configure OpenMPI

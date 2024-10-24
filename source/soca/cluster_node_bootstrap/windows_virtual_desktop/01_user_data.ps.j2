@@ -1,0 +1,88 @@
+<powershell>
+
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+{% include "templates/windows/log.ps.j2" %}
+
+{% include "templates/windows/awscli.ps.j2" %}
+
+{% include "templates/windows/wrapper_secretsmanager.ps.j2" %}
+
+$IMDSToken = Invoke-RestMethod -Headers @{"X-aws-ec2-metadata-token-ttl-seconds" = "21600"} -Method PUT -Uri http://169.254.169.254/latest/api/token
+$Hostname = Invoke-RestMethod -Headers @{"X-aws-ec2-metadata-token" = $IMDSToken} -Method GET -Uri http://169.254.169.254/latest/meta-data/hostname
+$InstanceId = Invoke-RestMethod -Headers @{"X-aws-ec2-metadata-token" = $IMDSToken} -Method GET -Uri http://169.254.169.254/latest/meta-data/instance-id
+$DCVHostAltname = ${Hostname}.split(".")[0]
+
+{% if context.get('/configuration/UserDirectory/provider') in ("aws_ds_managed_activedirectory", "aws_ds_simple_activedirectory", "existing_activedirectory") %}
+    # DOMAIN\<local_user>
+    $LocalUser = "{{ context.get('/configuration/UserDirectory/short_name') }}\{{ context.get('/job/LocalUser') }}"
+{% else %}
+    # <local_user>>
+    $LocalUser = "{{ context.get('/job/LocalUser') }}"
+{% endif %}
+
+Write-ToLog -Message "Creating DCV Registry hierarchy if needed"
+New-Item -Path "Microsoft.PowerShell.Core\Registry::\HKEY_USERS\S-1-5-18\Software\GSettings\com\nicesoftware\dcv\" -Name connectivity -Force
+New-ItemProperty -Path "Microsoft.PowerShell.Core\Registry::\HKEY_USERS\S-1-5-18\Software\GSettings\com\nicesoftware\dcv\connectivity" -Name "web-url-path" -PropertyType "String" -Value "/${DCVHostAltname}" -Force
+
+Write-ToLog -Message "Disable DCV os-auto-lock"
+New-ItemProperty -Path "Microsoft.PowerShell.Core\Registry::\HKEY_USERS\S-1-5-18\Software\GSettings\com\nicesoftware\dcv\security" -Name "os-auto-lock" -PropertyType "DWord" -Value 0 -Force
+
+Write-ToLog -Message "Enable DCV disable-display-sleep"
+New-Item -Path "Microsoft.PowerShell.Core\Registry::\HKEY_USERS\S-1-5-18\Software\GSettings\com\nicesoftware\dcv\" -Name "windows" -Force
+New-ItemProperty -Path "Microsoft.PowerShell.Core\Registry::\HKEY_USERS\S-1-5-18\Software\GSettings\com\nicesoftware\dcv\security" -Name "disable-display-sleep" -PropertyType "DWord" -Value 1 -Force
+
+Write-ToLog -Message "Change Password for Local Administrator User"
+$Password = ConvertTo-SecureString -String "{{ context.get('/job/LocalAdminPassword') }}" -AsPlainText –Force
+$UserAccount = Get-LocalUser -Name "Administrator"
+$UserAccount | Set-LocalUser -Password $Password
+
+{% if  context.get('/configuration/UserDirectory/provider') in ("aws_ds_managed_activedirectory", "aws_ds_simple_activedirectory", "existing_activedirectory") %}
+    {% include "templates/windows/join_activedirectory.ps.j2" %}
+
+{% else %}
+    Write-ToLog -Message "Using OpenLDAP. Creating a local SOCA user"
+    $LocalUserExist = Get-LocalUser $LocalUser
+    if ($LocalUserExist) {
+        Write-ToLog -Message "Local user already exist. Resetting password"
+        Set-LocalUser $LocalUser -Password $Password
+    }
+    else {
+        New-LocalUser $LocalUser -Password $Password -PasswordNeverExpires -AccountNeverExpires
+    }
+
+  Write-ToLog -Message "Non-AD use Custom Authenticator for DCV session authentication via authToken"
+  New-Item -Path "Microsoft.PowerShell.Core\Registry::\HKEY_USERS\S-1-5-18\Software\GSettings\com\nicesoftware\dcv\" -Name security -Force
+  New-ItemProperty -Path "Microsoft.PowerShell.Core\Registry::\HKEY_USERS\S-1-5-18\Software\GSettings\com\nicesoftware\dcv\security" -Name "auth-token-verifier" -PropertyType "String" -Value "https://{{ context.get('/configuration/ControllerPrivateIP') }}:8443/api/dcv/authenticator" -Force
+  New-ItemProperty -Path "Microsoft.PowerShell.Core\Registry::\HKEY_USERS\S-1-5-18\Software\GSettings\com\nicesoftware\dcv\security" -Name "no-tls-strict" -PropertyType "DWord" -Value 1 -Force
+  New-ItemProperty -Path "Microsoft.PowerShell.Core\Registry::\HKEY_USERS\S-1-5-18\Software\GSettings\com\nicesoftware\dcv\security" -Name "authentication" -PropertyType "String" -Value "system" -Force
+
+{% endif %}
+
+Write-ToLog -Message "Grant SOCA user Admin permissions on the local Virtual Desktop machine"
+Add-LocalGroupMember -Group "Administrators" -Member $LocalUser
+
+Write-ToLog -Message "Change default owner for the DCV session"
+New-Item -Path "Microsoft.PowerShell.Core\Registry::\HKEY_USERS\S-1-5-18\Software\GSettings\com\nicesoftware\dcv\" -Name "session-management/automatic-console-session" -Force
+New-ItemProperty -Path "Microsoft.PowerShell.Core\Registry::\HKEY_USERS\S-1-5-18\Software\GSettings\com\nicesoftware\dcv\session-management\automatic-console-session" -Name "owner" -PropertyType "String" -Value "$LocalUser" -Force
+
+{% include "templates/windows/dcv/session_storage.ps.j2" %}
+
+{% include "templates/windows/auto_user_logon.ps.j2" %}
+
+Write-ToLog -Message "Create Desktop Shortcut to SOCA web interface"
+$WshShell = New-Object -comObject WScript.Shell
+$SocaShortcut = $WshShell.CreateShortcut("C:\Users\Default\Desktop\SOCA_Interface.url")
+$SocaShortcut.TargetPath = "https://{{ context.get('/configuration/LoadBalancerDNSName') }}"
+$SocaShortcut.Save()
+
+{% include "templates/windows/disable_user_access_control.ps.j2" %}
+
+{% include "templates/windows/disable_internetexplorer_enhanced_security.ps.j2" %}
+
+{% include "templates/windows/tag_ebs.ps.j2" %}
+
+Write-ToLog -Message "Restart Computer to validate all Windows changes. Use -Force to force reboot even if users are logged in (in case of custom AMI)"
+Restart-Computer -Force
+</powershell>

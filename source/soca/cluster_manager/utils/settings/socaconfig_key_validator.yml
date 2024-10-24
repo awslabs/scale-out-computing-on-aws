@@ -1,0 +1,191 @@
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+ValidationFunctions:
+  # These map to function in config_checks.py
+  IMMUTABLE_KEY: &immutable_key 'immutable' # Key is immutable and cannot be changed
+  EXPECT_BOOLEAN: &bool '^(true|True|false|False)$' # Value must be a boolean
+  EXPECT_INTEGER: &int '^-?\d+$'  # Value must be an integer
+  EXPECT_STR: &str '^.*$' # No particular checks are executed here
+  EXPECT_URL: &url '^(https?:\/\/)?([\da-z\.-]+)\.([a-z\.])([\/\w \.-]*)*\/?$'
+  EXPECT_VALID_IAM_ROLE: &valid_iam_role 'valid_iam_role' # This check will verify if the IAM role exist in the AWS account
+  EXPECT_VALID_S3_BUCKET_NAME: &valid_s3_bucket 'valid_s3_bucket' # This check will verify if the IAM role exist in the AWS account
+  EXPECT_LIST_OF_EC2_INSTANCES: &list_of_ec2_instances 'list_of_ec2_instance' # Verify if list provides contains only EC2 instance type
+  EXPECT_LIST_OF_EC2_SUBNET_IDS: &list_of_ec2_subnet_ids 'list_of_ec2_subnet_ids' # Verify if list provides contains only EC2 subnet IDs
+  EXPECT_VALID_SSH_KEYPAIR: &valid_ssh_keypair 'valid_ssh_keypair'
+
+configuration:
+  ComputeNodeInstanceProfileArn: '^arn:(aws|aws-us-gov|aws-cn):iam::\d{12}:instance-profile/.+$'
+  ControllerIAMRoleArn: '^arn:(aws|aws-us-gov|aws-cn)$:iam::\d{12}:role/.+$'
+  CustomAMIMap: *immutable_key ## to review when we have a better check
+  DCVAllowedInstances: *list_of_ec2_instances
+  DCVDeniedInstances: *list_of_ec2_instances
+  LoadBalancerArn: '^arn:(aws|aws-us-gov|aws-cn):elasticloadbalancing:.*:\d{12}:loadbalancer/.+$'
+  Region: *immutable_key
+  SSHKeyPair: *valid_ssh_keypair
+  SolutionMetricsLambda: *immutable_key
+  CustomAMI: '^ami-[0-9a-f]{8,17}$'
+  FileSystemDataProvider: '^(efs|fsx_lustre)$'
+  LdapBase: *str
+  LdapHost: *str
+  PrivateSubnets: *list_of_ec2_subnet_ids
+  S3Bucket: *valid_s3_bucket
+  S3InstallFolder: *str
+  SkipQuotas: *bool
+  SpotFleetIAMRoleArn: '^arn:(aws|aws-us-gov|aws-cn)$:iam::\d{12}:role/.+$'
+  Version: *immutable_key
+  BaseOS: '^(amazonlinux2|amazonlinux2023|rhel7|rhel8|rhel9|rocky8|rocky9|centos7)$'
+  ComputeNodeIAMRole: *valid_iam_role
+  ControllerIAMRole: *valid_iam_role
+  ControllerSecurityGroup: '^sg-[0-9a-fz]{8,17}$'
+  DCVAllowPreviousGenerations: *bool
+  DCVDefaultVersion: *str
+  FileSystemAppsProvider: '^(efs|fsx_lustre)$'
+  LoadBalancerDNSName: *str
+  OSDomainEndpoint: *str
+  AnalyticsEngine: '^(opensearch|elasticsearch)$'
+  UserDirectory:
+    provider: '^(aws_ds_managed_activedirectory|aws_ds_simple_activedirectory|openldap)$'
+    admins_search_base: '((?:[a-zA-Z]+\s*=\s*[^,+=<>#;]+)(?:\+[a-zA-Z]+\s*=\s*[^,+=<>#;]+)*)'
+    people_search_base: '((?:[a-zA-Z]+\s*=\s*[^,+=<>#;]+)(?:\+[a-zA-Z]+\s*=\s*[^,+=<>#;]+)*)'
+    group_search_base: '((?:[a-zA-Z]+\s*=\s*[^,+=<>#;]+)(?:\+[a-zA-Z]+\s*=\s*[^,+=<>#;]+)*)'
+    endpoint: *str
+    domain_name: *str
+    domain_base: '((?:[a-zA-Z]+\s*=\s*[^,+=<>#;]+)(?:\+[a-zA-Z]+\s*=\s*[^,+=<>#;]+)*)'
+    short_name: *str
+    use_existing_directory: *bool
+    service_account_secret_name: *str
+    ad_aws_directory_service_id: *str
+    ad_aws_lambda_reset_password: *str
+  ComputeNodeIAMRoleArn: '^arn:(aws|aws-us-gov|aws-cn)$:iam::\d{12}:role/.+$'
+  ControllerPrivateIP: '^(\d{1,3}\.){3}\d{1,3}$'
+  FileSystemApps: *str
+  FileSystemData: *str
+  HPCJobDeploymentMethod: '^(asg|fleet)$'
+  LdapName: *str
+  MetadataHttpTokens: '^(optional|required)$'
+  VpcId: '^vpc-[0-9a-f]{8,17}$'
+  Cache:
+    port: *int
+    enabled: *bool
+    endpoint: *str
+    engine: '^(redis)$'
+    ttl:
+      long: *int
+      short: *int
+  ClusterId: *immutable_key
+  ComputeNodeSecurityGroup: '^sg-[0-9a-z]{8,17}$'
+  ControllerInstanceId: '^i-[0-9a-f]{8,17}$'
+  ControllerPrivateDnsName: *str
+  DCVAllowBareMetal: *bool
+  DefaultMetricCollection: *bool
+  DefaultVolumeType: '^(gp2|gp3)$'
+  NLBLoadBalancerDNSName: *str
+  PublicSubnets: *list_of_ec2_subnet_ids
+
+packages:
+  controller: *immutable_key
+  dcv_amazonlinux: *immutable_key
+  openldap_server: *immutable_key
+  sssd: *immutable_key
+  system: *immutable_key
+  user_extra: '\b[\w-]+\b(?:\s+\b[\w-]+\b)*'
+
+system:
+  awscliv2:
+    aarch64: *url
+    x86_64: *url
+  cloudwatch_agent:
+    download_link_pattern: *url
+  dcv:
+    el7:
+      aarch64:
+        sha256: '^[a-fA-F0-9]{64}$'
+        tgz: *str
+        url: *url
+        version: *str
+      x86_64:
+        sha256: '^[a-fA-F0-9]{64}$'
+        tgz: *str
+        url: *url
+        version: *str
+    el8:
+      aarch64:
+        sha256: '^[a-fA-F0-9]{64}$'
+        tgz: *str
+        url: *url
+        version: *str
+      x86_64:
+        sha256: '^[a-fA-F0-9]{64}$'
+        tgz: *str
+        url: *url
+        version: *str
+    el9:
+      aarch64:
+        sha256: '^[a-fA-F0-9]{64}$'
+        tgz: *str
+        url: *url
+        version: *str
+      x86_64:
+        sha256: '^[a-fA-F0-9]{64}$'
+        tgz: *str
+        url: *url
+        version: *str
+
+  efa:
+    sha256: '^[a-fA-F0-9]{64}$'
+    tgz: *str
+    url: *url
+    version: *str
+  epel:
+    el7:
+      rpm: *str
+      url: *url
+    el8:
+      rpm: *str
+      url: *url
+    el9:
+      rpm: *str
+      url: *url
+
+  gpu:
+    gpu_settings:
+      nvidia:
+        tesla_drivers_only: '\(\w+(\|\w+)*\)'
+        tesla_drivers_ltsb_only: '\(\w+(\|\w+)*\)'
+        grid_drivers:
+          s3_bucket_url: *url
+          s3_bucket_path: '^s3:\/\/[a-zA-Z0-9\.\-_]+(\/[a-zA-Z0-9\.\-_]+)*\/?$'
+        tesla_drivers:
+          public_driver_version: *str
+          public_driver_version_ltsb: *str
+          public_driver_url_endpoint: *url
+      amd:
+        s3_bucket_url: *url
+        s3_bucket_path: '^s3:\/\/[a-zA-Z0-9\.\-_]+(\/[a-zA-Z0-9\.\-_]+)*\/?$'
+        rhel_rocky8_installer_url:  *url
+        rhel_rocky9_installer_url:  *url
+
+  nvm:
+    install_script: *str
+    node_version: *str
+    sha256: '^[a-fA-F0-9]{64}$'
+    url: *url
+  openmpi:
+    sha256: '^[a-fA-F0-9]{64}$'
+    tgz: *str
+    url: *url
+    version: *str
+  openpbs:
+    tgz: *str
+    sha256: '^[a-fA-F0-9]{64}$'
+    url: *url
+    version: *str
+  python:
+    sha256: '^[a-fA-F0-9]{64}$'
+    tgz: *str
+    url: *url
+    version: *str
+  ssm:
+    aarch64: *url
+    x86_64: *url

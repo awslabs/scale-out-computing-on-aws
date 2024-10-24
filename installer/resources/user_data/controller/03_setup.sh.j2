@@ -1,0 +1,227 @@
+#!/bin/bash -xe
+
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+{
+  echo "## [BEGIN] SOCA Configuration - Do Not Delete"
+  echo export "AWS_DEFAULT_REGION=\"{{ context.get("/configuration/Region") }}\""
+  echo export "SOCA_BASE_OS=\"{{ context.get("/configuration/BaseOS") }}\""
+  echo export "SOCA_NODE_TYPE=\"{{ context.get("/job/NodeType") }}\""
+  echo export "SOCA_CONFIGURATION=\"{{ context.get("/configuration/ClusterId") }}\""
+  echo export "SOCA_INSTALL_BUCKET=\"{{ context.get("/configuration/S3Bucket") }}\""
+  echo export "SOCA_INSTALL_BUCKET_FOLDER=\"{{ context.get("/configuration/ClusterId") }}\""
+  echo export "SOCA_VERSION=\"{{ context.get("/configuration/Version") }}\""
+  echo export "DIRECTORY_AUTH_PROVIDER=\"{{ context.get("/configuration/UserDirectory/provider") }}\""
+  echo export "SOCA_INSTALL_AMI=\"{{ context.get("/configuration/CustomAMI") }}\""
+  PATH="/apps/soca/{{ context.get("/configuration/ClusterId") }}/python/latest/bin:$PATH"
+  echo "## [END] SOCA Configuration"
+} >> /etc/environment
+
+{% include "templates/linux/common.sh.j2" %}
+
+{% include "templates/linux/packages_management.sh.j2" %}
+
+source /etc/environment
+
+{% include "templates/linux/common/wrapper_awscli.sh.j2" %}
+
+{% include "templates/linux/epel.sh.j2" %}
+
+{% set PATH = '/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin:/opt/pbs/bin:/opt/pbs/sbin:/opt/pbs/bin:/apps/soca/' ~ context.get("/configuration/ClusterId") %}
+
+#
+# Determine our desired HPC scheduler
+# Add new scheduler engines here
+#
+{## {% if context.get("/configuration/HPC/SchedulerEngine") == "openpbs" %}#}
+    log_info "Using Scheduler Engine: OpenPBS"
+    {% include "templates/linux/scheduler/openpbs/install.sh.j2" %}
+    {% include "templates/linux/scheduler/openpbs/configure_server.sh.j2" %}
+
+{#{% elif context.get("/configuration/HPC/SchedulerEngine") == "pbspro" %}#}
+{#    echo "Using Scheduler Engine: Altair PBS Professional"#}
+{#    {% include "templates/linux/scheduler/vendor/altair/pbspro/install.sh.j2" %}#}
+{#    {% include "templates/linux/scheduler/vendor/altair/pbspro/configure_server.sh.j2" %}#}
+{##}
+{#{% else %}#}
+{#    log_error "HPC Scheduler Engine (/configuration/HPC/SchedulerEngine) must be openpbs or pbspro. Detected {{ context.get("/configuration/HPC/SchedulerEngine") }}"#}
+{#    exit 1#}
+{#{% endif %}#}
+
+echo -e "PATH={{ PATH }}" >> /etc/environment
+
+source /etc/environment
+
+{% if context.get("/configuration/UserDirectory/provider") in ["existing_openldap", "openldap"] %}
+  {% if context.get("/configuration/UserDirectory/provider") == "existing_openldap" %}
+    {% include "templates/linux/openldap_client.sh.j2" %}
+  {% else %}
+    {% include "templates/linux/openldap_server.sh.j2" %}
+  {% endif %}
+{% elif context.get("/configuration/UserDirectory/provider") in ["existing_activedirectory", "aws_ds_managed_activedirectory" , "aws_ds_simple_activedirectory"] %}
+  {% include "templates/linux/join_activedirectory.sh.j2" %}
+{% else %}
+  log_error "UserDirectory/provider must be openldap, aws_ds_simple_activedirectory, or aws_ds_managed_activedirectory, detected {{ context.get("/configuration/UserDirectory/provider") }}"
+  exit 1
+{% endif %}
+
+{% include "templates/linux/disable_selinux.sh.j2" %}
+
+{% include "templates/linux/disable_ssh_strict_host_key_check.sh.j2" %}
+
+{% include "templates/linux/chronyd.sh.j2" %}
+
+{% include "templates/linux/disable_ulimits.sh.j2" %}
+
+# Install NodeJS
+{% include "templates/linux/nodejs.sh.j2" %}
+
+# Install required Node modules
+npm install --prefix "/apps/soca/{{ context.get("/configuration/ClusterId") }}/cluster_manager/web_interface/static" monaco-editor@0.52.0
+
+# Reload OpenPBS
+systemctl restart pbs
+
+# Create crontabs
+echo "
+# SOCA Info: Add export SOCA_DEBUG=1 to enable DEBUG capability
+# ex: export SOCA_DEBUG=1; source /etc/environment; /apps/soca/{{ context.get("/configuration/ClusterId") }}/python/latest/bin/python3  /apps/soca/{{ context.get("/configuration/ClusterId") }}/cluster_manager/orchestrator/nodes_manager.py
+
+###################
+# Cluster Analytics
+###################
+
+* * * * * source /etc/environment; /apps/soca/{{ context.get("/configuration/ClusterId") }}/cluster_manager/analytics/wrapper.sh cluster_nodes_tracking
+@hourly source /etc/environment; /apps/soca/{{ context.get("/configuration/ClusterId") }}/cluster_manager/analytics/wrapper.sh job_tracking
+*/10 * * * * source /etc/environment; /apps/soca/{{ context.get("/configuration/ClusterId") }}/cluster_manager/analytics/wrapper.sh desktop_hosts_tracking
+
+########################
+# Cluster Log Management
+########################
+
+@daily source /etc/environment; /bin/bash /apps/soca/{{ context.get("/configuration/ClusterId") }}/cluster_manager/logs_management/send_logs_s3.sh
+
+####################
+# Cluster Management
+####################
+
+* * * * * source /etc/environment;  /apps/soca/{{ context.get("/configuration/ClusterId") }}/python/latest/bin/python3  /apps/soca/{{ context.get("/configuration/ClusterId") }}/cluster_manager/orchestrator/nodes_manager.py
+
+# Automatic Host Provisioning
+* * * * * source /etc/environment;  /apps/soca/{{ context.get("/configuration/ClusterId") }}/python/latest/bin/python3 /apps/soca/{{ context.get("/configuration/ClusterId") }}/cluster_manager/orchestrator/dispatcher.py -c /apps/soca/{{ context.get("/configuration/ClusterId") }}/cluster_manager/orchestrator/settings/queue_mapping.yml -t compute
+* * * * * source /etc/environment;  /apps/soca/{{ context.get("/configuration/ClusterId") }}/python/latest/bin/python3 /apps/soca/{{ context.get("/configuration/ClusterId") }}/cluster_manager/orchestrator/dispatcher.py -c /apps/soca/{{ context.get("/configuration/ClusterId") }}/cluster_manager/orchestrator/settings/queue_mapping.yml -t job-shared
+* * * * * source /etc/environment;  /apps/soca/{{ context.get("/configuration/ClusterId") }}/python/latest/bin/python3 /apps/soca/{{ context.get("/configuration/ClusterId") }}/cluster_manager/orchestrator/dispatcher.py -c /apps/soca/{{ context.get("/configuration/ClusterId") }}/cluster_manager/orchestrator/settings/queue_mapping.yml -t test
+
+# Add/Remove DCV hosts and configure ALB
+*/3 * * * * source /etc/environment; /apps/soca/{{ context.get("/configuration/ClusterId") }}/python/latest/bin/python3 /apps/soca/{{ context.get("/configuration/ClusterId") }}/cluster_manager/orchestrator/dcv_alb_manager.py >> /apps/soca/{{ context.get("/configuration/ClusterId") }}/cluster_manager/orchestrator/logs/dcv_alb_manager.log 2>&1
+
+################
+# Cluster Web UI
+################
+
+# Restart UI at reboot
+@reboot /apps/soca/{{ context.get("/configuration/ClusterId") }}/cluster_manager/web_interface/socawebui.sh start
+
+" | crontab -
+
+# Generate 10 years internal SSL certificate for Soca Web UI
+pushd /apps/soca/{{ context.get("/configuration/ClusterId") }}/cluster_manager/web_interface
+openssl req -new -newkey rsa:4096 -days 3650 -nodes -x509 \
+    -subj "/C=US/ST=California/L=Sunnyvale/CN=internal.soca.webui.cert" \
+    -keyout cert.key -out cert.crt
+
+# Append the cluster name on the SOCA HTML template
+IFS="-" read name sanitized_cluster_name <<< "echo {{ context.get("/configuration/ClusterId") }}"
+sed -i "s/__SOCA_CLUSTER__NAME__/${sanitized_cluster_name}/g" /apps/soca/{{ context.get("/configuration/ClusterId") }}/cluster_manager/web_interface/templates/common/horizontal_menu_bar.html
+
+# Start Web UI
+chmod +x /apps/soca/{{ context.get("/configuration/ClusterId") }}/cluster_manager/web_interface/socawebui.sh
+./socawebui.sh start
+
+# Wait until the endpoint is reachable
+sleep 30
+
+START_WEB_UI_MAX_ATTEMPT=10
+START_WEB_UI_CURRENT_ATTEMPT=0
+while [[ "$(curl https://localhost:8443/ping --insecure  -s -o /dev/null -w '%{http_code}')" != "200" ]]; do
+  ((START_WEB_UI_CURRENT_ATTEMPT=START_WEB_UI_CURRENT_ATTEMPT+1))
+  if [[ $START_WEB_UI_CURRENT_ATTEMPT -ge $START_WEB_UI_MAX_ATTEMPT ]]; then
+      echo "error: Timed out waiting for starting the web interface. please check uwsgi logs under /apps/soca/"{{ context.get("/configuration/ClusterId") }}"/cluster_manager/web_interface/logs/ and run the create user command manually."
+      exit 1
+  fi
+  echo "Web UI is not returning HTTP/200 ... restarting process ... "
+  ./socawebui.sh stop
+  sleep 10
+  ./socawebui.sh start
+  sleep 30
+done
+echo "Web UI is ready and serving requests ... "
+
+# Create default home structure
+mkdir -p /data/home
+
+# Create default LDAP user with admin privileges
+SOCA_DEFAULT_ADMIN_USER=$(get_secret "/soca/{{ context.get("/configuration/ClusterId") }}/SocaAdminUser")
+MAX_CREATE_USER_ATTEMPT=5
+CREATE_USER_ATTEMPT_COUNT=0
+
+while true; do
+  REQUEST_HTTP_CODE=$(curl --silent -k -H "X-SOCA-TOKEN: $(cat /apps/soca/{{ context.get("/configuration/ClusterId") }}/cluster_manager/web_interface/keys/admin_api_key.txt)" \
+    --data-urlencode "user=$(echo ${SOCA_DEFAULT_ADMIN_USER} | jq -r ". | fromjson.username")" \
+    --data-urlencode "password=$(echo ${SOCA_DEFAULT_ADMIN_USER} | jq -r ". | fromjson.password")" \
+    --data-urlencode "sudoers=1" \
+    --data-urlencode "email=admin@soca" \
+    --data-urlencode "uid=0" \
+    --data-urlencode "gid=0" \
+    -w "%{http_code}" -o /root/create_new_user.log -X POST https://127.0.0.1:8443/api/ldap/user)
+
+  if [[ ${REQUEST_HTTP_CODE} == "200" ]]; then
+    log_info "User created successfully."
+    break
+  else
+    log_info "Unable to create new user due to $(cat /root/create_new_user.log), trying again soon ..."
+    ((CREATE_USER_ATTEMPT_COUNT++))
+
+    if [[ ${CREATE_USER_ATTEMPT_COUNT} -ge ${MAX_CREATE_USER_ATTEMPT} ]]; then
+      echo "Unable to create user after ${MAX_CREATE_USER_ATTEMPT} attempts, bootstrap sequence will continue."
+      break
+    fi
+
+    sleep 10
+  fi
+done
+
+# Re-enable ssh access
+{% if context.get("/configuration/BaseOS") in ("amazonlinux2", "amazonlinux2023", "rhel7", "rhel8", "rhel9") %}
+     usermod --shell /bin/bash ec2-user
+{% elif context.get("/configuration/BaseOS") == "centos7" %}
+     usermod --shell /bin/bash centos
+{% endif %}
+
+#  TODO Disable SSH for everyone else or restrict to sudoers only
+{% include "templates/linux/scheduler/openpbs/disable_local_account_job_submission.sh.j2" %}
+
+# Tag EBS disks manually as CFN ASG does not support it
+{% include "templates/linux/tags/ebs.sh.j2" %}
+
+# Tag Network Interface for the Compute Node
+{% include "templates/linux/tags/eni.sh.j2" %}
+
+# Enforce minimum permissions
+chmod 600 /apps/soca/{{ context.get("/configuration/ClusterId") }}
+
+{% include "templates/linux/motd.sh.j2" %}
+
+# Clean /root post deployment
+pushd /root
+rm -rf soca_python
+rm -rf soca.tar.gz
+rm -rf nvm
+popd
+
+# Install CloudWatch Log Agent
+{% include "templates/linux/aws_cloudwatch_agent.sh.j2" %}
+
+# Install OpenMPI
+{% include "templates/linux/openmpi.sh.j2" %}

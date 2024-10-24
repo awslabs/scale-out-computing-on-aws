@@ -26,7 +26,7 @@ def lambda_handler(event, context):
     data = {}
     for param in required_params:
         if param not in event.keys():
-            return f"{param} is missing"
+            return {'success': False, 'message': f"{param} is missing"}
         else:
             data[param] = event[param]
 
@@ -34,17 +34,17 @@ def lambda_handler(event, context):
     username = data["Username"]
     new_password = data["Password"]
     if username.lower() in new_password.lower():
-        return "PasswordCannotContainsUsername"
+        return {'success': False, 'message': f'PasswordCannotContainsUsername'}
     try:
         pw_reset_request = directory_service.reset_user_password(
             DirectoryId=directory_service_id,
             UserName=username,
             NewPassword=new_password,
         )
-        return "Success"
+        return {'success': True, 'message': 'Password Reset Successfully'}
     except directory_service.exceptions.InvalidPasswordException:
-        return "InvalidPasswordException"
+        return {'success': False, 'message': f'InvalidPasswordException'}
     except directory_service.exceptions.UserDoesNotExistException:
-        return "UserDoesNotExistException"
+        return {'success': False, 'message': f'UserDoesNotExistException'}
     except Exception as e:
-        return e
+        return {'success': False, 'message': f'{e}'}

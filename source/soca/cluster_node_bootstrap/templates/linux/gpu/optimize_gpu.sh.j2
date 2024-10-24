@@ -1,0 +1,35 @@
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# Begin: Optimize GPU settings
+
+function gpu_instance_optimize_gpu_clock_speed_nvidia () {
+  # https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/optimize_gpu.html
+  # This command can take several minutes to start, which is why it's not enabled by default on compute_node.sh.j2
+  INSTANCE_FAMILY=$(instance_family)
+  log_info "gpu_instance_optimize_gpu_clock_speed_nvidia for ${INSTANCE_FAMILY}.. "
+  nvidia-persistenced
+  if [[ ${INSTANCE_FAMILY}  == "g3" ]]; then
+    nvidia-smi -ac 2505,1177
+  elif [[ ${INSTANCE_FAMILY}  == "g4dn" ]]; then
+    nvidia-smi -ac 5001,1590
+  elif [[ ${INSTANCE_FAMILY}  == "g5" ]]; then
+    nvidia-smi -ac 6250,1710
+  elif [[ ${INSTANCE_FAMILY}  == "p2" ]]; then
+    nvidia-smi -ac 2505,875
+  elif [[ ${INSTANCE_FAMILY} =~ ^(g6|g6e|gr6)$ ]]; then
+    nvidia-smi -ac 6251,2040
+  elif [[ ${INSTANCE_FAMILY} =~ ^(p3|p3dn)$ ]]; then
+    nvidia-smi -ac 877,1530
+  elif [[ ${INSTANCE_FAMILY}  == "p4d" ]]; then
+    nvidia-smi -ac 1215,1410
+  elif [[ ${INSTANCE_FAMILY}  == "p4de" ]]; then
+    nvidia-smi -ac 1593,1410
+  elif [[ ${INSTANCE_FAMILY}  == "p5" ]]; then
+    nvidia-smi -ac 2619,1980
+  else
+    log_info "Unknown instance family for optimizations - ${INSTANCE_FAMILY} . May not run at maximum performance"
+  fi
+
+  log_info "GPU Optimization complete"
+}

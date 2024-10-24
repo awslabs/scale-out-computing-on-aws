@@ -1,0 +1,35 @@
+#!/bin/bash -x
+
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# As UserData length is limited in size 16KB. Edit setup.sh.j2 instead.
+
+{% include "templates/linux/common/log.sh.j2" %}
+
+{% include "templates/linux/http_proxy.sh.j2" %}
+
+source /etc/environment
+
+{% if context.get("/configuration/BaseOS") == "centos7" %}
+  {% include "templates/linux/patch_centos7_repos.sh.j2" %}
+{% endif %}
+
+{% include "templates/linux/packages_management.sh.j2" %}
+
+{% include "templates/linux/awscli.sh.j2" %}
+
+{% include "templates/linux/common/wrapper_awscli.sh.j2" %}
+
+{% include "templates/linux/aws_ssm_agent.sh.j2" %}
+
+{% include "templates/linux/mount_apps_data.sh.j2" %}
+
+NODE_BOOTSTRAP_FOLDER="{{ context.get('/job/BootstrapPath') }}/$(hostname -s)"
+mkdir -p ${NODE_BOOTSTRAP_FOLDER}
+log_info "Boostrap Folder: ${NODE_BOOTSTRAP_FOLDER}"
+
+# Copy the User Data log into the shared filesystem to simplify troubleshooting
+cp /var/log/messages {{ context.get('/job/BootstrapPath') }}/$(hostname -s)/
+
+/bin/bash "{{ context.get('/job/BootstrapPath') }}/02_setup.sh" >> {{ context.get('/job/BootstrapPath') }}/$(hostname -s)/02_setup.log 2>&1

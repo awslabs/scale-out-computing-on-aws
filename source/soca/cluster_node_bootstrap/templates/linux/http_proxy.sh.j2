@@ -1,0 +1,26 @@
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# Begin: Configure Proxy variable (disabled by default) if not already set
+source /etc/environment
+
+if [[ -z "${http_proxy}" ]] && [[ -z "${HTTP_PROXY}" ]]; then
+   echo "#export http_proxy=" >> /etc/environment
+else
+  log_info "http_proxy is already set to ${http_proxy}"
+fi
+
+if [[ -z "${https_proxy}" ]] && [[ -z "${HTTPS_PROXY}" ]]; then
+   echo "#export https_proxy=" >> /etc/environment
+else
+  log_info "https_proxy is already set to ${http_proxy}"
+fi
+
+if [[ -z "${no_proxy}" ]] && [[ -z "${NO_PROXY}" ]]; then
+   echo "#export no_proxy=" >> /etc/environment
+else
+  log_info "no_proxy is already set to ${no_proxy}"
+
+fi
+
+#  End: Configure Proxy if not set

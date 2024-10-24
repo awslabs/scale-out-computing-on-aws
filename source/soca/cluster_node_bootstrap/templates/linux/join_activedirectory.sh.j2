@@ -1,0 +1,138 @@
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# Begin: Join Active Directory
+
+function join_ad {
+  log_info "Trying to join Active Directory ... "
+
+  if ! verify_package_installed adcli; then
+    log_info "adcli is not installed, installing it ... "
+    packages_install adcli
+  fi
+
+  if ! verify_package_installed realmd; then
+    log_info "realm is not installed, installing it ... "
+    packages_install realmd
+  fi
+
+  local DS_DOMAIN_NAME="{{ context.get("/configuration/UserDirectory/domain_name") }}"
+  local UPPER_DS_DOMAIN_NAME="{{ context.get("/configuration/UserDirectory/domain_name") | upper }}"
+  local SOCA_DIRECTORY_ADMINS_SEARCH_BASE="{{ context.get("/configuration/UserDirectory/admins_search_base") | lower }}"
+  local SOCA_DIRECTORY_ADMIN_GROUP_NAME=$(echo ${SOCA_DIRECTORY_ADMINS_SEARCH_BASE} | awk -F'[,=]' '{print $2}')
+  local ESCAPED_SOCA_DIRECTORY_ADMIN_GROUP_NAME=$(echo ${SOCA_DIRECTORY_ADMIN_GROUP_NAME} | sed 's/ /\\ /g') # "My Group" will become "My\ Group"
+  local DS_DOMAIN_ADMIN_USERNAME
+  local DS_DOMAIN_ADMIN_PASSWORD
+  local ADCLI=$(command -v adcli)
+  local REALM=$(command -v realm)
+  local AWS_INSTANCE_ID=$(instance_id)
+
+  log_info "Active Directory Domain Name: ${DS_DOMAIN_NAME}"
+
+  log_info "Verifying if  AD is reachable from the node"
+  local LOOP_VERIFY_AD_REACHABILITY=0
+  while ! ${REALM} discover "$DS_DOMAIN_NAME" && [[ ${LOOP_VERIFY_AD_REACHABILITY} -lt 10 ]]
+    do
+      ((LOOP_VERIFY_AD_REACHABILITY++))
+      log_info "${DS_DOMAIN_NAME} is not reachable from this host. If using AWS Directory Service, waiting for Route 53 outbound endpoint and rule to become active. Trying again in 2 minutes. Loop count is: ${LOOP_VERIFY_AD_REACHABILITY}/10"
+      sleep 180
+    done
+  log_info "${DS_DOMAIN_NAME} is reachable"
+
+  # Create cached location if needed. This location is restricted to admin user only
+  local AD_AUTOMATION_CACHED_LOCATION="/apps/soca/{{ context.get("/configuration/ClusterId") }}/cluster_node_bootstrap/custom_automation/ad_automation"
+  log_info "AD Cached Location is ${AD_AUTOMATION_CACHED_LOCATION}"
+  mkdir -p "${AD_AUTOMATION_CACHED_LOCATION}"
+
+  # Retrieve account with join permission if available, otherwise query SecretManager
+  if [[ ! -f "${AD_AUTOMATION_CACHED_LOCATION}/join_domain_user.cache" ]] || [[ ! -f "${AD_AUTOMATION_CACHED_LOCATION}/join_domain.cache" ]]; then
+    log_info "${AD_AUTOMATION_CACHED_LOCATION}/join_domain_user.cache or join_domain.cache does not exist, querying SecretsManager API to retrieve AD Domain User"
+    local DS_DOMAIN_ADMIN_CREDENTIALS=$(get_secret "{{ context.get("/configuration/UserDirectory/service_account_secret_arn") }}")
+    local DS_DOMAIN_ADMIN_USERNAME=$(echo ${DS_DOMAIN_ADMIN_CREDENTIALS} | jq -r ". | fromjson.username")
+    local DS_DOMAIN_ADMIN_PASSWORD=$(echo ${DS_DOMAIN_ADMIN_CREDENTIALS} | jq -r ". | fromjson.password")
+    echo -n "${DS_DOMAIN_ADMIN_USERNAME}" > "${AD_AUTOMATION_CACHED_LOCATION}/join_domain_user.cache"
+    echo -n "${DS_DOMAIN_ADMIN_PASSWORD}" > "${AD_AUTOMATION_CACHED_LOCATION}/join_domain.cache"
+    log_info "AD Domain User cached on filesystem"
+  else
+    log_info "${AD_AUTOMATION_CACHED_LOCATION}/join_domain_user and join_domain exists in Cache, retrieving AD Domain User from filesystem"
+    DS_DOMAIN_ADMIN_USERNAME=$(cat "${AD_AUTOMATION_CACHED_LOCATION}/join_domain_user.cache")
+    DS_DOMAIN_ADMIN_PASSWORD=$(cat "${AD_AUTOMATION_CACHED_LOCATION}/join_domain.cache")
+  fi
+
+  # Handle AD case where Service Account is <User>@<Domain>, realm command prefer that we only specify the <User> as the domain is passed as arg
+  DS_DOMAIN_ADMIN_USERNAME=$(echo "${DS_DOMAIN_ADMIN_USERNAME}" | awk -F '@' '{print $1}')
+
+  # As hosts are recycled, we ensure we register them to AD with unique and random identifier (15 chars max)
+  # Name include SOCA information, which can then easily be decipher by AD admins if/when they want to determine what hosts registered on their AD are SOCA related
+  log_info "Generating unique & random 15 char SERVER name to be registered to AD"
+  local HOSTNAME_DATA=$(echo "${SOCA_CONFIGURATION}-${AWS_REGION}-${AWS_INSTANCE_ID}"  | openssl dgst -sha1 -binary | xxd -p | awk '{split($0,h,"."); print toupper(h[1])}')
+  local HOSTNAME_PREFIX="SOCA-"
+  {{ 'AVAILABLE_CHAR=$((15 - ${#HOSTNAME_PREFIX}))' }} # Jinja2 Escape otherwise $ { # HOSTNAME_PREFIX will return an J2 error
+  SHAKE_VALUE=${HOSTNAME_DATA: -${AVAILABLE_CHAR}}
+  SOCA_AD_HOSTNAME="${HOSTNAME_PREFIX}${SHAKE_VALUE}"
+  log_info "Trying to join host to AD as ${SOCA_AD_HOSTNAME}"
+
+  local JOIN_AD_ATTEMPT=0
+  while ! echo "${DS_DOMAIN_ADMIN_PASSWORD}" | ${REALM} join --user "${DS_DOMAIN_ADMIN_USERNAME}" "${UPPER_DS_DOMAIN_NAME}" --computer-name="${SOCA_AD_HOSTNAME}" --verbose
+  do
+    ((JOIN_AD_ATTEMPT++))
+    local SLEEP_TIME=$(( RANDOM % 60 ))
+    log_info "Realm join didn't complete successfully. Retrying in ${SLEEP_TIME} seconds... Loop count is: ${JOIN_AD_ATTEMPT}/10"
+    sleep ${SLEEP_TIME}
+    echo "${DS_DOMAIN_ADMIN_PASSWORD}" | ${ADCLI} delete-computer -U "${DS_DOMAIN_ADMIN_USERNAME}" --stdin-password --domain="${DS_DOMAIN_NAME}" "${SOCA_AD_HOSTNAME}"
+    echo "${DS_DOMAIN_ADMIN_PASSWORD}" | ${REALM} leave --user "${DS_DOMAIN_ADMIN_USERNAME}" "${UPPER_DS_DOMAIN_NAME}" --verbose
+    if [[ ${JOIN_AD_ATTEMPT} -eq 10 ]]; then
+      exit_fail "Unable to join domain after 10 attempts"
+    fi
+  done
+
+  log_info "Joined realm ${DS_DOMAIN_NAME} successfully"
+  log_info "Adding AD Admin Group Name to sudoers"
+  echo -e "
+## Add the \"${SOCA_DIRECTORY_ADMIN_GROUP_NAME}\" group from the ${DS_DOMAIN_NAME} domain.
+%${ESCAPED_SOCA_DIRECTORY_ADMIN_GROUP_NAME} ALL=(ALL:ALL) ALL
+" >> /etc/sudoers
+
+  log_info "Configuring SSSD to work with AD"
+  cp /etc/sssd/sssd.conf /etc/sssd/sssd.conf.orig
+  echo -e "[sssd]
+domains = default
+config_file_version = 2
+services = nss, pam, sudo
+
+[domain/default]
+ad_domain = ${DS_DOMAIN_NAME}
+krb5_realm = ${UPPER_DS_DOMAIN_NAME}
+realmd_tags = manages-system joined-with-adcli
+cache_credentials = True
+id_provider = ad
+krb5_store_password_if_offline = True
+default_shell = /bin/bash
+ldap_id_mapping = True
+ldap_sudo_search_base = ${SOCA_DIRECTORY_ADMINS_SEARCH_BASE}
+ldap_tls_reqcert = never
+use_fully_qualified_names = False
+fallback_homedir = /data/home/%u
+access_provider = ad
+
+# Use our AD-created SOCA hostname
+ldap_sasl_authid = ${SOCA_AD_HOSTNAME}\$
+
+[nss]
+homedir_substring = /data/home
+
+[pam]
+
+[autofs]
+
+[ssh]
+
+" > /etc/sssd/sssd.conf
+
+    chmod 600 /etc/sssd/sssd.conf
+    systemctl enable sssd
+    systemctl restart sssd
+    echo "sudoers: files sss" >> /etc/nsswitch.conf
+}
+join_ad
+# End: Join Active Directory

@@ -4,6 +4,125 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [24.10.0] - 2024-10-24
+
+### Forward
+
+Hello and welcome to the `24.10.0` release of SOCA!  Please note the new version format is based on `CalVer` style versions.
+
+Due to the amount of changes that have taken place we want to provide a bit more narrative on some of these changes versus a classic ChangeLog.
+
+This release contains numerous improvements and fixes. We anticipate it being applicable to many more situations and being our best release yet!
+
+Some areas of improvement with this release include:
+
+* Improved Security
+  * More specific IAM policy for restricted environments
+  * SSH keys are now generated for `RSA` and `ED25519` key types automatically for new users (Support for `DSA` and `ECDSA` is being removed in general industry-wide in early 2025)
+
+  * Discrete Security Groups providing fine-grained access control adjustments for more resources
+    * Elastic Load Balancers, Compute Nodes, Controller Host, Login Nodes, VPC-Endpoints all now get discrete Security Groups.
+
+  * Improved AWS Key Management Service (KMS) integration for specifying Customer Managed Keys (CMK)
+    * Each resource now supports discrete KMS KeyIDs or a cluster-wide KeyID can be specified for ease of deployment
+
+  * Improved behavior during installation into AWS Accounts with Service control policies (SCPs) or CDK restrictions
+    * New options are exposed in the `soca_installer.sh` to pass CDK Execution roles which can be provisioned ahead of time
+
+* Rewrite of several key areas for better debugging and readability
+  * Improvements to installation logging/debugging as well as cluster runtime debugging
+
+* Migration of the bulk of SOCA configuration settings from `AWS Secrets Manager` to `AWS System Manager Parameter Store`.
+  * This now makes editing individual configuration settings more intuitive.
+  * Don't worry - Secrets Manager is still used for sensitive configuration items!
+
+* Version upgrades to keep up with current external package advancements
+
+* Deprecation of self-hosted OpenLDAP in favor of using `AWS Directory Service` or `External Directories`.
+  * This is an important step to refreshing and streamlining our BaseOS support in future versions as it decouples the BaseOS from the availability of an OpenLDAP-server package
+  * Expect this to provide newer BaseOS support in the future
+
+* Improved logic for handling newer instance types as soon as they are available (`zero-day instance support`)
+  * This is critical for supporting newer instances without the need to upgrade any SOCA cluster components
+
+* Reduction of running costs of the SOCA cluster
+  * Support for `Amazon ElastiCache Serverless` (replaces `Redis` running on the `controller` directly) 
+  * Ability to disable `analytics` engine to remove the need for OpenSearch
+
+
+* Improved use of `existing_resources` - Better resource polling during installation time to help identify the resources for use in SOCA.
+  * The following resources can be used as `existing_resources` during a SOCA installation:
+    * VPCs, Subnets, Filesystems (EFS, FSx), Security Groups, Directory Services, IAM Roles
+
+As always we value your feedback - please do not hesitate to leave a GitHub issue/discussion if you are having any specific problems or want to discuss the future of SOCA.
+
+
+Thank you,
+
+- The SOCA Team
+
+And now - back to your normal ChangeLog :)
+
+
+### Features
+- Updated SOCA versioning to [CalVer](https://calver.org/) format.
+- SOCA now automatically create a default admin user `socaadmin` with a secure password stored in AWS Secrets Manager
+- Added support for `SSH Login Nodes`. Login Nodes are SSH endpoints managed by AutoScaling running on Private Subnets and accessible via a newly introduced Network Load Balancer. Network Load Balancer can be deployed either in public or private subnets.
+- Added `socactl` CLI utility as an interface for SOCA configuration. You can now update your entire SOCA environment with a simple command.
+- Migrated SOCA Configuration to AWS System Manager Parameter Store
+- Remove support for `ElasticSearch`. `Amazon OpenSearch` is now the only option for the analytics back-end.
+- Migrated `cluster_node_boostrap` shell/powershell scripts to full Jinja2 support
+- Enable debug log for web interface, orchestrator ... via `export SOCA_DEBUG=1`
+- Added support for `ldaps://` (default) in addition of `ldap://` when using OpenLDAP
+- Added support for `AWS Directory Service Simple Active Directory` in addition of `AWS Directory Service Managed AD`
+- Added native support for existing `OpenLDAP` or existing `Active Directory` directory service
+- OpenPBS / Workload scheduler can now be installed from `git` or `s3 URI`
+- OpenSearch / Analytics is now optional
+- Initial support added for `AWS Backup logically air-gapped vaults` via the `additional_copy_destinations` in the `default_config.yml` configuration file. This allows for increased protection of critical backups. See [this blog post](https://aws.amazon.com/blogs/storage/building-cyber-resiliency-with-aws-backup-logically-air-gapped-vault/) for information on `Logically Air-gapped Vaults`. Additional configuration information can be found in the `default_config.yml` `backup` configuration section. 
+- Added new `utils` class to help you customize your SOCA environment:
+  - `SocaCacheClient`: Cache wrapper (currently only support Redis/ValKey on Amazon ElastiCache)
+  - `SocaCastEngine`: Easily cast variables to requested type
+  - `SocaConfig`: Wrapper for SOCA Configuration on Parameter Store
+  - `SocaError`: Database for all errors returned by SOCA
+  - `SocaIdentityProviderClient`: Wrapper for OpenLDAP or Active Directory
+  - `SocaHttpClient`: HTTP client for all SOCA internal endpoints
+  - `SocaLogger`: Centralized Logging framework
+  - `SocaSubprocessClient`: Wrapper to execute shell commands on SOCA
+  - `SocaReponse`: Wrapper for CLI/HTTP response that can be invoked in a CLI or web context
+  - `SocaJinja2Generator`: Wrapper for Jinja2 template generation
+  - `SocaAnalyticsClient`: Wrapper for OpenSearch
+
+### Changed
+- `Scheduler` has been replaced with `Controller` to better indicate the role in the SOCA environment. Some areas may still refer to this as `Scheduler` as this gets updated over time. 
+- `Login Node` has been introduced to provide CLI access for end-users (they are no longer expected to log in to the scheduler/controller directly)
+- `Controller` host has been automatically moved to Private Subnets
+- `Controller` host instance type has been updated to `m7i-flex.large` from `m5.large`
+- Configurations in `default_config.yml` that takes `instance_type` now take a list of instances. These will be determined at deployment time based on the order of preference (first match wins).
+- Make use of `Amazon ElastiCache Serverless` instead of downloading/compiling Redis directly on the Scheduler/Controller
+- Updated OpenSearch default version to `2.15`
+- Updated Node.js on Controller Host to v`20.9.0` where applicable (some older BaseOSes may run older/compatible versions)
+- Updated AWS EFA installer from `1.31.0` to `1.34.0`
+- Updated OpenMPI from `5.0.2` to `5.0.5`
+- Updated `monaco-editor` from `0.46.0` to `0.52.0`
+- Consolidated `cluster_manager` file folder hierarchy
+- Moved the SOCA AMI Map (aka the `Region Map`) to a dedicated file `region_map.yml` from the `default_config.yml`. Custom Base AMIs can be updated here.
+- The SOCA CLI installer will now check/enforce that an existing VPC has the attributes`DNS hostnames` and `DNS resolution` enabled. Non-compliant VPCs will show an error indicating the missing attribute and will not be selectable. 
+- When adding a new user - SSH keys are now generated for `RSA` and `ED25519` key types. Note the deprecation of `DSA` and `ECDSA` has been taking place for nearly a decade and will soon be unavailable in OpenSSH.
+- The configuration element `DCVAllowedInstances` did not default to the entries from `default_config.yml`. This has been fixed.
+
+
+### Known Issues
+
+- Some BaseOS combinations may not work in all situations (Controller BaseOS, Compute Node, VDI, etc) or features due to the age of the BaseOS. BaseOSes that are past their End of Life (EOL) support dates from the supplier may be removed in a future SOCA version.
+- If you select differing architectures (e.g. `x86_64` and `arm64` for the instance_types in the cluster - the cluster will fail). This will be addressed in a future release.
+- Linux VDI/DCV instances default to `Amazon Linux 2` - not the installed BaseOS of the cluster.
+- Creating a VDI session with an unsupported name will filter-out the unsupported characters - potentially causing conflict with the CloudFormation stackname.
+- Under rapid changes - the WebUI file browser may show incorrect results
+- The default deployment makes use of synthetic POSIX `uid` and `gid` generated for linux instances via `sssd`. This is not compatible in all scenarios.
+- Current Windows VDI images default to `40GB` root disks, and have approx `15GB` free after startup. This may not be enough for some larger installation packages. A larger default is expected in a future SOCA release.
+- Windows VDI/DCV launches will fail in CloudFormation when using `ED25519` Key Pairs. This is not a SOCA restriction/defect. A future SOCA version will detect this and not allow the attempted launch.
+
+
 ## [2.7.5] - 2024-04-10
 
 ### Features
@@ -28,13 +147,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - Improved user experience using `soca_installer.sh` in high-density VPC/subnet environments
 - Improved the log message for an Invalid `subnet_id` during job submission to include the specific `subnet_id` that triggered the error
-- Updated Python from `3.9.16` to `3.9.19`
+- Updated Python from `3.9.16` to `3.9.18`
 - Updated AWS Boto3/botocore from `1.26.91` to `1.34.71`
 - Updated OpenMPI from `4.1.5` to `5.0.2`
 - Updated OpenPBS from `22.05.11` to `23.06.06`
 - Updated Monaco-Editor from `0.36.1` to `0.46.0`
 - Updated AWS EFA installer from `1.22.1` to `1.31.0`
-- Updated NICE DCV from `2023.0-14852` to `2023.1-16388`
+- Updated NICE DCV from `2023.0-14852` to `2023.1-16388` (except for RHEL7 and CentOS7)
 - Update NVM from `0.39.3` to `0.39.7`
 - Updated Node from `16.15.0` to `16.20.2`
 - Updated Lambda Runtimes to Python `3.11` where applicable
@@ -104,7 +223,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - boto3 updated from `1.17.49` to `1.26.61`
 - botocore updated from `1.20.49` to `1.29.61`
 - troposphere requirements are now `>= 4.3.0`. Updated from `2.7.1` to `4.3.2`
-- Python updated from `3.7.9` to `3.9.16`
+- Python updated from `3.7.9` to `3.9.19`
 - OpenPBS updated from `20.0.1` to `22.05.11`
 - AWS EFA installer updated from `1.13.0` to `1.22.1`
 - OpenMPI updated from `4.1.1` to `4.1.5`
@@ -145,7 +264,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [2.7.1] - 2022-02-15
 ### Changed
-- NodeJS/npm is now managed via NVM (#64: Contributor @cfsnate)
+- Node.js/npm is now managed via NVM (#64: Contributor @cfsnate)
 - Fixed IAM policies required to install SOCA and added support for cdk boostrap (#64: Contributor @cfsnate)
 - More consistent way to install EPEL repository across distros
 - Better way to install SSM on the Scheduler host (similar to what we are already doing with ComputeNodes)
@@ -204,7 +323,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Updated Python 3.7.1 to Python 3.7.9
 - Update DCV version to 2020.2
 - Updated awscli, boto3, and botocore to support instances announced at Re:Invent 2020
-- Use new gp3 volumes instead of gp2 since they're more cost effective and provide 3000 IOPS baseline
+- Use new gp3 volumes instead of gp2 since they're more cost-effective and provide 3000 IOPS baseline
 - Removed SchedulerPublicIPAllocation from Scheduler.template as it's no longer used
 - Updated CentOS, ALI2 and RHEL76 AMI IDs
 - Instances with NVME instance store don't become unresponsive post-restart due to filesystem checks enforcement
@@ -225,7 +344,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Removed deprecated `soca_aws_infos` hook
 - Fixed an issue that caused the web interface to become unresponsive after an API reset
 - Users can now easily import/export application profiles
-- Fixed an issue that caused Nvidia Tesla drivers to be incorrectly installed on P3 instances
+- Fixed an issue that caused NVIDIA Tesla drivers to be incorrectly installed on P3 instances
 - Manual_build.py now automatically upload the installer to your S3 bucket
 - Upgraded to PBS v20
 - Upgraded DCV to 2020.1-9012
@@ -244,12 +363,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Users can now understand why they job is not started  (eg: instance issue, misconfiguration, AWS limit, license limit) directly on the UI
   - Users can kill their job via the web
   - Admins can manage SOCA LDAP via web (create group, user, manage ownership and permissions)
-  - Admins can creates application profiles and let user submit job via web interface
+  - Admins can create application profiles and let user submit job via web interface
   - Ability to trigger Linux commands via HTML form
 - Admins can now limit the number of running jobs per queue
 - Admins can now limit the number of running instances per queue
 - Admins can now specify the idle timeout value for any DCV sessions. Inactive DCV sessions will be automatically terminated after this period
-- Job selection can now configured at queue level (FIFO or fair share)
+- Job selection can now be configured at queue level (FIFO or fair share)
 - Dry run now supports vCpus limit
 - Support for custom shells
 
@@ -303,7 +422,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Ignore installation if PBSPro is already configured on the AMI
 - Fixed bug when stack name only use uppercase
 - ComputeNode bootstrap scripts are now loaded from EFS
-- Users can now open a SSH session using SSM Session Manager
+- Users can now open an SSH session using SSM Session Manager
 - Processes are now automatically launched upon scheduler reboot
 - Max Spot price now default to the OD price
 - Default admin password now supports special characters

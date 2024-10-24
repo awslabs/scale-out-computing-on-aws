@@ -1,0 +1,8 @@
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+{% if context.get("/configuration/BaseOS") in ("amazonlinux2", "amazonlinux2023", "rhel7", "rhel8", "rhel9") %}
+    echo "alias qsub='echo -e \" !!!! Do not submit job with system account. \n\n Please use LDAP account instead. !!!! \"'" >> /home/ec2-user/.bash_profile
+{% elif context.get("/configuration/BaseOS") == "centos7" %}
+    echo "alias qsub='echo -e \" !!!! Do not submit job with system account. \n\n Please use LDAP account instead. !!!! \"'" >> /home/centos/.bash_profile
+{% endif %}

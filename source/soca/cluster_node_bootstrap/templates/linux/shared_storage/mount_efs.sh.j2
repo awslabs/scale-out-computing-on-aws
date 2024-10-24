@@ -1,0 +1,22 @@
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# Begin: EFS mount
+{% if context.get("/configuration/BaseOS") in ("amazonlinux2", "amazonlinux2023", "centos7", "rhel7", "rhel8", "rhel9", "rocky8", "rocky9") %}
+
+{% include "templates/linux/shared_storage/nfs_wrapper.sh.j2" %}
+
+function mount_efs () {
+  local ENDPOINT="${1}" # Make sure the Endpoint include the SOURCE MOUNT! eg: endpoint:/ and not just efs_endpoint
+  local MOUNT_POINT="${2}" # Local linux folder to use as mountpoint
+  local NFS_OPTS_DATA="nfsvers=4.1,rsize=1048576,wsize=1048576,hard,timeo=600,retrans=2,noresvport"
+  # todo: efs-mount-helper
+  if wrapper_mount_nfs ${ENDPOINT} ${MOUNT_POINT} ${NFS_OPTS_DATA} == "success"; then
+    log_info "Successfully mounted ${ENDPOINT} as ${MOUNT_POINT}"
+  else
+    log_error "Unable to mount ${ENDPOINT} as ${MOUNT_POINT}"
+    exit_fail
+  fi
+}
+{% endif %}
+# End: EFS mount

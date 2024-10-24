@@ -1,0 +1,28 @@
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# Begin - Install AWS CLIv2
+function Install-AwsCliV2 {
+    Write-ToLog -Message "Installing AWS CLI v2 (if needed)"
+    $AwsCliInstaller = "{{ context.get('/system/awscliv2/windows/x86_64') }}"
+    try {
+        $awsVersion = aws --version 2>&1
+        if ($awsVersion -match "^aws-cli\/\d+\.\d+\.\d+") {
+            Write-ToLog -Message "AWS CLI is installed. Version:" $awsVersion
+        }
+        else {
+        Write-ToLog -Message "AWS not found, installing it ..."
+        $ProgressPreference = 'SilentlyContinue'
+        Invoke-WebRequest $AwsCliInstaller -OutFile "AWSCLIV2.msi"
+        Start-Process msiexec.exe -Wait -ArgumentList '/i AWSCLIV2.msi /quiet'
+        }
+    } catch {
+    Write-ToLog -Message "AWS not found, installing it ..."
+    $ProgressPreference = 'SilentlyContinue'
+    Invoke-WebRequest $AwsCliInstaller -OutFile "AWSCLIV2.msi"
+    Start-Process msiexec.exe -Wait -ArgumentList '/i AWSCLIV2.msi /quiet'
+    }
+}
+Install-AwsCliV2
+$env:Path += ";C:\Program Files\Amazon\AWSCLIV2\" # Update Global Path to include AWS CLI v2
+# End - Install AWS CLIv2

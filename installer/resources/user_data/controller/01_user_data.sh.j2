@@ -1,0 +1,47 @@
+#!/bin/bash -xe
+
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# Important: Keep this file < 16 KBs (AWS EC2 UserData requirement)
+# Edit 02_pre_requisites.sh.j2 / 03_setup.sh.j2 instead
+
+{% include "templates/linux/common/log.sh.j2" %}
+
+{% include "templates/linux/http_proxy.sh.j2" %}
+
+source /etc/environment
+
+{% if context.get("/configuration/BaseOS") == "centos7" %}
+  {% include "templates/linux/patch_centos7_repos.sh.j2" %}
+{% endif %}
+
+{% include "templates/linux/packages_management.sh.j2" %}
+
+{% include "templates/linux/awscli.sh.j2" %}
+
+{% include "templates/linux/common/wrapper_awscli.sh.j2" %}
+
+{% include "templates/linux/aws_ssm_agent.sh.j2" %}
+
+{% include "templates/linux/mount_apps_data.sh.j2" %}
+
+{% if context.get("/configuration/Region") in ('us-gov-east-1', 'us-gov-west-1')  %}
+  S3_BUCKET_REGION=$(curl -s --head {{ context.get("/configuration/S3Bucket") }}.s3.{{ context.get("/configuration/Region") }}.amazonaws.com | grep bucket-region | awk '{print $2}' | tr -d '\r\n')
+{% else %}
+  S3_BUCKET_REGION=$(curl -s --head {{ context.get("/configuration/S3Bucket") }}.s3.amazonaws.com | grep bucket-region | awk '{print $2}' | tr -d '\r\n')
+{% endif %}
+
+# Retrieve SOCA Pre-Requisite  and execute the script
+aws_cli s3 --region ${S3_BUCKET_REGION} cp s3://{{ context.get("/configuration/S3Bucket") }}/{{ context.get("/configuration/ClusterId") }}/user_data/controller/02_prerequisites.sh /root
+
+# Exit if folder already exist,
+if [[ -d "/apps/soca/{{ context.get("/configuration/ClusterId") }}" ]]; then
+  exit_fail "/apps/soca/{{ context.get("/configuration/ClusterId") }} folder already exist. To prevent configuration overwrite, we exit the script. Please pick a different SOCA cluster name or delete the folder"
+else
+  mkdir -p /apps/soca/"{{ context.get("/configuration/ClusterId") }}"
+fi
+
+/bin/bash /root/02_prerequisites.sh >> /root/02_prerequisites.sh.log 2>&1
+
+

@@ -1,0 +1,44 @@
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# Begin - Wrapper IMDS. Added via common.sh.j2
+function imds_get () {
+  local SLASH=''
+  local IMDS_HOST="http://169.254.169.254"
+  local IMDS_TTL="300"
+  # prepend a slash if needed
+  if [[ "${1:0:1}" == '/' ]]; then
+    SLASH=''
+  else
+    SLASH='/'
+  fi
+  local URL="${IMDS_HOST}${SLASH}${1}"
+
+  # Get an Auth token
+  local TOKEN=$(curl --silent -X PUT "${IMDS_HOST}/latest/api/token" -H "X-aws-ec2-metadata-token-ttl-seconds: ${IMDS_TTL}")
+
+  # Get the requested value and echo it back
+  local OUTPUT=$(curl --silent -H "X-aws-ec2-metadata-token: ${TOKEN}" "${URL}")
+  echo -n "${OUTPUT}"
+}
+
+function instance_type () {
+  echo -n $(imds_get /latest/meta-data/instance-type)
+}
+
+function instance_family () {
+  echo -n  $(imds_get /latest/meta-data/instance-type | cut -d. -f1)
+}
+
+function instance_id () {
+  echo -n $(imds_get /latest/meta-data/instance-id)
+}
+
+function instance_region () {
+  echo -n $(imds_get /latest/meta-data/placement/region)
+}
+
+function instance_az () {
+  echo -n $(imds_get /latest/meta-data/placement/availability-zone)
+}
+# End - Wrapper IMDS

@@ -1,0 +1,15 @@
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# Begin - Wrapper AWSCLI. Added via common.sh.j2
+function aws_cli () {
+  # Wrapper for AWS API call with --region pre-defined if not specifically specified
+  local AWS=$(command -v aws)
+  if [[ "$*" == *"--region"* ]]; then
+    local AWS_API_CALL="${AWS} $*"
+  else
+    local AWS_API_CALL="${AWS} --region {{ context.get("/configuration/Region") }} $*"
+  fi
+  ${AWS_API_CALL}
+}
+# End - Wrapper AWSCLI

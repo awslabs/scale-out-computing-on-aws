@@ -17,11 +17,12 @@
 Do not trigger cdk deploy manually, Instead run ./soca_installer.sh.
 All variables will be retrieved dynamically
 """
+import shutil
 
+from botocore.client import BaseClient
 
 import cdk_construct_user_customization
 from constructs import Construct
-import boto3
 import os
 import datetime
 import typing
@@ -40,19 +41,25 @@ from aws_cdk import (
     aws_directoryservice as ds,
     aws_efs as efs,
     aws_ec2 as ec2,
+    aws_autoscaling as autoscaling,
     aws_opensearchservice as opensearch,
+    aws_opensearchserverless as opensearchserverless,
+    aws_elasticache as elasticache,
     aws_elasticloadbalancingv2 as elbv2,
+    aws_elasticloadbalancingv2_targets as elbv2_targets,
     aws_events as events,
     aws_fsx as fsx,
     aws_lambda as aws_lambda,
     aws_logs as logs,
     aws_iam as iam,
     aws_backup as backup,
+    aws_certificatemanager as acm,
     aws_cloudwatch as cloudwatch,
     aws_cloudwatch_actions as cw_actions,
     aws_sns as sns,
-    aws_secretsmanager as secretsmanager,
     aws_route53resolver as route53resolver,
+    aws_ssm as ssm,
+    aws_kms as kms,
 )
 import json
 import sys
@@ -61,11 +68,132 @@ import ast
 import random
 import string
 from types import SimpleNamespace
+import jinja2
+from jinja2 import select_autoescape, FileSystemLoader
+from helpers import (
+    security_groups as security_groups_helper,
+    secretsmanager as secretsmanager_helper,
+    boto3_wrapper as boto3_helper
+)
+import re
+import pathlib
+import logging
+from rich.text import Text
+from rich.table import Table
+from rich.logging import RichHandler
+
+
+# Note: cdk_construct.py is called via `cdk` CLI and not via install_soca.py, so we can't inherit the default logger and must create a new one
+class CustomFormatter(logging.Formatter):
+    def format(self, record):
+        if not isinstance(record.msg, (Text, Table)):
+            if record.levelno == logging.ERROR:
+                record.msg = f"[bold red]ERROR: {record.msg}[/bold red]"
+            elif record.levelno == logging.WARNING:
+                record.msg = f"[bold yellow]WARNING: {record.msg} [/bold yellow]"
+
+        return super().format(record)
+
+
+_soca_debug = os.environ.get("SOCA_DEBUG", False)
+if _soca_debug in ["1", "enabled", "true", "True", "on", "2", "trace"]:
+    _log_level = logging.DEBUG
+    _formatter = CustomFormatter("[%(asctime)s] %(levelname)s - %(message)s")
+else:
+    _log_level = logging.INFO
+    _formatter = CustomFormatter("%(message)s")
+
+_rich_handler = RichHandler(
+    rich_tracebacks=True, markup=True, show_time=False, show_level=False
+)
+_rich_handler.setFormatter(_formatter)
+logging.basicConfig(
+    level=_log_level,
+    handlers=[_rich_handler],
+)
+
+logger = logging.getLogger("soca_logger")
+for _logger_name in ["boto3", "botocore"]:
+    logging.getLogger(_logger_name).setLevel(logging.DEBUG if _soca_debug in {"trace", "2"} else logging.WARNING)
+
+def get_lambda_runtime_version() -> aws_lambda.Runtime:
+    return aws_lambda.Runtime.PYTHON_3_12
+    
+def get_config_key(
+    key_name: str,
+    required: bool = True,
+    default: typing.Any = None,
+    expected_type: [str, int, float, bool, list, dict] = str,
+) -> typing.Any:
+
+    _result = install_props
+    for key in key_name.split("."):
+        _result = _result.get(key)
+        if _result is None:
+            break
+
+    if required and _result is None:
+        logger.error(f"{key_name} must be set but returned no value")
+        sys.exit(1)
+
+    if _result is None and default is not None:
+        # logger.debug(f"Default specified as  [[ {default} ]] / Type: {type(default)} - Returning")
+        return default
+    else:
+        # Empty result with no default - so we infer what the caller wants from the expected_type
+        # and return a matching 'empty' that matches that type.
+        # This makes sure that we return to the caller what they are expecting (e.g. a string) versus a NoneType.
+        try:
+            if _result is None:
+                logger.debug(f"Result lookup is empty - Expected {expected_type} for {key_name} / Returning empty equiv for the data type")
+                if  expected_type is str:
+                    _ret_value: str = ""
+                elif expected_type is int:
+                    _ret_value: int = 0
+                elif expected_type is float:
+                    _ret_value: float = 0.0
+                elif expected_type is bool:
+                    _ret_value: bool = False
+                elif expected_type is list:
+                    _ret_value: list = []
+                elif expected_type is dict:
+                    _ret_value: dict = {}
+                else:
+                    # This shouldn't happen
+                    logger.error(f"Unsupported type passed to get_config_key(): {expected_type}")
+                    sys.exit(1)
+
+                logger.debug(f"Returning [[ {_ret_value} ]] / {type(_ret_value)}")
+                return _ret_value
+            else:
+                return expected_type(_result)
+        except ValueError:
+            logger.error(f"Expected {expected_type} for {key_name}")
+            sys.exit(1)
+
+
+def flatten_parameterstore_config(
+    d: dict, parent_key: str = "", sep: str = "/"
+) -> dict:
+    _items = []
+    for k, v in d.items():
+        # Remove index number (/0, /1 etc ...) generated during the iterate process
+        parent_key = re.sub(r"/\d+$|^\d+/", "", parent_key)
+        # Create the new key, cast everything as string
+        _new_key = f"{parent_key}{sep}{k}" if parent_key else str(k)
+        if isinstance(v, dict):
+            _items.extend(flatten_parameterstore_config(v, _new_key, sep=sep).items())
+        elif isinstance(v, list):
+            _items.append((_new_key, " ".join(v)))
+        else:
+            _items.append((_new_key, v))
+    return dict(_items)
 
 
 def get_arch_for_instance_type(region: str, instancetype: str) -> str:
     _found_arch = None
-    ec2_client = boto3.client("ec2", region_name=region)
+    logger.debug(f"get_arch_for_instance_type() called with {region=} / {instancetype=}")
+    ec2_client = boto3_helper.get_boto(service_name="ec2", profile_name=user_specified_variables.profile, region_name=user_specified_variables.region)
     _resp = ec2_client.describe_instance_types(InstanceTypes=[instancetype])
 
     _instance_info = _resp.get("InstanceTypes", {})
@@ -84,60 +212,274 @@ def get_arch_for_instance_type(region: str, instancetype: str) -> str:
     return _found_arch
 
 
+def is_valid_backup_vault_arn(arn: str) -> bool:
+    """
+    Check if the provided ARN is a valid AWS Backup vault ARN
+    """
+    _backup_vault_arn_pattern = r'^arn:(aws|aws-us-gov|aws-cn):backup:[a-z0-9\-]+:[0-9]{12}:backup-vault:[a-zA-Z0-9\-]+$'
+    return bool(re.match(_backup_vault_arn_pattern, arn))
+
+
+def validate_kms_key_id(kms_client: BaseClient, key_id: str)  -> [bool, str]:
+    """
+    Validate the KMS KeyID via the AWS API and return the ARN.
+    This can take an ARN as the key_id or an alias name.
+    """
+    logger.debug(f"validate_kms_key_id() called with {kms_client=} / {key_id=}")
+
+    if not key_id:
+        logger.debug(f"No KMS key_id passed to is_valid_kms_key_id() - rejecting.")
+        return False, ""
+    if not kms_client:
+        logger.error(f"No KMS client passed to is_valid_kms_key_id() - unable to continue. Probable code defect.")
+        sys.exit(1)
+
+    # If we are passed something that doesn't look like an ARN - fixup the name as it
+    # is an alias lookup. E.g. 'MyEBSCMK' becomes 'alias/MyEBSCMK' for API calls.
+    # This also covers AWS default keys. E.g. "aws/ebs" becomes "alias/aws/ebs"
+    if is_arn_string(arn_string=key_id, arn_type="kms_key_id"):
+        logger.debug(f"Looks like a KMS KeyID ARN: {key_id}")
+    else:
+        logger.debug(f"Alias KeyID: {key_id} -> alias/{key_id}")
+        key_id = f"alias/{key_id}"
+
+    try:
+        _key_information = kms_client.describe_key(KeyId=key_id).get("KeyMetadata", {})
+    # TODO - Add specific exceptions with proper errors/logging/returns
+    except kms_client.exceptions.NotFoundException as e:
+        logger.error(f"KMS KeyID: {key_id} not found: {e}")
+        return False, ""
+    except Exception as e:
+        logger.error(f"Error performing KMS KeyID validation: {e}")
+        return False, ""
+
+    if _key_information:
+        logger.debug(f"Found KMS KeyID: {key_id} - KeyInformation - {_key_information}")
+
+        # Make sure the key is enabled
+        # If it is not enabled - we purposely exit hard here versus assuming something
+        # about encryption that could be incorrect. Never assume about security/encryption!
+        if not _key_information.get("Enabled", False):
+            logger.error(f"KMS KeyID: {key_id} is disabled. Unable to use this KeyID")
+            return False
+        else:
+            logger.debug(f"KMS KeyID: {key_id} is enabled. Good.")
+
+        # Enabled and ready to go
+        _key_descr: str = _key_information.get("Description", "")
+        _key_creation_str: str = str(_key_information.get("CreationDate", ""))
+        _key_arn_str: str = _key_information.get("Arn", "")
+        logger.debug(f"Acceptable KMS KeyID found: {key_id} - {_key_descr} - {_key_creation_str} - ARN: {_key_arn_str}")
+        return True, _key_arn_str
+
+
+def is_arn_string(arn_string: str, arn_type: str = "") -> bool:
+    """
+    Check if the provided string is an ARN. Optionally with stricter enforcement for known ARN types (arn_type).
+    """
+    _service_arns: dict = {
+        "kms_key_id": r"^([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|mrk-[0-9a-f]{32}|alias/[a-zA-Z0-9/_-]+|(arn:aws[-a-z]*:kms:[a-z0-9-]+:\d{12}:((key/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})|(key/mrk-[0-9a-f]{32})|(alias/[a-zA-Z0-9/_-]+))))$",
+    }
+
+    _re_pattern: str = ""
+    if arn_type:
+        logger.debug(f"Looking for specific ARN pattern for {arn_type}")
+        _re_pattern = _service_arns.get(arn_type.lower(), "")
+        if not _re_pattern:
+            _re_pattern = "^arn:aws[-a-z]*:"
+            logger.warning(f"No specific ARN pattern found for {arn_type} . Using basic ARN string validation: {_re_pattern}")
+        else:
+            logger.debug(f"Using specific ARN pattern for {arn_type}: {_re_pattern}")
+
+    else:
+        _re_pattern = "^arn:aws[-a-z]*:"
+        logger.debug(f"Performing basic ARN string validation: {_re_pattern}")
+
+    return bool(re.match(pattern=_re_pattern, string=arn_string))
+
+
+def return_ebs_volume_type(volume_string: str, fallback_volume: str = "gp2") -> str:
+    """
+    For a given string value of an EBS volume - return the proper CDK representation or the fallback volume.
+    """
+    logger.debug(f"Looking for EBS volume type: {volume_string} / Fallback: {fallback_volume}")
+
+    if not volume_string:
+        logger.warning(f"No volume_string passed to return_ebs_volume_type() - probable defect")
+        if fallback_volume:
+            volume_string = fallback_volume
+        else:
+            logger.error(f"No volume_string or fallback_volume passed to return_ebs_volume_type() - unable to continue. Probable code defect.")
+            sys.exit(1)
+
+    if not isinstance(volume_string, str):
+        logger.error(f"volume_string must be a string - unable to continue. Probable code defect.")
+        sys.exit(1)
+
+    if not isinstance(fallback_volume, str):
+        logger.error(f"fallback_volume must be a string - unable to continue. Probable code defect.")
+        sys.exit(1)
+
+    _ebs_volume_type_map = {
+        "default": ec2.EbsDeviceVolumeType.GP3,
+        "__fallback__":  ec2.EbsDeviceVolumeType.GP2,  # Fallback is purposely kept at GP2
+        "gp2": ec2.EbsDeviceVolumeType.GP2,
+        "gp3": ec2.EbsDeviceVolumeType.GP3,
+        "io1": ec2.EbsDeviceVolumeType.IO1,
+        "io2": ec2.EbsDeviceVolumeType.IO2,
+        "st1": ec2.EbsDeviceVolumeType.ST1,
+        "sc1": ec2.EbsDeviceVolumeType.SC1,
+        "standard": ec2.EbsDeviceVolumeType.GP3,  # Lies - but we don't want magnetic
+    }
+    # Fallback for our fallback
+    _fallback_value =_ebs_volume_type_map.get(fallback_volume.lower())
+
+    if not _fallback_value:
+        _fallback_value = _ebs_volume_type_map.get("__fallback__")
+        logger.warning(f"Invalid fallback value: {fallback_volume} - Defaulting to __fallback__: {_fallback_value}")
+
+    logger.debug(f"Looking for EBS volume type: {volume_string}")
+    _volume_type = _ebs_volume_type_map.get(volume_string.lower(), _fallback_value)
+
+    logger.debug(f"Returning {_volume_type}")
+
+    return _volume_type
+
+
+def get_kms_key_id(config_key_names: list, allow_global_default: bool = True) -> str:
+    """
+    Retrieve the KMS key ID (ARN) based on the provided key names from the config. If this key doesn't exist, check for the global KMS KeyID. If not - return an empty string.
+    """
+    _kms_client = boto3_helper.get_boto(service_name="kms", profile_name=user_specified_variables.profile, region_name=user_specified_variables.region)
+    _kms_key_id: str = ""
+    _global_config_key_location: str = "Config.kms_key_id"
+
+    # If we allow the global default - append it to the end of the list for ease of use
+    # Since this is a 'first match wins' - it will be consulted in the last/lowest priority/fallback case.
+    if allow_global_default:
+
+        _global_key_id = get_config_key(
+            key_name=_global_config_key_location, required=False, expected_type=str, default=""
+        )
+        logger.debug(f"Global KMS KeyID: {_global_key_id} /  Type: {type(_global_key_id)}")
+        if len(_global_key_id) > 0:
+            if _global_config_key_location not in config_key_names:
+                logger.debug(f"Adding Global key ID location ({_global_config_key_location}) to list of key names to validate (allow_global_default) as it contains a valid entry ({_global_key_id})")
+                config_key_names.append(_global_config_key_location)
+            else:
+                # Warn the user - but it is non-fatal at this stage
+                logger.warning(f"Global KMS KeyID location ({_global_config_key_location}) is already in the list of config key names to validate. Check your configuration. Continuing anyway")
+        elif _global_key_id == "":
+            logger.debug(f"Blank Global KMS KeyID found at {_global_config_key_location} for fallback.")
+            config_key_names.append(_global_config_key_location)
+    else:
+        logger.warning(f"allow_global_default set to False. Skipping global default key ID check.")
+
+    # No incoming configuration key list to validate
+    # This only takes place when we are set for allow_global_default False and get an empty list of config keys to check
+    if not config_key_names:
+        logger.warning(f"No config_key_names passed to get_kms_key_id - returning empty")
+        return ""
+
+    logger.debug(f"Looking for resource specific KMS KeyID: {config_key_names} / Allow Global Default: {allow_global_default}")
+
+    for _key_name in config_key_names:
+        logger.debug(f"Determining KeyID validity: {_key_name}")
+
+        _kms_key_id = get_config_key(
+            key_name=_key_name, required=False, expected_type=str, default=""
+        )
+
+        if _kms_key_id == "" and _key_name == config_key_names[-1]:
+            logger.debug(f"Last Empty KeyID found at {_key_name} - using defaults")
+            break
+        elif _kms_key_id == "":
+            logger.debug(f"Empty KeyID found at {_key_name} - trying next entry")
+            continue
+
+        logger.debug(f"Preparing to API lookup keyID: {_kms_key_id}")
+        _key_lu_result, _key_arn = validate_kms_key_id(kms_client=_kms_client, key_id=_kms_key_id)
+
+        if _key_lu_result:
+            logger.debug(f"Validated/Selected KeyID: {_key_name} /  {_kms_key_id} / ARN: {_key_arn}")
+            _kms_key_id = _key_arn
+            break
+        else:
+            logger.warning(f"Invalid KeyID at {_key_name}  / {_kms_key_id}. Trying next entry")
+            continue
+
+    # Exiting the for loop we should have a valid _kms_key_id
+
+    logger.debug(f"Returning KMS KeyID: {_kms_key_id}")
+    return _kms_key_id
+
+
 class SOCAInstall(Stack):
     def __init__(self, scope: Construct, construct_id: str, **kwargs) -> None:
         super().__init__(scope, construct_id, **kwargs)
+        _template_dirs = [
+            pathlib.Path.cwd().parent,  # for user_data folder
+            pathlib.Path(
+                f"{pathlib.Path.cwd()}/../../../source/soca/cluster_node_bootstrap/"  # for all templates
+            ).resolve(),
+        ]
 
+        self.jinja2_env = jinja2.Environment(
+            loader=FileSystemLoader(_template_dirs),
+            autoescape=select_autoescape(
+                enabled_extensions=("j2", "jinja2"),
+                default_for_string=True,
+                default=True,
+            ),
+        )
         # Init SOCA resources
         self.soca_resources = {
             "acm_certificate_lambda_role": None,
             "alb": None,
+            "aoss_data_policy_lambda_role": None,
+            "nlb": None,
+            "alb_sg": None,
+            "nlb_sg": None,
+            "elasticache": None,
+            "elasticache_sg": None,
             "backup_role": None,
+            "custom_ami_map": {},
+            "base_os": user_specified_variables.base_os,
             "compute_node_instance_profile": None,
             "compute_node_role": None,
             "compute_node_sg": None,
-            "directory_service": None,
             "ami_id": None,
             "os_custom_resource": None,
             "os_domain": None,
             "fs_apps": None,
-            "fs_apps_lambda_role": None,
+            "efs_lambda_role": None,
             "fs_data": None,
             "get_es_private_ip_lambda_role": None,
+            "login_node_sg": None,
             "nat_gateway_ips": [],
             "reset_ds_password_lambda_role": None,
-            "reset_ds_lambda": None,
-            "scheduler_eip": None,
-            "scheduler_instance": None,
-            "scheduler_role": None,
-            "scheduler_sg": None,
+            "controller_eip": None,
+            "controller_instance": None,
+            "controller_role": None,
+            "controller_sg": None,
             "spot_fleet_role": None,
             "solution_metrics_lambda_role": None,
-            "soca_config": None,
             "vpc": None,
+            "soca_secret": None,
+            "soca_config": None,
         }
 
-        # Determine our architecture base on scheduler
-        # and our ami_id based on base_os/architecture
-        # user_specified_variables.custom_ami
-
-        _instance_type = install_props.Config.scheduler.instance_type
-        _instance_arch = None
-        _located_ami = None
-        _base_os = user_specified_variables.base_os
+        self._base_os = user_specified_variables.base_os
         self._region = user_specified_variables.region
+        self._partition = user_specified_variables.partition
 
-        _instance_arch = get_arch_for_instance_type(
-            region=self._region, instancetype=_instance_type
-        )
-        #
-        # Used later to store our SchedulerEIP value (IP address)
-        #
-        self._scheduler_eip_value = None
+        logger.debug(f"Creating SOCAInstall()")
+        logger.debug(f"Base OS: {self._base_os}")
+        logger.debug(f"Region: {self._region}")
+        logger.debug(f"Partition: {self._partition}")
 
-        # Store architectures as they may come in handy for jobs that differ from the Scheduler architecture
+        # Store architectures as they may come in handy for jobs that differ from the Controller architecture
         # TODO - a bit of a hack
-        self.soca_resources["custom_ami_map"] = {}
         for _arch in {"arm64", "x86_64"}:
             if _arch not in self.soca_resources["custom_ami_map"]:
                 self.soca_resources["custom_ami_map"][_arch] = {}
@@ -150,60 +492,261 @@ class SOCAInstall(Stack):
                 "rhel8",
                 "rhel9",
                 "rocky8",
-                "rocky9"
+                "rocky9",
             }:
-                if hasattr(
-                    install_props.RegionMap.__dict__[self._region].__dict__[_arch],
-                    _base_os_available,
-                ):
-                    _arch_ami = (
-                        install_props.RegionMap.__dict__[self._region]
-                        .__dict__[_arch]
-                        .__dict__[_base_os_available]
+                self.soca_resources[f"custom_ami_map"][_arch][_base_os_available] = (
+                    ""
+                    if not get_config_key(
+                        key_name=f"RegionMap.{self._region}.{_arch}.{_base_os_available}",
+                        required=False,
                     )
-                    self.soca_resources[f"custom_ami_map"][_arch][
-                        _base_os_available
-                    ] = _arch_ami
-                else:
-                    self.soca_resources[f"custom_ami_map"][_arch][
-                        _base_os_available
-                    ] = ""
+                    else get_config_key(
+                        key_name=f"RegionMap.{self._region}.{_arch}.{_base_os_available}",
+                        required=False,
+                    )
+                )
 
-        # The actual AMI ID for the scheduler (based on our selected instance_type)
+        # Determine our architecture base on controller
+        # and our ami_id based on base_os/architecture
+        # user_specified_variables.custom_ami
+
+        _located_ami = None
+        _instance_type: list = get_config_key(
+            key_name="Config.controller.instance_type",
+            expected_type=list,
+            required=False,
+            default=["m7i-flex.large", "m5.large"]
+        )
+        logger.debug(f"ControllerNode - Configured instance type: {_instance_type}")
+
+        self._instance_type, self._instance_arch, _default_instance_ami = self.select_best_instance(
+            instance_list=_instance_type,
+            region=user_specified_variables.region,
+            fallback_instance="m5.large",
+        )
+
+        logger.debug(f"ControllerNode - Selected instance type: { self._instance_type} / Arch: {self._instance_arch}")
+
+        #
+        # Used later to store our ControllerEIP value (IP address)
+        #
+        self._controller_eip_value = None
+
+        # Our DS domain is used for route53 rule creation
+        # This can be specified in the configuration as directoryservice.name - defaults to <cluster_id>.local
+        _ds_domain_name = get_config_key(
+                key_name="Config.directoryservice.name",
+                expected_type=str,
+                required=False,
+                default=f"{user_specified_variables.cluster_id}.local"
+        ).lower()
+
+        _ds_provider = get_config_key(key_name="Config.directoryservice.provider").lower()
+        _use_existing_directory = False
+        _endpoint = None
+
+        if _ds_provider in {"existing_openldap", "existing_activedirectory"}:
+            _endpoint = get_config_key(
+                key_name=f"Config.directoryservice.{_ds_provider}.endpoint",
+                required=False,
+                default=None
+            )
+            _use_existing_directory = True
+
+        self.directory_service_resource_setup = {
+            "use_existing_directory": _use_existing_directory,
+            "provider": _ds_provider,
+            "domain_name": _ds_domain_name.lower(),
+            "short_name": get_config_key(
+                key_name="Config.directoryservice.short_name",
+                expected_type=str,
+                required=False,
+                default=_ds_domain_name.split(".")[0].upper()[:15]).upper(),
+            "domain_base": get_config_key(
+                key_name="Config.directoryservice.domain_base",
+                expected_type=str,
+                required=False,
+                default=f"dc={',dc='.join(_ds_domain_name.split('.'))}".lower(),
+            ).lower(),
+            "endpoint": _endpoint.lower() if _endpoint is not None else _endpoint,
+            "ad_aws_directory_service_id": False,
+            "ad_aws_lambda_reset_password": False,
+            "service_account_secret_arn": get_config_key(
+                key_name=f"Config.directoryservice.{_ds_provider}.service_account_secret_arn",
+                required=False,
+                default=None
+            ),
+        }
+
+        # Retrieve Directory OU/CN settings based on config values
+        # Default options that are created automatically by AWS DS and cannot be changed
+        _aws_specific_default_value = {
+            "aws_ds_simple_activedirectory": {
+                "admins_search_base": f"CN=Administrators,CN=Builtin,{self.directory_service_resource_setup.get('domain_base')}",
+                "people_search_base": f"cn=Users,{self.directory_service_resource_setup.get('domain_base')}",
+                "group_search_base": f"cn=Users,{self.directory_service_resource_setup.get('domain_base')}"
+            },
+            "aws_ds_managed_activedirectory": {
+                "admins_search_base": f"cn=AWS Delegated Server Administrators,ou=AWS Delegated Groups,{self.directory_service_resource_setup.get('domain_base')}",
+                "people_search_base": f"ou=Users,ou={self.directory_service_resource_setup.get('short_name')},{self.directory_service_resource_setup.get('domain_base')}",
+                "group_search_base": f"ou=Users,ou={self.directory_service_resource_setup.get('short_name')},{self.directory_service_resource_setup.get('domain_base')}"
+            },
+        }
+
+        if _ds_provider in _aws_specific_default_value.keys():
+            self.directory_service_resource_setup["people_search_base"] = _aws_specific_default_value[_ds_provider].get("people_search_base")
+            self.directory_service_resource_setup["group_search_base"] = _aws_specific_default_value[_ds_provider].get("group_search_base")
+            self.directory_service_resource_setup["admins_search_base"] = _aws_specific_default_value[_ds_provider].get("admins_search_base")
+
+        else:
+            _admins_search_base = get_config_key(key_name=f"Config.directoryservice.{self.directory_service_resource_setup.get('provider')}.admins_search_base").lower()
+            _people_search_base = get_config_key(key_name=f"Config.directoryservice.{self.directory_service_resource_setup.get('provider')}.people_search_base").lower()
+            _group_search_base = get_config_key(key_name=f"Config.directoryservice.{self.directory_service_resource_setup.get('provider')}.group_search_base").lower()
+
+            # People
+            if self.directory_service_resource_setup.get('domain_base') not in _people_search_base:
+                self.directory_service_resource_setup["people_search_base"] = f"{_people_search_base},{self.directory_service_resource_setup.get('domain_base')}"
+            else:
+                self.directory_service_resource_setup["people_search_base"] = f"{_people_search_base}"
+
+            # Group
+            if self.directory_service_resource_setup.get('domain_base') not in _group_search_base:
+                self.directory_service_resource_setup["group_search_base"] = f"{_group_search_base},{self.directory_service_resource_setup.get('domain_base')}"
+            else:
+                self.directory_service_resource_setup["group_search_base"] = f"{_group_search_base}"
+
+            # Admins
+            if self.directory_service_resource_setup.get('domain_base') not in _admins_search_base:
+                self.directory_service_resource_setup["admins_search_base"] = f"{_admins_search_base},{self.directory_service_resource_setup.get('domain_base')}"
+            else:
+                self.directory_service_resource_setup["admins_search_base"] = f"{_admins_search_base}"
+
+        # Validate Directory Settings
+        if self._base_os in ("rhel8", "rhel9", "rocky8", "rocky9") and self.directory_service_resource_setup.get('provider') == "openldap":
+            logger.error(f"{self._base_os} do not support openldap. Please use aws_ds_simple_activedirectory or aws_ds_managed_activedirectory instead")
+            sys.exit(1)
+
+        if self.directory_service_resource_setup.get('endpoint') is not None:
+            if re.match(r"^(ldaps://|ldap://)", self.directory_service_resource_setup.get('endpoint')) is None:
+                logger.error(f"Config.directoryservice.{_ds_provider}.use_existing_directory is set but does not start with ldaps:// or ldap://")
+                sys.exit(1)
+
+        if self.directory_service_resource_setup.get('use_existing_directory') is True and self.directory_service_resource_setup.get('service_account_secret_arn') is None:
+            logger.error(f"Config.directoryservice.{_ds_provider}.use_existing_directory is set to True but Config.directoryservice.service_account_secret_arn is not set")
+            sys.exit(1)
+
+        if self.directory_service_resource_setup.get('use_existing_directory') is None and self.directory_service_resource_setup.get('service_account_secret_arn') is not None:
+            logger.error(f"Config.directoryservice.{_ds_provider}.use_existing_directory is None but Config.directoryservice.service_account_secret_arn is set")
+            sys.exit(1)
+
+        logger.debug(f"DS Environment Setup Name: {self.directory_service_resource_setup}")
+
+        # Validate Scheduler installation mechanism
+        _scheduler_deployment_type = get_config_key("Config.scheduler.deployment_type")
+        _scheduler_deployment_options = get_config_key("Parameters.system.scheduler.openpbs", expected_type=dict)
+
+        if _scheduler_deployment_type == "git":
+            if _scheduler_deployment_options.get(_scheduler_deployment_type).get("repo") is None:
+                logger.error(f"Parameters.system.scheduler.openpbs.{_scheduler_deployment_type}.repo is None but must be set since Config.scheduler.deployment_type is et to {_scheduler_deployment_type}")
+                sys.exit(1)
+
+            if _scheduler_deployment_options.get(_scheduler_deployment_type).get("version") is None:
+                logger.error(f"Parameters.system.scheduler.openpbs.{_scheduler_deployment_type}.version is None but must be set since Config.scheduler.deployment_type is et to {_scheduler_deployment_type}")
+                sys.exit(1)
+
+        if _scheduler_deployment_type == "s3_tgz":
+            if _scheduler_deployment_options.get(_scheduler_deployment_type).get("s3_uri") is None:
+                logger.error(
+                    f"Parameters.system.scheduler.openpbs.{_scheduler_deployment_type}.s3_uri is None but must be set since Config.scheduler.deployment_type is et to {_scheduler_deployment_type}")
+                sys.exit(1)
+
+            if _scheduler_deployment_options.get(_scheduler_deployment_type).get("version") is None:
+                logger.error(
+                    f"Parameters.system.scheduler.openpbs.{_scheduler_deployment_type}.version is None but must be set since Config.scheduler.deployment_type is et to {_scheduler_deployment_type}")
+                sys.exit(1)
+
+
+        # The actual AMI ID for the controller (based on our selected instance_type)
         # print(f"DEBUG: Trying to resolve the AMI from the AMI - Arch: {_instance_arch} . BaseOS: {_base_os}")
         # print(f"DEBUG: AMI RegionMap: {self.soca_resources['custom_ami_map']}")
 
         self.soca_resources["ami_id"] = (
-            self.soca_resources["custom_ami_map"].get(_instance_arch).get(_base_os)
+            self.soca_resources["custom_ami_map"].get(self._instance_arch, 'x86_64').get(self._base_os, 'amazonlinux2')
         )
+
+        # Resolve our secretsmanager key for future use
+        _sm_key_id: str = get_kms_key_id(
+            config_key_names=[
+                "Config.secretsmanager.kms_key_id",  # Current configuration for kms_key_id
+            ],
+            allow_global_default=True,
+        )
+
+        logger.debug(f"Resolved SecretsManager KMS Key ID configuration: {_sm_key_id}")
+        self.soca_resources["secretsmanager_kms_key_id"] = kms.Key.from_key_arn(self, id="SecretsManagerKMSKey", key_arn=_sm_key_id) if _sm_key_id else None
+        logger.debug(f"Resolved SecretsManager KMS Key ID: {_sm_key_id} : {self.soca_resources['secretsmanager_kms_key_id']}")
 
         # Create SOCA environment
         self.generic_resources()
         self.network()  # Create Network environment
         self.security_groups()  # Create Security Groups
         self.iam_roles()  # Create IAM roles and policies for primary roles needed to deploy resources
-        if install_props.Config.network.use_vpc_endpoints:
-            print("Creating vpc endpoints")
-            self.create_vpc_endpoints()
-        self.storage()  # Create Storage backend
-        if (
-            install_props.Config.directoryservice.provider == "activedirectory"
-            and not user_specified_variables.directory_service_id
+        if get_config_key(
+            key_name="Config.network.use_vpc_endpoints",
+            expected_type=bool,
+            required=False,
         ):
-            self.directoryservice()  # Create Directory Service
-        self.analytics()  # Create Analytics domain
-        self.scheduler()  # Configure the Scheduler
-        self.viewer()  # Configure the DCV Load Balancer
-        self.secretsmanager()  # Store SOCA config on Secret Manager
+            self.create_vpc_endpoints()
 
-        if (
-            install_props.Config.services.aws_backup
-            and isinstance(install_props.Config.services.aws_backup, bool)
-            and install_props.Config.services.aws_backup is True
+        self.storage()  # Create Storage backend
+
+        if get_config_key(
+            key_name="Config.services.aws_elasticache.enabled",
+            expected_type=bool,
+            default=True,
+            required=False
+        ):
+            self.elasticache()  # Create ElastiCache backend (deps: subnets, SGs)
+
+        if get_config_key(key_name="Config.analytics.enabled", expected_type=bool) is True:
+            self.analytics()  # Create Analytics domain
+
+        self.controller()  # Configure the Controller
+
+        if self.directory_service_resource_setup.get("endpoint") is None:
+            self.directory_service()  # Create Directory Service (any flavor)
+        else:
+            logger.info(f"Planning to use existing Directory Service with endpoint set to {self.directory_service_resource_setup.get('endpoint')}")
+
+        if get_config_key(
+            key_name="Config.dcv.high_scale", expected_type=bool, default=False
+        ):
+            print(
+                f"Configuring DCV High-Scale Deployment due to Config.dcv.high_scale==True"
+            )
+            # Configure HA / high-scale DCV infrastructure
+            self.dcv_infrastructure()
+
+        self.viewer()  # Configure the DCV Load Balancer
+        self.login_nodes()  # Configure the Login Nodes
+
+        if get_config_key(
+            key_name="Config.services.aws_pcs.enabled",
+            expected_type=bool,
+            required=False,
+            default=False,
+        ):
+            self.aws_pcs()
+
+        self.configuration()  # Store SOCA config
+
+        if get_config_key(
+            key_name="Config.services.aws_backup.enabled",
+            expected_type=bool, required=False, default=True
         ):
             self.backups()  # Configure AWS Backup & Restore
         else:
-            print("WARNING: AWS Backup integration is disabled per configuration")
+            logger.warning("AWS Backup integration is disabled per configuration")
 
         # User customization (Post Configuration)
         cdk_construct_user_customization.main(self, self.soca_resources)
@@ -222,7 +765,7 @@ class SOCAInstall(Stack):
             function_name=f"{user_specified_variables.cluster_id}-TagEC2Resource",
             description="Tag EC2 resource that doesn't support tagging in CloudFormation",
             memory_size=128,
-            runtime=typing.cast(aws_lambda.Runtime, aws_lambda.Runtime.PYTHON_3_11),
+            runtime=typing.cast(aws_lambda.Runtime, get_lambda_runtime_version()),
             timeout=Duration.minutes(1),
             log_retention=logs.RetentionDays.INFINITE,
             handler="TagEC2ResourceLambda.lambda_handler",
@@ -262,10 +805,12 @@ class SOCAInstall(Stack):
 
             vpc_params = {
                 "ip_addresses": ec2.IpAddresses.cidr(user_specified_variables.vpc_cidr),
-                "nat_gateways": int(install_props.Config.network.nat_gateways),
+                "nat_gateways": get_config_key(
+                    key_name="Config.network.nat_gateways", expected_type=int
+                ),
                 "enable_dns_support": True,
                 "enable_dns_hostnames": True,
-                "max_azs": int(install_props.Config.network.max_azs),
+                "max_azs": get_config_key(key_name="Config.network.max_azs", expected_type=int),
                 "subnet_configuration": [
                     ec2.SubnetConfiguration(
                         cidr_mask=public_subnet_mask,
@@ -283,248 +828,778 @@ class SOCAInstall(Stack):
             Tags.of(self.soca_resources["vpc"]).add(
                 "Name", f"{user_specified_variables.cluster_id}-VPC"
             )
+
+            # Retrieve all NAT Gateways associated to the public subnets.
+            for subnet_info in self.soca_resources["vpc"].public_subnets:
+                logger.debug(f"NAT PROCESSING - processing {subnet_info=} / {type(subnet_info)}")
+                nat_eip_for_subnet = subnet_info.node.try_find_child("EIP")
+                if nat_eip_for_subnet:
+                    logger.debug(f"NAT PROCESSING - FOUND EIP - {nat_eip_for_subnet=} / Appending")
+                    self.soca_resources["nat_gateway_ips"].append(nat_eip_for_subnet.attr_public_ip)
+
+
         else:
+            logger.debug(f"Using existing VPC and subnets for connectivity")
             # Use existing VPC
             public_subnet_ids = []
             private_subnet_ids = []
             # Note: syntax is ["subnet1,az1","subnet2,az2" ....]
             for pub_subnet in user_specified_variables.public_subnets:
+                logger.debug(f"Adding Public subnet: {pub_subnet}")
                 public_subnet_ids.append(pub_subnet.split(",")[0])
             for priv_subnet in user_specified_variables.private_subnets:
+                logger.debug(f"Adding Private subnet: {priv_subnet}")
                 private_subnet_ids.append(priv_subnet.split(",")[0])
 
-            self.soca_resources["vpc"] = ec2.Vpc.from_vpc_attributes(
+            logger.debug(f"Complete subnet listings:  Public: {public_subnet_ids} / Private: {private_subnet_ids}")
+            # self.soca_resources["vpc"] = ec2.Vpc.from_vpc_attributes(
+            self.soca_resources["vpc"] = ec2.Vpc.from_lookup(
                 self,
-                user_specified_variables.cluster_id,
-                vpc_cidr_block=user_specified_variables.vpc_cidr,
-                availability_zones=user_specified_variables.vpc_azs.split(","),
+                "SOCAVpc",
                 vpc_id=user_specified_variables.vpc_id,
-                public_subnet_ids=public_subnet_ids,
-                private_subnet_ids=private_subnet_ids,
             )
 
-        # Retrieve all NAT Gateways associated to the public subnets.
-        for subnet_info in self.soca_resources["vpc"].public_subnets:
-            nat_eip_for_subnet = subnet_info.node.try_find_child("EIP")
-            if nat_eip_for_subnet:
-                self.soca_resources["nat_gateway_ips"].append(nat_eip_for_subnet)
-
-        # Create the EIP that will be associated to the scheduler
-        if install_props.Config.entry_points_subnets.lower() == "public":
-            self.soca_resources["scheduler_eip"] = ec2.CfnEIP(
-                self, "SchedulerEIP", instance_id=None
-            )
+            # # Check the VPC for DNS support
+            # logger.debug(f"VPC DNS Support: {self.soca_resources['vpc'].dns_support_enabled}")
+            # logger.debug(f"VPC DNS Hostname Support: {self.soca_resources['vpc'].dns_hostnames_enabled}")
             #
-            # GovCloud partition does not support the '.attr_public_ip' CDK method
-            # as of 29 Nov 2023 @jasackle
-            _pub = self.soca_resources["scheduler_eip"].get_att("PublicIp")
-            # print(f"DEBUG- scheduler_eip: {self.soca_resources['scheduler_eip'].to_string()}  - PublicIp: {_pub}")
+            # if not self.soca_resources["vpc"].dns_support_enabled or not self.soca_resources["vpc"].dns_hostnames_enabled:
+            #     logger.error(f"SOCA requires VPCs to have DNS and DNS hostname supported enabled. Update VPC ({user_specified_variables.vpc_id}) and try again. Unable to continue.")
+            #     sys.exit(1)
 
-            if self._region.lower() in {
-                "us-gov-west-1",
-                "us-gov-east-1",
-                "ap-south-1",
-                "ap-southeast-4",
-                "eu-central-2",
-                "eu-south-2",
-                "il-central-1",
-            }:
-                self._scheduler_eip_value = self.soca_resources["scheduler_eip"].ref
-            else:
-                self._scheduler_eip_value = self.soca_resources[
-                    "scheduler_eip"
-                ].attr_public_ip
+            #
+            # Retrieve all NAT Gateways associated to the public subnets of our existing VPC
+            #
+            ec2_client = boto3_helper.get_boto(service_name="ec2", profile_name=user_specified_variables.profile, region_name=user_specified_variables.region)
+            logger.debug(f"Probing NAT / EIP for egress ACL allowances ...")
+            logger.debug(f"Processing Public subnet for NAT lookup: {public_subnet_ids}")
+
+            _nat_gw_pager = ec2_client.get_paginator("describe_nat_gateways")
+            _nat_gw_iter = _nat_gw_pager.paginate(
+                Filters=[
+                    {
+                        "Name": "vpc-id",
+                        "Values": [user_specified_variables.vpc_id],
+                    },
+                    {
+                        "Name": "subnet-id",
+                        "Values": public_subnet_ids,
+                    },
+                ]
+            )
+
+            # Are we looking for public or private NATs?
+            _nat_is_public: bool = True if get_config_key(
+                key_name="Config.entry_points_subnets",
+                expected_type=str, default="public", required=False,
+            ).lower() == "public" else False
+            logger.debug(f"Looking for public NATs: {_nat_is_public}")
+
+            for _page in _nat_gw_iter:
+                for _nat_gw_info in _page.get("NatGateways", []):
+                    logger.debug(f"Existing NAT GW Info: {_nat_gw_info}")
+
+                    _nat_gw_id: str = _nat_gw_info.get("NatGatewayId", "")
+                    _nat_gw_state: str = _nat_gw_info.get("State", "")
+                    _nat_gw_type: str = _nat_gw_info.get("ConnectivityType", "")
+
+                    # Shouldn't need to check the VPC/subnet IDs since we use a filter for the query
+
+                    if not _nat_gw_id or not _nat_gw_state or not _nat_gw_type:
+                        logger.debug(f"Skipping NAT GW: {_nat_gw_info} due to missing ID, state, or type from API call")
+                        continue
+
+                    if _nat_gw_state not in {"available"}:
+                        logger.debug(f"Skipping NAT GW: {_nat_gw_info} due to undesired state: {_nat_gw_state}")
+                        continue
+
+                    for _addresses in _nat_gw_info.get("NatGatewayAddresses", ""):
+                        logger.debug(f"Processing Address spec: {_addresses}")
+                        _public_ip: str = _addresses.get("PublicIp", "")
+                        _private_ip: str = _addresses.get("PrivateIp", "")
+                        _ip_status: str = _addresses.get("Status", "")
+
+                        # Only stable NATs are allowed
+                        if _ip_status not in {"succeeded"}:
+                            logger.debug(f"Skipping NAT IP: {_addresses} due to undesired status: {_ip_status}")
+                            continue
+
+                        # Check the IPs
+                        if not _private_ip:
+                            logger.debug(f"Found EIP: {_public_ip} and Private IP: {_private_ip} for NAT GW: {_nat_gw_info}")
+                            continue
+
+                        if _nat_is_public:
+                            if _public_ip:
+                                logger.debug(f"Found Public NAT: {_public_ip} for NAT GW: {_nat_gw_info}")
+                                if  _public_ip not in self.soca_resources["nat_gateway_ips"]:
+                                    logger.debug(f"Adding Public EIP: {_public_ip} to list of NAT GW IPs")
+                                    self.soca_resources["nat_gateway_ips"].append(_public_ip)
+                        else:
+                            if _private_ip:
+                                logger.debug(f"Found Private NAT: {_private_ip} for NAT GW: {_nat_gw_info}")
+                                if _private_ip not in self.soca_resources["nat_gateway_ips"]:
+                                    logger.debug(f"Adding Private IP: {_private_ip} to list of NAT GW IPs")
+                                    self.soca_resources["nat_gateway_ips"].append(_private_ip)
+
+            logger.debug(f"Final list of NAT GW EIP/IPs: {self.soca_resources['nat_gateway_ips']} / {_nat_is_public=}")
+
+
+    def elasticache(self):
+        """
+        Deploy AWS ElastiCache for SOCA Controller.
+        """
+
+        _supported_cache_engines: set[str] = {"valkey", "redis"}
+
+        if not user_specified_variables.vpc_id:
+            _launch_subnets = [
+                self.soca_resources["vpc"].private_subnets[0].subnet_id,
+                self.soca_resources["vpc"].private_subnets[1].subnet_id,
+            ]
+        else:
+            _launch_subnets = [
+                user_specified_variables.private_subnets[0].split(",")[0],
+                user_specified_variables.private_subnets[1].split(",")[0],
+            ]
+
+        _cache_engine = get_config_key(
+            key_name="Config.services.aws_elasticache.engine",
+            required=False,
+            default="valkey"
+        )
+        if _cache_engine not in _supported_cache_engines:
+            print(f"Unsupported option for Config.services.aws_elasticache.engine. Specify one of {', '.join(_supported_cache_engines)} .")
+            sys.exit(1)
+
+        if _cache_engine in {"redis", "valkey"}:
+            self.soca_resources[
+                "cache_admin_user_secret"
+            ] = secretsmanager_helper.create_secret(
+                scope=self,
+                construct_id="CacheAdminUserSecret",
+                secret_name=f"/soca/{user_specified_variables.cluster_id}/CacheAdminUser",
+                secret_string_template='{"username": "default"}',  # soca-adminuser is the default user
+                kms_key_id=self.soca_resources["secretsmanager_kms_key_id"] if self.soca_resources["secretsmanager_kms_key_id"] else None,
+            )
+
+            # soca-adminuser is known as default user per https://docs.aws.amazon.com/AmazonElastiCache/latest/red-ug/Clusters.RBAC.html
+            self.soca_resources[
+                "cache_readonly_user_secret"
+            ] = secretsmanager_helper.create_secret(
+                scope=self,
+                construct_id="CacheReadOnlySecret",
+                secret_name=f"/soca/{user_specified_variables.cluster_id}/CacheReadOnlyUser",
+                secret_string_template='{"username": "soca-readonlyuser"}',
+                kms_key_id=self.soca_resources["secretsmanager_kms_key_id"] if self.soca_resources["secretsmanager_kms_key_id"] else None,
+            )
+
+            _cache_readonly_user = elasticache.CfnUser(
+                self,
+                "SOCACacheReadOnlyUser",
+                user_id=f"soca-{user_specified_variables.cluster_id.lower()}-readonlyuser",
+                user_name="soca-readonlyuser",
+                engine="redis",
+                passwords=[
+                    self.soca_resources["cache_readonly_user_secret"]
+                    .secret_value_from_json("password")
+                    .to_string()
+                ],
+                access_string="on ~* +@read",
+                no_password_required=False,
+            )
+
+            # Username must be default. https://docs.aws.amazon.com/AmazonElastiCache/latest/red-ug/Clusters.RBAC.html
+            _cache_admin_user = elasticache.CfnUser(
+                self,
+                "SOCACacheAdminUser",
+                user_id=f"soca-{user_specified_variables.cluster_id.lower()}-adminuser",
+                user_name="default",
+                engine="redis",
+                passwords=[
+                    self.soca_resources["cache_admin_user_secret"]
+                    .secret_value_from_json("password")
+                    .to_string()
+                ],
+                access_string="on ~* +@all",
+                no_password_required=False,
+            )
+
+            # Associate users with the Redis cluster
+            # Node: default user will automatically be removed via user-data.
+            # `default` user must be part of CfnUserGroup
+            _redis_user_group = elasticache.CfnUserGroup(
+                self,
+                "SOCACacheUser",
+                engine="redis",
+                user_group_id=f"socausers-{user_specified_variables.cluster_id.lower()}",
+                user_ids=[
+                    _cache_admin_user.user_id,
+                    _cache_readonly_user.user_id,
+                ],
+            )
+            _redis_user_group.node.add_dependency(_cache_admin_user)
+            _redis_user_group.node.add_dependency(_cache_readonly_user)
+
+            _kms_key_id = get_kms_key_id(
+                config_key_names=[
+                    "Config.services.aws_elasticache.kms_key_id",  # Current config key
+                ],
+                allow_global_default=True,
+             )
+
+            if _kms_key_id is not None:
+                _redis_user_group.kms_key_id = _kms_key_id
+
+            # Not support in all regions/partitions so we guard with self._partition
+            _cache_usage_limits = elasticache.CfnServerlessCache.CacheUsageLimitsProperty(
+                data_storage=elasticache.CfnServerlessCache.DataStorageProperty(
+                    unit="GB",
+                    minimum=get_config_key(
+                        key_name="Config.services.aws_elasticache.limits.memory.min",
+                        required=False,
+                        expected_type=int,
+                        default=2
+                    ),
+                    maximum=get_config_key(
+                        key_name="Config.services.aws_elasticache.limits.memory.max",
+                        required=False,
+                        expected_type=int,
+                        default=24
+                    ),
+                ),
+                ecpu_per_second=elasticache.CfnServerlessCache.ECPUPerSecondProperty(
+                    minimum=get_config_key(
+                        key_name="Config.services.aws_elasticache.limits.ecpu.min",
+                        required=False,
+                        expected_type=int,
+                        default=1000
+                    ),
+                    maximum=get_config_key(
+                        key_name="Config.services.aws_elasticache.limits.ecpu.max",
+                        required=False,
+                        expected_type=int,
+                        default=1000
+                    ),
+                )
+            )
+
+            self.soca_resources["elasticache"] = elasticache.CfnServerlessCache(
+                self,
+                "ElastiCache",
+                engine=_cache_engine,
+                kms_key_id=_kms_key_id if _kms_key_id else None,
+                major_engine_version="7",  #  TODO Engine version from Config
+                serverless_cache_name=f"{user_specified_variables.cluster_id.lower()}-cache",  # FIXME TODO - sanitize/check
+                description=f"{user_specified_variables.cluster_id.lower()}-cache",
+                security_group_ids=[
+                    self.soca_resources["elasticache_sg"].security_group_id
+                ],
+                subnet_ids=_launch_subnets,
+                user_group_id=_redis_user_group.user_group_id,
+                cache_usage_limits=_cache_usage_limits if self._partition in {"aws"} else None,
+            )
+
+            self.soca_resources["elasticache"].node.add_dependency(_redis_user_group)
+            self.soca_resources["elasticache"].node.add_dependency(
+                self.soca_resources["vpc"]
+            )
+
+    def dcv_infra_security_groups(self):
+        """
+        Create DCV Infrastructure security groups when Config.dcv.high_scale == True
+        """
+        logger.debug(
+            f"in dcv_infra_security_groups() - Creating SGs for DCV High Scale ..."
+        )
+
+        for _dcv_node_type in {"broker", "gateway", "manager"}:
+            # FIXME TODO - Narrow down to specific ports for each app
+            print(f"Adding NLB all traffic rule for {_dcv_node_type}")
+            security_groups_helper.create_ingress_rule(
+                security_group=self.soca_resources[f"dcv_{_dcv_node_type}_sg"],
+                peer=self.soca_resources["nlb_sg"],
+                connection=ec2.Port.all_traffic(),
+                description=f"Allow ELB to DCV {_dcv_node_type}",
+            )
+
+            logger.debug(f"Adding all traffic rule for intra-{_dcv_node_type}")
+            # FIXME TODO - Narrow down to specific ports for each app
+            security_groups_helper.create_ingress_rule(
+                security_group=self.soca_resources[f"dcv_{_dcv_node_type}_sg"],
+                peer=self.soca_resources[f"dcv_{_dcv_node_type}_sg"],
+                connection=ec2.Port.all_traffic(),
+                description=f"Allow intra-{_dcv_node_type} communications",
+            )
+
+        # Now our specific role rules
+        # Broker
+        # Gateway-to-Broker
+        # FIXME TODO - Narrow down to specific ports for each app
+        security_groups_helper.create_ingress_rule(
+            security_group=self.soca_resources[f"dcv_broker_sg"],
+            peer=self.soca_resources[f"dcv_gateway_sg"],
+            connection=ec2.Port.all_traffic(),
+            description=f"Allow DCV gateway to broker",
+        )
+        # Gateway
+
+        # Manager
 
     def security_groups(self):
         """
-        Create two security groups (or re-use existing ones), one for the compute-nodes and one for the scheduler
+        Create security groups (or re-use existing ones).
         """
-        if not user_specified_variables.compute_node_sg:
-            self.soca_resources["compute_node_sg"] = ec2.SecurityGroup(
-                self,
-                "ComputeNodeSG",
-                vpc=self.soca_resources["vpc"],
-                allow_all_outbound=False,
-                description="Security Group used for all compute nodes",
-            )
-            # We do not use `security_group_name` as it's not recommended in case you plan to do UPDATE_TEMPLATE in the future. We assign a Name tag instead
-            Tags.of(self.soca_resources["compute_node_sg"]).add(
-                "Name", f"{user_specified_variables.cluster_id}-ComputeNodeSG"
-            )
-        else:
-            self.soca_resources[
-                "compute_node_sg"
-            ] = ec2.SecurityGroup.from_security_group_id(
-                self,
-                "ComputeNodeSG",
-                security_group_id=user_specified_variables.compute_node_sg,
+        _security_groups = {
+            "compute_node_sg": {
+                "name": f"{user_specified_variables.cluster_id}-ComputeNodeSG",
+                "description": "Security Group used for all compute nodes",
+                "existing_security_group_id": user_specified_variables.compute_node_sg
+                if user_specified_variables.compute_node_sg
+                else None,
+                "allow_all_outbound": False,
+            },
+            "alb_sg": {
+                "name": f"{user_specified_variables.cluster_id}-ALBFrontendSG",
+                "description": "Security Group used by ALB frontend",
+                "existing_security_group_id": user_specified_variables.alb_sg
+                if user_specified_variables.alb_sg
+                else None,
+                "allow_all_outbound": True,
+            },
+            "nlb_sg": {
+                "name": f"{user_specified_variables.cluster_id}-NLBSG",
+                "description": "Security Group used by NLB",
+                "existing_security_group_id": user_specified_variables.nlb_sg
+                if user_specified_variables.nlb_sg
+                else None,
+                "allow_all_outbound": True,
+            },
+            "controller_sg": {
+                "name": f"{user_specified_variables.cluster_id}-ControllerSG",
+                "description": "Security Group used by Controller node",
+                "existing_security_group_id": user_specified_variables.controller_sg
+                if user_specified_variables.controller_sg
+                else None,
+                "allow_all_outbound": True,
+            },
+            "login_node_sg": {
+                "name": f"{user_specified_variables.cluster_id}-LoginNodeSG",
+                "description": "Security Group used by Login node",
+                "existing_security_group_id": user_specified_variables.login_node_sg
+                if user_specified_variables.login_node_sg
+                else None,
+                "allow_all_outbound": True,
+            },
+            "vpc_endpoint_sg": {
+                "name": f"{user_specified_variables.cluster_id}-VPCEndpointSG",
+                "description": "Security Group used by VPC Endpoints",
+                "existing_security_group_id": user_specified_variables.vpc_endpoint_sg
+                if user_specified_variables.vpc_endpoint_sg
+                else None,
+                "allow_all_outbound": True,
+            },
+            "elasticache_sg": {
+                "name": f"{user_specified_variables.cluster_id}-ElastiCacheSG",
+                "description": "Security Group used by ElastiCache",
+                "existing_security_group_id": user_specified_variables.elasticache_sg
+                if user_specified_variables.elasticache_sg
+                else None,
+                "allow_all_outbound": True,
+            },
+        }
+
+        logger.debug(f"User spec vars: {user_specified_variables}")
+        if get_config_key(
+            key_name="Config.dcv.high_scale", expected_type=bool, default=False
+        ):
+            logger.debug(f"DCV High Scale SG skel ..")
+            for _dcv_host_type in {"broker", "gateway", "manager"}:
+                logger.debug(f"DCV High Scale SG skel for {_dcv_host_type}..")
+                _security_groups[f"dcv_{_dcv_host_type}_sg"] = {
+                    "name": f"{user_specified_variables.cluster_id}-{_dcv_host_type}_sg",
+                    "description": f"Security Group used by {_dcv_host_type} DCV",
+                    "existing_security_group_id": get_config_key(
+                        key_name=f"Config.dcv.{_dcv_host_type}.security_group_id",
+                        required=False,
+                        expected_type=str,
+                        default=None,
+                    ),
+                    "allow_all_outbound": True,
+                }
+
+        for sg_name, sg_data in _security_groups.items():
+            logger.debug(f"SG - processing: {sg_name}: Data: {sg_data}")
+            if sg_data["existing_security_group_id"]:
+                self.soca_resources[
+                    sg_name
+                ] = security_groups_helper.use_existing_security_group(
+                    scope=self,
+                    construct_id=sg_data["name"],
+                    security_group_id=sg_data["existing_security_group_id"],
+                )
+            else:
+                self.soca_resources[
+                    sg_name
+                ] = security_groups_helper.create_security_groups(
+                    scope=self,
+                    construct_id=sg_data.get("name", "NoName"),
+                    vpc=self.soca_resources["vpc"],
+                    allow_all_outbound=sg_data.get("allow_all_outbound", True),
+                    description=sg_data.get("description", "NoDescr"),
+                )
+            # Set Friendly Name tag and don't use the one generated by CDK
+            Tags.of(self.soca_resources[sg_name]).add("Name", sg_data["name"])
+
+        # CREATE SECURITY GROUP RULES
+
+        #
+        ## LOGIN from the customer IP
+        #
+        _login_node_ssh_front_port: int = get_config_key(
+            key_name="Config.login_node.security.ssh_frontend_port",
+            expected_type=int,
+            default=22,
+            required=False,
+        )
+
+        _login_node_ssh_back_port: int = get_config_key(
+            key_name="Config.login_node.security.ssh_backend_port",
+            expected_type=int,
+            default=22,
+            required=False,
+        )
+
+        logger.debug(f"Configuring LoginNode SG with SSH ports:  FrontEnd: {_login_node_ssh_front_port} / BackEnd: {_login_node_ssh_back_port}")
+
+
+        security_groups_helper.create_ingress_rule(
+            security_group=self.soca_resources["login_node_sg"],
+            peer=ec2.Peer.ipv4(user_specified_variables.client_ip),
+            connection=ec2.Port.tcp(_login_node_ssh_front_port),
+            description="Allow SSH access from customer IP",
+        )
+        #
+        # NLB Healthchecks on the SSH port
+        #
+        security_groups_helper.create_ingress_rule(
+            security_group=self.soca_resources["login_node_sg"],
+            peer=self.soca_resources["nlb_sg"],
+            connection=ec2.Port.tcp(_login_node_ssh_back_port),
+            description="Allow NLB health checks",
+        )
+        #
+        # The customer prefix-list
+        #
+        if user_specified_variables.prefix_list_id:
+            logger.debug("Configuring LoginNode SG with customer prefix-list")
+            logger.debug(f"Prefix list ID: {user_specified_variables.prefix_list_id}")
+            for _sg in {"login_node_sg", "nlb_sg"}:
+                logger.debug(f"Adding prefix list rule to {_sg}")
+                security_groups_helper.create_ingress_rule(
+                    security_group=self.soca_resources[_sg],
+                    peer=ec2.Peer.prefix_list(user_specified_variables.prefix_list_id),
+                    connection=ec2.Port.tcp(_login_node_ssh_front_port),
+                    description="Allow SSH access from customer prefix list",
+                )
+
+        if get_config_key("Config.directoryservice.provider") in {"aws_ds_managed_activedirectory", "aws_ds_simple_activedirectory", "external_activedirectory"}:
+            security_groups_helper.create_ingress_rule(
+                security_group=self.soca_resources["login_node_sg"],
+                peer=ec2.Peer.ipv4(self.soca_resources["vpc"].vpc_cidr_block),
+                connection=ec2.Port.udp_range(0, 1024),
+                description="Allow all UDP traffic from VPC to login node. Required for Directory Service",
             )
 
-        if not user_specified_variables.scheduler_sg:
-            self.soca_resources["scheduler_sg"] = ec2.SecurityGroup(
-                self,
-                "SchedulerSG",
-                vpc=self.soca_resources["vpc"],
-                allow_all_outbound=False,
-                description="Security Group used for the scheduler host and ELB",
-            )
-            # We do not use `security_group_name` as it's not recommended in case you plan to do UPDATE_TEMPLATE
-            # We assign a Name tag instead
-            Tags.of(self.soca_resources["scheduler_sg"]).add(
-                "Name", f"{user_specified_variables.cluster_id}-SchedulerSG"
-            )
-        else:
-            self.soca_resources[
-                "scheduler_sg"
-            ] = ec2.SecurityGroup.from_security_group_id(
-                self,
-                "SchedulerSG",
-                security_group_id=user_specified_variables.scheduler_sg,
+            security_groups_helper.create_egress_rule(
+                security_group=self.soca_resources["login_node_sg"],
+                peer=ec2.Peer.ipv4("0.0.0.0/0"),
+                connection=ec2.Port.udp_range(0, 1024),
+                description="Allow all Egress UDP traffic for login node SG. Required for Directory Service",
             )
 
-        if not user_specified_variables.vpc_endpoint_sg:
-            self.soca_resources["vpc_endpoint_sg"] = ec2.SecurityGroup(
-                self,
-                "VpcEndpointSG",
-                vpc=self.soca_resources["vpc"],
-                allow_all_outbound=False,
-                description="VpcEndpoint",
-            )
-            # We do not use `security_group_name` as it's not recommended in case you plan to do UPDATE_TEMPLATE
-            # Instead we simply assign a Name tag
-            Tags.of(self.soca_resources["vpc_endpoint_sg"]).add(
-                "Name", f"{user_specified_variables.cluster_id}-VpcEndpointSG"
-            )
-        else:
-            self.soca_resources[
-                "vpc_endpoint_sg"
-            ] = ec2.SecurityGroup.from_security_group_id(
-                self,
-                "VpcEndpointSG",
-                security_group_id=user_specified_variables.vpc_endpoint_sg,
-                allow_all_outbound=False,
-            )
-
-        # Add rules. Ignore if already exist (in case you re-use existing SGs)
+        # COMPUTE/DCV
         # Ingress
-        self.soca_resources["compute_node_sg"].add_ingress_rule(
-            ec2.Peer.ipv4(self.soca_resources["vpc"].vpc_cidr_block),
-            ec2.Port.tcp_range(0, 65535),
+        security_groups_helper.create_ingress_rule(
+            security_group=self.soca_resources["compute_node_sg"],
+            peer=self.soca_resources["compute_node_sg"],
+            connection=ec2.Port.all_traffic(),
+            description="Allow all traffic between compute node SG members (required for EFA)",
+        )
+
+        security_groups_helper.create_ingress_rule(
+            security_group=self.soca_resources["compute_node_sg"],
+            peer=ec2.Peer.ipv4(self.soca_resources["vpc"].vpc_cidr_block),
+            connection=ec2.Port.tcp_range(0, 65535),
             description="VPC - allow all TCP traffic from VPC to compute nodes",
         )
-        self.soca_resources["compute_node_sg"].add_ingress_rule(
-            self.soca_resources["scheduler_sg"],
-            ec2.Port.tcp_range(0, 65535),
-            description="SchedulerSG - allow all TCP traffic from scheduler to compute",
-        )
-        self.soca_resources["compute_node_sg"].add_ingress_rule(
-            self.soca_resources["compute_node_sg"],
-            ec2.Port.all_traffic(),
-            description="ComputeNodeSG - allow all traffic between compute nodes and EFA",
-        )
-        # Egress
-        self.soca_resources["compute_node_sg"].add_egress_rule(
-            self.soca_resources["compute_node_sg"],
-            ec2.Port.all_traffic(),
-            description="ComputeNodeSG - allow all traffic between compute nodes and EFA",
-        )
-        self.soca_resources["compute_node_sg"].add_egress_rule(
-            ec2.Peer.ipv4("0.0.0.0/0"),
-            ec2.Port.tcp_range(0, 65535),
-            description="Allow all egress",
+
+        security_groups_helper.create_ingress_rule(
+            security_group=self.soca_resources["compute_node_sg"],
+            peer=self.soca_resources["controller_sg"],
+            connection=ec2.Port.tcp_range(0, 65535),
+            description="Allow all traffic from Controller host",
         )
 
-        # Ingress
-        self.soca_resources["scheduler_sg"].add_ingress_rule(
-            ec2.Peer.ipv4(self.soca_resources["vpc"].vpc_cidr_block),
-            ec2.Port.tcp_range(0, 65535),
-            description="Allow all TCP traffic from VPC to scheduler",
-        )
-        self.soca_resources["scheduler_sg"].add_ingress_rule(
-            ec2.Peer.ipv4(user_specified_variables.client_ip),
-            ec2.Port.tcp(22),
-            description="Allow SSH access from customer IP to scheduler",
-        )
-        self.soca_resources["scheduler_sg"].add_ingress_rule(
-            ec2.Peer.ipv4(user_specified_variables.client_ip),
-            ec2.Port.tcp(443),
-            description="Allow HTTPS access from customer IP to scheduler",
-        )
-        self.soca_resources["scheduler_sg"].add_ingress_rule(
-            ec2.Peer.ipv4(user_specified_variables.client_ip),
-            ec2.Port.tcp(80),
-            description="Allow HTTP access from customer IP to scheduler",
-        )
-        if user_specified_variables.prefix_list_id:
-            self.soca_resources["scheduler_sg"].add_ingress_rule(
-                ec2.Peer.prefix_list(user_specified_variables.prefix_list_id),
-                ec2.Port.tcp(22),
-                description="Allow SSH access from customer IPs to scheduler",
-            )
-            self.soca_resources["scheduler_sg"].add_ingress_rule(
-                ec2.Peer.prefix_list(user_specified_variables.prefix_list_id),
-                ec2.Port.tcp(443),
-                description="Allow HTTPS access from customer IPs to scheduler",
-            )
-            self.soca_resources["scheduler_sg"].add_ingress_rule(
-                ec2.Peer.prefix_list(user_specified_variables.prefix_list_id),
-                ec2.Port.tcp(80),
-                description="Allow HTTP access from customer IPs to scheduler",
-            )
-
-        self.soca_resources["scheduler_sg"].add_ingress_rule(
-            self.soca_resources["compute_node_sg"],
-            ec2.Port.tcp_range(0, 65535),
-            description="Allow all traffic from compute nodes to scheduler",
-        )
-        self.soca_resources["scheduler_sg"].add_ingress_rule(
-            self.soca_resources["scheduler_sg"],
-            ec2.Port.tcp(8443),
-            description="Allow ELB healthcheck to communicate with the UI",
-        )
-        if install_props.Config.entry_points_subnets.lower() == "public":
-            self.soca_resources["scheduler_sg"].add_ingress_rule(
-                ec2.Peer.ipv4(f"{self._scheduler_eip_value}/32"),
-                ec2.Port.tcp(443),
-                description=f"Allow HTTPS traffic from Scheduler to ELB to validate DCV sessions",
-            )
-
-        for nat_eip in self.soca_resources["nat_gateway_ips"]:
-            self.soca_resources["scheduler_sg"].add_ingress_rule(
-                ec2.Peer.ipv4(f"{nat_eip.ref}/32"),
-                ec2.Port.tcp(443),
-                description=f"Allow NAT EIP to communicate to ELB/Scheduler",
-            )
-
-        # Egress
-        self.soca_resources["scheduler_sg"].add_egress_rule(
-            ec2.Peer.ipv4("0.0.0.0/0"),
-            ec2.Port.tcp_range(0, 65535),
-            description="Allow all Egress TCP traffic for Scheduler SG",
+        # FIXME - TODO - ComputeNode custom SSH port via config
+        security_groups_helper.create_ingress_rule(
+            security_group=self.soca_resources["compute_node_sg"],
+            peer=self.soca_resources["login_node_sg"],
+            connection=ec2.Port.tcp(22),
+            description="Allow SSH from login node",
         )
 
-        # Special rules are needed when using AWS Directory Services
-        if install_props.Config.directoryservice.provider == "activedirectory":
-            self.soca_resources["compute_node_sg"].add_ingress_rule(
-                ec2.Peer.ipv4(self.soca_resources["vpc"].vpc_cidr_block),
-                ec2.Port.udp_range(0, 1024),
+        # Egress is explicitly done so that we can activate EFA for this SG
+        logger.debug(f"Creating EFA traffic egress rule")
+        security_groups_helper.create_egress_rule(
+            security_group=self.soca_resources["compute_node_sg"],
+            peer=self.soca_resources["compute_node_sg"],
+            connection=ec2.Port.all_traffic(),
+            description="Allow all traffic between compute node SG members (required for EFA)",
+        )
+        # Rest of Egress
+        # This cannot be done as CDK complains that allowAllOutbound should be set for true
+        # But this does not allow us to create egress rule entry - which prevents EFA from working correctly.
+        # Instead - we must use a CDK escape hatch to manually create the rule
+        # 20 Oct 2024
+
+        logger.debug(f"Creating remaining traffic egress rule via CDK Escape Hatch method")
+
+        _sg_egress_rule = self.soca_resources["compute_node_sg"].node.default_child
+        _sg_egress_rule.add_property_override(
+            "SecurityGroupEgress",
+            [
+                {
+                    "CidrIp": "0.0.0.0/0",
+                    "IpProtocol": "-1",
+                    "Description": "Allow All remaining egress for IPv4"
+
+                },
+                {
+                    "CidrIpv6": "::/0",
+                    "IpProtocol": "-1",
+                    "Description": "Allow All remaining egress for IPv6"
+
+                },
+            ]
+        )
+
+        logger.debug(f"Done with Escape Hatch!")
+        # security_groups_helper.create_egress_rule(
+        #     security_group=self.soca_resources["compute_node_sg"],
+        #     peer=ec2.Peer.ipv4("0.0.0.0/0"),
+        #     connection=ec2.Port.all_traffic(),
+        #     description="Allow all egress traffic from ComputeNodes",
+        # )
+
+        if get_config_key("Config.directoryservice.provider") in ("aws_ds_managed_activedirectory", "aws_ds_simple_activedirectory", "external_activedirectory"):
+            security_groups_helper.create_ingress_rule(
+                security_group=self.soca_resources["compute_node_sg"],
+                peer=ec2.Peer.ipv4(self.soca_resources["vpc"].vpc_cidr_block),
+                connection=ec2.Port.udp_range(0, 1024),
                 description="Allow all UDP traffic from VPC to compute. Required for Directory Service",
             )
-            self.soca_resources["compute_node_sg"].add_egress_rule(
-                ec2.Peer.ipv4("0.0.0.0/0"),
-                ec2.Port.udp_range(0, 1024),
+
+            security_groups_helper.create_egress_rule(
+                security_group=self.soca_resources["compute_node_sg"],
+                peer=ec2.Peer.ipv4("0.0.0.0/0"),
+                connection=ec2.Port.udp_range(0, 1024),
                 description="Allow all Egress UDP traffic for ComputeNode SG. Required for Directory Service",
             )
-            self.soca_resources["scheduler_sg"].add_ingress_rule(
-                ec2.Peer.ipv4(self.soca_resources["vpc"].vpc_cidr_block),
-                ec2.Port.udp_range(0, 1024),
-                description="Allow all UDP traffic from VPC to scheduler. Required for Directory Service",
+
+        # ElastiCache SG
+        _cache_port_list: list = []
+        _cache_provider = get_config_key(
+            key_name="Config.services.aws_elasticache.engine", default="redis"
+        ).lower()
+
+        if _cache_provider  in {"redis", "valkey"}:
+            _cache_port_list = [6379]
+        elif _cache_provider == "memcached":
+            _cache_port_list = [11211, 11212]
+        else:
+            logger.error(
+                f"Unknown cache provider specified: {_cache_provider}  . Must be one of redis, valkey, or memcached."
             )
-            self.soca_resources["scheduler_sg"].add_egress_rule(
-                ec2.Peer.ipv4("0.0.0.0/0"),
-                ec2.Port.udp_range(0, 1024),
-                description="Allow all Egress UDP traffic for Scheduler SG. Required for Directory Service",
+            exit(1)
+
+        for _port in _cache_port_list:
+            for _sg_peer_name in {"controller_sg", "compute_node_sg", "login_node_sg"}:
+                security_groups_helper.create_ingress_rule(
+                    security_group=self.soca_resources["elasticache_sg"],
+                    peer=self.soca_resources[_sg_peer_name],
+                    connection=ec2.Port.tcp(_port),
+                    description=f"Allow ElastiCache traffic from the {_sg_peer_name}",
+                )
+
+        # CONTROLLER
+        security_groups_helper.create_ingress_rule(
+            security_group=self.soca_resources["controller_sg"],
+            peer=self.soca_resources["compute_node_sg"],
+            connection=ec2.Port.tcp_range(0, 65535),
+            description="Allow all TCP traffic from the compute nodes",
+        )
+
+        security_groups_helper.create_ingress_rule(
+            security_group=self.soca_resources["controller_sg"],
+            peer=self.soca_resources["alb_sg"],
+            connection=ec2.Port.tcp(8443),
+            description="Allow ELB healthcheck to communicate with the UI",
+        )
+
+        security_groups_helper.create_ingress_rule(
+            security_group=self.soca_resources["controller_sg"],
+            peer=ec2.Peer.ipv4(self.soca_resources["vpc"].vpc_cidr_block),
+            connection=ec2.Port.tcp_range(0, 65535),
+            description="VPC - allow all TCP traffic from VPC to controller",
+        )
+
+        if get_config_key("Config.directoryservice.provider") in ("aws_ds_managed_activedirectory", "aws_ds_simple_activedirectory", "external_activedirectory"):
+            security_groups_helper.create_ingress_rule(
+                security_group=self.soca_resources["controller_sg"],
+                peer=ec2.Peer.ipv4(self.soca_resources["vpc"].vpc_cidr_block),
+                connection=ec2.Port.udp_range(0, 1024),
+                description="Allow UDP traffic from VPC to controller. Required for Directory Service",
             )
+
+            security_groups_helper.create_egress_rule(
+                security_group=self.soca_resources["controller_sg"],
+                peer=ec2.Peer.ipv4("0.0.0.0/0"),
+                connection=ec2.Port.udp_range(0, 1024),
+                description="Allow Egress UDP traffic for controller SG. Required for Directory Service",
+            )
+
+        # ALB FRONTEND
+        security_groups_helper.create_ingress_rule(
+            security_group=self.soca_resources["alb_sg"],
+            peer=ec2.Peer.ipv4(user_specified_variables.client_ip),
+            connection=ec2.Port.tcp(80),
+            description="Allow HTTP from client IP",
+        )
+
+        security_groups_helper.create_ingress_rule(
+            security_group=self.soca_resources["alb_sg"],
+            peer=ec2.Peer.ipv4(user_specified_variables.client_ip),
+            connection=ec2.Port.tcp(443),
+            description="Allow HTTPS from client IP",
+        )
+        # TODO - need?
+        security_groups_helper.create_ingress_rule(
+            security_group=self.soca_resources["alb_sg"],
+            peer=ec2.Peer.ipv4(self.soca_resources["vpc"].vpc_cidr_block),
+            connection=ec2.Port.all_traffic(),
+            description="Allow all traffic from VPC",
+        )
+
+        # TODO - merge this / unify the behavior of the NAT IPs
+        if user_specified_variables.vpc_id:
+            # Existing VPC/IPs
+            for nat_eip in self.soca_resources["nat_gateway_ips"]:
+                logger.debug(f"Allowing {nat_eip} to access ALB")
+                self.soca_resources["alb_sg"].add_ingress_rule(
+                    ec2.Peer.ipv4(f"{nat_eip}/32"),
+                    ec2.Port.tcp(443),
+                    description=f"Allow NAT EIP to communicate to ALB",
+                )
+                self.soca_resources["nlb_sg"].add_ingress_rule(
+                    ec2.Peer.ipv4(f"{nat_eip}/32"),
+                    ec2.Port.tcp(_login_node_ssh_front_port),
+                    description=f"Allow NAT EIP to communicate to NLB",
+                )
+        else:
+            # Newly created
+            logger.debug(f"Using NAT EIPs for newly created NAT gateways - {self.soca_resources['nat_gateway_ips']} / {type(self.soca_resources['nat_gateway_ips'])}")
+            for nat_eip in self.soca_resources["nat_gateway_ips"]:
+                logger.debug(f"Allowing {nat_eip} to access ELBs")
+                self.soca_resources["alb_sg"].add_ingress_rule(
+                    ec2.Peer.ipv4(f"{nat_eip}/32"),
+                    ec2.Port.tcp(443),
+                    description=f"Allow NAT EIP to communicate to ALB",
+                )
+                self.soca_resources["nlb_sg"].add_ingress_rule(
+                    ec2.Peer.ipv4(f"{nat_eip}/32"),
+                    ec2.Port.tcp(_login_node_ssh_front_port),
+                    description=f"Allow NAT EIP to communicate to NLB",
+                )
+
+        if user_specified_variables.prefix_list_id:
+            security_groups_helper.create_ingress_rule(
+                security_group=self.soca_resources["alb_sg"],
+                peer=ec2.Peer.prefix_list(user_specified_variables.prefix_list_id),
+                connection=ec2.Port.tcp(443),
+                description="Allow HTTPS from customer prefix list",
+            )
+
+            security_groups_helper.create_ingress_rule(
+                security_group=self.soca_resources["alb_sg"],
+                peer=ec2.Peer.prefix_list(user_specified_variables.prefix_list_id),
+                connection=ec2.Port.tcp(80),
+                description="Allow HTTP from customer prefix list",
+            )
+
+            security_groups_helper.create_ingress_rule(
+                security_group=self.soca_resources["nlb_sg"],
+                peer=ec2.Peer.prefix_list(user_specified_variables.prefix_list_id),
+                connection=ec2.Port.tcp(_login_node_ssh_front_port),
+                description="Allow SSH from customer prefix list",
+            )
+
+        for _sg_peer_name in {"controller_sg", "compute_node_sg", "login_node_sg"}:
+            logger.debug(f"Allowing {_sg_peer_name} to access NLB on SSH")
+            security_groups_helper.create_ingress_rule(
+                security_group=self.soca_resources["nlb_sg"],
+                peer=self.soca_resources[_sg_peer_name],
+                connection=ec2.Port.tcp(_login_node_ssh_front_port),
+                description=f"Allow SSH from {_sg_peer_name}",
+            )
+
+        # Allow NLB access from customer location
+        security_groups_helper.create_ingress_rule(
+            security_group=self.soca_resources["nlb_sg"],
+            peer=ec2.Peer.ipv4(user_specified_variables.client_ip),
+            connection=ec2.Port.tcp(_login_node_ssh_front_port),
+            description="Allow SSH from client IP",
+        )
+
+        # Additional LoginNode traffic
+        _login_node_additional_ports: dict = get_config_key(
+            key_name="Config.login_node.security.additional_ports",
+            default={},
+            required=False,
+            expected_type=dict,
+        )
+
+        logger.debug(f"Additional LoginNode traffic: {_login_node_additional_ports}")
+
+        for _proto in _login_node_additional_ports:
+            logger.debug(f"Allowing additional traffic for {_proto}")
+            for _port in _login_node_additional_ports.get(_proto, []):
+                logger.debug(f"Allowing additional traffic {_proto}:{_port} to NLB / LoginNodes")
+                for _sg in {"login_node_sg", "nlb_sg"}:
+                    logger.debug(f"Updating {_sg} to access {_proto}:{_port}")
+                    security_groups_helper.create_ingress_rule(
+                        security_group=self.soca_resources[_sg],
+                        peer=ec2.Peer.ipv4(user_specified_variables.client_ip),
+                        connection=ec2.Port.udp(_port) if _proto.lower() == "udp" else ec2.Port.tcp(_port),
+                        description=f"Allow {_proto}:{_port}",
+                    )
+
+        # TODO - Needed?
+        security_groups_helper.create_ingress_rule(
+            security_group=self.soca_resources["login_node_sg"],
+            peer=ec2.Peer.ipv4(self.soca_resources["vpc"].vpc_cidr_block),
+            connection=ec2.Port.all_traffic(),
+            description="Allow all traffic from VPC",
+        )
+
+        #if get_config_key(
+        #    key_name="Config.dcv.high_scale",
+        #    required=False,
+        #    expected_type=bool,
+        #    default=False,
+        #):
+        #    logger.debug(f"Creating SGs for DCV High Scale ...")
+        #    self.dcv_infra_security_groups()
 
     def create_vpc_endpoints(self):
         """
@@ -535,9 +1610,7 @@ class SOCAInstall(Stack):
 
         # If using an existing VPC first import any existing vpc endpoints
         if user_specified_variables.vpc_id:
-            ec2_client = boto3.client(
-                "ec2", region_name=user_specified_variables.region
-            )
+            ec2_client = boto3_helper.get_boto(service_name="ec2", profile_name=user_specified_variables.profile, region_name=user_specified_variables.region)
             filters = [{"Name": "vpc-id", "Values": [user_specified_variables.vpc_id]}]
             existing_security_groups = {}
             for page in ec2_client.get_paginator("describe_vpc_endpoints").paginate(
@@ -580,7 +1653,9 @@ class SOCAInstall(Stack):
                             port=443,
                         )
 
-        for short_service_name in install_props.Config.network.vpc_gateway_endpoints:
+        for short_service_name in get_config_key(
+            key_name="Config.network.vpc_gateway_endpoints", expected_type=list
+        ):
             endpoint_service = ec2.GatewayVpcEndpointAwsService(short_service_name)
             if short_service_name in self.vpc_gateway_endpoints:
                 continue
@@ -610,8 +1685,14 @@ class SOCAInstall(Stack):
                 },
             )
 
-        for short_service_name in install_props.Config.network.vpc_interface_endpoints:
-            endpoint_service = ec2.InterfaceVpcEndpointAwsService(short_service_name)
+        for short_service_name in get_config_key(
+            key_name="Config.network.vpc_interface_endpoints", expected_type=list
+        ):
+            if short_service_name == "iam":
+                endpoint_service = ec2.InterfaceVpcEndpointAwsService.IAM
+            else:
+                endpoint_service = ec2.InterfaceVpcEndpointAwsService(short_service_name)
+
             if short_service_name in self.vpc_interface_endpoints:
                 continue
             resource_name = f"{short_service_name}VpcEndpoint"
@@ -648,23 +1729,19 @@ class SOCAInstall(Stack):
 
         for short_service_name, vpc_endpoint in self.vpc_interface_endpoints.items():
             # Ingress
-            vpc_endpoint.connections.allow_from(
-                self.soca_resources["compute_node_sg"],
-                ec2.Port.tcp(443),
-                "ComputeNodeSG to VpcEndpointSG - Allow HTTPS traffic to VPC endpoints",
-            )
-            vpc_endpoint.connections.allow_from(
-                self.soca_resources["scheduler_sg"],
-                ec2.Port.tcp(443),
-                "SchedulerSG to VpcEndpointSG - Allow HTTPS traffic to VPC endpoints",
-            )
+            for _sg_peer_name in {"compute_node_sg", "controller_sg", "login_node_sg"}:
+                vpc_endpoint.connections.allow_from(
+                    self.soca_resources[_sg_peer_name],
+                    ec2.Port.tcp(443),
+                    f"Allow HTTPS traffic to {short_service_name} endpoint from {_sg_peer_name}",
+                )
 
     def iam_roles(self):
         """
         Configure IAM roles & policies for the various resources
         """
-        # Specify if customers want to re-use existing IAM role for scheduler/compute nodes/spotfleet
-        if user_specified_variables.scheduler_role_name:
+        # Specify if customers want to re-use existing IAM role for controller/compute nodes/spotfleet
+        if user_specified_variables.controller_role_name:
             use_existing_roles = True
         else:
             use_existing_roles = False
@@ -690,16 +1767,17 @@ class SOCAInstall(Stack):
         )
 
         # Create Role for EFS Throughput Lambda function only when deploying a new EFS for /apps
-        if (
-            not user_specified_variables.fs_apps_provider
-            or user_specified_variables.fs_apps_provider == "efs"
-        ):
-            self.soca_resources["fs_apps_lambda_role"] = iam.Role(
-                self,
-                "EFSAppsLambdaRole",
-                description="IAM role assigned to the EFSApps Lambda function",
-                assumed_by=iam.ServicePrincipal(principals_suffix["lambda"]),
-            )
+        # Moved to EFS fs creation
+        # if (
+        #     not user_specified_variables.fs_apps_provider
+        #     or user_specified_variables.fs_apps_provider == "efs"
+        # ):
+        self.soca_resources["efs_lambda_role"] = iam.Role(
+            self,
+            "EFSLambdaRole",
+            description="IAM role assigned to the EFS Lambda function",
+            assumed_by=iam.ServicePrincipal(principals_suffix["lambda"]),
+        )
 
         # CreateRole for GetESPrivateIPLambdaRole when creating a new ElasticSearch
         if not user_specified_variables.os_endpoint:
@@ -710,12 +1788,20 @@ class SOCAInstall(Stack):
                 assumed_by=iam.ServicePrincipal(principals_suffix["lambda"]),
             )
 
+        # AOSS Serverless Data Policy creator Lambda role
+        # self.soca_resources["aoss_data_policy_lambda_role"] = iam.Role(
+        #     self,
+        #     "AOSSDataPolicyLambdaRole",
+        #     description="IAM role assigned to the AOSS Data Policy Lambda function",
+        #     assumed_by=iam.ServicePrincipal(principals_suffix["lambda"]),
+        # )
+
         if use_existing_roles is False:
-            # Create Scheduler/ComputeNode/SpotFleet roles if not specified by the user
-            self.soca_resources["scheduler_role"] = iam.Role(
+            # Create Controller/ComputeNode/SpotFleet roles if not specified by the user
+            self.soca_resources["controller_role"] = iam.Role(
                 self,
-                "SchedulerRole",
-                description="IAM role assigned to the scheduler host",
+                "ControllerRole",
+                description="IAM role assigned to the controller host",
                 assumed_by=iam.CompositePrincipal(
                     iam.ServicePrincipal(principals_suffix["ssm"]),
                     iam.ServicePrincipal(principals_suffix["ec2"]),
@@ -741,6 +1827,63 @@ class SOCAInstall(Stack):
                     "service-role/AmazonEC2SpotFleetTaggingRole"
                 )
             )
+            #
+            # LoginNode Role
+            #
+            self.soca_resources["login_node_role"] = iam.Role(
+                self,
+                "LoginNodeRole",
+                description="IAM role assigned to the login nodes",
+                assumed_by=iam.CompositePrincipal(
+                    iam.ServicePrincipal(principals_suffix["ssm"]),
+                    iam.ServicePrincipal(principals_suffix["ec2"]),
+                ),
+            )
+
+            # Do we need our DCV high-scale IAM roles?
+            if get_config_key(
+                key_name="Config.dcv.high_scale",
+                required=False,
+                expected_type=bool,
+                default=False,
+            ):
+                logger.debug(f"DEBUG iam_roles() - creating DCV infra roles...")
+                for _dcv_host_type in {"broker", "gateway", "manager"}:
+                    logger.debug(
+                        f"Creating IAM role for DCV host type: {_dcv_host_type}"
+                    )
+                    self.soca_resources[f"dcv_{_dcv_host_type}_role"] = iam.Role(
+                        self,
+                        f"Dcv{_dcv_host_type}Role",
+                        description=f"IAM role assigned to DCV {_dcv_host_type} hosts",
+                        assumed_by=iam.CompositePrincipal(
+                            iam.ServicePrincipal(principals_suffix["ssm"]),
+                            iam.ServicePrincipal(principals_suffix["ec2"]),
+                        ),
+                    )
+                    # Make sure the Admin can SSM to the DCV Infrastructure
+                    self.soca_resources[
+                        f"dcv_{_dcv_host_type}_role"
+                    ].add_managed_policy(
+                        iam.ManagedPolicy.from_aws_managed_policy_name(
+                            "AmazonSSMManagedInstanceCore"
+                        )
+                    )
+                    # DCV High-scale instance profiles
+                    logger.debug(
+                        f"Creating Instance profile for DCV host {_dcv_host_type}"
+                    )
+                    self.soca_resources[
+                        f"dcv_{_dcv_host_type}_instance_profile"
+                    ] = iam.CfnInstanceProfile(
+                        self,
+                        f"Dcv{_dcv_host_type.capitalize()}InstanceProfile",
+                        roles=[
+                            self.soca_resources[f"dcv_{_dcv_host_type}_role"].role_name
+                        ],
+                    )
+
+            # Instance Profiles
             self.soca_resources[
                 "compute_node_instance_profile"
             ] = iam.CfnInstanceProfile(
@@ -748,12 +1891,13 @@ class SOCAInstall(Stack):
                 "ComputeNodeInstanceProfile",
                 roles=[self.soca_resources["compute_node_role"].role_name],
             )
+
         else:
-            # Reference existing Scheduler/ComputeNode/SpotFleet roles
-            self.soca_resources["scheduler_role"] = iam.Role.from_role_arn(
+            # Reference existing Controller/ComputeNode/SpotFleet roles
+            self.soca_resources["controller_role"] = iam.Role.from_role_arn(
                 self,
-                "SchedulerRole",
-                role_arn=user_specified_variables.scheduler_role_arn,
+                "ControllerRole",
+                role_arn=user_specified_variables.controller_role_arn,
             )
             self.soca_resources["compute_node_role"] = iam.Role.from_role_arn(
                 self,
@@ -774,16 +1918,13 @@ class SOCAInstall(Stack):
             )
 
         # Add SSM Managed Policy
-        self.soca_resources["scheduler_role"].add_managed_policy(
-            iam.ManagedPolicy.from_aws_managed_policy_name(
-                "AmazonSSMManagedInstanceCore"
+        for _role in {"controller_role", "compute_node_role", "login_node_role", "spot_fleet_role"}:
+            logger.debug(f"Adding SSM Managed Policy to {_role}")
+            self.soca_resources[_role].add_managed_policy(
+                iam.ManagedPolicy.from_aws_managed_policy_name(
+                    "AmazonSSMManagedInstanceCore"
+                )
             )
-        )
-        self.soca_resources["compute_node_role"].add_managed_policy(
-            iam.ManagedPolicy.from_aws_managed_policy_name(
-                "AmazonSSMManagedInstanceCore"
-            )
-        )
 
         # Generate IAM inline policies
         policy_substitutes = {
@@ -797,9 +1938,9 @@ class SOCAInstall(Stack):
             ].role_arn
             if not user_specified_variables.compute_node_role_arn
             else user_specified_variables.compute_node_role_arn,
-            "%%SCHEDULER_ROLE_ARN%%": self.soca_resources["scheduler_role"].role_arn
-            if not user_specified_variables.scheduler_role_arn
-            else user_specified_variables.scheduler_role_arn,
+            "%%SCHEDULER_ROLE_ARN%%": self.soca_resources["controller_role"].role_arn
+            if not user_specified_variables.controller_role_arn
+            else user_specified_variables.controller_role_arn,
             "%%SPOTFLEET_ROLE_ARN%%": self.soca_resources["spot_fleet_role"].role_arn
             if not user_specified_variables.spotfleet_role_arn
             else user_specified_variables.spotfleet_role_arn,
@@ -820,6 +1961,10 @@ class SOCAInstall(Stack):
                 "template": "../policies/SolutionMetricsLambda.json",
                 "attach_to_role": "solution_metrics_lambda_role",
             },
+            # "AOSSDataPolicyLambdaPolicy": {
+            #     "template": "../policies/AOSSDataPolicyLambda.json",
+            #     "attach_to_role": "aoss_data_policy_lambda_role",
+            # },
         }
 
         if not user_specified_variables.os_endpoint:
@@ -833,25 +1978,47 @@ class SOCAInstall(Stack):
                 "template": "../policies/ComputeNode.json",
                 "attach_to_role": "compute_node_role",
             }
-            policy_templates["SchedulerPolicy"] = {
-                "template": "../policies/Scheduler.json",
-                "attach_to_role": "scheduler_role",
+            policy_templates["ControllerPolicy"] = {
+                "template": "../policies/Controller.json",
+                "attach_to_role": "controller_role",
             }
             policy_templates["SpotFleetPolicy"] = {
                 "template": "../policies/SpotFleet.json",
                 "attach_to_role": "spot_fleet_role",
             }
+            policy_templates["LoginNodePolicy"] = {
+                "template": "../policies/LoginNode.json",
+                "attach_to_role": "login_node_role",
+            }
+
+
+            if get_config_key(
+                key_name="Config.dcv.high_scale",
+                required=False,
+                expected_type=bool,
+                default=False,
+            ):
+                logger.debug(f"Attaching IAM Policies for DCV hosts ...")
+                for _dcv_host_type in {"broker", "gateway", "manager"}:
+                    policy_templates[f"Dcv{_dcv_host_type.capitalize()}Policy"] = {
+                        "template": f"../policies/Dcv{_dcv_host_type.capitalize()}.json",
+                        "attach_to_role": f"dcv_{_dcv_host_type}_role",
+                    }
+                    logger.debug(
+                        f"Attaching IAM Policies for DCV host type {_dcv_host_type}: {policy_templates[f'Dcv{_dcv_host_type.capitalize()}Policy']}"
+                    )
+
         else:
             # Append required policies if IAM specified by user have not been generated by SOCA
-            if user_specified_variables.scheduler_role_from_previous_soca_deployment:
-                policy_templates["SchedulerPolicyNewCluster"] = {
-                    "template": "../policies/SchedulerAppendToExistingRole.json",
-                    "attach_to_role": "scheduler_role",
+            if user_specified_variables.controller_role_from_previous_soca_deployment:
+                policy_templates["ControllerPolicyNewCluster"] = {
+                    "template": "../policies/ControllerAppendToExistingRole.json",
+                    "attach_to_role": "controller_role",
                 }
             else:
-                policy_templates["SchedulerPolicyNewCluster"] = {
-                    "template": "../policies/Scheduler.json",
-                    "attach_to_role": "scheduler_role",
+                policy_templates["ControllerPolicyNewCluster"] = {
+                    "template": "../policies/Controller.json",
+                    "attach_to_role": "controller_role",
                 }
 
             if (
@@ -873,11 +2040,11 @@ class SOCAInstall(Stack):
         if not user_specified_variables.fs_apps:
             policy_templates["EFSAppsLambdaPolicy"] = {
                 "template": "../policies/EFSAppsLambda.json",
-                "attach_to_role": "fs_apps_lambda_role",
+                "attach_to_role": "efs_lambda_role",
             }
 
         # Create additional IAM Role/Policy if we use Active Directory. This role is used by ResetDsLambda
-        if install_props.Config.directoryservice.provider == "activedirectory":
+        if get_config_key("Config.directoryservice.provider") in ("aws_ds_managed_activedirectory", "aws_ds_simple_activedirectory"):
             self.soca_resources["reset_ds_password_lambda_role"] = iam.Role(
                 self,
                 "ResetDsLambdaLambdaRole",
@@ -904,10 +2071,117 @@ class SOCAInstall(Stack):
                 )
             )
 
-    def directoryservice(self):
+    def directory_service(self):
+        """"
+        Determine our desired directory service and create it.
+        """
+
+        logger.debug(f"Determining required directory service for {self.directory_service_resource_setup.get('provider')}")
+
+        if self.directory_service_resource_setup.get('provider') in {"aws_ds_simple_activedirectory"}:
+            logger.debug(f"Creating AWS SimpleAD Directory Service")
+            return self.directory_service_aws_simplead()
+
+        elif self.directory_service_resource_setup.get('provider') in {"aws_ds_managed_activedirectory"}:
+            logger.debug(f"Creating AWS Manage AD Directory Service")
+            return self.directory_service_aws_mad()
+
+        elif self.directory_service_resource_setup.get('provider') in {"openldap"}:
+            logger.debug(f"Configuring OpenLDAP")
+            return self.directory_service_openldap()
+        else:
+            logger.error(f"Unknown Directory Service provider: {self.directory_service_resource_setup.get('provider')}")
+            sys.exit(1)
+
+    def directory_service_openldap(self):
+        _secret_name = f"/soca/{user_specified_variables.cluster_id}/UserDirectoryServiceAccount"
+        _openldap_secret = secretsmanager_helper.create_secret(
+                scope=self,
+                construct_id="UserDirectoryServiceAccount",
+                secret_name=_secret_name,
+                secret_string_template=f'{{"username":"CN=admin,{self.directory_service_resource_setup.get("domain_base")}"}}',
+                kms_key_id=self.soca_resources["secretsmanager_kms_key_id"] if self.soca_resources["secretsmanager_kms_key_id"] else None,
+        )
+        self.directory_service_resource_setup["service_account_secret_arn"] = _openldap_secret.secret_full_arn
+        self.directory_service_resource_setup["endpoint"] = f"ldaps://{self.soca_resources['controller_instance'].instance_private_dns_name}"
+
+    def directory_service_aws_simplead(self):
+        """
+        Deploy an AWS SimpleAD Directory Service
+        """
+        # FIXME TODO - dupe with AWS MAD
+        if not user_specified_variables.vpc_id:
+            launch_subnets = [
+                self.soca_resources["vpc"].private_subnets[0].subnet_id,
+                self.soca_resources["vpc"].private_subnets[1].subnet_id,
+            ]
+        else:
+            launch_subnets = [
+                user_specified_variables.private_subnets[0].split(",")[0],
+                user_specified_variables.private_subnets[1].split(",")[0],
+            ]
+
+        _secret_name: str = f"/soca/{user_specified_variables.cluster_id}/UserDirectoryServiceAccount"
+        _admin_username: str = "Administrator"  # Cannot be changed
+        logger.debug(f"SimpleAD - generating Admin Username/pw to Secret: {_secret_name}")
+        _ds_admin_password = secretsmanager_helper.create_secret(
+            scope=self,
+            construct_id="UserDirectoryServiceAccount",
+            secret_name=_secret_name,
+            secret_string_template=f'{{"username":"{_admin_username}@{self.directory_service_resource_setup.get("domain_name")}"}}',
+            kms_key_id=self.soca_resources["secretsmanager_kms_key_id"] if self.soca_resources["secretsmanager_kms_key_id"] else None,
+        )
+        self.directory_service_resource_setup["service_account_secret_arn"] = _ds_admin_password.secret_full_arn
+        logger.debug(f"Creating AWS SimpleAD Directory Service in aws_simplead_directory_service")
+        logger.debug(f"SimpleAD Username: {_admin_username} ")
+        _ds = ds.CfnSimpleAD(
+            self,
+            "DSSimpleAD",
+            name=self.directory_service_resource_setup.get('domain_name'),
+            short_name=self.directory_service_resource_setup.get('short_name'),
+            password=secretsmanager_helper.resolve_secret_as_str(secret_construct=_ds_admin_password),
+            size=get_config_key(
+                key_name="Config.directoryservice.aws_ds_simple_activedirectory.size",
+                expected_type=str,
+                required=False,
+                default="Small"
+            ).capitalize(),  # must be Small vs. small
+            vpc_settings=ds.CfnSimpleAD.VpcSettingsProperty(
+                subnet_ids=launch_subnets,
+                vpc_id=self.soca_resources["vpc"].vpc_id,
+            ),
+        )
+
+        self.directory_service_resource_setup["ad_aws_directory_service_id"] = _ds.ref
+        self.directory_service_resource_setup["endpoint"] = f"ldap://{_ds.name}"
+
+        # Create Lambda to reset AD DS password when using AD
+        _reset_lambda = aws_lambda.Function(
+            self,
+            f"{user_specified_variables.cluster_id}-ResetDsLambdaFunction",
+            function_name=f"{user_specified_variables.cluster_id}-ResetDsLambdaFunction-{''.join(random.choice(string.ascii_lowercase + string.digits) for _i in range(20))}",
+            description="Lambda to reset AD DS password",
+            memory_size=128,
+            role=self.soca_resources["reset_ds_password_lambda_role"],
+            timeout=Duration.minutes(3),
+            runtime=typing.cast(aws_lambda.Runtime, get_lambda_runtime_version()),
+            log_retention=logs.RetentionDays.INFINITE,
+            handler="ResetDSPassword.lambda_handler",
+            code=aws_lambda.Code.from_asset("../functions/ResetDSPassword"),
+        )
+
+        self.directory_service_resource_setup["ad_aws_lambda_reset_password"] = _reset_lambda.function_arn
+
+        # Finally , fixup our DNS
+        self.aws_route53_resolver(launch_subnets=launch_subnets, dns_ip_addresses=_ds.attr_dns_ip_addresses)
+
+
+    def directory_service_aws_mad(self):
         """
         Deploy an AWS Manage AD Directory Service
         """
+        logger.debug(f"Creating AWS MAD Directory Service in aws_mad_directory_service")
+
         if not user_specified_variables.vpc_id:
             launch_subnets = [
                 self.soca_resources["vpc"].private_subnets[0].subnet_id,
@@ -920,392 +2194,39 @@ class SOCAInstall(Stack):
             ]
 
         # Create a new AWS Directory Service Managed AD
-        if not user_specified_variables.directory_service_id:
-            self.soca_resources["ds_domain_admin"] = "Admin"
-            self.soca_resources[
-                "ds_domain_admin_password"
-            ] = f"{random.choice(string.ascii_lowercase)}{random.choice(string.digits)}{random.choice(string.ascii_uppercase)}{''.join(random.choice(string.ascii_lowercase + string.digits + string.ascii_uppercase) for _i in range(20))}"
-            self.soca_resources["directory_service"] = ds.CfnMicrosoftAD(
-                self,
-                "DSManagedAD",
-                name=install_props.Config.directoryservice.activedirectory.name,
-                edition=install_props.Config.directoryservice.activedirectory.edition,
-                short_name=install_props.Config.directoryservice.activedirectory.short_name,  # NETBIOS
-                password=self.soca_resources["ds_domain_admin_password"],
-                vpc_settings=ds.CfnMicrosoftAD.VpcSettingsProperty(
-                    subnet_ids=launch_subnets, vpc_id=self.soca_resources["vpc"].vpc_id
-                ),
-            )
+        _secret_name: str = f"/soca/{user_specified_variables.cluster_id}/UserDirectoryServiceAccount"
+        _admin_username: str = "Admin"  # Cannot be changed
+        _ds_admin_password = secretsmanager_helper.create_secret(
+            scope=self,
+            construct_id="UserDirectoryDomainAdmin",
+            secret_name=_secret_name,
+            secret_string_template=f'{{"username":"{_admin_username}@{self.directory_service_resource_setup.get("domain_name")}"}}',
+            require_each_included_type=True,
+            kms_key_id=self.soca_resources["secretsmanager_kms_key_id"] if self.soca_resources["secretsmanager_kms_key_id"] else None,
+        )
+        self.directory_service_resource_setup["service_account_secret_arn"] = _ds_admin_password.secret_full_arn
+        _ds = ds.CfnMicrosoftAD(
+            self,
+            "DSManagedAD",
+            name=self.directory_service_resource_setup.get('domain_name'),
+            edition=get_config_key(
+                key_name="Config.directoryservice.activedirectory.edition",
+                expected_type=str,
+                required=False,
+                default="Standard"
+            ),
+            short_name=self.directory_service_resource_setup.get('short_name'),
+            password=secretsmanager_helper.resolve_secret_as_str(secret_construct=_ds_admin_password),
+            vpc_settings=ds.CfnMicrosoftAD.VpcSettingsProperty(
+                subnet_ids=launch_subnets, vpc_id=self.soca_resources["vpc"].vpc_id
+            ),
+        )
 
-            # Create DNS Forwarder. Requests sent to AD will be forwarded to AD DNS
-            # Other requests will remain the same. Do not create custom DHCP Option Set otherwise resources such as FSx or EFS won't resolve
-            resolver = route53resolver.CfnResolverEndpoint(
-                self,
-                "ADRoute53OutboundResolver",
-                direction="OUTBOUND",
-                name=user_specified_variables.cluster_id,
-                ip_addresses=[
-                    route53resolver.CfnResolverEndpoint.IpAddressRequestProperty(
-                        subnet_id=launch_subnets[0]
-                    ),
-                    route53resolver.CfnResolverEndpoint.IpAddressRequestProperty(
-                        subnet_id=launch_subnets[1]
-                    ),
-                ],
-                security_group_ids=[
-                    self.soca_resources["scheduler_sg"].security_group_id,
-                    self.soca_resources["compute_node_sg"].security_group_id,
-                ],
-            )
-            resolver_rule = route53resolver.CfnResolverRule(
-                self,
-                "ADRoute53OutboundResolverRule",
-                name=user_specified_variables.cluster_id,
-                domain_name=install_props.Config.directoryservice.activedirectory.name,
-                rule_type="FORWARD",
-                resolver_endpoint_id=resolver.attr_resolver_endpoint_id,
-                target_ips=[
-                    route53resolver.CfnResolverRule.TargetAddressProperty(
-                        ip=Fn.select(
-                            0,
-                            self.soca_resources[
-                                "directory_service"
-                            ].attr_dns_ip_addresses,
-                        ),
-                        port="53",
-                    ),
-                    route53resolver.CfnResolverRule.TargetAddressProperty(
-                        ip=Fn.select(
-                            1,
-                            self.soca_resources[
-                                "directory_service"
-                            ].attr_dns_ip_addresses,
-                        ),
-                        port="53",
-                    ),
-                ],
-            )
-
-            route53resolver.CfnResolverRuleAssociation(
-                self,
-                "ADRoute53ResolverRuleAssociation",
-                resolver_rule_id=resolver_rule.attr_resolver_rule_id,
-                vpc_id=self.soca_resources["vpc"].vpc_id,
-            )
-
-    def storage(self):
-        """
-        Create two EFS or FSx for Lustre file systems that will be mounted as /apps and /data
-        aws_efs.FileSystem is experimental, and we cannot add multiple SG (as of April 2021).
-        Because of that we have to use CfnFilesystem
-        """
-
-        if (
-            install_props.Config.storage.apps.provider == "efs"
-            and not user_specified_variables.fs_apps
-        ):
-            self.soca_resources["fs_apps"] = efs.CfnFileSystem(
-                self,
-                "EFSApps",
-                encrypted=install_props.Config.storage.apps.efs.encrypted,
-                kms_key_id=None
-                if install_props.Config.storage.apps.kms_key_id is False
-                else install_props.Config.storage.apps.kms_key_id,
-                throughput_mode=install_props.Config.storage.apps.efs.throughput_mode,
-                file_system_tags=[
-                    efs.CfnFileSystem.ElasticFileSystemTagProperty(
-                        key="soca:BackupPlan", value=user_specified_variables.cluster_id
-                    ),
-                    efs.CfnFileSystem.ElasticFileSystemTagProperty(
-                        key="Name", value=f"{user_specified_variables.cluster_id}-Apps"
-                    ),
-                ],
-                performance_mode=install_props.Config.storage.apps.efs.performance_mode,
-            )
-
-            if (
-                install_props.Config.storage.apps.efs.deletion_policy.upper()
-                == "RETAIN"
-            ):
-                self.soca_resources[
-                    "fs_apps"
-                ].cfn_options.deletion_policy = CfnDeletionPolicy.RETAIN
-
-        if (
-            install_props.Config.storage.data.provider == "efs"
-            and not user_specified_variables.fs_data
-        ):
-            self.soca_resources["fs_data"] = efs.CfnFileSystem(
-                self,
-                "EFSData",
-                encrypted=install_props.Config.storage.data.efs.encrypted,
-                kms_key_id=None
-                if install_props.Config.storage.data.kms_key_id is False
-                else install_props.Config.storage.data.kms_key_id,
-                throughput_mode=install_props.Config.storage.data.efs.throughput_mode,
-                file_system_tags=[
-                    efs.CfnFileSystem.ElasticFileSystemTagProperty(
-                        key="soca:BackupPlan", value=user_specified_variables.cluster_id
-                    ),
-                    efs.CfnFileSystem.ElasticFileSystemTagProperty(
-                        key="Name", value=f"{user_specified_variables.cluster_id}-Data"
-                    ),
-                ],
-                lifecycle_policies=[
-                    efs.CfnFileSystem.LifecyclePolicyProperty(
-                        transition_to_ia=install_props.Config.storage.data.efs.transition_to_ia
-                    )
-                ],
-                performance_mode=install_props.Config.storage.data.efs.performance_mode,
-            )
-            if (
-                install_props.Config.storage.data.efs.deletion_policy.upper()
-                == "RETAIN"
-            ):
-                self.soca_resources[
-                    "fs_data"
-                ].cfn_options.deletion_policy = CfnDeletionPolicy.RETAIN
-
-        # Create the mount targets for /data
-        private_subnet_ids = []
-        for sub in self.soca_resources["vpc"].isolated_subnets:
-            private_subnet_ids.append(sub)
-        for sub in self.soca_resources["vpc"].private_subnets:
-            private_subnet_ids.append(sub)
-
-        if (
-            install_props.Config.storage.data.provider == "efs"
-            and not user_specified_variables.fs_data
-        ):
-            for i in range(len(private_subnet_ids)):
-                efs.CfnMountTarget(
-                    self,
-                    f"EFSDataMountTarget{i+1}",
-                    file_system_id=self.soca_resources["fs_data"].ref,
-                    security_groups=[
-                        self.soca_resources["compute_node_sg"].security_group_id,
-                        self.soca_resources["scheduler_sg"].security_group_id,
-                    ],
-                    subnet_id=private_subnet_ids[i].subnet_id,
-                )
-
-        # Create the mount targets for /apps
-        if (
-            install_props.Config.storage.apps.provider == "efs"
-            and not user_specified_variables.fs_apps
-        ):
-            for i in range(len(private_subnet_ids)):
-                efs.CfnMountTarget(
-                    self,
-                    f"EFSAppsMountTarget{i+1}",
-                    file_system_id=self.soca_resources["fs_apps"].ref,
-                    security_groups=[
-                        self.soca_resources["compute_node_sg"].security_group_id,
-                        self.soca_resources["scheduler_sg"].security_group_id,
-                    ],
-                    subnet_id=private_subnet_ids[i].subnet_id,
-                )
-
-            # Create CloudWatch/SNS alarm for SNS EFS. This will check BurstCreditBalance and increase allocated throughput to support temporary burst activity if needed
-            sns_efs_topic = sns.Topic(
-                self,
-                "SNSEFSTopic",
-                display_name=f"{user_specified_variables.cluster_id}-EFSAlarm-SNS",
-                topic_name=f"{user_specified_variables.cluster_id}-EFSAlarm-SNS",
-            )
-            sns_efs_topic.add_to_resource_policy(
-                iam.PolicyStatement(
-                    effect=iam.Effect.ALLOW,
-                    actions=["sns:Publish"],
-                    resources=[sns_efs_topic.topic_arn],
-                    principals=[iam.ServicePrincipal(principals_suffix["cloudwatch"])],
-                    conditions={
-                        "ArnLike": {
-                            "aws:SourceArn": f"arn:{Aws.PARTITION}:*:*:{Aws.ACCOUNT_ID}:*"
-                        }
-                    },
-                )
-            )
-
-            efs_apps_cw_alarm_low = cloudwatch.Alarm(
-                self,
-                "EFSAppsCWAlarmLowThreshold",
-                metric=cloudwatch.Metric(
-                    metric_name="BurstCreditBalance",
-                    namespace="AWS/EFS",
-                    period=Duration.minutes(1),
-                    statistic="Average",
-                    dimensions_map=dict(
-                        FileSystemId=self.soca_resources["fs_apps"].ref
-                    ),
-                ),
-                comparison_operator=cloudwatch.ComparisonOperator.LESS_THAN_OR_EQUAL_TO_THRESHOLD,
-                evaluation_periods=10,
-                threshold=10_000_000,
-            )
-
-            efs_apps_cw_alarm_high = cloudwatch.Alarm(
-                self,
-                "EFSAppsCWAlarmHighThreshold",
-                metric=cloudwatch.Metric(
-                    metric_name="BurstCreditBalance",
-                    namespace="AWS/EFS",
-                    period=Duration.minutes(1),
-                    statistic="Average",
-                    dimensions_map=dict(
-                        FileSystemId=self.soca_resources["fs_apps"].ref
-                    ),
-                ),
-                comparison_operator=cloudwatch.ComparisonOperator.GREATER_THAN_OR_EQUAL_TO_THRESHOLD,
-                evaluation_periods=10,
-                threshold=2_000_000_000_000,
-            )
-            efs_apps_cw_alarm_low.add_alarm_action(cw_actions.SnsAction(sns_efs_topic))
-            efs_apps_cw_alarm_high.add_alarm_action(cw_actions.SnsAction(sns_efs_topic))
-
-            efs_apps_throughput_lambda = aws_lambda.Function(
-                self,
-                f"{user_specified_variables.cluster_id}-EFSAppsLambda",
-                function_name=f"{user_specified_variables.cluster_id}-EFSThroughput",
-                description="Check EFS BurstCreditBalance and update ThroughputMode when needed",
-                memory_size=128,
-                role=self.soca_resources["fs_apps_lambda_role"],
-                timeout=Duration.minutes(3),
-                runtime=typing.cast(aws_lambda.Runtime, aws_lambda.Runtime.PYTHON_3_11),
-                log_retention=logs.RetentionDays.INFINITE,
-                handler="EFSThroughputLambda.lambda_handler",
-                code=aws_lambda.Code.from_asset("../functions/EFSThroughputLambda"),
-            )
-            efs_apps_throughput_lambda.add_environment(
-                "EFSBurstCreditLowThreshold", "10000000"
-            )
-            efs_apps_throughput_lambda.add_environment(
-                "EFSBurstCreditHighThreshold", "2000000000000"
-            )
-            efs_apps_throughput_lambda.add_permission(
-                "InvokePermission",
-                principal=iam.ServicePrincipal(principals_suffix["sns"]),
-                action="lambda:InvokeFunction",
-            )
-
-            sns.Subscription(
-                self,
-                f"{user_specified_variables.cluster_id}-SNSEFSSubscription",
-                protocol=sns.SubscriptionProtocol.LAMBDA,
-                endpoint=efs_apps_throughput_lambda.function_arn,
-                topic=sns_efs_topic,
-            )
-
-        if (
-            install_props.Config.storage.data.provider == "fsx_lustre"
-            and not user_specified_variables.fs_data
-        ):
-            if install_props.Config.storage.data.fsx_lustre.storage_type == "SSD":
-                if install_props.Config.storage.data.fsx_lustre.deployment_type in {
-                    "PERSISTENT_1",
-                    "PERSISTENT_2",
-                }:
-                    lustre_configuration = fsx.CfnFileSystem.LustreConfigurationProperty(
-                        per_unit_storage_throughput=install_props.Config.storage.data.fsx_lustre.per_unit_storage_throughput,
-                        deployment_type=install_props.Config.storage.data.fsx_lustre.deployment_type,
-                    )
-                else:
-                    lustre_configuration = fsx.CfnFileSystem.LustreConfigurationProperty(
-                        deployment_type=install_props.Config.storage.data.fsx_lustre.deployment_type
-                    )
-            else:
-                lustre_configuration = (
-                    fsx.CfnFileSystem.LustreConfigurationProperty(
-                        deployment_type=install_props.Config.storage.data.fsx_lustre.deployment_type,
-                        per_unit_storage_throughput=install_props.Config.storage.data.fsx_lustre.per_unit_storage_throughput,
-                        drive_cache_type=install_props.Config.storage.data.fsx_lustre.drive_cache_type,
-                    ),
-                )
-
-            self.soca_resources["fs_data"] = fsx.CfnFileSystem(
-                self,
-                "FSxLustreData",
-                file_system_type="LUSTRE",
-                subnet_ids=[
-                    self.soca_resources["vpc"]
-                    .select_subnets(subnet_type=ec2.SubnetType.PRIVATE_WITH_EGRESS)
-                    .subnets[0]
-                    .subnet_id
-                ],
-                lustre_configuration=lustre_configuration,
-                security_group_ids=[
-                    self.soca_resources["compute_node_sg"].security_group_id
-                ],
-                storage_capacity=install_props.Config.storage.data.fsx_lustre.storage_capacity,
-                storage_type=install_props.Config.storage.data.fsx_lustre.storage_type,
-                kms_key_id=None
-                if install_props.Config.storage.data.kms_key_id is False
-                else install_props.Config.storage.data.kms_key_id,
-            )
-
-            Tags.of(self.soca_resources["fs_data"]).add(
-                "Name", f"{user_specified_variables.cluster_id}-Data"
-            )
-
-        if (
-            install_props.Config.storage.apps.provider == "fsx_lustre"
-            and not user_specified_variables.fs_apps
-        ):
-            if install_props.Config.storage.apps.fsx_lustre.storage_type == "SSD":
-                if install_props.Config.storage.apps.fsx_lustre.deployment_type in {
-                    "PERSISTENT_1",
-                    "PERSISTENT_2",
-                }:
-                    lustre_configuration = fsx.CfnFileSystem.LustreConfigurationProperty(
-                        per_unit_storage_throughput=install_props.Config.storage.apps.fsx_lustre.per_unit_storage_throughput,
-                        deployment_type=install_props.Config.storage.apps.fsx_lustre.deployment_type,
-                    )
-                else:
-                    lustre_configuration = fsx.CfnFileSystem.LustreConfigurationProperty(
-                        deployment_type=install_props.Config.storage.apps.fsx_lustre.deployment_type
-                    )
-            else:
-                lustre_configuration = (
-                    fsx.CfnFileSystem.LustreConfigurationProperty(
-                        deployment_type=install_props.Config.storage.apps.fsx_lustre.deployment_type,
-                        per_unit_storage_throughput=install_props.Config.storage.apps.fsx_lustre.per_unit_storage_throughput,
-                        drive_cache_type=install_props.Config.storage.apps.fsx_lustre.drive_cache_type,
-                    ),
-                )
-
-            self.soca_resources["fs_apps"] = fsx.CfnFileSystem(
-                self,
-                "FSxLustreApps",
-                file_system_type="LUSTRE",
-                subnet_ids=[
-                    self.soca_resources["vpc"]
-                    .select_subnets(subnet_type=ec2.SubnetType.PRIVATE_WITH_EGRESS)
-                    .subnets[0]
-                    .subnet_id
-                ],
-                lustre_configuration=lustre_configuration,
-                security_group_ids=[
-                    self.soca_resources["compute_node_sg"].security_group_id
-                ],
-                storage_capacity=install_props.Config.storage.apps.fsx_lustre.storage_capacity,
-                storage_type=install_props.Config.storage.apps.fsx_lustre.storage_type,
-                kms_key_id=None
-                if install_props.Config.storage.apps.kms_key_id is False
-                else install_props.Config.storage.apps.kms_key_id,
-            )
-
-            Tags.of(self.soca_resources["fs_apps"]).add(
-                "Name", f"{user_specified_variables.cluster_id}-Apps"
-            )
-
-    def scheduler(self):
-        """
-        Create the Scheduler EC2 instance, configure user data and assign EIP
-        """
+        self.directory_service_resource_setup["ad_aws_directory_service_id"] = _ds.ref
+        self.directory_service_resource_setup["endpoint"] = f"ldap://{_ds.name}"
 
         # Create Lambda to reset AD DS password when using AD
-        if install_props.Config.directoryservice.provider == "activedirectory":
-            self.soca_resources["reset_ds_lambda"] = aws_lambda.Function(
+        _reset_lambda = aws_lambda.Function(
                 self,
                 f"{user_specified_variables.cluster_id}-ResetDsLambdaFunction",
                 function_name=f"{user_specified_variables.cluster_id}-ResetDsLambdaFunction-{''.join(random.choice(string.ascii_lowercase + string.digits) for _i in range(20))}",
@@ -1313,203 +2234,840 @@ class SOCAInstall(Stack):
                 memory_size=128,
                 role=self.soca_resources["reset_ds_password_lambda_role"],
                 timeout=Duration.minutes(3),
-                runtime=typing.cast(aws_lambda.Runtime, aws_lambda.Runtime.PYTHON_3_11),
+                runtime=typing.cast(aws_lambda.Runtime, get_lambda_runtime_version()),
                 log_retention=logs.RetentionDays.INFINITE,
                 handler="ResetDSPassword.lambda_handler",
                 code=aws_lambda.Code.from_asset("../functions/ResetDSPassword"),
             )
 
-        # print(f"DEBUG: UserSpecVars: {user_specified_variables}")
+        self.directory_service_resource_setup["ad_aws_lambda_reset_password"] = _reset_lambda.function_arn
+
+        # Finally, fixup our DNS
+        self.aws_route53_resolver(launch_subnets=launch_subnets, dns_ip_addresses=_ds.attr_dns_ip_addresses)
+
+
+    def aws_route53_resolver(self, launch_subnets: list, dns_ip_addresses: list):
+        """
+        Create AWS Route53 resolver configurations for domain forwarding.
+        """
+        # Create DNS Forwarder. Requests sent to AD will be forwarded to AD DNS
+        # Other requests will remain the same. Do not create custom DHCP Option Set otherwise resources such as FSx or EFS won't resolve
+        resolver = route53resolver.CfnResolverEndpoint(
+            self,
+            "ADRoute53OutboundResolver",
+            direction="OUTBOUND",
+            name=user_specified_variables.cluster_id,
+            ip_addresses=[
+                route53resolver.CfnResolverEndpoint.IpAddressRequestProperty(
+                    subnet_id=launch_subnets[0]
+                ),
+                route53resolver.CfnResolverEndpoint.IpAddressRequestProperty(
+                    subnet_id=launch_subnets[1]
+                ),
+            ],
+            # FIXME - TODO - Should probably be a discrete SG
+            security_group_ids=[
+                self.soca_resources["controller_sg"].security_group_id,
+                self.soca_resources["compute_node_sg"].security_group_id,
+                self.soca_resources["login_node_sg"].security_group_id,
+            ],
+        )
+
+        resolver_rule = route53resolver.CfnResolverRule(
+            self,
+            "ADRoute53OutboundResolverRule",
+            name=user_specified_variables.cluster_id,
+            domain_name=self.directory_service_resource_setup.get('domain_name'),
+            rule_type="FORWARD",
+            resolver_endpoint_id=resolver.attr_resolver_endpoint_id,
+            target_ips=[
+                route53resolver.CfnResolverRule.TargetAddressProperty(
+                    ip=Fn.select(
+                        0,
+                        dns_ip_addresses,
+                    ),
+                    port="53",
+                ),
+                route53resolver.CfnResolverRule.TargetAddressProperty(
+                    ip=Fn.select(
+                        1,
+                        dns_ip_addresses,
+                    ),
+                    port="53",
+                ),
+            ],
+        )
+
+        route53resolver.CfnResolverRuleAssociation(
+            self,
+            "ADRoute53ResolverRuleAssociation",
+            resolver_rule_id=resolver_rule.attr_resolver_rule_id,
+            vpc_id=self.soca_resources["vpc"].vpc_id,
+        )
+
+    def _storage_build_efs_filesystem(self, fs_key: str):
+        """
+        Build an EFS filesystem.
+        """
+        logger.debug(f"_storage_build_efs_filesystem called for {fs_key}")
+        _kms_key_id: str = get_kms_key_id(
+            config_key_names=[
+                f"Config.storage.{fs_key}.kms_key_id"
+            ],
+            allow_global_default=True,
+        )
+        if _kms_key_id:
+            logger.debug(f"EFS KMS for {fs_key}: {_kms_key_id}")
+
+        self.soca_resources[f"fs_{fs_key}"] = efs.CfnFileSystem(
+            self,
+            id=f"EFS{fs_key.capitalize()}",
+            encrypted=True if _kms_key_id else False,
+            kms_key_id=_kms_key_id if _kms_key_id else None,
+            throughput_mode=get_config_key(
+                key_name=f"Config.storage.{fs_key}.efs.throughput_mode",
+                required=False,
+                expected_type=str,
+                default="bursting"
+            ),
+            file_system_tags=[
+                efs.CfnFileSystem.ElasticFileSystemTagProperty(
+                    key="soca:BackupPlan", value=user_specified_variables.cluster_id
+                ),
+                efs.CfnFileSystem.ElasticFileSystemTagProperty(
+                    key="Name", value=f"{user_specified_variables.cluster_id}-{fs_key.capitalize()}"
+                ),
+            ],
+            lifecycle_policies=[
+                efs.CfnFileSystem.LifecyclePolicyProperty(
+                    transition_to_ia=get_config_key(
+                        key_name=f"Config.storage.{fs_key}.efs.transition_to_ia",
+                        required=False,
+                        expected_type=str,
+                        default="AFTER_30_DAYS"
+                    )
+                )
+            ],
+            performance_mode=get_config_key(
+                key_name=f"Config.storage.{fs_key}.efs.performance_mode",
+                required=False,
+                expected_type=str,
+                default="generalPurpose"
+            ),
+        )
+
+        if get_config_key(f"Config.storage.{fs_key}.efs.deletion_policy").upper() == "RETAIN":
+            self.soca_resources[f"fs_{fs_key}"].cfn_options.deletion_policy = CfnDeletionPolicy.RETAIN
+
+
+        # Create the Security group for the filesystem
+        self.soca_resources[f"fs_{fs_key}_sg"] = ec2.SecurityGroup(
+            self,
+            id=f"EFS{fs_key.capitalize()}SecurityGroup",
+            vpc=self.soca_resources["vpc"],
+            description=f"EFS {fs_key.capitalize()} Security Group",
+        )
+        Tags.of(self.soca_resources[f"fs_{fs_key}_sg"]).add("Name", f"{user_specified_variables.cluster_id}-EFS{fs_key.capitalize()}SG")
+
+        # Create our rules for each SG expected to consume the filesystem
+        for _sg_peer in {"compute_node_sg", "controller_sg", "login_node_sg"}:
+            for _tcp_port in {2049}:
+                security_groups_helper.create_ingress_rule(
+                    security_group=self.soca_resources[f"fs_{fs_key}_sg"],
+                    peer=self.soca_resources[_sg_peer],
+                    connection=ec2.Port.tcp(_tcp_port),
+                    description=f"Allow NFS from {_sg_peer}",
+                )
+
+
+        # Where do we need EFS mount points created?
+        _efs_mount_subnets: list = []
+        if not user_specified_variables.vpc_id:
+            for _sn_id in  [*self.soca_resources["vpc"].isolated_subnets, *self.soca_resources["vpc"].private_subnets]:
+                if _sn_id not in _efs_mount_subnets:
+                    logger.debug(f"Adding subnet for EFS mountpoint: {_sn_id.subnet_id}")
+                    _efs_mount_subnets.append(_sn_id.subnet_id)
+
+        else:
+            # Existing subnets selected
+            # Note - cannot include multiple subnets in a single AZ
+            # TODO FIXME - deconflict the subnet/AZs
+            # _subnets_for_efs_mounts: list = [*user_specified_variables.private_subnets, *user_specified_variables.public_subnets]
+            _subnets_for_efs_mounts: list = [*user_specified_variables.private_subnets]
+
+            logger.debug(f"Using existing subnets for EFS mountpoint: {_subnets_for_efs_mounts}")
+            for _sn_id in _subnets_for_efs_mounts:
+                _exact_subnet_id = _sn_id.split(",")[0]
+                if _exact_subnet_id not in _efs_mount_subnets:
+                    logger.debug(f"Adding subnet for EFS mountpoint: {_exact_subnet_id}")
+                    _efs_mount_subnets.append(_exact_subnet_id)
+
+        # Complete list of subnets needing EFS mount points
+
+        logger.debug(f"Creating EFS mount targets for {fs_key} - {_efs_mount_subnets}")
+
+        for _i in range(len(_efs_mount_subnets)):
+            logger.debug(f"Creating EFS mount target for {fs_key} - {_efs_mount_subnets[_i]}")
+            _efs_mt = efs.CfnMountTarget(
+                self,
+                id=f"EFS{fs_key.capitalize()}MountTarget{_i + 1}",
+                file_system_id=self.soca_resources[f"fs_{fs_key}"].ref,
+                security_groups=[
+                    self.soca_resources[f"fs_{fs_key}_sg"].security_group_id,
+                ],
+                subnet_id=_efs_mount_subnets[_i],
+            )
+            # _efs_mt.node.add_dependency(
+            #     self.soca_resources[f"fs_{fs_key}"],
+            #     self.soca_resources[f"fs_{fs_key}_sg"],
+            # )
+
+        _efs_alarms: dict = {}
+        for _alarm in {"Low", "High"}:
+            logger.debug(f"Creating EFS {_alarm} alarm for {fs_key}")
+            match _alarm:
+                case "Low":
+                    _compare_op = cloudwatch.ComparisonOperator.LESS_THAN_OR_EQUAL_TO_THRESHOLD
+                    _threshold = 10_000_000
+                    _evaluation_periods = 10
+                case "High":
+                    _compare_op = cloudwatch.ComparisonOperator.GREATER_THAN_OR_EQUAL_TO_THRESHOLD
+                    _threshold = 2_000_000_000_000
+                    _evaluation_periods = 1
+                case _:
+                    raise ValueError(f"Invalid alarm type: {_alarm}")
+
+            _efs_alarms[_alarm] = cloudwatch.Alarm(
+                self,
+                id=f"EFS{fs_key.capitalize()}CWAlarm{_alarm}Threshold",
+                metric=cloudwatch.Metric(
+                    metric_name="BurstCreditBalance",
+                    namespace="AWS/EFS",
+                    period=Duration.minutes(1),
+                    statistic="Average",
+                    dimensions_map=dict(
+                        FileSystemId=self.soca_resources[f"fs_{fs_key}"].ref
+                    ),
+                ),
+                comparison_operator=_compare_op,
+                evaluation_periods=_evaluation_periods,
+                threshold=_threshold,
+            )
+            _efs_alarms[_alarm].add_alarm_action(
+                cw_actions.SnsAction(self.soca_resources["sns_efs_topic"])
+            )
+
+            _efs_alarms[_alarm].node.add_dependency(
+                self.soca_resources[f"fs_{fs_key}"],
+                self.soca_resources["sns_efs_topic"],
+            )
+
+        # self.soca_resources[f"fs_{fs_key}_lambda_role"] = iam.Role(
+        #     self,
+        #     id=f"EFS{_fs.capitalize()}LambdaRole",
+        #     description=f"IAM role assigned to the EFS{fs_key.capitalize()}Lambda function",
+        #     assumed_by=iam.ServicePrincipal(principals_suffix["lambda"]),
+        # )
+
+        # efs_throughput_lambda = aws_lambda.Function(
+        #     self,
+        #     f"{user_specified_variables.cluster_id}-EFS{fs_key.capitalize()}Lambda",
+        #     function_name=f"{user_specified_variables.cluster_id}-EFSThroughput",
+        #     description="Check EFS BurstCreditBalance and update ThroughputMode when needed",
+        #     memory_size=128,
+        #     role=self.soca_resources[f"fs_{fs_key}_lambda_role"],
+        #     timeout=Duration.minutes(3),
+        #     runtime=typing.cast(aws_lambda.Runtime, get_lambda_runtime_version()),
+        #     log_retention=logs.RetentionDays.INFINITE,
+        #     handler="EFSThroughputLambda.lambda_handler",
+        #     code=aws_lambda.Code.from_asset("../functions/EFSThroughputLambda"),
+        # )
+        # efs_throughput_lambda.node.add_dependency(
+        #     self.soca_resources["efs_lambda_role"]
+        # )
+
+        # TODO - FIXME - These should be in sync with the above values
+        # efs_throughput_lambda.add_environment(
+        #     "EFSBurstCreditLowThreshold", "10000000"
+        # )
+        # efs_throughput_lambda.add_environment(
+        #     "EFSBurstCreditHighThreshold", "2000000000000"
+        # )
+        # efs_throughput_lambda.add_permission(
+        #     "InvokePermission",
+        #     principal=iam.ServicePrincipal(principals_suffix["sns"]),
+        #     action="lambda:InvokeFunction",
+        # )
+
+        # sns.Subscription(
+        #     self,
+        #     f"{user_specified_variables.cluster_id}-SNSEFSSubscription",
+        #     protocol=sns.SubscriptionProtocol.LAMBDA,
+        #     endpoint=efs_throughput_lambda.function_arn,
+        #     topic=self.soca_resources["sns_efs_topic"],
+        # )
+
+
+
+    def _storage_build_fsx_lustre_filesystem(self, fs_key: str):
+        """
+        Build an FSx filesystem.
+        """
+
+        logger.debug(f"_storage_build_fsx_filesystem called for {fs_key}")
+
+        _storage_type: str = get_config_key(
+            key_name=f"Config.storage.{fs_key}.fsx_lustre.storage_type",
+            required=False,
+            expected_type=str,
+            default="SSD",
+        ).upper()
+
+        _deployment_type: str = get_config_key(
+            key_name=f"Config.storage.{fs_key}.fsx_lustre.deployment_type",
+            expected_type=str,
+            required=False,
+            default="PERSISTENT_2",
+        ).upper()
+
+        _per_unit_storage_throughput: int = get_config_key(
+            key_name=f"Config.storage.{fs_key}.fsx_lustre.per_unit_storage_throughput",
+            expected_type=int,
+            required=False,
+            default=125 if _deployment_type == "PERSISTENT_2" else 100,
+        )
+
+        _drive_cache_type: str = get_config_key(
+            key_name=f"Config.storage.{fs_key}.fsx_lustre.drive_cache_type",
+            required=False,
+            expected_type=str,
+            default="READ",
+        ).upper()
+
+        _storage_capacity: int = get_config_key(
+            key_name=f"Config.storage.{fs_key}.fsx_lustre.storage_capacity",
+            expected_type=int,
+            required=False,
+            default=1200 if _deployment_type == "PERSISTENT_2" else 300,
+        )
+
+        match _storage_type:
+            case "SSD":
+                if _deployment_type in {"PERSISTENT_1", "PERSISTENT_2"}:
+                    lustre_configuration = fsx.CfnFileSystem.LustreConfigurationProperty(
+                        per_unit_storage_throughput=_per_unit_storage_throughput,
+                        deployment_type=_deployment_type
+                    )
+                else:
+                    lustre_configuration = (
+                        fsx.CfnFileSystem.LustreConfigurationProperty(
+                            deployment_type=_deployment_type
+                        )
+                    )
+            case "HDD":
+                lustre_configuration = (
+                    fsx.CfnFileSystem.LustreConfigurationProperty(
+                        deployment_type=_deployment_type,
+                        per_unit_storage_throughput=_per_unit_storage_throughput,
+                        drive_cache_type=_drive_cache_type,
+                    ),
+                )
+            case _:
+                raise ValueError(f"Invalid storage type: {_storage_type} for {fs_key}")
+
+
+        # Determine KMS config
+        _kms_key_id = get_kms_key_id(
+            config_key_names=[
+                f"Config.storage.{fs_key}.kms_key_id",  # The proper location providing per-fs keys
+                "Config.storage.kms_key_id",  # Fallback to a global storage kms_key_id
+            ],
+            allow_global_default=True,
+        )
+        logger.debug(f"FSx KMS for {fs_key}: {_kms_key_id}")
+
+        # Create the Security group for the filesystem
+        self.soca_resources[f"fs_{fs_key}_sg"] = ec2.SecurityGroup(
+            self,
+            id=f"FSxLustre{fs_key.capitalize()}SecurityGroup",
+            vpc=self.soca_resources["vpc"],
+            description=f"FSx/Lustre {fs_key.capitalize()} Security Group",
+        )
+
+        # Create our rules for each peer expected to consume the filesystem
+        for _sg_peer in [f"fs_{fs_key}_sg", "compute_node_sg", "controller_sg", "login_node_sg"]:
+            for _tcp_port_spec in {"988", "1018-1023"}:
+                logger.debug(f"Adding TCP {_tcp_port_spec} for {_sg_peer}")
+
+                if "-" in _tcp_port_spec:
+                    _tcp_from_port: int = int(_tcp_port_spec.split("-")[0])
+                    _tcp_to_port: int = int(_tcp_port_spec.split("-")[1])
+                    _conn_spec: ec2.Port = ec2.Port.tcp_range(start_port=_tcp_from_port, end_port=_tcp_to_port)
+                else:
+                    _conn_spec: ec2.Port = ec2.Port.tcp(int(_tcp_port_spec))
+
+                logger.debug(f"Adding ingress rule for {_conn_spec}")
+                security_groups_helper.create_ingress_rule(
+                    security_group=self.soca_resources[f"fs_{fs_key}_sg"],
+                    peer=self.soca_resources[_sg_peer],
+                    connection=_conn_spec,
+                    description=f"Allow FSx/Lustre from {_sg_peer}",
+                )
+
+        self.soca_resources[f"fs_{fs_key}"] = fsx.CfnFileSystem(
+            self,
+            f"FSxLustre{fs_key.capitalize()}",
+            file_system_type="LUSTRE",
+            subnet_ids=[
+                self.soca_resources["vpc"]
+                .select_subnets(subnet_type=ec2.SubnetType.PRIVATE_WITH_EGRESS)
+                .subnets[0]
+                .subnet_id
+            ],
+            lustre_configuration=lustre_configuration,
+            security_group_ids=[
+                self.soca_resources[f"fs_{fs_key}_sg"].security_group_id
+            ],
+            storage_capacity=_storage_capacity,
+            storage_type=_storage_type,
+            kms_key_id=_kms_key_id if _kms_key_id else None,
+        )
+
+        self.soca_resources[f"fs_{fs_key}"].node.add_dependency(
+            self.soca_resources[f"fs_{fs_key}_sg"]
+        )
+
+        Tags.of(self.soca_resources[f"fs_{fs_key}"]).add(
+            "Name", f"{user_specified_variables.cluster_id}-{fs_key.capitalize()}"
+        )
+        Tags.of(self.soca_resources[f"fs_{fs_key}"]).add(
+            "soca:BackupPlan", user_specified_variables.cluster_id
+        )
+
+
+
+    def _storage_build_fsx_ontap_filesystem(self, fs_key: str):
+        """
+        Build an FSx/ONTAP filesystem.
+        """
+        pass
+
+    def _storage_build_fsx_openzfs_filesystem(self, fs_key: str):
+        """
+        Build an FSx/OpenZFS filesystem.
+        """
+        pass
+
+
+    def storage(self):
+        """
+        Create filesystems that will be mounted. This reads Config.storage to create all filesystems.
+        An entry for apps and data are required. Others are optional.
+        """
+
+        _fs_list: dict = get_config_key(
+            key_name="Config.storage",
+            required=True,
+            expected_type=dict
+        )
+
+        logger.debug(f"Storage Configuration tree: {_fs_list}")
+
+        # First - make sure we have our required apps and data
+        # and they are mounted on /apps and /data
+        for _req_fs in {"apps", "data"}:
+            if not _fs_list.get(_req_fs):
+                raise ValueError(f"Missing required {_req_fs} filesystem configuration")
+            if not isinstance(_fs_list.get(_req_fs), dict):
+                raise ValueError(f"Invalid {_req_fs} filesystem configuration")
+            if not _fs_list.get(_req_fs).get("provider"):
+                raise ValueError(f"Missing required {_req_fs} filesystem provider")
+
+            # Allow for mount_point or mountpoint in the YML
+            _configured_mountpoint_str: str = _fs_list.get(_req_fs).get("mount_point", _fs_list.get(_req_fs).get("mountpoint", ""))
+
+            if not _configured_mountpoint_str:
+                raise ValueError(f"Missing required {_req_fs} filesystem mountpoint")
+
+            if _configured_mountpoint_str != f"/{_req_fs}":
+                raise ValueError(f"Mountpoint for {_req_fs} must be /{_req_fs}. Found {_configured_mountpoint_str}")
+
+            logger.debug(f"Validated {_req_fs} filesystem configuration")
+
+
+        # Do a quick sanity check on the names to make sure they are alnum
+        for _fs in _fs_list:
+            if _fs == "kms_key_id":
+                logger.debug(f"Skipping Storage-wide KMS key ID specification as a filesystem (Config.kms_key_id) - (this is perfectly OK)")
+                continue
+
+            if not _fs.isalnum():
+                raise ValueError(f"Invalid filesystem key name: {_fs} . Use only alphanumeric key names and try again")
+
+        # Do a quick scan to see if we need EFS/SNS alarms
+        # We have to do this prior to the filesystem create loop since the downstream resources will need this to be created
+        for _fs in _fs_list:
+            if _fs == "kms_key_id":
+                logger.debug(f"Skipping Storage-wide KMS key ID specification as a filesystem (Config.kms_key_id) - (this is perfectly OK)")
+                continue
+
+            _fs_provider: str = get_config_key(
+                key_name=f"Config.storage.{_fs}.provider",
+                required=False,
+                expected_type=str,
+                default="efs",
+            ).lower()
+
+            logger.debug(f"Provider for {_fs}: {_fs_provider}")
+            if _fs_provider == "efs":
+                # Only one per cluster is needed
+                if not self.soca_resources.get("sns_efs_topic"):
+                    _sns_kms_key_id: str = get_kms_key_id(
+                        config_key_names=[
+                            "Config.storage.kms_key_id",  # Should there be an alternate for the SNS Key?
+                        ],
+                        allow_global_default=True
+                    )
+                    logger.debug(f"SNS KMS for EFS-SNS Topic: {_sns_kms_key_id=}")
+
+                    if _sns_kms_key_id:
+                        _sns_kms_ikey = kms.Key.from_key_arn(
+                            self,
+                            id="SNSKeyID",
+                            key_arn=_sns_kms_key_id,
+                        )
+                    else:
+                        # Import the service default alias
+                        _sns_kms_ikey = kms.Key.from_lookup(
+                            self,
+                            id="SNSKeyID",
+                            alias_name="alias/aws/sns",
+                        )
+                        # logger.debug(f"SNS Topic using service-default KMS key alias/aws/sns")
+
+
+                    logger.debug(f"SNS KMS for EFS-SNS Topic: {_sns_kms_key_id=} / {_sns_kms_ikey=}")
+
+                    # Create CloudWatch/SNS alarm for SNS EFS. This will check BurstCreditBalance and increase allocated throughput to support temporary burst activity if needed
+                    self.soca_resources["sns_efs_topic"] = sns.Topic(
+                        self,
+                        id="SNSEFSTopic",
+                        display_name=f"{user_specified_variables.cluster_id}-EFSAlarm-SNS",
+                        topic_name=f"{user_specified_variables.cluster_id}-EFSAlarm-SNS",
+                        master_key=_sns_kms_ikey if _sns_kms_ikey else None,
+                    )
+                    self.soca_resources["sns_efs_topic"].add_to_resource_policy(
+                        iam.PolicyStatement(
+                            effect=iam.Effect.ALLOW,
+                            actions=["sns:Publish"],
+                            resources=[self.soca_resources["sns_efs_topic"].topic_arn],
+                            principals=[iam.ServicePrincipal(principals_suffix["cloudwatch"])],
+                            conditions={
+                                "ArnLike": {
+                                    "aws:SourceArn": f"arn:{Aws.PARTITION}:*:*:{Aws.ACCOUNT_ID}:*"
+                                }
+                            },
+                        )
+                    )
+
+                    efs_throughput_lambda = aws_lambda.Function(
+                        self,
+                        f"{user_specified_variables.cluster_id}-EFSLambda",
+                        function_name=f"{user_specified_variables.cluster_id}-EFSThroughput",
+                        description="Check EFS BurstCreditBalance and update ThroughputMode when needed",
+                        memory_size=128,
+                        role=self.soca_resources["efs_lambda_role"],
+                        timeout=Duration.minutes(3),
+                        runtime=typing.cast(aws_lambda.Runtime, get_lambda_runtime_version()),
+                        log_retention=logs.RetentionDays.INFINITE,
+                        handler="EFSThroughputLambda.lambda_handler",
+                        code=aws_lambda.Code.from_asset("../functions/EFSThroughputLambda"),
+                    )
+                    efs_throughput_lambda.node.add_dependency(
+                        self.soca_resources["efs_lambda_role"]
+                    )
+
+                    # TODO - FIXME - These should be in sync with the above values
+                    efs_throughput_lambda.add_environment(
+                        "EFSBurstCreditLowThreshold", "10000000"
+                    )
+                    efs_throughput_lambda.add_environment(
+                        "EFSBurstCreditHighThreshold", "2000000000000"
+                    )
+                    efs_throughput_lambda.add_permission(
+                        "InvokePermission",
+                        principal=iam.ServicePrincipal(principals_suffix["sns"]),
+                        action="lambda:InvokeFunction",
+                    )
+
+                    sns.Subscription(
+                        self,
+                        f"{user_specified_variables.cluster_id}-SNSEFSSubscription",
+                        protocol=sns.SubscriptionProtocol.LAMBDA,
+                        endpoint=efs_throughput_lambda.function_arn,
+                        topic=self.soca_resources["sns_efs_topic"],
+                    )
+                else:
+                    logger.debug(f"EFS filesystems detected - SNS/Alarming infrastructure previously created")
+            else:
+                logger.debug(f"EFS filesystems not detected for {_fs}")
+
+
+        # Continue with creating filesystems
+        for _fs in _fs_list:
+            if _fs == "kms_key_id":
+                logger.debug(f"Skipping Storage-wide KMS key ID specification as a filesystem (Config.kms_key_id) - (this is perfectly OK)")
+                continue
+
+            _fs_provider: str = get_config_key(
+                key_name=f"Config.storage.{_fs}.provider",
+                required=False,
+                expected_type=str,
+                default="efs",
+            ).lower()
+            logger.debug(f"Provider for {_fs}: {_fs_provider}")
+
+            match _fs_provider:
+                case "efs":
+                    self._storage_build_efs_filesystem(fs_key=_fs)
+                case "fsx_lustre":
+                    self._storage_build_fsx_lustre_filesystem(fs_key=_fs)
+                case "fsx_ontap":
+                    self._storage_build_fsx_ontap_filesystem(fs_key=_fs)
+                case "fsx_openzfs":
+                    self._storage_build_fsx_openzfs_filesystem(fs_key=_fs)
+                case _:
+                    raise ValueError(f"Invalid provider: {_fs_provider} for {_fs} - unable to continue")
+
+        logger.debug(f"Storage Configuration completed")
+
+
+    def controller(self):
+        """
+        Create the Controller EC2 instance, configure user data and assign EIP
+        """
+
+        logger.debug(f"DEBUG: UserSpecVars: {user_specified_variables}")
 
         # Make sure our filesystems are fully qualified
         if user_specified_variables.fs_apps_provider:
             _fs_apps_provider: str = user_specified_variables.fs_apps_provider
             _fs_apps_dns: str = f"{user_specified_variables.fs_apps}"
         else:
-            _fs_apps_provider: str = install_props.Config.storage.apps.provider
-            _fs_apps_dns: str = f"{self.soca_resources['fs_apps'].ref}.{endpoints_suffix[install_props.Config.storage.apps.provider]}"
+            _fs_apps_provider: str = get_config_key("Config.storage.apps.provider")
+            _fs_apps_dns: str = f"{self.soca_resources['fs_apps'].ref}.{endpoints_suffix[get_config_key('Config.storage.apps.provider')]}"
 
         if user_specified_variables.fs_data_provider:
             _fs_data_provider: str = user_specified_variables.fs_data_provider
             _fs_data_dns: str = f"{user_specified_variables.fs_data}"
         else:
-            _fs_data_provider: str = install_props.Config.storage.data.provider
-            _fs_data_dns: str = f"{self.soca_resources['fs_data'].ref}.{endpoints_suffix[install_props.Config.storage.data.provider]}"
+            _fs_data_provider: str = get_config_key("Config.storage.data.provider")
+            _fs_data_dns: str = f"{self.soca_resources['fs_data'].ref}.{endpoints_suffix[get_config_key('Config.storage.data.provider')]}"
 
-        # Generate EC2 User Data
-        user_data_substitutes = {
-            "%%AWS_ACCOUNT_ID%%": Aws.ACCOUNT_ID,
-            "%%AWS_PARTITION%%": Aws.PARTITION,
-            "%%CLUSTER_ID%%": user_specified_variables.cluster_id,
-            "%%S3_BUCKET%%": user_specified_variables.bucket,
-            "%%AWS_REGION%%": Aws.REGION,
-            "%%SOCA_VERSION%%": "2.7.5",
-            "%%COMPUTE_NODE_ARN%%": self.soca_resources["compute_node_role"].role_arn,
-            "%%FS_DATA_PROVIDER%%": _fs_data_provider,
-            "%%FS_APPS_PROVIDER%%": _fs_apps_provider,
-            "%%FS_DATA_DNS%%": _fs_data_dns,
-            "%%FS_APPS_DNS%%": _fs_apps_dns,
-            "%%VPC_ID%%": self.soca_resources["vpc"].vpc_id,
-            "%%BASE_OS%%": user_specified_variables.base_os,
-            "%%LDAP_USERNAME%%": user_specified_variables.ldap_user,
-            "%%LDAP_PASSWORD%%": user_specified_variables.ldap_password,
-            "%%SOCA_INSTALL_AMI%%": self.soca_resources["ami_id"],
-            "%%RESET_PASSWORD_DS_LAMBDA%%": "false"
-            if not self.soca_resources["reset_ds_lambda"]
-            else self.soca_resources["reset_ds_lambda"].function_arn,
-            "%%SOCA_AUTH_PROVIDER%%": install_props.Config.directoryservice.provider,
-            "%%SOCA_LDAP_BASE%%": "false"
-            if install_props.Config.directoryservice.provider == "activedirectory"
-            else f"dc={',dc='.join(install_props.Config.directoryservice.openldap.name.split('.'))}".lower(),
+        # We manually replace  the variable with the relevant ParameterStore as all ParamStore hierarchy is created at the very end of this CDK
+        _user_data_variables = {
+            "/configuration/BaseOS": user_specified_variables.base_os,
+            "/configuration/ClusterId": user_specified_variables.cluster_id,
+            "/configuration/UserDirectory/provider": get_config_key(
+                key_name="Config.directoryservice.provider"
+            ),
+            "/configuration/Region": user_specified_variables.region,
+            "/configuration/FileSystemAppsProvider": _fs_apps_provider,
+            "/configuration/FileSystemDataProvider": _fs_data_provider,
+            "/configuration/FileSystemApps": _fs_apps_dns,
+            "/configuration/FileSystemData": _fs_data_dns,
+            "/configuration/Version": "24.10",
+            "/configuration/CustomAMI": self.soca_resources["ami_id"],
+            "/configuration/S3Bucket": user_specified_variables.bucket,
+            "/configuration/HPC/SchedulerEngine": get_config_key(
+                key_name="Config.scheduler.scheduler_engine",
+                required=False,
+                default="openpbs"
+            ),
+            "/job/NodeType": "controller"
         }
 
-        with open("../user_data/Scheduler.sh") as plain_user_data:
-            user_data = plain_user_data.read()
+        # add all System hierarchy
+        _parameter_store_keys = flatten_parameterstore_config(
+            get_config_key(key_name="Parameters", expected_type=dict)
+        )
+        for _ssm_parameter_key, _ssm_parameter_value in _parameter_store_keys.items():
+            _user_data_variables[f"/{_ssm_parameter_key}"] = _ssm_parameter_value
 
-        for k, v in user_data_substitutes.items():
-            # print(f"DEBUG: Replacing UserData [{k}] => {v}")
-            user_data = user_data.replace(k, v)
+        # Generate EC2 User Data
+        _user_data = self.jinja2_env.get_template("user_data/controller/01_user_data.sh.j2").render(
+            context=_user_data_variables
+        )
 
-        # Choose subnet where to deploy the scheduler
+        # Because of size limitation, pre-requisite is stored on S3. This script will then generate the actual setup
+        _pre_requisites = self.jinja2_env.get_template("user_data/controller/02_prerequisites.sh.j2").render(
+            context=_user_data_variables
+        )
+
+        os.makedirs(f"{pathlib.Path.cwd().parent}/user_data/upload_to_s3/controller/", exist_ok=True)
+
+        with open(f"{pathlib.Path.cwd().parent}/user_data/upload_to_s3/controller/02_prerequisites.sh", "w") as f:
+            f.write(_pre_requisites)
+
+        shutil.copy(f"{pathlib.Path.cwd().parent}/user_data/controller/03_setup.sh.j2", f"{pathlib.Path.cwd().parent}/user_data/upload_to_s3/controller/")
+
+        # Choose subnet where to deploy the controller
         if not user_specified_variables.vpc_id:
-            if install_props.Config.entry_points_subnets.lower() == "public":
-                vpc_subnets = ec2.SubnetSelection(
-                    subnets=[self.soca_resources["vpc"].public_subnets[0]]
-                )
-            else:
-                vpc_subnets = ec2.SubnetSelection(
-                    subnets=[self.soca_resources["vpc"].private_subnets[0]]
-                )
+            # We created the VPC
+            vpc_subnets = ec2.SubnetSelection(
+                subnets=[self.soca_resources["vpc"].private_subnets[0]]
+            )
         else:
-            if install_props.Config.entry_points_subnets.lower() == "public":
-                subnet_info = user_specified_variables.public_subnets[0].split(",")
-            else:
-                subnet_info = user_specified_variables.private_subnets[0].split(",")
+            # Existing VPC was used
+            # format is subnet-123,us-east-1a
+            subnet_info = user_specified_variables.private_subnets[0].split(",")
+
+            logger.debug(f"Using existing VPC subnet for Controller subnet: {subnet_info}")
+
             launch_subnet = ec2.Subnet.from_subnet_attributes(
                 self,
-                "SubnetToUse",
+                "ControllerSubnet",
                 availability_zone=subnet_info[1],
                 subnet_id=subnet_info[0],
             )
             vpc_subnets = ec2.SubnetSelection(subnets=[launch_subnet])
+            logger.debug(f"Controller Subnet: {vpc_subnets}")
+        # Create the Controller Instance
 
-        # Create the Scheduler Instance
+        _volume_type_str: str = get_config_key(
+                key_name="Config.controller.volume_type",
+                required=False,
+                default="gp3",
+                expected_type=str
+            ).lower()
 
-        if user_specified_variables.base_os in {"amazonlinux2", "amazonlinux2023"}:
-            _ebs_device_name = "/dev/xvda"
-        else:
-            _ebs_device_name = "/dev/sda1"
+        _volume_type = return_ebs_volume_type(volume_string=_volume_type_str)
 
-        # Determine our scheduler volume_type
-        _scheduler_volume_type = ec2.EbsDeviceVolumeType.GP2
-        if install_props.Config.scheduler.volume_type.lower() == "gp3":
-            _scheduler_volume_type = ec2.EbsDeviceVolumeType.GP3
+        _ebs_volume_key_id: str = get_kms_key_id(
+            config_key_names=[
+                "Config.controller.volume_kms_key_id",  # Current key name
+                "Config.controller.kms_key_id",  # Alternative
+                "Config.scheduler.volume_kms_key_id",  # legacy key name
+                "Config.scheduler.kms_key_id",  # Alternative
+            ],
+            allow_global_default=True,
+        )
+        logger.debug(f"Controller EBS encryption: KeyID: {_ebs_volume_key_id}")
 
-        self.soca_resources["scheduler_instance"] = ec2.Instance(
+        _volume_iops = get_config_key(
+                key_name="Config.controller.volume_iops",
+                required=False,
+                default=0,
+                expected_type=int
+        )
+
+        _volume_throughput = get_config_key(
+                key_name="Config.controller.volume_throughput",
+                required=False,
+                default=0,
+                expected_type=int
+        )
+
+        # Fixup some configs for specific volume types
+        logger.debug(f"Performing EBS fixups for volume_type - {_volume_type}")
+
+        match _volume_type_str:
+            case "gp3":
+                logger.debug(f"Performing EBS fixups for gp3")
+                if not _volume_iops:
+                    _volume_iops = 3000
+                if not _volume_throughput:
+                    _volume_throughput = 125
+            case "io1":
+                logger.debug(f"Performing EBS fixups for io1")
+                if _volume_throughput:
+                    _volume_throughput = None
+
+
+        logger.debug(f"Controller EBS volume IOPS: {_volume_iops}")
+        logger.debug(f"Controller EBS volume throughput: {_volume_throughput}")
+
+
+        self.soca_resources["controller_instance"] = ec2.Instance(
             self,
-            f"{user_specified_variables.cluster_id}-SchedulerInstance",
+            f"{user_specified_variables.cluster_id}-ControllerInstance",
             availability_zone=vpc_subnets.availability_zones,
             machine_image=ec2.MachineImage.generic_linux(
                 {user_specified_variables.region: self.soca_resources["ami_id"]}
             ),
-            instance_type=ec2.InstanceType(
-                str(install_props.Config.scheduler.instance_type)
+            instance_type=ec2.InstanceType(self._instance_type),
+            key_pair=ec2.KeyPair.from_key_pair_attributes(
+                self,
+                "SchedulerKeyPair",
+                key_pair_name=user_specified_variables.ssh_keypair,
             ),
-            key_name=user_specified_variables.ssh_keypair,
             vpc=self.soca_resources["vpc"],
+            propagate_tags_to_volume_on_creation=True,
             block_devices=[
                 ec2.BlockDevice(
-                    device_name=_ebs_device_name,
+                    device_name=self.return_ebs_volume_name(base_os=user_specified_variables.base_os),
                     volume=ec2.BlockDeviceVolume(
                         ebs_device=ec2.EbsDeviceProps(
-                            volume_size=int(install_props.Config.scheduler.volume_size),
-                            volume_type=_scheduler_volume_type,
+                            encrypted=True if _ebs_volume_key_id else False,
+                            kms_key=kms.Key.from_key_arn(
+                                self,
+                                id="ControllerEBSKMSKey",
+                                key_arn=_ebs_volume_key_id) if _ebs_volume_key_id else None,
+                            volume_size=get_config_key(
+                                key_name="Config.controller.volume_size",
+                                expected_type=int
+                            ),
+                            volume_type=_volume_type,
+                            iops=_volume_iops if _volume_iops else None,
+                            throughput=_volume_throughput if _volume_throughput else None,
                         )
                     ),
                 )
             ],
-            role=self.soca_resources["scheduler_role"],
-            security_group=self.soca_resources["scheduler_sg"],
+            role=self.soca_resources["controller_role"],
+            security_group=self.soca_resources["controller_sg"],
             vpc_subnets=vpc_subnets,
-            user_data=ec2.UserData.custom(user_data),
-            require_imdsv2=True if install_props.Config.metadata_http_tokens == "required" else False,
+            user_data=ec2.UserData.custom(_user_data),
+            require_imdsv2=True
+            if get_config_key(key_name="Config.metadata_http_tokens", default="required", required=False).lower() == "required"
+            else False,
         )
 
-        Tags.of(self.soca_resources["scheduler_instance"]).add(
-            "Name", f"{user_specified_variables.cluster_id}-Scheduler"
-        )
-        Tags.of(self.soca_resources["scheduler_instance"]).add(
-            "soca:BackupPlan", f"{user_specified_variables.cluster_id}"
+        Tags.of(self.soca_resources["controller_instance"]).add(
+            key="Name", value=f"{user_specified_variables.cluster_id}-Controller"
         )
 
-        # Ensure Filesystem are already up and running before creating the scheduler instance
+        Tags.of(self.soca_resources["controller_instance"]).add(
+            key="soca:NodeType", value=f"controller"
+        )
+
+        # XXX FIXME TODO - Should this take place when there isn't active backup plan?
+        Tags.of(self.soca_resources["controller_instance"]).add(
+            key="soca:BackupPlan", value=f"{user_specified_variables.cluster_id}"
+        )
+
+        # Ensure Filesystem are already up and running before creating the controller instance
         if not user_specified_variables.fs_apps:
-            self.soca_resources["scheduler_instance"].node.add_dependency(
+            self.soca_resources["controller_instance"].node.add_dependency(
                 self.soca_resources["fs_apps"]
             )
         if not user_specified_variables.fs_data:
-            self.soca_resources["scheduler_instance"].node.add_dependency(
+            self.soca_resources["controller_instance"].node.add_dependency(
                 self.soca_resources["fs_data"]
             )
 
-        ssh_user = (
-            "centos" if user_specified_variables.base_os == "centos7" else "ec2-user"
+        # FIXME TODO -
+        # Other controller deps
+        # VPC-Endpoints, Directory services, ElastiCache, VPC, Subnets, etc?
+        # Some should be automatic - but always good to list them
+        self.soca_resources["controller_instance"].node.add_dependency(
+            self.soca_resources["elasticache"]
         )
 
-        if install_props.Config.entry_points_subnets.lower() == "public":
-            # Associate the EIP to the scheduler instance
-            #
-            # Partition differences in CloudFormation support
-            # 29 Nov 2023 @jasackle
-            if self._region.lower() in {
-                "us-gov-west-1",
-                "us-gov-east-1",
-                "ap-south-1",
-                "ap-southeast-4",
-                "eu-central-2",
-                "eu-south-2",
-                "il-central-1",
-            }:
-                ec2.CfnEIPAssociation(
-                    self,
-                    "AssignEIPToScheduler",
-                    eip=self.soca_resources["scheduler_eip"].ref,
-                    instance_id=self.soca_resources["scheduler_instance"].instance_id,
-                )
-            else:
-                # Commercial
-                ec2.CfnEIPAssociation(
-                    self,
-                    "AssignEIPToScheduler",
-                    allocation_id=self.soca_resources[
-                        "scheduler_eip"
-                    ].attr_allocation_id,
-                    instance_id=self.soca_resources["scheduler_instance"].instance_id,
-                )
-
-            CfnOutput(self, "SchedulerIP", value=self._scheduler_eip_value)
-            CfnOutput(
-                self,
-                "ConnectionString",
-                value=f"ssh -i {user_specified_variables.ssh_keypair} {ssh_user}@{self._scheduler_eip_value}",
-            )
-
-        else:
-            CfnOutput(
-                self,
-                "SchedulerIP",
-                value=self.soca_resources["scheduler_instance"].instance_private_ip,
-            )
-            CfnOutput(
-                self,
-                "ConnectionString",
-                value=f"ssh -i {user_specified_variables.ssh_keypair} {ssh_user}@{self.soca_resources['scheduler_instance'].instance_private_ip}",
-            )
-
-    def secretsmanager(self):
+    def configuration(self):
         """
         Store SOCA configuration in a Secret Manager's Secret.
-        Scheduler/Compute Nodes have the permission to read the secret
+        Controller/Compute Nodes have the permission to read the secret
         """
         solution_metrics_lambda = aws_lambda.Function(
             self,
@@ -1519,19 +3077,42 @@ class SOCAInstall(Stack):
             memory_size=128,
             role=self.soca_resources["solution_metrics_lambda_role"],
             timeout=Duration.minutes(3),
-            runtime=typing.cast(aws_lambda.Runtime, aws_lambda.Runtime.PYTHON_3_11),
+            runtime=typing.cast(aws_lambda.Runtime, get_lambda_runtime_version()),
             log_retention=logs.RetentionDays.INFINITE,
             handler="SolutionMetricsLambda.lambda_handler",
             code=aws_lambda.Code.from_asset("../functions/SolutionMetricsLambda"),
         )
-        public_subnets = []
-        private_subnets = []
-        for pub_sub in self.soca_resources["vpc"].public_subnets:
-            public_subnets.append(pub_sub.subnet_id)
 
-        for priv_sub in self.soca_resources["vpc"].private_subnets:
-            private_subnets.append(priv_sub.subnet_id)
+        # TODO FIXME - This can be cleaned up
+        _subnet_listings: dict = {
+            "public": [],
+            "private": [],
+        }
 
+        if user_specified_variables.public_subnets and user_specified_variables.private_subnets:
+            logger.debug(f"Using supplied public and private subnets for Param configuration")
+
+            # format for user_specified is subnet-123,us-east-1a
+            for _sn in user_specified_variables.public_subnets:
+                _sn_id: str = _sn.split(",")[0]
+                logger.debug(f"Adding public subnet - {_sn_id}")
+                _subnet_listings["public"].append(_sn_id)
+            for _sn in user_specified_variables.private_subnets:
+                _sn_id: str = _sn.split(",")[0]
+                logger.debug(f"Adding private subnet - {_sn_id}")
+                _subnet_listings["private"].append(_sn_id)
+
+        else:
+            # SOCA created the VPC - so it should be clean and we can use the CDK methods
+            logger.debug(f"Using SOCA created VPC subnets for Param configuration")
+
+            for pub_sub in self.soca_resources["vpc"].public_subnets:
+                logger.debug(f"Public subnet: {pub_sub.subnet_id}")
+                _subnet_listings["public"].append(pub_sub.subnet_id)
+
+            for priv_sub in self.soca_resources["vpc"].private_subnets:
+                logger.debug(f"Private subnet: {priv_sub.subnet_id}")
+                _subnet_listings["private"].append(priv_sub.subnet_id)
 
         # Determine our mounting for /apps and /data
         # /apps
@@ -1539,7 +3120,7 @@ class SOCAInstall(Stack):
             _fs_apps_provider: str = user_specified_variables.fs_apps_provider
             _fs_apps_mount: str = f"{user_specified_variables.fs_apps}"
         else:
-            _fs_apps_provider: str = install_props.Config.storage.apps.provider
+            _fs_apps_provider: str = get_config_key("Config.storage.apps.provider")
             _fs_apps_mount: str = f"{self.soca_resources['fs_apps'].ref}.{endpoints_suffix[_fs_apps_provider]}"
 
         # /data
@@ -1547,231 +3128,605 @@ class SOCAInstall(Stack):
             _fs_data_provider: str = user_specified_variables.fs_data_provider
             _fs_data_mount: str = f"{user_specified_variables.fs_data}"
         else:
-            _fs_data_provider: str = install_props.Config.storage.data.provider
+            _fs_data_provider: str = get_config_key("Config.storage.data.provider")
             _fs_data_mount: str = f"{self.soca_resources['fs_data'].ref}.{endpoints_suffix[_fs_data_provider]}"
 
+        # Allow config file over-ride of the SOCA admin default username
+        _def_admin_username: str = get_config_key(
+            key_name="Config.admin_user_name",
+            required=False,
+            default="socaadmin",
+            expected_type=str,
+        )
 
-        secret = {
+        _secret_string: str = '{"username": "' + _def_admin_username + '"}'
+        _default_soca_user_secret = secretsmanager_helper.create_secret(
+            scope=self,
+            construct_id="SocaAdminUserSecret",
+            secret_name=f"/soca/{user_specified_variables.cluster_id}/SocaAdminUser",
+            secret_string_template=_secret_string,
+            kms_key_id=self.soca_resources["secretsmanager_kms_key_id"] if self.soca_resources["secretsmanager_kms_key_id"] else None,
+        )
+
+        self.soca_resources["soca_config"] = {
             "VpcId": self.soca_resources["vpc"].vpc_id,
-            "PublicSubnets": public_subnets,
-            "PrivateSubnets": private_subnets,
-            "SchedulerPrivateIP": self.soca_resources[
-                "scheduler_instance"
+            "PublicSubnets": _subnet_listings.get("public", []),
+            "PrivateSubnets": _subnet_listings.get("private", []),
+            "ControllerPrivateIP": self.soca_resources[
+                "controller_instance"
             ].instance_private_ip,
-            "SchedulerPrivateDnsName": self.soca_resources[
-                "scheduler_instance"
+            "ControllerPrivateDnsName": self.soca_resources[
+                "controller_instance"
             ].instance_private_dns_name,
-            "SchedulerInstanceId": self.soca_resources[
-                "scheduler_instance"
+            "ControllerInstanceId": self.soca_resources[
+                "controller_instance"
             ].instance_id,
-            "SchedulerSecurityGroup": self.soca_resources[
-                "scheduler_sg"
+            "ControllerSecurityGroup": self.soca_resources[
+                "controller_sg"
             ].security_group_id,
             "ComputeNodeSecurityGroup": self.soca_resources[
                 "compute_node_sg"
             ].security_group_id,
-            "SchedulerIAMRoleArn": self.soca_resources["scheduler_role"].role_arn,
+            "ControllerIAMRoleArn": self.soca_resources["controller_role"].role_arn,
             "SpotFleetIAMRoleArn": self.soca_resources["spot_fleet_role"].role_arn,
-            "SchedulerIAMRole": self.soca_resources["scheduler_role"].role_name,
+            "ControllerIAMRole": self.soca_resources["controller_role"].role_name,
             "ComputeNodeIAMRoleArn": self.soca_resources["compute_node_role"].role_arn,
             "ComputeNodeIAMRole": self.soca_resources["compute_node_role"].role_name,
             "ComputeNodeInstanceProfileArn": f"arn:{Aws.PARTITION}:iam::{Aws.ACCOUNT_ID}:instance-profile/{self.soca_resources['compute_node_instance_profile'].ref}",
             "ClusterId": user_specified_variables.cluster_id,
-            "Version": install_props.Config.version,
+            "Version": get_config_key("Config.version"),
             "Region": user_specified_variables.region,
-            "Misc": "",
             "S3Bucket": user_specified_variables.bucket,
             "SSHKeyPair": user_specified_variables.ssh_keypair,
             "CustomAMI": self.soca_resources["ami_id"],
             "CustomAMIMap": self.soca_resources["custom_ami_map"],
             "LoadBalancerDNSName": self.soca_resources["alb"].load_balancer_dns_name,
             "LoadBalancerArn": self.soca_resources["alb"].load_balancer_arn,
+            "NLBLoadBalancerDNSName": self.soca_resources["nlb"].load_balancer_dns_name,
             "BaseOS": user_specified_variables.base_os,
             "S3InstallFolder": user_specified_variables.cluster_id,
-            "SchedulerIP": self._scheduler_eip_value
-            if install_props.Config.entry_points_subnets.lower() == "public"
-            else self.soca_resources["scheduler_instance"].instance_private_ip,
             "SolutionMetricsLambda": solution_metrics_lambda.function_arn,
             "DefaultMetricCollection": "true",
-            "AuthProvider": install_props.Config.directoryservice.provider,
             "FileSystemDataProvider": _fs_data_provider,
             "FileSystemData": _fs_data_mount,
             "FileSystemAppsProvider": _fs_apps_provider,
             "FileSystemApps": _fs_apps_mount,
-            "SkipQuotas": install_props.Config.skip_quotas,
-            "MetadataHttpTokens": install_props.Config.metadata_http_tokens,
-            "AnalyticsEngine": install_props.Config.analytics.engine,
-            "DefaultVolumeType": install_props.Config.scheduler.volume_type,
-            "HPCJobDeploymentMethod": "asg",  # asg or fleet
+            "SkipQuotas": get_config_key(key_name="Config.skip_quotas", default=False, required=False),
+            "MetadataHttpTokens": get_config_key(key_name="Config.metadata_http_tokens"),
+            "DefaultVolumeType": get_config_key(key_name="Config.controller.volume_type"),
+            "HPCJobDeploymentMethod": "fleet",  # asg or fleet
+            "HPC": { **get_config_key(key_name="Config.scheduler", expected_type=dict) },
+            "AWSPCS": { **get_config_key(key_name="Config.services.aws_pcs", required=False, default={}, expected_type=dict) },
             # Defaults for eVDI/DCV
-            "DCVDefaultVersion": install_props.Config.dcv.version,
+            "DCVDefaultVersion": get_config_key("Config.dcv.version"),
             "DCVAllowPreviousGenerations": False,  # Allow Previous Generation(older) instances
             "DCVAllowBareMetal": False,  # Allow Bare Metal instances to be shown
-            "DCVAllowedInstances": [
-                "m7i-flex.*",
-                "m7i.*",
-                "m6i.*",
-                "m6g.*",
-                "m5.*",
-                "g4dn.*",
-                "g4ad.*",
-                "g5.*",
-                "g6.*",
-                "gr6.*",
-                "c6i.*",
-                "c6a.*",
-                "r6i.*",
-                "r6a.*",
-            ],  # List (with wildcard) of instances that are allowed. All rest are denied.
+            "DCVAllowedInstances": get_config_key(
+                key_name="Config.dcv.allowed_instances",
+                required=False,
+                expected_type=list,
+                default=[
+                    "m7i-flex.*",
+                    "m5.*",
+                    "g5.*",
+                    "g6.*",
+                ],  # List (with wildcard) of instances that are allowed. All rest are denied.
+            ),
             "DCVDeniedInstances": [
                 "*.48xlarge"
             ],  # Wildcards of instance types that should be denied that otherwise may be permitted in the AllowedInstances
             #
-            # Our default configuration uses a local compiled version of Redis
-            # This can be offloaded externally if desired post-installation
-            #
-            "Cache": {
-                "Enabled": True,  # Required to be True for now
-                "Provider":  "redis",  # Only supports redis for now
-                "TTL": {
-                    "short": 3600,
-                    "long": 86400
-                },
-                "RedisConfiguration": {
-                    "Host": "localhost",
-                    "Port": "6379",
-                    "DB": "0",
-                    "RedisAuth": "",
-                    "UseTLS": False,
-                },
-            }
+            "SchedulerDeploymentType": get_config_key("Config.scheduler.deployment_type"),
         }
 
-        # ES configuration
-        if not user_specified_variables.os_endpoint:
-            secret["OSDomainEndpoint"] = self.soca_resources[
-                "os_domain"
-            ].domain_endpoint
-        else:
-            secret["OSDomainEndpoint"] = user_specified_variables.os_endpoint
+        # Analytics configuration
+        _is_analytics_enabled = get_config_key(
+            key_name="Config.analytics.enabled",
+            expected_type=bool,
+            required=False,
+            default=True
+        )
+        _analytics_config = {
+            "engine":  get_config_key(
+                key_name="Config.analytics.engine",
+                expected_type=str,
+                required=False,
+                default="opensearch"
+            ),
+            "enabled": _is_analytics_enabled
+        }
 
-        # LDAP configuration
-        if not user_specified_variables.ldap_host:
-            secret["ExistingLDAP"] = False
-        else:
-            secret["ExistingLDAP"] = user_specified_variables.ldap_host
+        if _is_analytics_enabled:
+            if not user_specified_variables.os_endpoint:
+                _analytics_engine: str = _analytics_config.get("engine", "")
+                logger.debug(f"Analytics engine: {_analytics_engine}")
 
-        if not user_specified_variables.directory_service_id:
-            if install_props.Config.directoryservice.provider == "activedirectory":
-                secret["DSDirectoryId"] = self.soca_resources["directory_service"].ref
-                secret[
-                    "DSDomainName"
-                ] = install_props.Config.directoryservice.activedirectory.name
-                secret[
-                    "DSDomainBase"
-                ] = f"dc={',dc='.join(secret['DSDomainName'].split('.'))}".lower()
-                secret[
-                    "DSDomainNetbios"
-                ] = (
-                    install_props.Config.directoryservice.activedirectory.short_name.upper()
-                )
-                secret["DSDomainAdminUsername"] = self.soca_resources["ds_domain_admin"]
-                secret["DSDomainAdminPassword"] = self.soca_resources[
-                    "ds_domain_admin_password"
-                ]
-                secret["DSServiceAccountUsername"] = "false"
-                secret["DSServiceAccountPassword"] = "false"
-                secret["DSResetLambdaFunctionArn"] = self.soca_resources[
-                    "reset_ds_lambda"
-                ].function_arn
+                if _analytics_engine in {"opensearch", "elasticsearch"}:
+                    _analytics_config["endpoint"] = f"https://{self.soca_resources['os_domain'].domain_endpoint}"
+                elif _analytics_engine in {"opensearch_serverless", "aoss_serverless"}:
+                    logger.debug(f"OS Endpoint: {self.soca_resources['os_domain']=}")
+                    _analytics_config["endpoint"] = f"https://{self.soca_resources['os_domain'].attr_collection_endpoint}"
+                else:
+                    logger.error(f"Unsupported analytics engine defined: {_analytics_engine}")
+                    sys.exit(1)
             else:
-                # OpenLDAP
-                secret["LdapName"] = install_props.Config.directoryservice.openldap.name
-                secret[
-                    "LdapBase"
-                ] = f"dc={',dc='.join(secret['LdapName'].split('.'))}".lower()
-                secret["LdapHost"] = self.soca_resources[
-                    "scheduler_instance"
-                ].instance_private_dns_name
+                logger.debug(f"Analytics Endpoint: {user_specified_variables.os_endpoint=}")
+                if not user_specified_variables.os_endpoint.startswith("https://") and not user_specified_variables.os_endpoint.startswith("http://"):
+                    _analytics_config["endpoint"] = f"https://{user_specified_variables.os_endpoint}"
+                else:
+                    _analytics_config["endpoint"] = user_specified_variables.os_endpoint
         else:
-            secret["DSDirectoryId"] = user_specified_variables.directory_service_id
-            secret["DSDomainName"] = user_specified_variables.directory_service_name
-            secret[
-                "DSDomainBase"
-            ] = f"dc={',dc='.join(secret['DSDomainName'].split('.'))}".lower()
-            secret[
-                "DSDomainNetbios"
-            ] = user_specified_variables.directory_service_shortname.upper()
-            secret[
-                "DSDomainAdminUsername"
-            ] = user_specified_variables.directory_service_user
-            secret[
-                "DSDomainAdminPassword"
-            ] = user_specified_variables.directory_service_user_password
-            secret["DSServiceAccountUsername"] = "false"
-            secret["DSServiceAccountPassword"] = "false"
+            _analytics_config["endpoint"] = ""
 
-        self.soca_resources["soca_config"] = secretsmanager.CfnSecret(
+
+            # Store SOCA config on AWS SSM Parameter Store
+        _parameter_store_prefix = f"/soca/{user_specified_variables.cluster_id}"
+
+        # Retrieve all static SOCA parameters defined in default_config.yml (or config specified by user)
+        _parameter_store_keys = flatten_parameterstore_config(
+            get_config_key(key_name="Parameters", expected_type=dict)
+        )
+        for _ssm_parameter_key, _ssm_parameter_value in _parameter_store_keys.items():
+            ssm.StringParameter(
+                self,
+                f"Parameter{_ssm_parameter_key}",
+                parameter_name=f"{_parameter_store_prefix}/{_ssm_parameter_key}",
+                string_value=str(_ssm_parameter_value),
+                tier=ssm.ParameterTier.STANDARD,
+            )
+
+        # Flatten Cache
+        _cache_info = flatten_parameterstore_config(
+            get_config_key(key_name="Config.services.aws_elasticache", expected_type=dict, required=True)
+        )
+        if _cache_info.get("enabled"):
+            _cache_info["port"] = self.soca_resources["elasticache"].attr_endpoint_port
+            _cache_info["endpoint"] = self.soca_resources[
+                "elasticache"
+            ].attr_endpoint_address
+        else:
+            _cache_info["port"] = 0
+            _cache_info["endpoint"] = ""
+
+        # Flatten Config Dict
+        _dicts_to_flatten = {"/configuration/Analytics":  _analytics_config,
+                            "/configuration/UserDirectory": self.directory_service_resource_setup,
+                            "/configuration/Cache": _cache_info}
+
+        for _parent_prefix, _dict in _dicts_to_flatten.items():
+            _dict_flattened = flatten_parameterstore_config(_dict)
+            for _k, _v in _dict_flattened.items():
+
+                ssm.StringParameter(
+                    self,
+                    f"Parameter{_parent_prefix.replace('/','-')}{_k}",
+                    parameter_name=f"{_parameter_store_prefix}{_parent_prefix}/{_k}",
+                    string_value=str(_v),
+                    tier=ssm.ParameterTier.STANDARD
+                )
+
+        # Retrieve dynamic SOCA parameters created during the CDK
+        for _k, _v in self.soca_resources["soca_config"].items():
+            ssm.StringParameter(
+                self,
+                f"Parameter{_k}",
+                parameter_name=f"{_parameter_store_prefix}/configuration/{_k}",
+                string_value=str(_v),
+                tier=ssm.ParameterTier.STANDARD,
+            )
+
+        # Controller host has R/W permissions. Delete permissions are not allowed
+        self.soca_resources["controller_role"].attach_inline_policy(
+            iam.Policy(
+                self,
+                "AttachParameterStorePolicyToController",
+                statements=[
+                    iam.PolicyStatement(
+                        actions=["ssm:DescribeParameters"],
+                        effect=iam.Effect.ALLOW,
+                        resources=["*"],
+                    ),
+                    iam.PolicyStatement(
+                        actions=[
+                            "ssm:GetParameters",
+                            "ssm:GetParameterHistory",
+                            "ssm:GetParametersByPath",
+                            "ssm:GetParameter",
+                            "ssm:PutParameter",
+                        ],
+                        effect=iam.Effect.ALLOW,
+                        resources=[
+                            f"arn:{Aws.PARTITION}:ssm:{Aws.REGION}:{Aws.ACCOUNT_ID}:parameter{_parameter_store_prefix}/*"
+                        ],
+                    ),
+                ],
+            )
+        )
+
+        # All other nodes only have R permissions
+        for _role in {"compute_node_role", "spot_fleet_role", "login_node_role"}:
+            self.soca_resources[_role].attach_inline_policy(
+                iam.Policy(
+                    self,
+                    f"AttachParameterStorePolicyTo{_role.split('_')[0].capitalize()}Node",
+                    statements=[
+                        iam.PolicyStatement(
+                            actions=["ssm:DescribeParameters"],
+                            effect=iam.Effect.ALLOW,
+                            resources=["*"],
+                        ),
+                        iam.PolicyStatement(
+                            actions=[
+                                "ssm:GetParameters",
+                                "ssm:GetParameterHistory",
+                                "ssm:GetParametersByPath",
+                                "ssm:GetParameter",
+                            ],
+                            effect=iam.Effect.ALLOW,
+                            resources=[
+                                f"arn:{Aws.PARTITION}:ssm:{Aws.REGION}:{Aws.ACCOUNT_ID}:parameter{_parameter_store_prefix}/*"
+                            ],
+                        ),
+                    ],
+                )
+            )
+
+        # Create IAM policy and attach it to both Controller and Compute Nodes group
+        self.soca_resources["controller_role"].attach_inline_policy(
+            iam.Policy(
+                self,
+                "AttachSecretManagerPolicyToController",
+                statements=[
+                    iam.PolicyStatement(
+                        actions=["secretsmanager:GetSecretValue"],
+                        effect=iam.Effect.ALLOW,
+                        resources=[
+                            f"arn:{Aws.PARTITION}:secretsmanager:{Aws.REGION}:{Aws.ACCOUNT_ID}:secret:/soca/{user_specified_variables.cluster_id}/*",
+                            f"{self.directory_service_resource_setup.get('service_account_secret_arn')}"
+                        ],
+                    )
+                ],
+            )
+        )
+        # Compute Nodes can only query some secrets
+        _compute_node_iam_resources = [
+            f"{self.directory_service_resource_setup.get('service_account_secret_arn')}"
+        ]
+
+        if (
+            get_config_key(
+                key_name="Config.services.aws_elasticache.engine",
+                expected_type=str,
+                default="valkey",
+                required=False
+            ) in {"valkey", "redis"}
+            and
+                get_config_key(
+                    key_name="Config.services.aws_elasticache.enabled",
+                    expected_type=bool, default=True, required=False
+                )
+        ):
+            _compute_node_iam_resources.append(
+                self.soca_resources["cache_readonly_user_secret"].secret_arn
+            )
+
+        # FIXME TODO - this can be merged with the prior loop as well
+        for _role in {"compute_node_role", "spot_fleet_role", "login_node_role"}:
+            self.soca_resources[_role].attach_inline_policy(
+                iam.Policy(
+                    self,
+                    f"AttachSecretManagerPolicyTo{_role.split('_')[0].capitalize()}Node",
+                    statements=[
+                        iam.PolicyStatement(
+                            actions=["secretsmanager:GetSecretValue"],
+                            effect=iam.Effect.ALLOW,
+                            resources=_compute_node_iam_resources,
+                        )
+                    ],
+                )
+            )
+
+        _install_scheduler_from_s3_uri = get_config_key(
+            key_name="Parameters.system.scheduler.openpbs.s3_tgz.s3_uri",
+            expected_type=str,
+            required=False,
+            default="",
+        )
+        if _install_scheduler_from_s3_uri:
+            try:
+                _s3_uri_bucket_name = re.search(r"s3://([^/]+)", _install_scheduler_from_s3_uri).group(1)
+            except AttributeError:
+                logger.error(f"s3_uri {_install_scheduler_from_s3_uri} does not seems to be a valid s3_uri")
+                sys.exit(1)
+
+            _custom_openpbs_s3_bucket_policy = iam.Policy(
+                self,
+                "AttachCustomS3BucketSchedulerPolicyToComputeNode",
+                statements=[
+                    iam.PolicyStatement(
+                        actions=["s3:GetObject",  "s3:ListBucket", "s3:PutObject"],
+                        effect=iam.Effect.ALLOW,
+                        resources=[
+                            f"arn:{Aws.PARTITION}:s3:::{_s3_uri_bucket_name}/*",
+                            f"arn:{Aws.PARTITION}:s3:::{_s3_uri_bucket_name}"
+                        ],
+                    )
+                ],
+            )
+            for _rn in {"compute_node_role", "controller_role", "login_node_role", "spot_node_role"}:
+                self.soca_resources[_rn].attach_inline_policy(_custom_openpbs_s3_bucket_policy)
+
+        # Finally, create one last parameter, this one will be created at the very end.
+        _final_ssm_parameter = ssm.StringParameter(
             self,
-            "SOCASecretManagerSecret",
-            description=f"Store SOCA configuration for cluster {user_specified_variables.cluster_id}",
-            kms_key_id=None
-            if install_props.Config.secretsmanager.kms_key_id is False
-            else install_props.Config.secretsmanager.kms_key_id,
-            name=user_specified_variables.cluster_id,
-            secret_string=json.dumps(secret),
+            f"ParameterCDKCompleted",
+            parameter_name=f"{_parameter_store_prefix}/cdk_completed",
+            string_value="true",
+            tier=ssm.ParameterTier.STANDARD,
         )
 
-        if not user_specified_variables.os_endpoint:
-            self.soca_resources["soca_config"].node.add_dependency(
-                self.soca_resources["os_domain"]
-            )
+        _final_ssm_parameter.node.add_dependency(self.soca_resources["nlb"])
 
-        # Create IAM policy and attach it to both Scheduler and Compute Nodes group
-        secret_manager_statement = iam.PolicyStatement(
-            actions=["secretsmanager:GetSecretValue"],
-            effect=iam.Effect.ALLOW,
-            resources=[self.soca_resources["soca_config"].ref],
-        )
-        self.soca_resources["scheduler_role"].attach_inline_policy(
-            iam.Policy(
-                self,
-                "AttachSecretManagerPolicyToScheduler",
-                statements=[secret_manager_statement],
-            )
-        )
-        self.soca_resources["compute_node_role"].attach_inline_policy(
-            iam.Policy(
-                self,
-                "AttachSecretManagerPolicyToComputeNode",
-                statements=[secret_manager_statement],
-            )
-        )
+
+
 
     def analytics(self):
         """
         Create Analytics cluster. This will be used for jobs and hosts analytics.
         """
+        _desired_engine: str = get_config_key(
+            key_name="Config.analytics.engine",
+            expected_type=str,
+            required=False,
+            default="opensearch",
+        ).lower()
 
-        sanitized_domain = user_specified_variables.cluster_id.lower()
-        _data_node_instance_type = (
-            install_props.Config.analytics.data_node_instance_type
-        )
-        _data_nodes = install_props.Config.analytics.data_nodes
-        _volume_size = install_props.Config.analytics.ebs_volume_size
-        _deletion_policy = install_props.Config.analytics.deletion_policy.upper()
-
-        if install_props.Config.analytics.engine == "opensearch":
-            _engine_version = opensearch.EngineVersion.OPENSEARCH_2_11
-        elif install_props.Config.analytics.engine == "elasticsearch":
-            _engine_version = opensearch.EngineVersion.ELASTICSEARCH_7_9
+        if _desired_engine in {"opensearch", "elasticsearch"}:
+            self.analytics_opensearch()
+        elif _desired_engine in {"opensearch_serverless", "aoss_serverless"}:
+            self.analytics_opensearch_serverless()
         else:
             print(
-                f"install_props.Config.analytics.engine must be opensearch or elasticsearch. Detected {install_props.Config.analytics.engine}"
+                f"Config.analytics.engine must be one of opensearch, opensearch_serverless, or elasticsearch. Detected {_desired_engine}"
+            )
+            sys.exit(1)
+
+
+
+    def analytics_create_opensearch_serverless_vpce(self):
+        """
+        Deploy a VPC Endpoint for AOSS Serverless
+        """
+
+        # Create a Security Group for the VPC Endpoint
+        self.soca_resources["os_vpce_sg"] = ec2.SecurityGroup(
+            self,
+            "AOSSVPCEndpointSG",
+            vpc=self.soca_resources["vpc"],
+            allow_all_outbound=True,
+            description="Security Group for AOSS Serverless VPC Endpoint",
+        )
+        Tags.of( self.soca_resources["os_vpce_sg"]).add("Name",f"{user_specified_variables.cluster_id}-AOSSSG")
+
+        for _peer_sg in {"compute_node_sg", "controller_sg", "login_node_sg"}:
+            security_groups_helper.create_ingress_rule(
+                security_group=self.soca_resources["os_vpce_sg"],
+                peer=self.soca_resources[_peer_sg],
+                connection=ec2.Port.tcp(443),
+                description=f"Allow {_peer_sg}",
+            )
+
+        self.soca_resources["os_vpce_sg"].node.add_dependency(
+            self.soca_resources["controller_sg"],
+            self.soca_resources["compute_node_sg"],
+            self.soca_resources["login_node_sg"],
+        )
+
+        self.soca_resources["os_vpce"] = opensearchserverless.CfnVpcEndpoint(
+            self,
+            "AOSSVPCEndpoint",
+            name=f"{user_specified_variables.cluster_id.lower()}-analytics",
+            subnet_ids=[_s.subnet_id for _s in self.soca_resources["vpc"].private_subnets],
+            vpc_id=self.soca_resources["vpc"].vpc_id,
+            security_group_ids=[self.soca_resources["os_vpce_sg"].security_group_id]
+        )
+        # Wait for deps
+        self.soca_resources["os_vpce"].node.add_dependency(self.soca_resources["vpc"])
+        self.soca_resources["os_vpce"].node.add_dependency(self.soca_resources["os_vpce_sg"])
+        #
+        # What else needs access?
+        #
+        self.soca_resources["os_vpce"].node.add_dependency(
+            self.soca_resources["controller_sg"],
+            self.soca_resources["compute_node_sg"],
+            self.soca_resources["login_node_sg"],
+        )
+
+
+    def analytics_opensearch_serverless(self):
+        """
+        Create an OpenSearch Serverless collection for analytics.
+        """
+
+        # If we are using an existing VPC - determine if there is an existing VPC-endpoint for OpenSearch serverless
+
+        if user_specified_variables.vpc_id:
+            logger.warning(f"NOT IMPLEMENTED - analytics_opensearch_serverless for existing VPCs - create VPCE here.")
+        else:
+            logger.debug(f"Creating VPC-Endpoint for AOSS Serverless")
+            self.analytics_create_opensearch_serverless_vpce()
+
+        # Create a serverless collection
+        # TODO - this may need more sanitizing based on the AOSS rules
+        sanitized_domain: str = user_specified_variables.cluster_id.lower()
+
+        _standby_replicas: str = get_config_key(
+            key_name="Config.analytics.aoss.standby_replicas",
+            expected_type=str,
+            required=False,
+            default="DISABLED"
+        ).upper()
+
+        _serverless_public_access: bool = get_config_key(
+            key_name="Config.analytics.aoss.public_access",
+            expected_type=bool,
+            required=False,
+            default=False
+        )
+
+        if _standby_replicas not in {"ENABLED", "DISABLED"}:
+            logger.warning(f"Config.analytics.aoss.standby_replicas must be either ENABLED or DISABLED. Detected {_standby_replicas}. Falling back to DISABLED...")
+            _standby_replicas = "DISABLED"
+
+        if _serverless_public_access not in {True, False}:
+            logger.warning(f"Config.analytics.aoss.public_access must be True/False. Detected {_serverless_public_access}. Reverting to False")
+            _serverless_public_access = False
+
+        logger.debug(f"AOSS Serverless - {_standby_replicas=} / {_serverless_public_access=}")
+
+        # First we create the security policy
+        self.soca_resources["os_encryption_policy"] = opensearchserverless.CfnSecurityPolicy(
+            self,
+            "AOSSEncryptionPolicy",
+            type="encryption",
+            name=f"{sanitized_domain}-encryption-policy",
+            description=f"{sanitized_domain} encryption policy",
+            policy=json.dumps(
+                {
+                    "Rules": [
+                        {
+                            "Resource": [
+                                f"collection/{sanitized_domain}-analytics"
+                            ],
+                            "ResourceType": "collection"
+                        }
+                    ],
+                    "AWSOwnedKey": True,
+                }
+            ),
+        )
+        logger.debug(f"Created AOSS encryption policy: {self.soca_resources['os_encryption_policy']}")
+
+        # Second, our Network Access policy
+        self.soca_resources["os_network_policy"] = opensearchserverless.CfnSecurityPolicy(
+            self,
+            "AOSSNetworkPolicy",
+            type="network",
+            name=f"{sanitized_domain}-network-policy",
+            description=f"{sanitized_domain} network policy",
+            policy=json.dumps([
+                {
+                    "Rules": [
+                        {
+                            "Resource": [
+                                f"collection/{sanitized_domain}-analytics"
+                            ],
+                            "ResourceType": "collection"
+                        },
+                        {
+                            "Resource": [
+                                f"collection/{sanitized_domain}-analytics"
+                            ],
+                            "ResourceType": "dashboard"
+                        }
+                    ],
+                    "AllowFromPublic": _serverless_public_access,
+                    "SourceVPCEs": [
+                        self.soca_resources["os_vpce"].attr_id
+                    ],
+                }
+            ]),
+        )
+
+        # Third - Our Data access policy
+        # This is created by a CustomResource Lambda since we do not know the Principal
+        # ARNs (IAM Roles for the instances)
+
+        self.soca_resources["aoss_data_policy_lambda"] = aws_lambda.Function(
+            self,
+            f"{user_specified_variables.cluster_id}-AOSSDataPolicyLambda",
+            function_name=f"{user_specified_variables.cluster_id}-AOSSDataPolicyLambda",
+            description=f"Create AOSS Data Policy for {user_specified_variables.cluster_id}",
+            memory_size=128,
+            role=self.soca_resources["aoss_data_policy_lambda_role"],
+            runtime=typing.cast(aws_lambda.Runtime, get_lambda_runtime_version()),
+            timeout=Duration.minutes(1),
+            log_retention=logs.RetentionDays.INFINITE,
+            handler="AOSSDataPolicyLambda.lambda_handler",
+            code=aws_lambda.Code.from_asset("../functions/AOSSDataPolicyLambda"),
+        )
+
+        # Finally, the actual Serverless collection
+        self.soca_resources["os_domain"] = opensearchserverless.CfnCollection(
+            self,
+            "AOSSCollection",
+            name=f"{sanitized_domain}-analytics",
+            description=f"{sanitized_domain} analytics collection",
+            type="SEARCH",
+            standby_replicas=_standby_replicas,
+            # FIXME TODO - Tags
+            # tags=
+        )
+
+        # Make sure our required items are created prior to the collection attempt
+        self.soca_resources["os_domain"].node.add_dependency(
+            self.soca_resources["os_encryption_policy"]
+        )
+        self.soca_resources["os_domain"].node.add_dependency(
+            self.soca_resources["os_network_policy"]
+        )
+        self.soca_resources["os_domain"].node.add_dependency(
+            self.soca_resources["os_vpce"]
+        )
+
+        self.soca_resources["aoss_custom_resource"] = CustomResource(
+            self,
+            "AOSSCustomResource",
+            service_token=self.soca_resources["aoss_data_policy_lambda"].function_arn,
+            properties={"ClusterId": user_specified_variables.cluster_id},
+        )
+
+        self.soca_resources["aoss_custom_resource"].node.add_dependency(
+            self.soca_resources["os_domain"],
+            self.soca_resources["os_network_policy"],
+            self.soca_resources["aoss_data_policy_lambda_role"],
+        )
+
+
+    def analytics_opensearch(self):
+        """
+        Create OpenSearch cluster.
+        """
+
+        sanitized_domain: str = user_specified_variables.cluster_id.lower()
+        _data_node_instance_type: str = get_config_key(
+            key_name="Config.analytics.data_node_instance_type"
+        )
+        _data_nodes: int = get_config_key(
+            key_name="Config.analytics.data_nodes", expected_type=int
+        )
+        _volume_size: int = get_config_key(
+            key_name="Config.analytics.ebs_volume_size", expected_type=int
+        )
+        _deletion_policy: str = get_config_key(
+            key_name="Config.analytics.deletion_policy", expected_type=str
+        ).upper()
+        _desired_engine: str = get_config_key(
+            key_name="Config.analytics.engine", expected_type=str
+        ).lower()
+
+        if _desired_engine == "opensearch":
+            _engine_version = opensearch.EngineVersion.OPENSEARCH_2_15
+        elif _desired_engine == "elasticsearch":
+            _engine_version = opensearch.EngineVersion.ELASTICSEARCH_7_10
+        else:
+            logger.error(
+                f"Config.analytics.engine must be one of opensearch, opensearch_serverless, or elasticsearch. Detected {_desired_engine}"
             )
             sys.exit(1)
 
         if not user_specified_variables.os_endpoint:
+            # Determine serverless or classic
             if _data_nodes == 1:
                 es_subnets = [
                     ec2.SubnetSelection(
@@ -1805,6 +3760,46 @@ class SOCAInstall(Stack):
                     availability_zone_count=3, enabled=True
                 )
 
+            # Create the SG for the Analytics cluster
+            self.soca_resources["os_sg"] = ec2.SecurityGroup(
+                self,
+                "OpenSearchSecurityGroup",
+                vpc=self.soca_resources["vpc"],
+                description="OpenSearch Analytics Security Group",
+                allow_all_outbound=True,
+            )
+            Tags.of(self.soca_resources["os_sg"]).add("Name", f"{user_specified_variables.cluster_id}-OpenSearchSG")
+
+            # Allow nodes to analytics SG
+
+            for _sg_peer_name in {"controller_sg", "compute_node_sg", "login_node_sg"}:
+                logger.debug(f"Allowing {_sg_peer_name} to access OpenSearch Analytics")
+                security_groups_helper.create_ingress_rule(
+                    security_group=self.soca_resources["os_sg"],
+                    peer=self.soca_resources[_sg_peer_name],
+                    connection=ec2.Port.tcp(443),
+                    description=f"Allow OpenSearch from {_sg_peer_name}",
+                )
+
+
+            _kms_key_id: str = get_kms_key_id(
+                config_key_names=[
+                    "Config.analytics.kms_key_id",  # Current configuration parameter
+                ],
+                allow_global_default=True,
+            )
+
+            # FIXME TODO - Not all volume types may work with OpenSearch
+            # They should be sanity checked
+            _volume_type = return_ebs_volume_type(
+                volume_string=get_config_key(
+                    key_name="Config.analytics.volume_type",
+                    required=False,
+                    default="gp3",
+                    expected_type=str
+                ).lower()
+            )
+
             self.soca_resources["os_domain"] = opensearch.Domain(
                 self,
                 "OpenSearch",
@@ -1812,10 +3807,16 @@ class SOCAInstall(Stack):
                 enforce_https=True,
                 node_to_node_encryption=True,
                 version=typing.cast(opensearch.EngineVersion, _engine_version),
-                encryption_at_rest=opensearch.EncryptionAtRestOptions(enabled=True),
+                encryption_at_rest=opensearch.EncryptionAtRestOptions(
+                    enabled=True,
+                    kms_key=kms.Key.from_key_arn(
+                        self,
+                        id="OpenSearchKMS",
+                        key_arn=_kms_key_id) if _kms_key_id else None,
+                ),
                 ebs=opensearch.EbsOptions(
                     volume_size=_volume_size,
-                    volume_type=ec2.EbsDeviceVolumeType.GP3,
+                    volume_type=_volume_type,
                 ),
                 capacity=opensearch.CapacityConfig(
                     data_node_instance_type=_data_node_instance_type,
@@ -1835,7 +3836,7 @@ class SOCAInstall(Stack):
                     )
                 ],
                 advanced_options={"rest.action.multi.allow_explicit_index": "true"},
-                security_groups=[self.soca_resources["compute_node_sg"]],
+                security_groups=[self.soca_resources["os_sg"]],
                 zone_awareness=es_zone_awareness,
                 vpc=self.soca_resources["vpc"],
                 vpc_subnets=es_subnets,
@@ -1844,12 +3845,17 @@ class SOCAInstall(Stack):
             if user_specified_variables.create_es_service_role:
                 service_linked_role = iam.CfnServiceLinkedRole(
                     self,
-                    "ESServiceLinkedRole",
-                    aws_service_name=f"es.{Aws.URL_SUFFIX}",
-                    description="Role for ES to access resources in the VPC",
+                    "AOSSServiceLinkedRole",
+                    aws_service_name=f"opensearchservice.{Aws.URL_SUFFIX}",
+                    description="Role for AOSS to access resources in the VPC",
                 )
+
+                # When creating the SLR - it should be set to RETAIN to decouple it from the Stack
+                service_linked_role.apply_removal_policy(RemovalPolicy.RETAIN)
+
                 self.soca_resources["os_domain"].node.add_dependency(
-                    service_linked_role
+                    service_linked_role,
+                    self.soca_resources["os_sg"],
                 )
 
             # Retrieve ES Private VPC IPs to interact with SOCA analytics scripts
@@ -1860,11 +3866,15 @@ class SOCAInstall(Stack):
                 description="Get ES private ip addresses",
                 memory_size=128,
                 role=self.soca_resources["get_es_private_ip_lambda_role"],
-                runtime=typing.cast(aws_lambda.Runtime, aws_lambda.Runtime.PYTHON_3_11),
+                runtime=typing.cast(
+                    aws_lambda.Runtime, get_lambda_runtime_version()
+                ),
                 timeout=Duration.minutes(3),
                 log_retention=logs.RetentionDays.INFINITE,
                 handler="GetESPrivateIPLambda.lambda_handler",
-                code=aws_lambda.Code.from_asset("../functions/GetESPrivateIPLambda"),
+                code=aws_lambda.Code.from_asset(
+                    "../functions/GetESPrivateIPLambda"
+                ),
             )
 
             self.soca_resources["os_custom_resource"] = CustomResource(
@@ -1882,14 +3892,65 @@ class SOCAInstall(Stack):
 
     def backups(self):
         """
-        Deploy AWS Backup vault. Scheduler EC2 instance and both EFS will be backup on a daily basis
+        Deploy AWS Backup vault. Controller EC2 instance and both EFS will be backup on a daily basis
         """
+        logger.debug(f"Creating AWS Backup vault")
+        _kms_key_id = get_kms_key_id(
+            config_key_names=[
+                "Config.services.aws_backup.kms_key_id",  # Current configuration parameter
+            ],
+            allow_global_default=True,
+        )
+
         vault = backup.BackupVault(
             self,
             "SOCABackupVault",
             backup_vault_name=f"{user_specified_variables.cluster_id}-BackupVault",
             removal_policy=RemovalPolicy.DESTROY,
+            encryption_key=kms.Key.from_key_arn(self, id="BackupVaultKMSKey", key_arn=_kms_key_id) if _kms_key_id else None,
         )  # removal policy won't apply if backup vault is not empty
+
+        # Any additional copy destinations needed?
+        _backup_copy_destinations: list = get_config_key(
+            key_name="Config.backups.additional_copy_destinations",
+            expected_type=list,
+            required=False,
+            default=[]
+        )
+
+        _backup_copy_actions: list = []
+
+        if _backup_copy_destinations:
+
+            for _bu_destination in _backup_copy_destinations:
+                if not is_valid_backup_vault_arn(arn=_bu_destination):
+                    logger.warning(f"Invalid ARN for backup destination: {_bu_destination} (SKIPPING)")
+                    continue
+
+                # It looks like a proper ARN - resolve it
+                logger.debug(f"Adding a new discrete backup dest: {_bu_destination}")
+                _bu_vault = backup.BackupVault.from_backup_vault_arn(
+                    self,
+                    f"BackupVault{_bu_destination}",
+                    _bu_destination
+                )
+
+                if _bu_vault:
+                    logger.debug(f"Vault copy being added - {_bu_destination}")
+                    if _bu_destination in _backup_copy_destinations:
+                        logger.error(f"Duplicate backup destination: {_bu_destination} . SKIPPING")
+                        continue
+
+                    # Looks unique - add it
+                    _backup_copy_actions.append(
+                        backup.BackupPlanCopyActionProps(
+                            destination_backup_vault=_bu_vault,
+                        )
+                    )
+
+                else:
+                    logger.error(f"Unable to find backup vault for {_bu_destination} . SKIPPING")
+                    continue
 
         plan = backup.BackupPlan(
             self,
@@ -1900,9 +3961,15 @@ class SOCAInstall(Stack):
                     backup_vault=vault,
                     start_window=Duration.minutes(60),
                     delete_after=Duration.days(
-                        int(install_props.Config.backups.delete_after)
+                        get_config_key(
+                            key_name="Config.backups.delete_after",
+                            expected_type=int,
+                            required=False,
+                            default=7
+                        )
                     ),
                     schedule_expression=events.Schedule.expression("cron(0 5 * * ? *)"),
+                    copy_actions=_backup_copy_actions if _backup_copy_actions else None,
                 )
             ],
         )
@@ -1924,27 +3991,486 @@ class SOCAInstall(Stack):
             ],
         )
 
+    def aws_pcs(self):
+        """
+        Create AWS PCS cluster integration
+        """
+        logger.debug(f"Creating AWS PCS integration")
+        _pcs_cluster_name = f"{user_specified_variables.cluster_id}-PCS"
+
+
+
+    def login_nodes(self):
+        """
+        Create ASG for Login Node
+        """
+
+        # Make sure our filesystems are fully qualified
+        # duplicate from controller(),
+        if user_specified_variables.fs_apps_provider:
+            _fs_apps_provider: str = user_specified_variables.fs_apps_provider
+            _fs_apps_dns: str = f"{user_specified_variables.fs_apps}"
+        else:
+            _fs_apps_provider: str = get_config_key("Config.storage.apps.provider")
+            _fs_apps_dns: str = f"{self.soca_resources['fs_apps'].ref}.{endpoints_suffix[get_config_key('Config.storage.apps.provider')]}"
+
+        if user_specified_variables.fs_data_provider:
+            _fs_data_provider: str = user_specified_variables.fs_data_provider
+            _fs_data_dns: str = f"{user_specified_variables.fs_data}"
+        else:
+            _fs_data_provider: str = get_config_key("Config.storage.data.provider")
+            _fs_data_dns: str = f"{self.soca_resources['fs_data'].ref}.{endpoints_suffix[get_config_key('Config.storage.data.provider')]}"
+
+        # Generate EC2 User Data
+        # We manually replace  the variable with the relevant ParameterStore as all ParamStore hierarchy is created at the very end of this CDK
+        _user_data_variables = {
+            "/configuration/BaseOS": user_specified_variables.base_os,
+            "/configuration/ClusterId": user_specified_variables.cluster_id,
+            "/configuration/UserDirectory/provider": get_config_key(
+                "Config.directoryservice.provider"
+            ),
+            "/configuration/Region": user_specified_variables.region,
+            "/configuration/FileSystemAppsProvider": _fs_apps_provider,
+            "/configuration/FileSystemDataProvider": _fs_data_provider,
+            "/configuration/FileSystemApps": _fs_apps_dns,
+            "/configuration/FileSystemData": _fs_data_dns,
+            "/configuration/Cache": get_config_key(
+                key_name="Config.services.aws_elasticache", expected_type=dict
+            ),
+            "/configuration/ControllerPrivateDnsName": self.soca_resources[
+                "controller_instance"
+            ].instance_private_dns_name,
+            "/job/BootstrapPath": f"/apps/soca/{user_specified_variables.cluster_id}/cluster_node_bootstrap/logs/login_node/",
+            "/job/NodeType": "login_node"
+        }
+
+        # add all System hierarchy
+        _parameter_store_keys = flatten_parameterstore_config(
+            get_config_key(key_name="Parameters", expected_type=dict)
+        )
+        for _ssm_parameter_key, _ssm_parameter_value in _parameter_store_keys.items():
+            _user_data_variables[f"/{_ssm_parameter_key}"] = _ssm_parameter_value
+
+        # Generate EC2 User Data
+        # Because of size limitation, the main setup script is stored on S3 as it's only called once.
+        _user_data = self.jinja2_env.get_template("user_data/login_node/01_user_data.sh.j2").render(
+            context=_user_data_variables
+        )
+
+        _configured_instance_type: list = get_config_key(
+            key_name="Config.login_node.instance_type",
+            expected_type=list,
+            required=False,
+            default=["m7i-flex.large", "m5.large"]
+        )
+        logger.debug(f"LoginNode - Configured instance type: {_configured_instance_type}")
+
+        _selected_instance, _instance_arch, _default_instance_ami_for_instance = self.select_best_instance(
+            instance_list=_configured_instance_type,
+            region=user_specified_variables.region,
+            fallback_instance="m5.large",
+        )
+
+        logger.debug(f"LoginNode - Selected instance type: {_selected_instance} / Arch: {_instance_arch}")
+
+        # Do we have any configuration over-rides in the login_node.ami.<arch> configuration?
+        _desired_ami: str = get_config_key(
+            key_name=f"Config.login_node.ami.{_instance_arch}",
+            expected_type=str,
+            required=False,  # Fallback to default if needed
+            default=_default_instance_ami_for_instance
+        )
+
+        # show what we landed on
+        logger.debug(f"LoginNode - Instance / AMI / Arch determination - InstanceType: {_selected_instance} / AMI: {_desired_ami} / Arch: {_instance_arch}")
+
+        _ebs_volume_key_id: str = get_kms_key_id(
+            config_key_names=[
+                "Config.login_node.volume_kms_key_id"
+            ],
+            allow_global_default=True,
+        )
+
+        logger.debug(f"login_node EBS encryption: KeyID: {_ebs_volume_key_id}")
+
+        _volume_type_str: str = get_config_key(
+            key_name="Config.controller.volume_type",
+            required=False,
+            default="gp3",
+            expected_type=str
+        ).lower()
+
+        _volume_type = return_ebs_volume_type(volume_string=_volume_type_str)
+
+        _volume_iops = get_config_key(
+            key_name="Config.login_node.volume_iops",
+            required=False,
+            default=0,
+            expected_type=int
+        )
+
+        _volume_throughput = get_config_key(
+            key_name="Config.login_node.volume_throughput",
+            required=False,
+            default=0,
+            expected_type=int
+        )
+        logger.debug(f"login_node EBS volume IOPS: {_volume_iops}")
+        logger.debug(f"login_node EBS volume throughput: {_volume_throughput}")
+
+        # Fixup some configs for specific volume types
+        logger.debug(f"Performing EBS fixups for volume_type - {_volume_type}")
+
+        match _volume_type_str:
+            case "gp3":
+                logger.debug(f"Performing EBS fixups for gp3")
+                if not _volume_iops:
+                    _volume_iops = 3000
+                if not _volume_throughput:
+                    _volume_throughput = 125
+            case "io1":
+                logger.debug(f"Performing EBS fixups for io1")
+                if _volume_throughput:
+                    _volume_throughput = None
+
+        _login_node_launch_template = ec2.LaunchTemplate(
+            self,
+            f"LoginNodeLT",
+            machine_image=ec2.MachineImage.generic_linux(
+                {user_specified_variables.region: _desired_ami}
+            ),
+            instance_type=ec2.InstanceType(_selected_instance),
+            key_pair=ec2.KeyPair.from_key_pair_attributes(
+                self,
+                "LoginNodeKeyPair",
+                key_pair_name=user_specified_variables.ssh_keypair,
+            ),
+            require_imdsv2=True,
+            role=self.soca_resources["login_node_role"],
+            block_devices=[
+                ec2.BlockDevice(
+                    device_name=self.return_ebs_volume_name(base_os=user_specified_variables.base_os),
+                    volume=ec2.BlockDeviceVolume(
+                        ebs_device=ec2.EbsDeviceProps(
+                            encrypted=True if _ebs_volume_key_id else False,
+                            kms_key=kms.Key.from_key_arn(
+                                self,
+                                id="LoginEBSKMSKey",
+                                key_arn=_ebs_volume_key_id) if _ebs_volume_key_id else None,
+                            volume_size=get_config_key(
+                                key_name="Config.login_node.volume_size",
+                                expected_type=int,
+                                required=False,
+                                default=50,
+                            ),
+                            volume_type=_volume_type,
+                            iops=_volume_iops if _volume_iops else None,
+                            throughput=_volume_throughput if _volume_throughput else None,
+                        ),
+                    ),
+                )
+            ],
+            security_group=self.soca_resources["login_node_sg"],
+            user_data=ec2.UserData.custom(_user_data),
+        )
+        # _login_node_subnets == subnetIds
+        # _login_node_isubnets == ISubnets (CDK)
+        _login_node_subnets: list = []
+        _login_node_isubnets: list = []
+        _subnets_for_login_nodes: list = []
+        logger.debug(f"Determining the LoginNode placement subnets for the ASG")
+
+        # If we are using an existing VPC - we use our specific marked private subnets
+        if user_specified_variables.vpc_id:
+            logger.debug(f"Using pre-existing VPC: {user_specified_variables.vpc_id}")
+            for _sn_info in user_specified_variables.private_subnets:
+                # subnet-123,az1
+                _exact_subnet_id = _sn_info.split(",")[0]
+                logger.debug(f"Adding subnet for LoginNodes ASG: {_exact_subnet_id}")
+                _subnets_for_login_nodes.append(_exact_subnet_id)
+
+        else:
+            # SOCA Created subnets
+            logger.debug(f"Using SOCA-created VPC subnets for LoginNode ASG")
+            for _sn_info in self.soca_resources["vpc"].private_subnets:
+                logger.debug(f"Adding SOCA-created subnet for LoginNodes ASG: {_sn_info.subnet_id}")
+                _subnets_for_login_nodes.append(_sn_info.subnet_id)
+
+        logger.debug(f"Final List of SubnetIDs for Login Nodes ASG: {_subnets_for_login_nodes}")
+        _subnet_i: int = 1
+        for _sn_id in _subnets_for_login_nodes:
+            if _sn_id not in _login_node_subnets:
+                logger.debug(f"Adding subnet #{_subnet_i} for LoginNodes ASG: {_sn_id}")
+                _login_node_subnets.append(_sn_id)
+                _login_node_isubnets.append(
+                    ec2.Subnet.from_subnet_id(
+                        self,
+                        f"LoginNodePrivateSubnet{_subnet_i}",
+                        subnet_id=_sn_id,
+                    )
+                )
+            _subnet_i += 1
+
+        # Read our configuration for min/max/desired with defaults to 1
+        _login_node_count: dict = {}
+        for _node_count in {"min", "max", "desired"}:
+            _login_node_count[_node_count] = get_config_key(
+                key_name=f"Config.login_node.{_node_count}_count",
+                expected_type=int,
+                required=False,
+                default=_login_node_count.get("min", 1) if _node_count == "desired" else 1,
+            )
+            logger.debug(f"Configuring LoginNode ASG for {_node_count} == {_login_node_count[_node_count]}")
+
+        _login_node_asg = autoscaling.AutoScalingGroup(
+            self,
+            f"LoginNodeASG",
+            vpc=self.soca_resources["vpc"],
+            launch_template=_login_node_launch_template,
+            max_capacity=_login_node_count["max"],
+            min_capacity=_login_node_count["min"],
+            desired_capacity=_login_node_count["desired"],
+            vpc_subnets=ec2.SubnetSelection(subnets=_login_node_isubnets),
+        )
+
+        #
+        _login_node_ssh_back_port: int = get_config_key(
+            key_name=f"Config.login_node.security.ssh_backend_port",
+            expected_type=int,
+            required=False,
+            default=22,
+        )
+        _login_node_ssh_front_port: int = get_config_key(
+            key_name=f"Config.login_node.security.ssh_frontend_port",
+            expected_type=int,
+            required=False,
+            default=22,
+        )
+        logger.debug(f"LoginNode SSH port: Front: {_login_node_ssh_back_port} / Back: {_login_node_ssh_front_port}")
+
+        _login_node_target_groups = elbv2.NetworkTargetGroup(
+            self,
+            f"{user_specified_variables.cluster_id}-LoginNodesTargetGroup",
+            port=_login_node_ssh_back_port,
+            protocol=elbv2.Protocol.TCP,
+            target_type=elbv2.TargetType.INSTANCE,
+            vpc=self.soca_resources["vpc"],
+            targets=[_login_node_asg],
+            target_group_name=f"{user_specified_variables.cluster_id}-LoginNodes",
+            health_check=elbv2.HealthCheck(port=str(_login_node_ssh_back_port), protocol=elbv2.Protocol.TCP),
+            connection_termination=True,
+        )
+
+        # Create NLB
+        # Plaintext list of subnets to launch the NLB into
+        _nlb_public_bool: bool = True if get_config_key(
+            key_name="Config.entry_points_subnets",
+            expected_type=str, default="public", required=False,
+        ).lower() == "public" else False
+
+        logger.debug(f"NLB / Cluster Entry Point Public?: {_nlb_public_bool}")
+
+        _nlb_subnets_list: list = []
+        _source_subnets: list = []
+
+        # Did we use existing resources?
+        if user_specified_variables.vpc_id:
+            # Existing resources
+            logger.debug(f"Using imported VPC Subnets for NLB from VPC {user_specified_variables.vpc_id}")
+            if _nlb_public_bool:
+                _source_subnets = user_specified_variables.public_subnets
+            else:
+                _source_subnets = user_specified_variables.private_subnets
+
+            for _subnet in _source_subnets:
+                _subnet_id: str = _subnet.split(",")[0]
+                _subnet_az: str = _subnet.split(",")[1]
+                _nlb_subnets_list.append(_subnet_id)
+                logger.debug(f"Adding existing subnet for NLB: {_subnet_id} / AZ: {_subnet_az}")
+
+        else:
+            # SOCA created the VPC
+            logger.debug(f"Using SOCA created VPC Subnets for NLB")
+            if _nlb_public_bool:
+                logger.debug(f"Adding SOCA created public subnets")
+                for _soca_sn in self.soca_resources["vpc"].public_subnets:
+                    logger.debug(f"Adding SOCA created public subnet: {_soca_sn.subnet_id}")
+                    _source_subnets.append(_soca_sn.subnet_id)
+            else:
+                logger.debug(f"Adding SOCA created private subnets")
+                for _soca_sn in self.soca_resources["vpc"].private_subnets:
+                    logger.debug(f"Adding SOCA created private subnet: {_soca_sn.subnet_id}")
+                    _source_subnets.append(_soca_sn.subnet_id)
+
+            logger.debug(f"Scanning Source subnets: {_source_subnets}")
+            # TODO - still needed?
+            for _subnet in _source_subnets:
+                logger.debug(f"Adding subnet: {_subnet}")
+                _nlb_subnets_list.append(_subnet)
+                logger.debug(f"Adding existing subnet for NLB: {_subnet}")
+
+        logger.debug(f"Final subnets for NLB: {_nlb_subnets_list} / Public: {_nlb_public_bool}")
+
+
+        # Convert our subnet list to a list of ISubnets
+        _nlb_isubnets_list: list = [
+            ec2.Subnet.from_subnet_id(
+                self,
+                f"NLBSubnet{_i}",
+                subnet_id=_subnet,
+            )
+            for _i, _subnet in enumerate(_nlb_subnets_list)
+        ]
+        logger.debug(f"Final ISubnets for NLB: {_nlb_isubnets_list}")
+
+        self.soca_resources["nlb"] = elbv2.NetworkLoadBalancer(
+            self,
+            "SOCANLB",
+            load_balancer_name=f"{user_specified_variables.cluster_id}-nlb",
+            vpc=self.soca_resources["vpc"],
+            security_groups=[self.soca_resources["nlb_sg"]],
+            internet_facing=_nlb_public_bool,
+            vpc_subnets=ec2.SubnetSelection(subnets=_nlb_isubnets_list),
+            deletion_protection=get_config_key(
+                key_name="Config.termination_protection",
+                expected_type=bool,
+                required=False,
+                default=True,
+            ),
+            cross_zone_enabled=get_config_key(
+                key_name="Config.network.cross_zone_enabled",
+                expected_type=bool,
+                required=False,
+                default=True,
+            ),
+        )
+
+        # Create listener
+        elbv2.NetworkListener(
+            self,
+            "SSHListener",
+            load_balancer=self.soca_resources["nlb"],
+            protocol=elbv2.Protocol.TCP,
+            port=_login_node_ssh_front_port,
+            default_action=elbv2.NetworkListenerAction.forward(
+                target_groups=[_login_node_target_groups]
+            ),
+        )
+
+        Tags.of(_login_node_asg).add(
+            key="Name", value=f"{user_specified_variables.cluster_id}-LoginNode"
+        )
+        Tags.of(_login_node_asg).add(key="soca:NodeType", value=f"login_node")
+
+        # Login Nodes creation is triggered at the end of the deployment as we have to wait for bootstrap.d folder to be deployed on the filesystem
+        if get_config_key(key_name="Config.analytics.enabled", expected_type=bool) is True:
+            if not user_specified_variables.os_endpoint:
+                self.soca_resources["nlb"].node.add_dependency(
+                    self.soca_resources["os_domain"]
+                )
+
+        # Other LoginNode Deps (ElastiCache)
+        self.soca_resources["nlb"].node.add_dependency(
+            self.soca_resources["elasticache"]
+        )
+
+        # Give the controller a head start in resource creation since the LoginNodes need to do some items that depend on Controller
+        _login_node_asg.node.add_dependency(
+            self.soca_resources["controller_instance"]
+        )
+
+        self.soca_resources["nlb"].node.add_dependency(
+            self.soca_resources["controller_instance"]
+        )
+
+        CfnOutput(
+            self,
+            "SSHEndpoint",
+            value=f"{self.soca_resources['nlb'].load_balancer_dns_name}",
+        )
+        CfnOutput(
+            self,
+            "SSHPort",
+            value=str(_login_node_ssh_front_port),
+        )
+
     def viewer(self):
-        # Create the ALB. It's used to forward HTTP/S traffic to DCV hosts, Web UI and ES
+        # Create the ALB. It's used to forward HTTP/S traffic to DCV hosts, Web UI and Analytics back-end
+
+        # FIXME TODO - duplicate with NLB
+        _alb_public_bool: bool = True if get_config_key(
+            key_name="Config.entry_points_subnets",
+            expected_type=str, default="public", required=False,
+        ).lower() == "public" else False
+
+        logger.debug(f"ALB / Cluster Entry Point Public?: {_alb_public_bool}")
+
+        _alb_subnets_list: list = []
+        _source_subnets: list = []
+
+        # Did we use existing resources?
+        if user_specified_variables.vpc_id:
+            # Existing resources
+            logger.debug(f"Using imported VPC Subnets for ALB from VPC {user_specified_variables.vpc_id}")
+            if _alb_public_bool:
+                _source_subnets = user_specified_variables.public_subnets
+            else:
+                _source_subnets = user_specified_variables.private_subnets
+
+            for _subnet in _source_subnets:
+                _subnet_id: str = _subnet.split(",")[0]
+                _subnet_az: str = _subnet.split(",")[1]
+                _alb_subnets_list.append(_subnet_id)
+                logger.debug(f"Adding existing subnet for ALB: {_subnet_id} / AZ: {_subnet_az}")
+
+        else:
+            # SOCA created the VPC
+            logger.debug(f"Using SOCA created VPC Subnets for ALB")
+            if _alb_public_bool:
+                logger.debug(f"Adding SOCA created public subnets")
+                for _soca_sn in self.soca_resources["vpc"].public_subnets:
+                    logger.debug(f"Adding SOCA created public subnet: {_soca_sn.subnet_id}")
+                    _source_subnets.append(_soca_sn.subnet_id)
+            else:
+                logger.debug(f"Adding SOCA created private subnets")
+                for _soca_sn in self.soca_resources["vpc"].private_subnets:
+                    logger.debug(f"Adding SOCA created private subnet: {_soca_sn.subnet_id}")
+                    _source_subnets.append(_soca_sn.subnet_id)
+
+            logger.debug(f"Scanning Source subnets: {_source_subnets}")
+            # TODO - still needed?
+            for _subnet in _source_subnets:
+                logger.debug(f"Adding ALB subnet: {_subnet}")
+                _alb_subnets_list.append(_subnet)
+                logger.debug(f"Adding existing subnet for ALB: {_subnet}")
+
+        logger.debug(f"Final subnets for ALB: {_alb_subnets_list} / Public: {_alb_public_bool}")
+
+
+        # Convert our subnet list to a list of ISubnets
+        _alb_isubnets_list: list = [
+            ec2.Subnet.from_subnet_id(
+                self,
+                f"ALBSubnet{_i}",
+                subnet_id=_subnet,
+            )
+            for _i, _subnet in enumerate(_alb_subnets_list)
+        ]
+        logger.debug(f"Final ISubnets for ALB: {_alb_isubnets_list}")
+
 
         self.soca_resources["alb"] = elbv2.ApplicationLoadBalancer(
             self,
             f"{user_specified_variables.cluster_id}-ELBv2Viewer",
             load_balancer_name=f"{user_specified_variables.cluster_id}-viewer",
-            security_group=self.soca_resources["scheduler_sg"],
+            security_group=self.soca_resources["alb_sg"],
             http2_enabled=True,
             vpc=self.soca_resources["vpc"],
             drop_invalid_header_fields=True,
             internet_facing=True
-            if install_props.Config.entry_points_subnets.lower() == "public"
+            if get_config_key("Config.entry_points_subnets").lower() == "public"
             else False,
-        )
-        # HTTP listener simply forward to HTTPS
-        self.soca_resources["alb"].add_redirect(
-            source_protocol=elbv2.ApplicationProtocol.HTTP,
-            source_port=80,
-            target_protocol=elbv2.ApplicationProtocol.HTTPS,
-            target_port=443,
+            vpc_subnets=ec2.SubnetSelection(subnets=_alb_isubnets_list)
         )
 
         # Create self-signed certificate (if needed) for HTTPS listener (via AWS Lambda)
@@ -1955,7 +4481,7 @@ class SOCAInstall(Stack):
             description="Create first self-signed certificate for ALB",
             memory_size=128,
             role=self.soca_resources["acm_certificate_lambda_role"],
-            runtime=typing.cast(aws_lambda.Runtime, aws_lambda.Runtime.PYTHON_3_9),
+            runtime=typing.cast(aws_lambda.Runtime, get_lambda_runtime_version()),
             timeout=Duration.minutes(1),
             log_retention=logs.RetentionDays.INFINITE,
             handler="CreateELBSSLCertificate.generate_cert",
@@ -1979,49 +4505,87 @@ class SOCAInstall(Stack):
             self.soca_resources["acm_certificate_lambda_role"]
         )
 
-        soca_webui_target_group = elbv2.CfnTargetGroup(
+        # TODO - FIXME - customize port via config
+        soca_webui_target_group = elbv2.ApplicationTargetGroup(
             self,
             f"{user_specified_variables.cluster_id}-SOCAWebUITargetGroup",
             port=8443,
-            protocol="HTTPS",
-            target_type="instance",
-            vpc_id=self.soca_resources["vpc"].vpc_id,
-            name=f"{user_specified_variables.cluster_id}-WebUI",
+            target_type=elbv2.TargetType.INSTANCE,
+            protocol=elbv2.ApplicationProtocol.HTTPS,
+            vpc=self.soca_resources["vpc"],
+            target_group_name=f"{user_specified_variables.cluster_id}-SOCAWebUI",
             targets=[
-                elbv2.CfnTargetGroup.TargetDescriptionProperty(
-                    id=self.soca_resources["scheduler_instance"].instance_id
+                elbv2_targets.InstanceIdTarget(
+                    instance_id=self.soca_resources["controller_instance"].instance_id,
+                    port=8443,
                 )
             ],
-            health_check_path="/ping",
+            health_check=elbv2.HealthCheck(
+                port="8443", protocol=elbv2.Protocol.HTTPS, path="/ping"
+            ),
         )
 
-        https_listener = elbv2.CfnListener(
+        self.soca_resources["alb"].add_listener(
+            "HTTPListener",
+            port=80,
+            open=False,
+            protocol=elbv2.ApplicationProtocol.HTTP,
+            default_action=elbv2.ListenerAction.redirect(host="#{host}",
+                                                         path="/#{path}",
+                                                         permanent=True,
+                                                         port="443",
+                                                         query="#{query}",
+                                                         ),
+        )
+
+        self.soca_resources['https_listener'] = elbv2.ApplicationListener(
             self,
             "HTTPSListener",
+            load_balancer=self.soca_resources["alb"],
             port=443,
-            ssl_policy="ELBSecurityPolicy-2016-08",
-            load_balancer_arn=self.soca_resources["alb"].load_balancer_arn,
-            protocol="HTTPS",
+            open=False,
+            protocol=elbv2.ApplicationProtocol.HTTPS,
             certificates=[
-                elbv2.CfnListener.CertificateProperty(
+                acm.Certificate.from_certificate_arn(
+                    self,
+                    "ImportACM",
                     certificate_arn=cert_custom_resource.get_att_string(
                         "ACMCertificateArn"
-                    )
+                    ),
                 )
             ],
-            default_actions=[
-                elbv2.CfnListener.ActionProperty(
-                    type="forward", target_group_arn=soca_webui_target_group.ref
-                )
-            ],
+            default_action=elbv2.ListenerAction.forward(
+                target_groups=[soca_webui_target_group]
+            ),
         )
 
-        https_listener.node.add_dependency(cert_custom_resource)
+        self.soca_resources['https_listener'].node.add_dependency(cert_custom_resource)
+
+        # Determine our Analytics configuration based on the selected engine
+        if get_config_key(key_name="Config.analytics.enabled", expected_type=bool) is True:
+            if get_config_key("Config.analytics.engine") in {"opensearch", "elasticsearch"}:
+                self.viewer_analytics_opensearch()
+            elif get_config_key("Config.analytics.engine") in {"opensearch_serverless", "aoss_serverless"}:
+                self.viewer_analytics_opensearch_serverless()
+
+        CfnOutput(
+            self,
+            "WebUserInterface",
+            value=f"https://{self.soca_resources['alb'].load_balancer_dns_name}/",
+        )
+
+
+    def viewer_analytics_opensearch(self):
+        """
+        Configure the view for OpenSearch Analytics
+        """
 
         if not user_specified_variables.os_endpoint:
             # Create the target group for Analytics
             es_targets = []
-            for i in range(0, install_props.Config.analytics.data_nodes * 3):
+            for i in range(
+                    0, get_config_key(key_name="Config.analytics.data_nodes", expected_type=int) * 3
+            ):
                 es_targets.append(
                     elbv2.CfnTargetGroup.TargetDescriptionProperty(
                         id=Fn.select(
@@ -2052,7 +4616,7 @@ class SOCAInstall(Stack):
                 self.soca_resources["os_custom_resource"]
             )
 
-            if install_props.Config.analytics.engine == "opensearch":
+            if get_config_key("Config.analytics.engine") == "opensearch":
                 _listener_path_pattern = ["/_dashboards*"]
             else:
                 _listener_path_pattern = ["/_plugin/kibana/*"]
@@ -2060,7 +4624,7 @@ class SOCAInstall(Stack):
             es_load_balancer_listener_rule = elbv2.CfnListenerRule(
                 self,
                 f"{user_specified_variables.cluster_id}-ESLoadBalancerListenerRule",
-                listener_arn=https_listener.ref,
+                listener_arn=self.soca_resources['https_listener'].listener_arn,
                 priority=1,
                 actions=[
                     elbv2.CfnListenerRule.ActionProperty(
@@ -2076,28 +4640,330 @@ class SOCAInstall(Stack):
                     )
                 ],
             )
-
-            es_load_balancer_listener_rule.node.add_dependency(https_listener)
+            es_load_balancer_listener_rule.node.add_dependency(self.soca_resources['https_listener'])
             es_load_balancer_listener_rule.node.add_dependency(es_target_group)
 
-        if not user_specified_variables.os_endpoint:
-            CfnOutput(
-                self,
-                "AnalyticsDashboard",
-                value=f"https://{self.soca_resources['alb'].load_balancer_dns_name}/{'_dashboards' if install_props.Config.analytics.engine == 'opensearch' else '_plugin/kibana'}/",
-            )
-        else:
-            CfnOutput(
-                self,
-                "AnalyticsDashboard",
-                value=f"https://{user_specified_variables.os_endpoint}/{'_dashboards' if install_props.Config.analytics.engine  == 'opensearch' else '_plugin/kibana'}/",
-            )
+            if not user_specified_variables.os_endpoint:
+                CfnOutput(
+                    self,
+                    "AnalyticsDashboard",
+                    value=f"https://{self.soca_resources['alb'].load_balancer_dns_name}/{'_dashboards' if get_config_key('Config.analytics.engine') == 'opensearch' else '_plugin/kibana'}/",
+                )
+            else:
+                CfnOutput(
+                    self,
+                    "AnalyticsDashboard",
+                    value=f"https://{user_specified_variables.os_endpoint}/{'_dashboards' if get_config_key('Config.analytics.engine')  == 'opensearch' else '_plugin/kibana'}/",
+                )
 
+    def viewer_analytics_opensearch_serverless(self):
+        """
+        Configure the view for OpenSearch serverless.
+        """
+        logger.debug(f"viewer_analytics_opensearch_serverless")
         CfnOutput(
             self,
-            "WebUserInterface",
-            value=f"https://{self.soca_resources['alb'].load_balancer_dns_name}/",
+            "AnalyticsDashboard",
+            value=f"https://{self.soca_resources['os_domain'].attr_dashboard_endpoint}"
         )
+
+
+    def is_instance_available(self, instance_type: str, region: str) -> bool:
+        """
+        Check if the specified instance type is available in the given region.
+        """
+        ec2_client = boto3_helper.get_boto(service_name="ec2", profile_name=user_specified_variables.profile, region_name=user_specified_variables.region)
+        # TODO - FIXME - try/except needed
+        # pagination is not a concern since we are always looking at a single instance type
+        response = ec2_client.describe_instance_types(
+            InstanceTypes=[instance_type],
+            Filters=[{"Name": "supported-usage-class", "Values": ["on-demand"]}],
+        )
+        return len(response["InstanceTypes"]) > 0
+
+    def select_best_instance(
+        self, instance_list: list, region: str, fallback_instance: str
+    ) -> tuple[str, str, str]:
+        """
+        Return the best instance type from a given list and region. This probes the region for instance availability and will return the first one that is available in the region.
+
+        Returns tuple of (instance_type, instance_architecture, instance_ami).
+        """
+        _selected_instance: str = "amnesiac"
+        _default_ami_for_instance:  str = ""
+        _instance_arch: str = "unknown"
+
+        logger.debug(
+            f"Selecting best instance from {instance_list} for region {region} ..."
+        )
+        for _instance in instance_list:
+            if self.is_instance_available(instance_type=_instance, region=region):
+                _instance_arch = get_arch_for_instance_type(
+                    region=self._region, instancetype=_instance
+                )
+                _default_ami_for_instance = self.soca_resources.get("custom_ami_map", {}).get(_instance_arch, {}).get(self._base_os, "")
+                if _default_ami_for_instance:
+                    _selected_instance = _instance
+                    break
+                else:
+                    logger.warning(f"No AMI found for {_instance} (arch {_instance_arch}, base os {self._base_os}, region {region}, testing next instance in selection")
+
+        if _default_ami_for_instance is None:
+            logger.error("No AMI on region_map.yml found. Choose a different OS/Region or Architecture")
+            sys.exit(1)
+
+        if _selected_instance == "amnesiac":
+            _selected_instance = fallback_instance if fallback_instance else "m5.large"
+            _instance_arch = "x86_64"
+
+        logger.debug(
+            f"Selected instance type of {_selected_instance} (Arch: {_instance_arch}) from {instance_list} in region {region} AMI is {_default_ami_for_instance}"
+        )
+        return _selected_instance, _instance_arch, _default_ami_for_instance
+
+    @staticmethod
+    def return_ebs_volume_name(base_os: str) -> str:
+        """
+        Return the EBS volume name based on the BaseOS.
+        """
+        _ebs_device_name: str = "unknown"
+
+        if base_os.lower() in {"amazonlinux2", "amazonlinux2023"}:
+            _ebs_device_name = "/dev/xvda"
+        else:
+            _ebs_device_name = "/dev/sda1"
+
+        logger.debug(f"Returning EBS volume name {_ebs_device_name} for BaseOS: {base_os}")
+        return _ebs_device_name
+
+
+    def dcv_infrastructure(self):
+        # Create DCV Infrastructure - covers several items with different needs
+        # session_manager - internal nlb
+        # broker - internal nlb
+        # gateway - external / internal nlb (depending on the deployment that the cluster uses)
+
+        for _dcv_node_type in {"manager", "broker", "gateway"}:
+            _dcv_config: str = f"Config.dcv.{_dcv_node_type}"
+            logger.debug(
+                f"Creating DCV Node {_dcv_node_type} items using DCV configuration {_dcv_config} ..."
+            )
+
+            # Get our desired list of instances
+            _dcv_desired_instance_type: list = get_config_key(
+                key_name=f"{_dcv_config}.instance_type", expected_type=list
+            )
+
+            # What AMI should be used for this DCV instance?
+            _dcv_desired_ami: str = get_config_key(
+                key_name=f"{_dcv_config}.ami",
+                expected_type=str,
+                required=False,  # Fallback to default if needed
+                default=self.soca_resources["ami_id"],
+            )
+
+            logger.debug(
+                f"Creating DCV Node type - {_dcv_node_type} items using DCV configuration {_dcv_config}  Instance_Type: {_dcv_desired_instance_type}  AMI: {_dcv_desired_ami} ..."
+            )
+
+            # Determine the first-best instance type to use for this particular region
+            logger.debug(
+                f"Query instance availability for {_dcv_desired_instance_type}"
+            )
+
+            _dcv_selected_instance: str = (
+                "m5.large"  # FIXME TODO - fallback set from select_best_instance
+            )
+
+            if isinstance(_dcv_desired_instance_type, list):
+                logger.debug(
+                    f"Checking for support of instance type (list) {_dcv_desired_instance_type} in region {user_specified_variables.region} for DCV {_dcv_node_type} ..."
+                )
+
+                _dcv_selected_instance, _dcv_selected_arch, _dcv_instance_ami = self.select_best_instance(
+                    instance_list=_dcv_desired_instance_type,
+                    region=user_specified_variables.region,
+                    fallback_instance="m5.large",
+                )
+
+            # We manually replace the variable with the relevant ParameterStore as all ParamStore hierarchy is created at the very end of this CDK
+            _user_data_variables = {
+                "/configuration/BaseOS": user_specified_variables.base_os,
+                "/configuration/ClusterId": user_specified_variables.cluster_id,
+                "/configuration/UserDirectory/provider": get_config_key(
+                    key_name="Config.directoryservice.provider"
+                ),
+                "/configuration/Region": Aws.REGION,
+                # "/configuration/FileSystemAppsProvider": _fs_apps_provider,
+                # "/configuration/FileSystemDataProvider": _fs_data_provider,
+                # "/configuration/FileSystemApps": _fs_apps_dns,
+                # "/configuration/FileSystemData": _fs_data_dns,
+                "/configuration/Version": "24.10",
+                "/configuration/CustomAMI": self.soca_resources["ami_id"], # FIXME TODO - This needs to be updated from the selected_instance and arch
+                "/configuration/S3Bucket": user_specified_variables.bucket,
+            }
+
+            # add all System hierarchy
+            _parameter_store_keys = flatten_parameterstore_config(
+                get_config_key(key_name="Parameters", expected_type=dict)
+            )
+            for (
+                _ssm_parameter_key,
+                _ssm_parameter_value,
+            ) in _parameter_store_keys.items():
+                _user_data_variables[f"/{_ssm_parameter_key}"] = _ssm_parameter_value
+
+            # Generate EC2 User Data
+            _user_data_file: str = f"user_data/dcv_{_dcv_node_type}.sh.j2"
+            logger.debug(
+                f"Reading DCV Node {_dcv_node_type} User Data template {_user_data_file} ..."
+            )
+
+            _user_data = self.jinja2_env.get_template(
+                f"user_data/dcv_{_dcv_node_type}.sh.j2"
+            ).render(context=_user_data_variables)
+
+            # Create some roles
+            _dcv_role = (
+                self.soca_resources["compute_node_role"],
+            )  # XXX FIXME TODO - DCV IAM ROle
+
+            _volume_type = return_ebs_volume_type(
+                volume_string=get_config_key(
+                    key_name=f"{_dcv_config}.volume_type",
+                    required=False,
+                    default="gp3",
+                    expected_type=str
+                ).lower()
+            )
+            self.soca_resources[f"dcv_{_dcv_node_type}_lt"] = ec2.LaunchTemplate(
+                self,
+                f"DCV-{_dcv_node_type}-LT",
+                machine_image=ec2.MachineImage.generic_linux(
+                    {user_specified_variables.region: _dcv_desired_ami}
+                ),
+                instance_type=ec2.InstanceType(_dcv_selected_instance),
+                key_pair=ec2.KeyPair.from_key_pair_attributes(
+                    self,
+                    f"DCV-{_dcv_node_type}-KeyPair",
+                    key_pair_name=user_specified_variables.ssh_keypair,
+                ),
+                require_imdsv2=True,
+                role=self.soca_resources[f"dcv_{_dcv_node_type}_role"],
+                block_devices=[
+                    ec2.BlockDevice(
+                        device_name=self.return_ebs_volume_name(base_os=user_specified_variables.base_os),
+                        volume=ec2.BlockDeviceVolume(
+                            ebs_device=ec2.EbsDeviceProps(
+                                volume_size=get_config_key(
+                                    key_name=f"{_dcv_config}.volume_size",
+                                    expected_type=int,
+                                ),
+                                volume_type=_volume_type,
+                            )
+                        ),
+                    )
+                ],
+                # XXX FIXME TODO
+                # security_group=self.soca_resources[f"dcv_{_dcv_node_type}_sg"],
+                security_group=self.soca_resources[f"dcv_{_dcv_node_type}_sg"],
+                user_data=ec2.UserData.custom(_user_data),
+            )
+
+            # Gateway potentially gets public while the others are private
+            _subnet_type = ec2.SubnetType.PRIVATE_WITH_EGRESS
+            if (
+                _dcv_node_type == "gateway"
+                and get_config_key("Config.entry_points_subnets").lower() == "public"
+            ):
+                _subnet_type = ec2.SubnetType.PUBLIC
+            self.soca_resources[
+                f"dcv_{_dcv_node_type}_asg"
+            ] = autoscaling.AutoScalingGroup(
+                self,
+                f"DCV-{_dcv_node_type}-ASG",
+                vpc=self.soca_resources["vpc"],
+                launch_template=self.soca_resources[f"dcv_{_dcv_node_type}_lt"],
+                max_capacity=get_config_key(
+                    key_name=f"{_dcv_config}.instance_count", expected_type=int
+                ),
+                min_capacity=get_config_key(
+                    key_name=f"{_dcv_config}.instance_count", expected_type=int
+                ),
+                desired_capacity=get_config_key(
+                    key_name=f"{_dcv_config}.instance_count", expected_type=int
+                ),
+                vpc_subnets=ec2.SubnetSelection(subnet_type=_subnet_type),
+            )
+
+        # What are the ports that are we are interested in
+        # TODO
+        _port: int = 8443
+        _protocol = elbv2.Protocol.TCP
+
+        self.soca_resources[f"dcv_{_dcv_node_type}_tg"] = elbv2.NetworkTargetGroup(
+            self,
+            f"{user_specified_variables.cluster_id}-DCV-{_dcv_node_type}-TG",
+            port=_port,
+            protocol=_protocol,
+            target_type=elbv2.TargetType.INSTANCE,
+            vpc=self.soca_resources["vpc"],
+            targets=[self.soca_resources[f"dcv_{_dcv_node_type}_asg"]],
+            target_group_name=f"{user_specified_variables.cluster_id}-DCV-{_dcv_node_type}",
+            health_check=elbv2.HealthCheck(port=str(_port), protocol=_protocol),
+            connection_termination=True,
+        )
+
+        # Create NLBs
+        for _dcv_nlb in {"frontend", "backend"}:
+            _inet_facing: bool = False
+            if (
+                _dcv_nlb == "frontend"
+                and get_config_key("Config.entry_points_subnets").lower() == "public"
+            ):
+                _inet_facing = True
+
+            print(f"Creating DCV NLB for {_dcv_nlb} / Inet Facing: {_inet_facing}")
+
+            self.soca_resources[f"dcv_{_dcv_nlb}_nlb"] = elbv2.NetworkLoadBalancer(
+                self,
+                f"SOCA-DCV-{_dcv_nlb}-NLB",
+                load_balancer_name=f"{user_specified_variables.cluster_id}-dcv-{_dcv_nlb}-nlb",
+                vpc=self.soca_resources["vpc"],
+                # XXX FIXME TODO
+                # security_groups=[self.soca_resources[f"dcv_{_dcv_nlb}_sg"]],
+                security_groups=[self.soca_resources["compute_node_sg"]],
+                internet_facing=_inet_facing,
+            )
+
+            if not user_specified_variables.os_endpoint:
+                self.soca_resources[f"dcv_{_dcv_nlb}_nlb"].add_dependency(
+                    self.soca_resources["os_domain"]
+                )
+
+            CfnOutput(
+                self,
+                f"DCV_{_dcv_nlb}-NLB",
+                value=f"{self.soca_resources[f'dcv_{_dcv_nlb}_nlb'].load_balancer_dns_name}",
+            )
+        # FIXME To be migrated
+        # Create listeners for each of the NLBs
+        # XXX FIXME TODO
+        # elbv2.NetworkListener(
+        #     self,
+        #     "SSHListener",
+        #     load_balancer=self.soca_resources["nlb"],
+        #     protocol=elbv2.Protocol.TCP,
+        #     port=22,
+        #     default_action=elbv2.NetworkListenerAction.forward(
+        #         target_groups=[_dcv_node_target_groups]
+        #     ),
+        # )
+
+        # Tags.of(_dcv_node_asg).add(
+        #     "Name", f"{user_specified_variables.cluster_id}-DCV"
+        # )
+        # Tags.of(_dcv_node_asg).add("soca:NodeType", f"DCV-Infrastructure")
 
 
 if __name__ == "__main__":
@@ -2112,11 +4978,8 @@ if __name__ == "__main__":
                 ).decode("utf-8"),
                 "bucket": app.node.try_get_context("bucket"),
                 "region": app.node.try_get_context("region"),
+                "partition": app.node.try_get_context("partition"),
                 "base_os": app.node.try_get_context("base_os"),
-                "ldap_user": app.node.try_get_context("ldap_user"),
-                "ldap_password": base64.b64decode(
-                    app.node.try_get_context("ldap_password")
-                ).decode("utf-8"),
                 "ssh_keypair": app.node.try_get_context("ssh_keypair"),
                 "client_ip": app.node.try_get_context("client_ip"),
                 "prefix_list_id": app.node.try_get_context("prefix_list_id"),
@@ -2147,10 +5010,14 @@ if __name__ == "__main__":
                 "fs_data_provider": app.node.try_get_context("fs_data_provider"),
                 "fs_data": app.node.try_get_context("fs_data"),
                 "compute_node_sg": app.node.try_get_context("compute_node_sg"),
-                "scheduler_sg": app.node.try_get_context("scheduler_sg"),
+                "controller_sg": app.node.try_get_context("controller_sg"),
+                "alb_sg": app.node.try_get_context("alb_sg"),
+                "nlb_sg": app.node.try_get_context("nlb_sg"),
+                "login_node_sg": app.node.try_get_context("login_node_sg"),
                 "vpc_endpoint_sg": app.node.try_get_context("vpc_endpoint_sg"),
+                "elasticache_sg": app.node.try_get_context("elasticache_sg"),
                 "compute_node_role": app.node.try_get_context("compute_node_role"),
-                "scheduler_role": app.node.try_get_context("scheduler_role"),
+                "controller_role": app.node.try_get_context("controller_role"),
                 "directory_service_user": app.node.try_get_context(
                     "directory_service_user"
                 ),
@@ -2180,16 +5047,19 @@ if __name__ == "__main__":
                 "compute_node_role_from_previous_soca_deployment": app.node.try_get_context(
                     "compute_node_role_from_previous_soca_deployment"
                 ),
-                "scheduler_role_name": app.node.try_get_context("scheduler_role_name"),
-                "scheduler_role_arn": app.node.try_get_context("scheduler_role_arn"),
-                "scheduler_role_from_previous_soca_deployment": app.node.try_get_context(
-                    "scheduler_role_from_previous_soca_deployment"
+                "controller_role_name": app.node.try_get_context(
+                    "controller_role_name"
+                ),
+                "controller_role_arn": app.node.try_get_context("controller_role_arn"),
+                "controller_role_from_previous_soca_deployment": app.node.try_get_context(
+                    "controller_role_from_previous_soca_deployment"
                 ),
                 "spotfleet_role_name": app.node.try_get_context("spotfleet_role_name"),
                 "spotfleet_role_arn": app.node.try_get_context("spotfleet_role_arn"),
                 "spotfleet_role_from_previous_soca_deployment": app.node.try_get_context(
                     "spotfleet_role_from_previous_soca_deployment"
                 ),
+                "profile": None if app.node.try_get_context("profile") == "False" else app.node.try_get_context("profile")
             }
         ),
         object_hook=lambda d: SimpleNamespace(**d),
@@ -2197,7 +5067,6 @@ if __name__ == "__main__":
 
     install_props = json.loads(
         user_specified_variables.install_properties,
-        object_hook=lambda d: SimpleNamespace(**d),
     )
 
     # List of AWS endpoints & principals suffix
@@ -2219,12 +5088,12 @@ if __name__ == "__main__":
     }
 
     # Apply default tag to all taggable resources
-    if hasattr(install_props.Config, "custom_tags"):
-        for custom_tag in install_props.Config.custom_tags:
-            Tags.of(app).add(custom_tag.Key, custom_tag.Value)
+    if get_config_key(key_name="Config.custom_tags", required=False):
+        for custom_tag in get_config_key(key_name="Config.custom_tags", expected_type=list):
+            Tags.of(app).add(custom_tag.get("Key"), custom_tag.get("Value"))
     Tags.of(app).add("soca:ClusterId", user_specified_variables.cluster_id)
-    Tags.of(app).add("soca:CreatedOn", str(datetime.datetime.utcnow()))
-    Tags.of(app).add("soca:Version", install_props.Config.version)
+    Tags.of(app).add("soca:CreatedOn", str(datetime.datetime.now(datetime.UTC)))
+    Tags.of(app).add("soca:Version", get_config_key("Config.version"))
 
     # Launch Cfn generation
     cdk_env = Environment(
@@ -2238,7 +5107,9 @@ if __name__ == "__main__":
         app,
         user_specified_variables.cluster_id,
         env=cdk_env,
-        description=f"SOCA cluster version {install_props.Config.version}",
-        termination_protection=install_props.Config.termination_protection,
+        description=f"SOCA cluster version {get_config_key('Config.version')}",
+        termination_protection=get_config_key(
+            key_name="Config.termination_protection", expected_type=bool, required=False, default=True,
+        ),
     )
     app.synth()

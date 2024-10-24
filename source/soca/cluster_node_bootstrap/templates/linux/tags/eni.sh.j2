@@ -1,0 +1,37 @@
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# Begin - Tags ENI
+function tags_eni () {
+  log_info "[BEGIN] tags_eni"
+  local AWS_INSTANCE_ID=$(instance_id)
+  local ENI_IDS=$(aws_cli ec2 describe-network-interfaces --filters Name=attachment.instance-id,Values="${AWS_INSTANCE_ID}" --query "NetworkInterfaces[*].[NetworkInterfaceId]" --out text | tr "\n" " ")
+  {% if context.get("/job/NodeType") == "controller" %}
+    local TAGS="Key=Name,Value=\"EBS_SOCA_Controller\" Key=soca:ClusterId,Value=\"{{ context.get("/configuration/ClusterId") }}\""
+  {% elif context.get("/job/NodeType") == "login_node" %}
+    local TAGS="Key=Name,Value=\"EBS_SOCA_LoginNode\" Key=soca:ClusterId,Value=\"{{ context.get("/configuration/ClusterId") }}\""
+  {% elif context.get("/job/NodeType") == "dcv_node" %}
+    local TAGS="Key=Name,Value=\"EBS_SOCA_DCV_{{ context.get("/job/SessionOwner") }}\" Key=soca:JobOwner,Value=\"{{ context.get("/job/SessionOwner") }}\" Key=soca:JobProject,Value=\"dcv\" Key=Name,Value=\"soca-job-{{ context.get("/job/SessionIr") }}\" Key=soca:ClusterId,Value=\"{{ context.get("/configuration/ClusterId") }}\""
+   {% else %}
+    local TAGS="Key=Name,Value=\"EBS_SOCA_JobId_{{ context.get("/job/JobId") }}\" Key=soca:JobOwner,Value=\"{{ context.get("/job/JobOwner") }}\" Key=soca:JobProject,Value=\"${SOCA_JOB_PROJECT// /_}\" Key=Name,Value=\"soca-job-{{ context.get("/job/JobId") }}\"  Key=soca:JobId,Value=\"{{ context.get("/job/JobId") }}\" Key=soca:JobQueue,Value=\"{{ context.get("/job/JobQueue") }}\" Key=soca:ClusterId,Value=\"{{ context.get("/configuration/ClusterId") }}\""
+  {% endif %}
+
+
+  local CURRENT_ATTEMPT=0
+  local MAX_TAG_ATTEMPT=5
+
+  while ! aws_cli ec2 create-tags --resources ${ENI_IDS} --tag ${TAGS}; do
+    SLEEP_TIME=$(( RANDOM % 100 ))
+     if [[ ${CURRENT_ATTEMPT} -gt ${MAX_TAG_ATTEMPT} ]]; then
+      log_warning "Unable to tag this ENI"
+      break
+    fi
+    log_info "ec2 tag failed due to EC2 API error, retrying in  ${SLEEP_TIME} seconds  and Loop ${CURRENT_ATTEMPT}/${MAX_TAG_ATTEMPT}..."
+    sleep ${SLEEP_TIME}
+    ((CURRENT_ATTEMPT++))
+  done
+
+  log_info "[COMPLETED] tags_eni"
+}
+tags_eni
+# End  - Tags ENI

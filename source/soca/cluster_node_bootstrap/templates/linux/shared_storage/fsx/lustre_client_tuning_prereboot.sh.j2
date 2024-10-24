@@ -1,0 +1,20 @@
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+{% if context.get("/configuration/BaseOS") in ("amazonlinux2", "amazonlinux2023", "centos7", "rhel7", "rhel8", "rhel9", "rocky8", "rocky9") %}
+function fsx_lustre_client_tuning_prereboot {
+  log_info "Optimizing FSx Lustre performance tuning prior to reboot"
+  # https://docs.aws.amazon.com/fsx/latest/LustreGuide/performance.html#performance-tips
+  local NCPUS=$(nproc)
+  log_info "Detected ${NCPUS} CPUs for Lustre performance tuning prereboot"
+  if [[ "${NCPUS}" -ge 64 ]]; then
+    echo "Applying CPU count Lustre performance tuning"
+    echo "options ptlrpc ptlrpcd_per_cpt_max=32" >> /etc/modprobe.d/modprobe.conf
+    echo "options ksocklnd credits=2560" >> /etc/modprobe.d/modprobe.conf
+    set_reboot_required "Lustre Client Tuning Pre-Reboot"
+  else
+    log_info "No optimization needed as the instance type has less than 64 cores detected ${NCPUS}"
+  fi
+}
+fsx_lustre_client_tuning_prereboot
+{% endif %}

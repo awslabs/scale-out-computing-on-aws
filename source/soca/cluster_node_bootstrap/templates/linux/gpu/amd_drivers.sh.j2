@@ -1,0 +1,131 @@
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# Begin: Install GPU Drivers - Is GPU Instance Type
+function install_amd_gpu_drivers() {
+  which /opt/amdgpu-pro/bin/clinfo
+  if [[ "$?" == "0" ]]; then
+    log_info "GPU driver already installed. Skip."
+    return 0
+  fi
+
+  #
+  # Instance GPU
+  # G4ad     Radeon Pro V520
+  #
+  mkdir -p /root/soca_bootstrap/gpu_drivers
+  pushd /root/soca_bootstrap/gpu_drivers
+
+  # Enforce pbs stop to avoid pbs restart during amdgpupro install
+  systemctl stop pbs
+
+  {% if context.get("/configuration/BaseOS") =='amazonlinux2' %}
+     packages_install mesa* mesa-libEGL mesa-dri-drivers vulkan vulkan-amdgpu vulkan-devel vulkan-filesystem
+  {% endif %}
+
+  {% if context.get("/configuration/BaseOS") in ('rhel7', 'centos7', 'amazonlinux2') %}
+    local DRIVER_BUCKET_REGION=$(curl -s --head "{{ context.get("/system/gpu/gpu_settings/amd/s3_bucket_url") }}" | grep bucket-region | awk '{print $2}' | tr -d '\r\n')
+    aws_cli s3 cp --region ${DRIVER_BUCKET_REGION} --quiet --recursive {{ context.get("/system/gpu/gpu_settings/amd/s3_bucket_path") }} .
+    tar -xf amdgpu-pro-*rhel*.tar.xz
+    cd $(find . -maxdepth 1 -mindepth 1 -type d -name "amdgpu-pro*rhel*")
+    /bin/bash ./amdgpu-pro-install -y --opencl=pal,legacy
+
+  {% elif context.get("/configuration/BaseOS") in ("rhel8", "rhel9", "rocky8", "rocky9") %}
+     local AMD_RADEON_REPO_BASE_URL="https://repo.radeon.com/amdgpu"
+     local AMD_GPU_VERSION
+     local OS_VERSION=$(awk -F= '/^VERSION_ID/ {gsub(/"/, "", $2); print $2}' /etc/os-release)
+     log_info "Detected OS Version ${OS_VERSION}"
+
+     case "${OS_VERSION}" in
+          *"9.4"*) AMD_GPU_VERSION="6.2.3" ;;
+          *"9.3"*) AMD_GPU_VERSION="6.2.3" ;;
+          *"9.2"*) AMD_GPU_VERSION="6.2.3" ;;
+          *"8.10"*) AMD_GPU_VERSION="6.2.3" ;;
+          *"8.8"*) AMD_GPU_VERSION="6.2.3" ;;
+          *"8.9"*) AMD_GPU_VERSION="6.2.3" ;;
+          *) log_error "Unable to found AMD GPU drivers for {{ context.get("/configuration/BaseOS") }} version ${OS_VERSION}. Update cluster_node_bootstrap/templates/linux/gpu/amd_drivers.sh.j2 with the new version" ;;
+      esac
+
+     local RHEL_ROCKY_INSTALLER_URL="${AMD_RADEON_REPO_BASE_URL}/${AMD_GPU_VERSION}/el/${OS_VERSION}/main/x86_64/"
+
+     # download RPM
+     log_info "Downloading amdgpu-install RPM from ${RHEL_ROCKY_INSTALLER_URL}"
+     wget -r -l1 --no-parent -A "amdgpu-install-*.noarch.rpm" ${RHEL_ROCKY_INSTALLER_URL}
+
+     # find RPM and install it
+     local AMD_GPU_RPM=$(echo "${RHEL_ROCKY_INSTALLER_URL#https://}amdgpu-install-*.noarch.rpm")
+     log_info "Installing RPM ${AMD_GPU_RPM}"
+     packages_generic_command localinstall -y $(ls ${AMD_GPU_RPM})
+
+     packages_install vulkan vulkan-amdgpu vulkan-headers vulkan-loader-devel vulkan-tools vulkan-validation-layers
+
+
+     log_info "Running amdgpu-install"
+     /bin/amdgpu-install --usecase=workstation --accept-eula -y
+
+  {% endif %}
+
+  set_reboot_required "Installed AMD GPU Driver"
+
+  {% if context.get("/job/NodeType") == "dcv_node" %}
+    mkdir -p /etc/X11/
+    echo """Section \"ServerLayout\"
+    Identifier     \"Layout0\"
+    Screen          0 \"Screen0\"
+    InputDevice     \"Keyboard0\" \"CoreKeyboard\"
+    InputDevice     \"Mouse0\" \"CorePointer\"
+EndSection
+Section \"Files\"
+    ModulePath \"/opt/amdgpu/lib64\"
+    ModulePath \"/opt/amdgpu/lib64/xorg/modules/drivers\"
+    ModulePath \"/opt/amdgpu/lib/xorg/modules/drivers\"
+    ModulePath \"/opt/amdgpu-pro/lib/xorg/modules/extensions\"
+    ModulePath \"/opt/amdgpu-pro/lib64/xorg/modules/extensions\"
+    ModulePath \"/opt/amdgpu-pro/lib64\"
+    ModulePath \"/usr/lib64/xorg/modules\"
+    ModulePath \"/usr/lib/xorg/modules\"
+EndSection
+Section \"InputDevice\"
+    # generated from default
+    Identifier     \"Mouse0\"
+    Driver         \"mouse\"
+    Option         \"Protocol\" \"auto\"
+    Option         \"Device\" \"/dev/psaux\"
+    Option         \"Emulate3Buttons\" \"no\"
+    Option         \"ZAxisMapping\" \"4 5\"
+EndSection
+Section \"InputDevice\"
+    # generated from default
+    Identifier     \"Keyboard0\"
+    Driver         \"kbd\"
+EndSection
+Section \"Monitor\"
+    Identifier     \"Monitor0\"
+    VendorName     \"Unknown\"
+    ModelName      \"Unknown\"
+EndSection
+Section \"Device\"
+    Identifier     \"Device0\"
+    Driver         \"amdgpu\"
+    VendorName     \"AMD\"
+    BoardName      \"Radeon MxGPU V520\"
+    BusID          \"PCI:0:30:0\"
+EndSection
+Section \"Extensions\"
+    Option         \"DPMS\" \"Disable\"
+EndSection
+Section \"Screen\"
+    Identifier     \"Screen0\"
+    Device         \"Device0\"
+    Monitor        \"Monitor0\"
+    DefaultDepth   24
+    Option         \"AllowEmptyInitialConfiguration\" \"True\"
+    SubSection \"Display\"
+        Virtual    3840 2160
+        Depth      32
+    EndSubSection
+EndSection
+"""> /etc/X11/xorg.conf
+  {% endif %}
+  popd
+}

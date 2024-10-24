@@ -1,0 +1,32 @@
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# Begin - Wrapper EC2. Added via common.sh.j2
+function ec2_describe_instance_types () {
+  # Wrapper for ec2 describe-instance-types
+  # ex:
+  # describe_instance_types "GpuInfo.Gpus[].Manufacturer"
+  # describe_instance_types "InstanceType"
+
+  local PARAMETER="${1}"
+  local INSTANCE_INFO
+  local CACHED_RESULT
+  local INSTANCE_TYPE=$(instance_type)
+
+  if [[ -z ${PARAMETER} ]]; then
+    local JQ_QUERY=".InstanceTypes[]"
+  else
+    local JQ_QUERY=".InstanceTypes[].${PARAMETER}"
+  fi
+
+  CACHED_RESULT=$(cache_get_key "/soca/{{ context.get("/configuration/BaseOS") }}/ec2/describe-instance-types/${INSTANCE_TYPE}" "json")
+
+  if [[ ${CACHED_RESULT} == "CACHE_MISS" ]]; then
+    INSTANCE_INFO=$(aws_cli ec2 describe-instance-types --instance-types ${INSTANCE_TYPE} --output json)
+  else
+    INSTANCE_INFO=${CACHED_RESULT}
+  fi
+
+  echo -n ${INSTANCE_INFO} | jq -r "${JQ_QUERY}  // empty" 2>/dev/null || echo -n ""
+}
+# End - Wrapper EC2

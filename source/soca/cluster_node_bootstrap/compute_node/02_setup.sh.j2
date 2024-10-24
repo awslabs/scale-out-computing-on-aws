@@ -1,0 +1,133 @@
+#!/bin/bash -xe
+
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# Log Path: {{ context.get("/job/BoostrapPath") }}
+############
+
+echo "## [BEGIN] SOCA Configuration - Do Not Delete" >> /etc/environment
+{
+  echo export "AWS_DEFAULT_REGION=\"{{ context.get("/configuration/Region") }}\""
+  echo export "SOCA_BASE_OS=\"{{ context.get("/configuration/BaseOS") }}\""
+  echo export "SOCA_NODE_TYPE=\"{{ context.get("/job/NodeType") }}\""
+  echo export "SOCA_CONFIGURATION=\"{{ context.get("/configuration/ClusterId") }}\""
+  echo export "SOCA_VERSION=\"{{ context.get("/configuration/Version") }}\""
+  echo export "DIRECTORY_AUTH_PROVIDER=\"{{ context.get("/configuration/UserDirectory/provider") }}\""
+
+} >> /etc/environment
+
+{% if context.get("/job/NodeType") == "compute_node" %}
+  {
+    echo export "SOCA_JOB_QUEUE=\"{{ context.get("/job/JobQueue") }}\""
+    echo export "SOCA_JOB_OWNER=\"{{ context.get("/job/JobOwner") }}\""
+    echo export "SOCA_JOB_NAME=\"{{ context.get("/job/JobName") }}\""
+    echo export "SOCA_JOB_PROJECT=\"{{ context.get("/job/JobProject") }}\""
+    echo export "SOCA_JOB_EFA=\"{{ context.get("/job/Efa") | lower }}\""
+    echo export "SOCA_JOB_ID=\"{{ context.get("/job/JobId") }}\""
+    echo export "SOCA_SCRATCH_SIZE=\"{{ context.get("/job/ScratchSize") }}\""
+    echo export "SOCA_FSX_LUSTRE_BUCKET=\"{{ context.get("/job/FSxLustreConfiguration").get("fsx_lustre") | lower }}\""
+    echo export "SOCA_FSX_LUSTRE_DNS=\"{{ context.get("/job/FSxLustreConfiguration").get("existing_fsx") | lower }}\""
+    echo export "SOCA_INSTANCE_HYPERTHREADING=\"{{ context.get("/job/ThreadsPerCore") }}\""
+    echo export "SOCA_SYSTEM_METRICS=\"{{ context.get("/job/SystemMetrics") | lower }}\""
+  } >> /etc/environment
+{% endif %}
+
+echo "## [END] SOCA Configuration - Do Not Delete" >> /etc/environment
+
+# Load common functions
+{% include "templates/linux/common.sh.j2" %}
+
+log_info "Stopping OpenPBS services"
+systemctl stop pbs
+
+{% include "templates/linux/epel.sh.j2" %}
+
+{% include "templates/linux/jq.sh.j2" %}
+
+{% set PATH = '/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin:/opt/pbs/bin:/opt/pbs/sbin:/opt/pbs/bin:/apps/soca/' ~ context.get("/configuration/ClusterId") %}
+
+{% include "templates/linux/awscli.sh.j2" %}
+
+{% include "templates/linux/aws_ssm_agent.sh.j2" %}
+
+{% include "templates/linux/system_packages.sh.j2" %}
+
+{% include "templates/linux/cache_client.sh.j2" %}
+
+if [[ $(rpm -qa kernel | wc -l) -gt 1 ]]; then
+    set_reboot_required "Kernel was updated during package install"
+fi
+
+# Check if machine is a login node, if yes perform additional setup actions
+{% include "compute_node/extra/login_node.sh.j2" %}
+
+# Configure Scratch Partition is scratch_size is specified or instance has local disks
+{% include "templates/linux/configure_scratch_partition.sh.j2" %}
+
+# Install CloudWatch Log Agent
+{% include "templates/linux/aws_cloudwatch_agent.sh.j2" %}
+
+# Configure /etc/hosts
+{% include "templates/linux/configure_hosts.sh.j2" %}
+
+# Install OpenPBS if needed
+{% include "templates/linux/scheduler/openpbs/install.sh.j2" %}
+
+# Configure OpenPBS client
+{% include "templates/linux/scheduler/openpbs/configure_client.sh.j2" %}
+
+# Disable SELINUX
+{% include "templates/linux/disable_selinux.sh.j2" %}
+
+# Disable FirewallD
+{% include "templates/linux/disable_firewalld.sh.j2" %}
+
+# Configure OpenLDAP or Microsoft AD
+{% if context.get("/configuration/UserDirectory/provider") in ["existing_openldap", "openldap"] %}
+  # OpenLDAP configuration
+  {% include "templates/linux/openldap_client.sh.j2" %}
+{% elif context.get("/configuration/UserDirectory/provider") in ["existing_activedirectory","aws_ds_managed_activedirectory", "aws_ds_simple_activedirectory"] %}
+  # Active Directory configuration
+  {% include "templates/linux/join_activedirectory.sh.j2" %}
+{% else %}
+  log_error "UserDirectory/provider must be existing_activedirectory, existing_openldap, openldap, aws_ds_simple_activedirectory, aws_ds_managed_activedirectory, detected {{ context.get("/configuration/UserDirectory/provider") }}"
+  exit 1
+{% endif %}
+
+# Disable StrictHostKeyChecking
+{% include "templates/linux/disable_ssh_strict_host_key_check.sh.j2" %}
+
+# Configure Chrony
+{% include "templates/linux/chronyd.sh.j2" %}
+
+# Disable ulimits
+{% include "templates/linux/disable_ulimits.sh.j2" %}
+
+# Tag EBS disks manually as CFN ASG does not support it
+{% include "templates/linux/tags/ebs.sh.j2" %}
+
+# Tag Network Interface for the Compute Node
+{% include "templates/linux/tags/eni.sh.j2" %}
+
+# Prepare crontab for post-reboot or execute the post-reboot script automatically
+REBOOT_REQUIRED=$(get_reboot_required)
+{% if context.get("/job/NodeType") in ("dcv_node", "compute_node") %}
+if [[ "${REBOOT_REQUIRED}" == "yes" ]]; then
+  echo "@reboot /bin/bash "{{ context.get('/job/BootstrapPath') }}/03_setup_post_reboot.sh" >> {{ context.get('/job/BootstrapPath') }}/$(hostname -s)/03_setup_post_reboot.log 2>&1" | crontab -
+  log_info "Rebooting the machine"
+  reboot
+else
+  log_info "No reboot needed, continuing bootstrap sequence"
+  /bin/bash "{{ context.get('/job/BootstrapPath') }}/03_setup_post_reboot.sh" >> {{ context.get('/job/BootstrapPath') }}/$(hostname -s)/03_setup_post_reboot.log 2>&1
+fi
+{% else %}
+ log_info "No post_reboot customizations for login_nodes or controller host"
+
+ {% include "compute_node/04_setup_user_customization.sh.j2" %}
+ {% include "templates/linux/motd.sh.j2" %}
+ if [[ "${REBOOT_REQUIRED}" == "yes" ]]; then
+   log_info "Rebooting the machine"
+   reboot
+ fi
+{% endif %}

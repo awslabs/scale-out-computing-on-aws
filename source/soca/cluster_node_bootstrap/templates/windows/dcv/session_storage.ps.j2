@@ -1,0 +1,14 @@
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# Begin - Enable DCV Session Storage
+function Configure-StorageRoot {
+    param (
+        [string]$FolderPath
+    )
+
+    Write-Log "Specify DCV Session Storage"
+    New-ItemProperty -Path "Microsoft.PowerShell.Core\Registry::\HKEY_USERS\S-1-5-18\Software\GSettings\com\nicesoftware\dcv\session-management\automatic-console-session" -Name "storage-root" -PropertyType "String" -Value "$FolderPath" -Force
+}
+Configure-StorageRoot -FolderPath "C:\{{ context.get('/system/dcv/session_storage') }}"
+# End - Enable DCV Session Storage

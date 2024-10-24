@@ -1,0 +1,111 @@
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+function build_openpbs {
+  cd ${1}
+  log_info "Building OpenPBS from $(pwd)"
+  local NCPUS=$(nproc)
+  log_info "Running AutoGen"
+  ./autogen.sh
+  log_info "Running Configure"
+  ./configure --prefix=/opt/pbs
+  log_info "Running Make"
+  make -j ${NCPU}
+  make install -j ${NCPU}
+  log_info "Post Build Command"
+  /opt/pbs/libexec/pbs_postinstall
+  chmod 4755 /opt/pbs/sbin/pbs_iff /opt/pbs/sbin/pbs_rcp
+  log_info "Build Completed"
+}
+
+
+function openpbs_install {
+    local OPENPBS_INSTALLED_VERS=$(/opt/pbs/bin/qstat --version | awk {'print $NF'})
+    local INSTALLER_DIR="/root/soca_bootstrap/openpbs"
+    mkdir -p ${INSTALLER_DIR}
+    pushd ${INSTALLER_DIR}
+
+    {% if context.get("/configuration/SchedulerDeploymentType") == "tgz" %}
+      log_info "Installing OpenPBS via tgz download"
+      local OPENPBS_VERSION="{{ context.get("/system/scheduler/openpbs/tgz/version") }}"
+      local OPENPBS_URL="{{ context.get("/system/scheduler/openpbs/tgz/url") }}"
+      local OPENPBS_TGZ="{{ context.get("/system/scheduler/openpbs/tgz/tgz") }}"
+      local OPENPBS_SHA256="{{ context.get("/system/scheduler/openpbs/tgz/sha256") }}"
+      if [[ "${OPENPBS_INSTALLED_VERS}" != "${OPENPBS_VERSION}" ]]; then
+          log_info "OpenPBS Not Detected, Installing OpenPBS"
+          wget ${OPENPBS_URL}
+          if [[ $(sha256sum "${OPENPBS_TGZ}" | awk '{print $1}') != "${OPENPBS_SHA256}" ]];  then
+              echo -e "FATAL ERROR: Checksum for OpenPBS failed. File may be compromised." > /etc/motd
+              exit 1
+          fi
+          tar zxvf ${OPENPBS_TGZ} -C ${INSTALLER_DIR} --strip-components=1
+          build_openpbs ${INSTALLER_DIR}
+
+      else
+          log_info "OpenPBS already installed, and at correct version (${OPENPBS_VERSION})."
+      fi
+
+    {% elif context.get("/configuration/SchedulerDeploymentType") == "git" %}
+      log_info "Installing OpenPBS via git"
+      local OPENBS_GIT_REPO="{{ context.get("/system/scheduler/openpbs/git/repo") }}"
+      local OPENBS_GIT_BRANCH="{{ context.get("/system/scheduler/openpbs/git/branch") }}"
+      local OPENBS_GIT_COMMIT_ID="{{ context.get("/system/scheduler/openpbs/git/commit_id") }}"
+      local OPENPBS_VERSION="{{ context.get("/system/scheduler/openpbs/tgz/version") }}"
+
+      if [[ "${OPENPBS_INSTALLED_VERS}" != "${OPENPBS_VERSION}" ]]; then
+          log_info "OpenPBS Not Detected, Installing OpenPBS"
+          # Note: clone in current directory without checkout to avoid new folder creation
+          git clone ${OPENBS_GIT_REPO} --no-checkout {% if context.get("/system/scheduler/openpbs/git/branch") %}--branch ${OPENBS_GIT_BRANCH} {% endif %} ${INSTALLER_DIR}
+
+          # Load actual content
+          {% if context.get("/system/scheduler/openpbs/git/commit_id") %}
+          git checkout ${OPENBS_GIT_COMMIT_ID}
+          {% else %}
+          git checkout
+          {% endif %}
+
+          # Install Pre-requisite
+          if ! verify_package_installed cmake3; then
+            log_info "cmake3 not installed, installting it "
+            packages_install cmake3
+          fi
+
+         if test ! -e "/lib64/libcjson.so"; then
+          log_info "/lib64/libcjson.so not found, installing it"
+          git clone https://github.com/DaveGamble/cJSON.git
+          pushd cJSON
+          mkdir build
+          pushd build
+          cmake3 ..
+          make
+          make install
+          ln -sf /usr/local/lib64/libcjson.so.1 /lib64/libcjson.so.1
+        fi
+        build_openpbs ${INSTALLER_DIR}
+
+      else
+          log_info "OpenPBS already installed, and at correct version (${OPENPBS_VERSION})."
+      fi
+
+    {% elif context.get("/configuration/SchedulerDeploymentType") == "s3_tgz" %}
+     local OPENPBS_VERSION="{{ context.get("/system/scheduler/openpbs/s3_tgz/version") }}"
+     local OPENPBS_S3_URI="{{ context.get("/system/scheduler/openpbs/s3_tgz/s3_uri") }}"
+     log_info "Installing OpenPBS via an OpenPBS archive stored on S3"
+      if [[ "${OPENPBS_INSTALLED_VERS}" != "${OPENPBS_VERSION}" ]]; then
+          log_info "OpenPBS Not Detected, Installing OpenPBS"
+          aws_cli s3 cp ${OPENPBS_S3_URI} ./openpbs_installer.tar.gz
+          tar zxvf ./openpbs_installer.tar.gz -C ${INSTALLER_DIR} --strip-components=1
+          build_openpbs ${INSTALLER_DIR}
+      else
+          log_info "OpenPBS already installed, and at correct version (${OPENPBS_VERSION})."
+      fi
+
+    {% else %}
+      exit_fail "{{ context.get("/configuration/scheduler/deployment_type") }} must be tgz or git"
+
+    {% endif %}
+
+    popd
+    log_info "Completed OpenPBS installation"
+}
+openpbs_install

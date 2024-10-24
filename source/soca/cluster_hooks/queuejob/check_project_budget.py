@@ -64,7 +64,7 @@ job_project = (
 
 # User Variables
 aws_account_id = "<YOUR_AWS_ACCOUNT_ID>"
-budget_config_file = "/apps/soca/%SOCA_CONFIGURATION/cluster_manager/settings/project_cost_manager.txt"  # Link to example
+budget_config_file = "/apps/soca/%SOCA_CONFIGURATION/cluster_manager/orchestrator/settings/project_cost_manager.txt"  # Link to example
 user_must_belong_to_project = (
     True  # Change if you don't want to restrict project to a list of users
 )

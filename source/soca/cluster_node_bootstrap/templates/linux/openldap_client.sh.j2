@@ -1,0 +1,132 @@
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# Begin: OpenLDAP client
+{% if context.get("/configuration/BaseOS") in ("amazonlinux2", "amazonlinux2023", "centos7", "rhel7", "rhel8", "rhel9", "rocky8", "rocky9") %}
+
+function openldap_client {
+    log_info "[BEGIN] openldap_configure ... "
+    local SOCA_LDAP_BASE="{{ context.get("/configuration/UserDirectory/domain_base") }}"
+    local SOCA_LDAP_ENDPOINT="{{ context.get("/configuration/UserDirectory/endpoint") }}"
+    local SOCA_LDAP_ADMINS_SEARCH_BASE="{{ context.get("/configuration/UserDirectory/admins_search_base") | lower }}"
+
+    local SOCA_LDAP_PROTOCOL=${SOCA_LDAP_ENDPOINT%%://*}
+    local HOST_PORT=${SOCA_LDAP_ENDPOINT#*://}
+    local SOCA_LDAP_HOST=${HOST_PORT%%:*}
+    local SOCA_LDAP_PORT=${HOST_PORT##*:}
+
+    cp /etc/openldap/ldap.conf /etc/openldap/ldap.conf.backup
+    # In case of custom AMI, we clean previous URI & BASE
+    sed -i '/^[[:space:]]*URI/d'
+    sed -i '/^[[:space:]]*BASE/d'
+    echo "URI ${SOCA_LDAP_ENDPOINT}" >> /etc/openldap/ldap.conf
+    echo "BASE ${LDAP_BASE}" >> /etc/openldap/ldap.conf
+
+    if [[ -e "/etc/sssd/sssd.conf" ]]; then
+        cp /etc/sssd/sssd.conf /etc/sssd/sssd.conf.orig
+    fi
+    mkdir -p /etc/openldap/cacerts/
+    echo -e "[domain/default]
+enumerate = True
+autofs_provider = ldap
+cache_credentials = True
+ldap_search_base = ${SOCA_LDAP_BASE}
+id_provider = ldap
+auth_provider = ldap
+chpass_provider = ldap
+sudo_provider = ldap
+ldap_sudo_search_base = ${SOCA_LDAP_ADMINS_SEARCH_BASE}
+ldap_uri = ${SOCA_LDAP_ENDPOINT}
+ldap_id_use_start_tls = True
+ldap_tls_reqcert = never
+use_fully_qualified_names = False
+ldap_tls_cacertdir = /etc/openldap/cacerts
+ldap_sudo_full_refresh_interval=86400
+ldap_sudo_smart_refresh_interval=3600
+
+[sssd]
+services = nss, pam, autofs, sudo
+full_name_format = %2\$s\%1\$s
+domains = default
+
+[nss]
+homedir_substring = /data/home
+
+[pam]
+
+[sudo]
+
+[autofs]
+
+[ssh]
+
+[pac]
+
+[ifp]
+
+[secrets]" > /etc/sssd/sssd.conf
+
+
+    if [[ ${SOCA_LDAP_PROTOCOL} == "ldaps" ]];
+      then
+      log_info "Fetching OpenLDAP self-signed certificate because ldap protocol is ldaps"
+      # note: what if CA chain?
+      openssl s_client -showcerts -connect "${SOCA_LDAP_HOST}:${SOCA_LDAP_PORT}" </dev/null 2>/dev/null | openssl x509 -out /etc/openldap/cacerts/openldap-server.pem
+      {% if context.get("/configuration/BaseOS") in ("amazonlinux2023", "amazonlinux2","centos7", "rhel7", "rhel8", "rhel9", "rocky8", "rocky9")  %}
+        log_info "Adding OpenLDAP self-signed certificate to system CA trust store"
+        cp /etc/openldap/cacerts/openldap-server.pem /etc/pki/ca-trust/source/anchors/
+        log_info "Updating system CA Trust Store"
+        update-ca-trust
+        {% if context.get("/configuration/BaseOS") == "amazonlinux2023" %}
+          log_info "Rebuilding /etc/openldap/cacerts directory"
+          openssl rehash /etc/openldap/cacerts
+        {% endif %}
+       {% endif %}
+    else
+      log_info "LDAP Protocol is not ldaps, ignoring ..."
+    fi
+
+    log_info "Performing Authconfig adjustments"
+    {% if context.get("/configuration/BaseOS") in ("centos7", "rhel7", "amazonlinux2")  %}
+          authconfig --disablesssd \
+           --disablesssdauth \
+           --disableldap \
+           --disableldapauth \
+           --disablekrb5 \
+           --disablekrb5kdcdns \
+           --disablekrb5realmdns \
+           --disablewinbind \
+           --disablewinbindauth \
+           --disablewinbindkrb5 \
+           --disableldaptls \
+           --disablerfc2307bis \
+           --updateall
+          sss_cache -E
+          authconfig --enablesssd \
+            --enablesssdauth \
+            --enableldap \
+            --enableldaptls \
+            --enableldapauth \
+            --ldapserver="${SOCA_LDAP_ENDPOINT}" \
+            --ldapbasedn="${SOCA_LDAP_BASE}" \
+            --enablelocauthorize \
+            --enablemkhomedir \
+            --enablecachecreds \
+            --updateall
+
+    {% elif context.get("/configuration/BaseOS") in ("rhel8", "amazonlinux2023")  %}
+          authselect select sssd with-mkhomedir --force
+    {% else %}
+          log_info "No AuthConfig needed"
+    {% endif  %}
+
+    chmod 600 /etc/sssd/sssd.conf
+    sleep 60
+    systemctl enable sssd
+    systemctl restart sssd
+    echo "sudoers: files sss" >> /etc/nsswitch.conf
+    log_info "[COMPLETED] openldap_configure ... "
+}
+openldap_client
+{% endif  %}
+# End: OpenLDAP client

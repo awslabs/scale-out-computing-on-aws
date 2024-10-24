@@ -1,0 +1,224 @@
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# Begin: OpenPBS Configure Server
+{% if context.get("/configuration/BaseOS") in ("amazonlinux2", "amazonlinux2023", "centos7", "rhel7", "rhel8", "rhel9", "rocky8", "rocky9") %}
+function openpbs_configure_server () {
+    log_info "[BEGIN] openpbs_configure_server .. "
+    local SCHEDULER_HOSTNAME="{{ context.get("/configuration/ControllerPrivateDnsName") }}"
+    local SOCA_CONFIGURATION="{{ context.get("/configuration/ClusterId") }}"
+    local SOCA_BASE_OS="{{ context.get("/configuration/BaseOS") }}"
+    local SOCA_INSTALL_AMI="{{ context.get("/configuration/CustomAmi") }}"
+
+    cp /etc/pbs.conf /etc/pbs.conf.orig
+    echo "PBS_SERVER=${SCHEDULER_HOSTNAME}
+PBS_START_SERVER=1
+PBS_START_SCHED=1
+PBS_START_COMM=1
+PBS_START_MOM=0
+PBS_EXEC=/opt/pbs
+PBS_HOME=/var/spool/pbs
+PBS_CORE_LIMIT=unlimited
+PBS_SCP=/usr/bin/scp
+" > /etc/pbs.conf
+    echo "$clienthost ${SCHEDULER_HOSTNAME}" > /var/spool/pbs/mom_priv/config
+
+    # Default AWS Resources
+    cat <<EOF >>/var/spool/pbs/server_priv/resourcedef
+anonymous_metrics type=string
+asg_spotfleet_id type=string
+availability_zone type=string
+base_os type=string
+compute_node type=string flag=h
+efa_support type=string
+error_message type=string
+force_ri type=string
+fsx_lustre type=string
+fsx_lustre_deployment_type type=string
+fsx_lustre_per_unit_throughput type=string
+fsx_lustre_size type=string
+ht_support type=string
+instance_profile type=string
+instance_ami type=string
+instance_id type=string
+instance_type type=string
+instance_type_used type=string
+keep_ebs type=string
+placement_group type=string
+root_size type=string
+scratch_iops type=string
+scratch_size type=string
+security_groups type=string
+spot_allocation_count type=string
+spot_allocation_strategy type=string
+spot_price type=string
+stack_id type=string
+subnet_id type=string
+system_metrics type=string
+EOF
+    systemctl enable pbs
+    systemctl start pbs
+    sleep 30
+
+    ## Update PBS Hooks with the current script location
+    sed -i "s/%SOCA_CONFIGURATION/${SOCA_CONFIGURATION}/g" /apps/soca/${SOCA_CONFIGURATION}/cluster_hooks/queuejob/check_queue_acls.py
+    sed -i "s/%SOCA_CONFIGURATION/${SOCA_CONFIGURATION}/g" /apps/soca/${SOCA_CONFIGURATION}/cluster_hooks/queuejob/check_queue_instance_types.py
+    sed -i "s/%SOCA_CONFIGURATION/${SOCA_CONFIGURATION}/g" /apps/soca/${SOCA_CONFIGURATION}/cluster_hooks/queuejob/check_queue_custom_sgs_roles.py
+    sed -i "s/%SOCA_CONFIGURATION/${SOCA_CONFIGURATION}/g" /apps/soca/${SOCA_CONFIGURATION}/cluster_hooks/queuejob/check_queue_restricted_parameters.py
+    sed -i "s/%SOCA_CONFIGURATION/${SOCA_CONFIGURATION}/g" /apps/soca/${SOCA_CONFIGURATION}/cluster_hooks/queuejob/check_licenses_mapping.py
+    sed -i "s/%SOCA_CONFIGURATION/${SOCA_CONFIGURATION}/g" /apps/soca/${SOCA_CONFIGURATION}/cluster_hooks/queuejob/check_project_budget.py
+    sed -i "s/%SOCA_CONFIGURATION/${SOCA_CONFIGURATION}/g" /apps/soca/${SOCA_CONFIGURATION}/cluster_hooks/job_notifications.py
+
+    # Create Default PBS hooks
+    /opt/pbs/bin/qmgr -c "create hook check_queue_acls event=queuejob"
+    /opt/pbs/bin/qmgr -c "import hook check_queue_acls application/x-python default /apps/soca/${SOCA_CONFIGURATION}/cluster_hooks/queuejob/check_queue_acls.py"
+    /opt/pbs/bin/qmgr -c "create hook check_queue_instance_types event=queuejob"
+    /opt/pbs/bin/qmgr -c "import hook check_queue_instance_types application/x-python default /apps/soca/${SOCA_CONFIGURATION}/cluster_hooks/queuejob/check_queue_instance_types.py"
+    /opt/pbs/bin/qmgr -c "create hook check_queue_restricted_parameters event=queuejob"
+    /opt/pbs/bin/qmgr -c "import hook check_queue_restricted_parameters application/x-python default /apps/soca/${SOCA_CONFIGURATION}/cluster_hooks/queuejob/check_queue_restricted_parameters.py"
+    /opt/pbs/bin/qmgr -c "create hook check_queue_custom_sgs_roles event=queuejob"
+    /opt/pbs/bin/qmgr -c "import hook check_queue_custom_sgs_roles application/x-python default /apps/soca/${SOCA_CONFIGURATION}/cluster_hooks/queuejob/check_queue_custom_sgs_roles.py"
+    /opt/pbs/bin/qmgr -c "create hook check_licenses_mapping event=queuejob"
+    /opt/pbs/bin/qmgr -c "import hook check_licenses_mapping application/x-python default /apps/soca/${SOCA_CONFIGURATION}/cluster_hooks/queuejob/check_licenses_mapping.py"
+
+    # Default Server config
+    /opt/pbs/bin/qmgr -c "create node ${SCHEDULER_HOSTNAME}"
+    /opt/pbs/bin/qmgr -c "set node ${SCHEDULER_HOSTNAME} queue = workq"
+    /opt/pbs/bin/qmgr -c "set server flatuid=true"
+    /opt/pbs/bin/qmgr -c "set server job_history_enable=1"
+    /opt/pbs/bin/qmgr -c "set server job_history_duration = 72:00:00"
+    /opt/pbs/bin/qmgr -c "set server scheduler_iteration = 30"
+    /opt/pbs/bin/qmgr -c "set server max_concurrent_provision = 5000"
+
+    # Default Queue Config
+    /opt/pbs/bin/qmgr -c "create queue low"
+    /opt/pbs/bin/qmgr -c "set queue low queue_type = Execution"
+    /opt/pbs/bin/qmgr -c "set queue low started = True"
+    /opt/pbs/bin/qmgr -c "set queue low enabled = True"
+    /opt/pbs/bin/qmgr -c "set queue low default_chunk.compute_node=tbd"
+    /opt/pbs/bin/qmgr -c "create queue normal"
+    /opt/pbs/bin/qmgr -c "set queue normal queue_type = Execution"
+    /opt/pbs/bin/qmgr -c "set queue normal started = True"
+    /opt/pbs/bin/qmgr -c "set queue normal enabled = True"
+    /opt/pbs/bin/qmgr -c "set queue normal default_chunk.compute_node=tbd"
+    /opt/pbs/bin/qmgr -c "create queue high"
+    /opt/pbs/bin/qmgr -c "set queue high queue_type = Execution"
+    /opt/pbs/bin/qmgr -c "set queue high started = True"
+    /opt/pbs/bin/qmgr -c "set queue high enabled = True"
+    /opt/pbs/bin/qmgr -c "set queue high default_chunk.compute_node=tbd"
+    /opt/pbs/bin/qmgr -c "create queue job-shared"
+    /opt/pbs/bin/qmgr -c "set queue job-shared queue_type = Execution"
+    /opt/pbs/bin/qmgr -c "set queue job-shared started = True"
+    /opt/pbs/bin/qmgr -c "set queue job-shared enabled = True"
+    /opt/pbs/bin/qmgr -c "set queue job-shared default_chunk.compute_node=tbd"
+    /opt/pbs/bin/qmgr -c "create queue test"
+    /opt/pbs/bin/qmgr -c "set queue test queue_type = Execution"
+    /opt/pbs/bin/qmgr -c "set queue test started = True"
+    /opt/pbs/bin/qmgr -c "set queue test enabled = True"
+    /opt/pbs/bin/qmgr -c "set queue test default_chunk.compute_node=tbd"
+    /opt/pbs/bin/qmgr -c "create queue alwayson"
+    /opt/pbs/bin/qmgr -c "set queue alwayson queue_type = Execution"
+    /opt/pbs/bin/qmgr -c "set queue alwayson started = True"
+    /opt/pbs/bin/qmgr -c "set queue alwayson enabled = True"
+    /opt/pbs/bin/qmgr -c "set server default_queue = normal"
+
+    # Add compute_node to list of required resource
+    sed -i 's/resources: "ncpus, mem, arch, host, vnode, aoe, eoe"/resources: "ncpus, mem, arch, host, vnode, aoe, eoe, compute_node"/g' /var/spool/pbs/sched_priv/sched_config
+
+    cat <<EOT >> /apps/soca/${SOCA_CONFIGURATION}/cluster_manager/orchestrator/settings/queue_mapping.yml
+# This manage automatic provisioning for your queues
+# These are default values. Users can override them at job submission
+# https://awslabs.github.io/scale-out-computing-on-aws/tutorials/create-your-own-queue/
+queue_type:
+  compute:
+    queues: ["high", "normal", "low"]
+    # Uncomment to limit the number of concurrent running jobs
+    # max_running_jobs: 50
+    # Uncomment to limit the number of concurrent running instances
+    # max_provisioned_instances: 30
+    # Queue ACLs:  https://awslabs.github.io/scale-out-computing-on-aws/tutorials/manage-queue-acls/
+    allowed_users: [] # empty list = all users can submit job
+    excluded_users: [] # empty list = no restriction, ["*"] = only allowed_users can submit job
+    # Queue mode (can be either fifo or fairshare)
+    # queue_mode: "fifo"
+    # Instance types restrictions: https://awslabs.github.io/scale-out-computing-on-aws/security/manage-queue-instance-types/
+    allowed_instance_types: [] # Empty list, all EC2 instances allowed. You can restrict by instance type (Eg: ["c5.4xlarge"]) or instance family (eg: ["c5"])
+    excluded_instance_types: [] # Empty list, no EC2 instance types prohibited.  You can restrict by instance type (Eg: ["c5.4xlarge"]) or instance family (eg: ["c5"])
+    # List of parameters user can not override: https://awslabs.github.io/scale-out-computing-on-aws/security/manage-queue-restricted-parameters/
+    restricted_parameters: []
+    # Scaling mode (can be either single_job, or multiple_jobs): single_job runs a single job per EC2 instance, multiple_jobs allows running multiple jobs on the same EC2 instance
+    scaling_mode: "single_job" # Allowed values: single_job, multiple_jobs
+    # List of additional security groups / IAM instance profile that can be used https://awslabs.github.io/scale-out-computing-on-aws/security/use-custom-sgs-roles/
+    allowed_security_group_ids: []
+    allowed_instance_profiles: []
+    # Default job parameters: https://awslabs.github.io/scale-out-computing-on-aws/tutorials/integration-ec2-job-parameters/
+    # instance_ami: "$SOCA_INSTALL_AMI" # If you want to enforce a default AMI, make sure it match value of base_os
+    # base_os: "$SOCA_BASE_OS" # To enforce a specific operating system for your HPC nodes
+    instance_type: "c6i.large" # Required
+    ht_support: "false"
+    root_size: "40"
+    #scratch_size: "100"
+    #scratch_iops: "3600"
+    #efa_support: "false"
+    # .. Refer to the doc for more supported parameters
+  job-shared:
+    queues: ["job-shared"]
+    # Uncomment to limit the number of concurrent running jobs
+    # max_running_jobs: 50
+    # Queue ACLs:  https://awslabs.github.io/scale-out-computing-on-aws/tutorials/manage-queue-acls/
+    allowed_users: [] # empty list = all users can submit job
+    excluded_users: [] # empty list = no restriction, ["*"] = only allowed_users can submit job
+    # Queue mode (can be either fifo or fairshare)
+    # queue_mode: "fifo"
+    # Instance types restrictions: https://awslabs.github.io/scale-out-computing-on-aws/security/manage-queue-instance-types/
+    allowed_instance_types: [] # Empty list, all EC2 instances allowed. You can restrict by instance type (Eg: ["c5.4xlarge"]) or instance family (eg: ["c5"])
+    excluded_instance_types: [] # Empty list, no EC2 instance types prohibited.  You can restrict by instance type (Eg: ["c5.4xlarge"]) or instance family (eg: ["c5"])
+    # List of parameters user can not override: https://awslabs.github.io/scale-out-computing-on-aws/security/manage-queue-restricted-parameters/
+    restricted_parameters: []
+    # Default job parameters: https://awslabs.github.io/scale-out-computing-on-aws/tutorials/integration-ec2-job-parameters/
+    # Scaling mode (can be either single_job, or multiple_jobs): single_job runs a single job per EC2 instance, multiple_jobs allows running multiple jobs on the same EC2 instance
+    scaling_mode: "multiple_jobs" # Allowed values: single_job, multiple_jobs
+    instance_type: "c6i.large+c6i.xlarge+c6i.2xlarge" # Required
+    # instance_ami: "$SOCA_INSTALL_AMI" # If you want to enforce a default AMI, make sure it match value of base_os
+    # base_os: "$SOCA_BASE_OS" # To enforce a specific operating system for your HPC nodes
+    # Terminate when idle: The value specifies the default duration (in mins) where the compute instances would be terminated after being detected as free (no jobs running) for N consecutive minutes
+    terminate_when_idle: 3 # Required when scaling_mode is set to multiple_jobs
+    ht_support: "true"
+    placement_group: "false"
+    root_size: "40"
+    # .. Refer to the doc for more supported parameters
+  test:
+    queues: ["test"]
+    # Uncomment to limit the number of concurrent running jobs
+    # max_running_jobs: 50
+    # Uncomment to limit the number of concurrent running instances
+    # max_provisioned_instances: 30
+    # Queue ACLs:  https://awslabs.github.io/scale-out-computing-on-aws/tutorials/manage-queue-acls/
+    allowed_users: [] # empty list = all users can submit job
+    excluded_users: [] # empty list = no restriction, ["*"] = only allowed_users can submit job
+    # Queue mode (can be either fifo or fairshare)
+    # queue_mode: "fifo"
+    # Instance types restrictions: https://awslabs.github.io/scale-out-computing-on-aws/security/manage-queue-instance-types/
+    allowed_instance_types: [] # Empty list, all EC2 instances allowed. You can restrict by instance type (Eg: ["c5.4xlarge"]) or instance family (eg: ["c5"])
+    excluded_instance_types: [] # Empty list, no EC2 instance types prohibited.  You can restrict by instance type (Eg: ["c5.4xlarge"]) or instance family (eg: ["c5"])
+    # List of parameters user can not override: https://awslabs.github.io/scale-out-computing-on-aws/security/manage-queue-restricted-parameters/
+    restricted_parameters: []
+    # List of additional security groups / IAM instance profile that can be used https://awslabs.github.io/scale-out-computing-on-aws/security/use-custom-sgs-roles/
+    allowed_security_group_ids: []
+    allowed_instance_profiles: []
+    # Default job parameters: https://awslabs.github.io/scale-out-computing-on-aws/tutorials/integration-ec2-job-parameters/
+    # instance_ami: "$SOCA_INSTALL_AMI" # If you want to enforce a default AMI, make sure it match value of base_os
+    # base_os: "$SOCA_BASE_OS" # To enforce a specific operating system for your HPC nodes
+    instance_type: "c6i.large"  # Required
+    ht_support: "false"
+    root_size: "40"
+    #spot_price: "auto"
+    #placement_group: "false"
+    # .. Refer to the doc for more supported parameters
+EOT
+ log_info "[END] openpbs_configure_server .. "
+}
+
+openpbs_configure_server
+{% endif %}
+# End: OpenPBS Configure Server

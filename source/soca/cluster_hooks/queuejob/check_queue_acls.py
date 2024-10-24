@@ -36,8 +36,10 @@ if (
     )
 import yaml
 
+pbs.logmsg(pbs.LOG_DEBUG, f"queue_acl: PyYAML version: {yaml.__version__}")
 
-def find_users_in_ldap_group(group_dn):
+
+def find_users_in_ldap_group(group_dn: str) -> list:
     if os.path.isdir(
         "/apps/soca/%SOCA_CONFIGURATION/cluster_node_bootstrap/ad_automation"
     ):
@@ -51,16 +53,23 @@ def find_users_in_ldap_group(group_dn):
             "r",
         ) as f:
             ad_user = f.read()
+
         with open(
             "/apps/soca/%SOCA_CONFIGURATION/cluster_node_bootstrap/ad_automation/join_domain.cache",
             "r",
         ) as f:
             ad_password = f.read()
+
         with open(
             "/apps/soca/%SOCA_CONFIGURATION/cluster_node_bootstrap/ad_automation/domain_name.cache",
             "r",
         ) as f:
             domain_name = f.read()
+
+        pbs.logmsg(
+            pbs.LOG_DEBUG,
+            f"queue_acl: find_users_in_ldap_group: Domain: {domain_name}  / ad_user: {ad_user}",
+        )
         ldapsearch = (
             "ldapsearch -x -h "
             + domain_name
@@ -102,15 +111,18 @@ e = pbs.event()
 j = e.job
 job_owner = str(e.requestor)
 job_queue = "normal" if str(j.queue) == "" else str(j.queue)
-pbs.logmsg(pbs.LOG_DEBUG, "queue_acl: job_queue " + str(job_queue))
+pbs.logmsg(pbs.LOG_DEBUG, f"queue_acl: owner: {job_owner} job_queue {job_queue}")
+
 
 # Validate queue_mapping YAML is not malformed
 try:
-    queue_settings_file = (
-        "/apps/soca/%SOCA_CONFIGURATION/cluster_manager/settings/queue_mapping.yml"
-    )
+    queue_settings_file = "/apps/soca/%SOCA_CONFIGURATION/cluster_manager/orchestrator/settings/queue_mapping.yml"
     queue_reader = open(queue_settings_file, "r")
     docs = yaml.safe_load(queue_reader)
+
+except SystemExit:
+    pass
+
 except Exception as err:
     message = (
         "Job cannot be submitted. Unable to read "
@@ -121,95 +133,136 @@ except Exception as err:
     e.reject(message)
 
 # Validate Queue ACLs
-for doc in docs.values():
-    for k, v in doc.items():
-        queues = v["queues"]
-        if job_queue in queues:
-            allowed_users = []
-            excluded_users = []
 
-            if "allowed_users" not in v.keys():
-                e.reject(
-                    "allowed_users is not specified on "
-                    + queue_settings_file
-                    + ". See https://awslabs.github.io/scale-out-computing-on-aws/tutorials/manage-queue-acls/ for examples"
-                )
+try:
+    if job_owner in ["Scheduler", "PBS_Server", "pbs_mom"]:
+        e.accept()
 
-            if "excluded_users" not in v.keys():
-                e.reject(
-                    "excluded_users is not specified on "
-                    + queue_settings_file
-                    + ". See https://awslabs.github.io/scale-out-computing-on-aws/tutorials/manage-queue-acls/ for examples"
-                )
+    for doc in docs.values():
+        for k, v in doc.items():
+            queues = v["queues"]
+            if job_queue in queues:
+                allowed_users = []
+                excluded_users = []
 
-            # ensure expected keys are valid lists
-            if isinstance(v["allowed_users"], list) is not True:
-                e.reject(
-                    "allowed_users ("
-                    + queue_settings_file
-                    + ") must be a list. Detected: "
-                    + str(type(v["allowed_users"]))
-                )
-            if isinstance(v["excluded_users"], list) is not True:
-                e.reject(
-                    "excluded_users ("
-                    + queue_settings_file
-                    + ") must be a list. Detected: "
-                    + str(type(v["excluded_users"]))
-                )
-
-            # Retrieve list of users that can submit job to the queue
-            if "allowed_users" in v.keys():
-                for user in v["allowed_users"]:
-                    if "cn=" in user.lower():
-                        allowed_users = allowed_users + find_users_in_ldap_group(user)
-                    else:
-                        allowed_users.append(user)
-                # pbs.logmsg(pbs.LOG_DEBUG, 'queue_acl: allowed_users  ' + str(allowed_users))
-
-            else:
-                message = "allowed_users directive not detected on " + str(
-                    queue_settings_file
-                )
-                e.reject(message)
-
-            # Retrieve list of users that cannot submit job to the queue
-            if "excluded_users" in v.keys():
-                for user in v["excluded_users"]:
-                    if "cn=" in user.lower():
-                        excluded_users = allowed_users + find_users_in_ldap_group(user)
-                    else:
-                        excluded_users.append(user)
-                    # pbs.logmsg(pbs.LOG_DEBUG, 'queue_acl: excluded_users  ' + str(excluded_users))
-            else:
-                message = "excluded_users directive not detected on " + str(
-                    queue_settings_file
-                )
-                e.reject(message)
-
-            # Then verify user is authorized to submit a job to the queue
-            if excluded_users.__len__() == 0 and allowed_users.__len__() == 0:
-                e.accept()
-            else:
-                if excluded_users[0] == "*" and job_owner not in allowed_users:
-                    message = (
-                        job_owner
-                        + " is not authorized to use submit this job on the queue "
-                        + job_queue
-                        + ". Contact your HPC admin and update "
+                if "allowed_users" not in v.keys():
+                    e.reject(
+                        "allowed_users is not specified on "
                         + queue_settings_file
+                        + ". See https://awslabs.github.io/scale-out-computing-on-aws/tutorials/manage-queue-acls/ for examples"
+                    )
+
+                if "excluded_users" not in v.keys():
+                    e.reject(
+                        "excluded_users is not specified on "
+                        + queue_settings_file
+                        + ". See https://awslabs.github.io/scale-out-computing-on-aws/tutorials/manage-queue-acls/ for examples"
+                    )
+
+                # ensure expected keys are valid lists
+                if isinstance(v["allowed_users"], list) is not True:
+                    e.reject(
+                        "allowed_users ("
+                        + queue_settings_file
+                        + ") must be a list. Detected: "
+                        + str(type(v["allowed_users"]))
+                    )
+                if isinstance(v["excluded_users"], list) is not True:
+                    e.reject(
+                        "excluded_users ("
+                        + queue_settings_file
+                        + ") must be a list. Detected: "
+                        + str(type(v["excluded_users"]))
+                    )
+
+                # Retrieve list of users that can submit job to the queue
+                if "allowed_users" in v.keys():
+                    for user in v["allowed_users"]:
+                        if "cn=" in user.lower():
+                            allowed_users = allowed_users + find_users_in_ldap_group(
+                                group_dn=user
+                            )
+                        else:
+                            allowed_users.append(user)
+                    # pbs.logmsg(pbs.LOG_DEBUG, 'queue_acl: allowed_users  ' + str(allowed_users))
+
+                else:
+                    message = "allowed_users directive not detected on " + str(
+                        queue_settings_file
                     )
                     e.reject(message)
 
-                if job_owner in allowed_users:
+                # Retrieve list of users that cannot submit job to the queue
+                if "excluded_users" in v.keys():
+                    for user in v["excluded_users"]:
+                        if "cn=" in user.lower():
+                            excluded_users = excluded_users + find_users_in_ldap_group(
+                                group_dn=user
+                            )
+                        else:
+                            excluded_users.append(user)
+                        # pbs.logmsg(pbs.LOG_DEBUG, 'queue_acl: excluded_users  ' + str(excluded_users))
+                else:
+                    message = "excluded_users directive not detected on " + str(
+                        queue_settings_file
+                    )
+                    e.reject(message)
+
+                # Then verify user is authorized to submit a job to the queue
+                pbs.logmsg(
+                    pbs.LOG_DEBUG,
+                    f"queue_acl: determine processing - job_owner {job_owner} . Allow: {allowed_users} / Excluded: {excluded_users}",
+                )
+                if len(excluded_users) == 0 and len(allowed_users) == 0:
+                    pbs.logmsg(
+                        pbs.LOG_DEBUG,
+                        "queue_acl: no user restriction detected - allowing job",
+                    )
                     e.accept()
+                else:
+                    if excluded_users[0] == "*" and job_owner not in allowed_users:
+                        pbs.logmsg(
+                            pbs.LOG_DEBUG,
+                            "queue_acl: user is not authorized (NOT in allowed_users) - denying job",
+                        )
+                        message = (
+                            job_owner
+                            + " is not authorized to use submit this job on the queue "
+                            + job_queue
+                            + ". Contact your HPC admin and update "
+                            + queue_settings_file
+                        )
+                        e.reject(message)
 
-                if job_owner in excluded_users:
-                    message = (
-                        job_owner
-                        + " is not authorized to use submit this job on the queue "
-                        + job_queue
-                        + ". Contact your HPC admin and update "
-                        + queue_settings_file
-                    )
-                    e.reject(message)
+                    if job_owner in allowed_users:
+                        pbs.logmsg(
+                            pbs.LOG_DEBUG,
+                            "queue_acl: user is authorized (in allowed_users) - allowing job",
+                        )
+                        e.accept()
+
+                    if job_owner in excluded_users:
+                        message = (
+                            job_owner
+                            + " is not authorized to use submit this job on the queue "
+                            + job_queue
+                            + ". Contact your HPC admin and update "
+                            + queue_settings_file
+                        )
+                        pbs.logmsg(
+                            pbs.LOG_DEBUG,
+                            "queue_acl: user is not authorized (in excluded_users) - denying job",
+                        )
+                        e.reject(message)
+
+except SystemExit:
+    pass
+
+except Exception as err:
+    message = (
+        "Job cannot be submitted. Unable to read "
+        + queue_settings_file
+        + ". Double check the YAML syntax is correct and you don't have any invalid indent.\n Error: "
+        + str(err)
+    )
+#    e.reject(message)

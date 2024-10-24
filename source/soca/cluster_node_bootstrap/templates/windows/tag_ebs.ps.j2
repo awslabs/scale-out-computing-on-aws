@@ -1,0 +1,40 @@
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# Begin - Tag EBS Disk as it's not supported by CFN
+function Tag-EBS {
+    Write-ToLog -Message "Tag EBS disks manually as CFN ASG does not support it"
+    $clusterName = "{{ context.get('/configuration/ClusterId') }}"
+    Import-Module AWSPowerShell
+    $tagName = New-Object Amazon.EC2.Model.Tag
+    $tagName.Key = "Name"
+    $tagName.Value = -join($clusterName, "-dcv-", "{{ context.get('/job/JobOwner') }}", "-", "{{ context.get('/job/JobId') }}")
+
+    $tagOwner = New-Object Amazon.EC2.Model.Tag
+    $tagOwner.Key = "soca:JobOwner"
+    $tagOwner.Value = "{{ context.get('/job/JobOwner') }}"
+
+    $tagProject = New-Object Amazon.EC2.Model.Tag
+    $tagProject.Key = "soca:JobProject"
+    $tagProject.Value = "desktop"
+
+    $tagNodeType = New-Object Amazon.EC2.Model.Tag
+    $tagNodeType.Key = "soca:NodeType"
+    $tagNodeType.Value = "dcv_node"
+
+    $tagBaseOs = New-Object Amazon.EC2.Model.Tag
+    $tagBaseOs.Key = "soca:BaseOS"
+    $tagBaseOs.Value = "windows"
+
+    foreach ($Path in (Get-Disk).Path)
+    {
+        $SerialNumber = (Get-Disk -Path $Path).SerialNumber
+        if ($SerialNumber -clike 'vol*')
+        {
+            $EbsVolumeId = $SerialNumber.Substring(0, 20).Replace("vol", "vol-")
+            New-EC2Tag -Resource $EbsVolumeId -Tag $tagName,$tagOwner,$tagProject
+        }
+    }
+}
+Tag-EBS
+# End - Tag EBS Disk

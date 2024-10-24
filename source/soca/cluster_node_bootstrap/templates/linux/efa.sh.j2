@@ -1,0 +1,44 @@
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# Begin: EFA Installer
+{% if context.get("/configuration/BaseOS") in ("amazonlinux2", "amazonlinux2023", "centos7", "rhel7", "rhel8", "rhel9", "rocky8", "rocky9") %}
+function efa_install () {
+  log_info "# Begin: EFA Installer"
+  local EFA_VERSION="{{ context.get("/system/efa/version") }}"
+  local EFA_URL="{{ context.get("/system/efa/url") }}"
+  local EFA_TGZ="{{ context.get("/system/efa/tgz") }}"
+  local EFA_SHA256="{{ context.get("/system/efa/sha256") }}"
+  pushd /root
+  wget ${EFA_URL}
+
+  if [[ $(sha256sum "${EFA_TGZ}" | awk '{print $1}') != "${EFA_SHA256}" ]];  then
+      log_error "FATAL ERROR: Checksum for EFA failed. File may be compromised." > /etc/motd
+      exit 1
+  fi
+
+  if [[ -d "aws-efa-installer" ]]; then
+    rm -rf "aws-efa-installer"
+  else
+    tar xzf "${EFA_TGZ}"
+  fi
+
+  {% if context.get("/configuration/BaseOS") in ("rocky8", "rocky9", "rhel9", "amazonlinux2023") %}
+    log_info "Removing existing packages to avoid dependency conflicts"
+    packages_remove libibverbs
+  {% endif %}
+
+
+  cd aws-efa-installer
+  /bin/bash efa_installer.sh -y >> efa_installer.log 2>&1
+  popd
+  set_reboot_required "Post-EFA installation"
+}
+
+if ! verify_package_installed efa; then
+  efa_install
+else
+  log_info "EFA is already installed on this machine. Please uninstall it first or use a different AMI"
+fi
+{% endif %}
+# End: EFA Installer

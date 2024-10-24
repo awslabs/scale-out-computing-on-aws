@@ -36,16 +36,40 @@ def get_input(
     # This allows for 'hidden' answers that are acceptable.
     # Default to old behavior if we see an incoming list[] type
     if isinstance(expected_answers, list):
-        expected_answers = {
-            _answer: {'visible': True} for _answer in expected_answers
-        }
+        _new_expected_answers = {}
+        # convert ints to str in the dict if needed
+        for _answer in expected_answers:
+            if isinstance(_answer, int):
+                _ans = str(_answer)
+            else:
+                _ans = _answer
+            _new_expected_answers[_ans] = {'visible': True}
+
+        expected_answers = _new_expected_answers
 
     # Don't display if there are over 30 expected answers
     # This may have to be disabled for regions - which we will probably always want a display to the end-user
     if len(expected_answers) > 30:
         show_expected_answers = False
 
-    response = None
+    if expected_type is str:
+        response = ""
+    elif expected_type is int:
+        response = 0
+    elif expected_type is float:
+        response = 0.0
+    elif expected_type is bool:
+        response = False
+    elif expected_type is list:
+        response = []
+    elif expected_type is dict:
+        response = {}
+    elif expected_type is None:
+        response = None
+    else:
+        print(f"Unsupported type: {expected_type}")
+        sys.exit(1)
+
     if specified_value:
         # Value specified, validating user provided input
         if expected_answers:
@@ -81,22 +105,29 @@ def get_input(
         # # Value not specified, prompt user
         # while isinstance(response, expected_type) is False:
 
-        # if expected_answers and show_expected_answers:
-        #     _ea_string: str = ""
-        #     for _potential_answer, _options in expected_answers.items():
-        #         _is_answer_visible: bool = _options.get('visible', False)
-        #         #print(f"DEBUG - Potential answer: {_potential_answer} - Visible: {_is_answer_visible}")
-        #         if _is_answer_visible:
-        #             _ea_string += f"{_potential_answer}, "
-        #     _ea_string = _ea_string.rstrip(", ")
+        _visible_choices = []
+        _internal_choices = expected_answers if expected_answers else None
 
-        # print(f"DEBUG - Asking the question now... ")
-        # print(f"DEBUG - Expected answers: {expected_answers}")
+        if expected_answers:
+            _ea_string: str = ""
+            for _potential_answer, _options in expected_answers.items():
+                _is_answer_visible: bool = _options.get('visible', False)
+                # print(f"DEBUG - Potential answer: {_potential_answer} - Visible: {_is_answer_visible}")
+                if _is_answer_visible:
+                    _visible_choices.append(_potential_answer)
+                    _ea_string += f"{_potential_answer}, "
+            _ea_string = _ea_string.rstrip(", ")
 
-        _choices = list(map(str, expected_answers.keys())) if expected_answers else None
+        # reset _choices to None if empty
+        if not _visible_choices:
+            _visible_choices = None
+
+        # print(f"DEBUG - Expected answers: {expected_answers}   Visible Choices List: {_visible_choices}")
+        # print(f"DEBUG - Visible Choices now: {_visible_choices}")
 
         # Determine our default
-        _default_choice = _choices[0] if expected_answers else None
+        # response is our default response based on the expected_type - so we can use that here as well
+        _default_choice = _visible_choices[0] if expected_answers else response
         # Scan the expected answers and take the first default
         for _ch in expected_answers:
             if expected_answers[_ch].get('default', False):
@@ -107,28 +138,34 @@ def get_input(
         # print(f"DEBUG - Prompt: {prompt}")
 
         try:
+            # print(f"DEBUG - Entering question loop - choices now: {_visible_choices}")
             while True:
                 if expected_type is int:
+                    # print(f"DEBUG - IntPrompt.ask now: Resp= {response} , prompt={prompt}  - Internal_choices == {_internal_choices}")
                     response = IntPrompt.ask(
                         prompt=prompt,
-                        choices=_choices,
-                        default=int(_default_choice) if isinstance(_default_choice, str) else '',
+                        choices=list(map(str, _internal_choices)),
+                        default=int(_default_choice) if isinstance(_default_choice, str) else None,
                         show_choices=show_expected_answers,
                         show_default=show_default_answer,
                     )
                     # print(f"DEBUG - Question now: {response}")
 
                 else:
+                    # print(f"DEBUG - Prompt.ask now: Resp= {response} , prompt={prompt}")
                     response = Prompt.ask(
-                        prompt=f"[{color}] >> {prompt}[default]",
-                        choices=_choices,
+                        # prompt=f"[{color}] >> {prompt}[default]",
+                        prompt=prompt,
+                        choices=_internal_choices,
                         default=_default_choice,
                         password=hide,
                         show_choices=show_expected_answers,
                         show_default=show_default_answer,
                     )
 
-                if _choices is None or str(response) in _choices:
+                # print(f"DEBUG - User selected: ({response}) - From expected_answers: {expected_answers}")
+                # Did the user answer the question?
+                if _visible_choices is None or str(response) in expected_answers:
                     break
         except Exception as e:
             print(f"Prompt ERROR - {e}")

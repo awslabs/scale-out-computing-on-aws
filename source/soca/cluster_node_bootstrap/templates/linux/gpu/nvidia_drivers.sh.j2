@@ -1,0 +1,82 @@
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# Begin: Install GPU Drivers - Is GPU Instance Type
+function install_nvidia_grid_drivers () {
+  which nvidia-smi > /dev/null 2>&1
+  if [[ "$?" == "0" ]]; then
+    log_info "GPU driver already installed. Skip."
+    return 0
+  fi
+
+  log_info "Installing NVIDIA GRID Drivers"
+  mkdir -p /root/soca_bootstrap/gpu_drivers
+  {% if context.get("/configuration/BaseOS") in ("rhel8", "rhel9", "rocky8", "rocky9") %}
+    packages_install vulkan-loader
+  {% endif %}
+
+  pushd /root/soca_bootstrap/gpu_drivers
+  rm -rf NVIDIA-Linux-x86_64*.run || log_info "No previous .run file detected"
+  local DRIVER_BUCKET_REGION=$(curl -s --head "{{ context.get("/system/gpu/gpu_settings/nvidia/grid_drivers/s3_bucket_url") }}" | grep bucket-region | awk '{print $2}' | tr -d '\r\n')
+  aws_cli --region ${DRIVER_BUCKET_REGION} s3 cp --quiet --recursive "{{ context.get("/system/gpu/gpu_settings/nvidia/grid_drivers/s3_bucket_path") }}" .
+  local x_server_pid=$(cat /tmp/.X0-lock)
+  if [[ ! -z "${x_server_pid}" ]]; then
+    kill $x_server_pid
+  fi
+  log_info "Installing NVIDIA Drivers with  NVIDIA-Linux-x86_64*.run --no-precompiled-interface --run-nvidia-xconfig --no-questions --accept-license --silent --no-unified-memory"
+  /bin/bash NVIDIA-Linux-x86_64*.run --no-precompiled-interface \
+   --run-nvidia-xconfig \
+   --no-questions \
+   --accept-license \
+   --silent
+  log_info "X server configuration for GPU start..."
+  rm -rf /etc/X11/XF86Config*
+  local NVIDIA_XCONFIG=$(which nvidia-xconfig)
+  ${NVIDIA_XCONFIG} --preserve-busid --enable-all-gpus
+  log_info "X server configuration for GPU end..."
+  set_reboot_required "Installed NVIDIA Grid Driver"
+  popd
+}
+
+
+function install_nvidia_public_tesla_drivers() {
+  local DRIVER_VERSION="${1}"
+  local MACHINE=$(uname -m)
+  local DRIVER_URL_ENDPOINT="{{ context.get("/system/gpu/gpu_settings/nvidia/tesla_drivers/public_driver_url_endpoint") }}"
+
+  which nvidia-smi > /dev/null 2>&1
+  if [[ "$?" == "0" ]]; then
+    log_info "GPU driver already installed. Skip."
+    return 0
+  fi
+
+  {% if context.get("/configuration/BaseOS") in ("rhel8", "rhel9", "rocky8", "rocky9") %}
+    packages_install vulkan-loader
+  {% endif %}
+
+  mkdir -p /root/soca_bootstrap/gpu_drivers
+  pushd /root/soca_bootstrap/gpu_drivers
+  rm -rf NVIDIA-Linux-*.run || echo "No previous .run file detected"
+  curl -fSsl -O ${DRIVER_URL_ENDPOINT}
+
+  local x_server_pid=$(cat /tmp/.X0-lock)
+  if [[ ! -z "${x_server_pid}" ]]; then
+    kill $x_server_pid
+  fi
+
+  log_info "Installing NVIDIA Drivers with  NVIDIA-Linux-x86_64*.run --no-precompiled-interface --run-nvidia-xconfig --no-questions --accept-license --silent --no-unified-memory"
+
+  /bin/bash NVIDIA-Linux-x86_64*.run --no-precompiled-interface \
+   --run-nvidia-xconfig \
+   --no-questions \
+   --accept-license \
+   --silent
+
+  log_info "X server configuration for GPU start..."
+  rm -rf /etc/X11/XF86Config*
+  local NVIDIAXCONFIG=$(which nvidia-xconfig)
+  ${NVIDIAXCONFIG} --preserve-busid --enable-all-gpus
+  log_info "X server configuration for GPU end..."
+  set_reboot_required "Installed NVIDIA Public Driver"
+  popd
+}

@@ -1,0 +1,16 @@
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# Begin: Disable Hyperthreading
+{% if context.get("/configuration/BaseOS") in ("amazonlinux2", "amazonlinux2023", "centos7", "rhel7", "rhel8", "rhel9", "rocky8", "rocky9") %}
+function disable_hyperthreading () {
+  log_info "# Begin: Disable Hyperthreading"
+  for cpunum in $(awk -F'[,-]' '{print $2}' /sys/devices/system/cpu/cpu*/topology/thread_siblings_list | sort -un);
+        do
+            echo 0 > /sys/devices/system/cpu/cpu$cpunum/online;
+        done
+  log_info "# End: Disable Hyperthreading"
+}
+disable_hyperthreading
+{% endif %}
+# End: Disable Hyperthreading

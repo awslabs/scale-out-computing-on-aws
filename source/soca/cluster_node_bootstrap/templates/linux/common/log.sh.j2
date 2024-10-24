@@ -1,0 +1,25 @@
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# Begin: Log Functions. Added via common.j2
+function log_info() {
+  echo "[$(date +"%Y-%m-%d %H:%M:%S,%3N")] [INFO] ${@}"
+}
+
+function log_warning() {
+  echo "[$(date +"%Y-%m-%d %H:%M:%S,%3N")] [WARNING] ${@}"
+}
+
+function log_error() {
+  echo "[$(date +"%Y-%m-%d %H:%M:%S,%3N")] [ERROR] ${@}"
+}
+
+function log_debug() {
+  echo "[$(date +"%Y-%m-%d %H:%M:%S,%3N")] [DEBUG] ${@}"
+}
+
+function exit_fail () {
+   echo "[$(date +"%Y-%m-%d %H:%M:%S,%3N")] [FATAL] ${@}"
+  exit 1
+}
+# End: Log Functions

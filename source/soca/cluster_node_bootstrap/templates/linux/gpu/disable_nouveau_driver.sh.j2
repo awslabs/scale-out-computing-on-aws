@@ -1,0 +1,42 @@
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# Begin: Disable NVIDIA Nouveau Drivers
+function disable_nvidia_nouveau () {
+  log_info "Disabling the nouveau open source driver for NVIDIA graphics cards"
+
+  {% if context.get("/configuration/BaseOS") in ("amazonlinux2", "amazonlinux2023") %}
+    log_info "NVIDIA installer automatically disable NOUVEAU driver, no extra configuration is needed"
+
+  {% elif context.get("/configuration/BaseOS") == "rocky9" %}
+   rm -rf /etc/modprobe.d/blacklist-nouveau.conf
+   echo "blacklist nouveau" > /etc/modprobe.d/blacklist-nouveau.conf
+   echo "options nouveau modeset=0" >> /etc/modprobe.d/blacklist-nouveau.conf
+   echo "omit_drivers+=\" nouveau \"" >> /etc/dracut.conf.d/nouveau.conf
+   dracut --force
+   echo GRUB_CMDLINE_LINUX="rdblacklist=nouveau nouveau.modeset=0" >> /etc/default/grub
+   grub2-mkconfig -o /boot/grub2/grub.cfg
+
+  {% else %}
+    grep -q "rdblacklist=nouveau" /etc/default/grub
+    if [[ "$?" != "0" ]]; then
+      cat << EOF | tee --append /etc/modprobe.d/blacklist.conf
+blacklist vga16fb
+blacklist nouveau
+blacklist rivafb
+blacklist nvidiafb
+blacklist rivatv
+EOF
+    echo GRUB_CMDLINE_LINUX="rdblacklist=nouveau" >> /etc/default/grub
+    grub2-mkconfig -o /boot/grub2/grub.cfg
+  else
+    log_info "rdblacklist=nouveau already exist in /etc/default/grub, ignoring ..."
+  fi
+
+  {% endif %}
+
+  set_reboot_required "Disable NVIDIA Nouveau Drivers"
+
+}
+disable_nvidia_nouveau
+# End: Disable NVIDIA Nouveau Drivers

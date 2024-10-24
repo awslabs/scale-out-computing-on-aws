@@ -1,0 +1,58 @@
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# Begin: Install DCV Pre-Requisite
+
+function install_dcv_prerequisites () {
+
+  if ! verify_package_installed gnome-terminal; then
+    {% if context.get("/configuration/BaseOS") == "amazonlinux2" %}
+      log_info "Installing MATE Desktop for ALI2"
+      packages_install gdm \
+       gnome-session \
+       gnome-classic-session \
+       gnome-session-xsession \
+       gnome-terminal \
+       gnu-free-fonts-common \
+       gnu-free-mono-fonts \
+       gnu-free-sans-fonts \
+       gnu-free-serif-fonts \
+       xorg-x11-server-Xorg \
+       xorg-x11-server-utils \
+       xorg-x11-utils
+
+    {% elif context.get("/configuration/BaseOS") == "rhel7" %}
+      packages_generic_command groups mark convert
+      packages_generic_command groupinstall "Server with GUI" -y --skip-broken
+
+    {% elif context.get("/configuration/BaseOS") == "centos7" %}
+      packages_generic_command groups mark convert
+      packages_generic_command groupinstall "GNOME Desktop" -y --skip-broken
+
+    {% elif context.get("/configuration/BaseOS") in ("rhel8", "rhel9", "rocky8", "rocky9") %}
+      packages_generic_command groupinstall "Server with GUI" -y --skip-broken --disablerepo=epel-cisco-openh264
+      sed -i 's/#WaylandEnable=false/WaylandEnable=false/' /etc/gdm/custom.conf
+      systemctl restart gdm
+      # The following is a workaround to disable the pop-up "Authentication required to refresh system repositories"
+      # see details in https://bugzilla.redhat.com/show_bug.cgi?id=1857654
+      echo "[Disable Package Management all Users]
+Identity=unix-user:*
+Action=org.freedesktop.packagekit.system-sources-refresh
+ResultAny=no
+ResultInactive=no
+ResultActive=no" > /etc/polkit-1/localauthority/50-local.d/repos.pkla
+      systemctl restart polkit
+      # The next commands remove the "System Not Registered" notification
+      # see details in https://access.redhat.com/solutions/6976776
+      sed -i 's,Exec=/usr/libexec/gsd-subman,#Exec=/usr/libexec/gsd-subman,' /etc/xdg/autostart/org.gnome.SettingsDaemon.Subscription.desktop
+      packages_remove subscription-manager-cockpit
+    {% else %}
+      log_info "No additional customization needed for this OS"
+    {% endif %}
+  else
+    log_info "Found gnome-terminal pre-installed... skipping dcv prereq installation..."
+  fi
+
+}
+install_dcv_prerequisites
+# End: Install DCV Pre-Requisite
