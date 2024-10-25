@@ -2322,8 +2322,8 @@ class SOCAInstall(Stack):
         self.soca_resources[f"fs_{fs_key}"] = efs.CfnFileSystem(
             self,
             id=f"EFS{fs_key.capitalize()}",
-            encrypted=True if _kms_key_id else False,
-            kms_key_id=_kms_key_id if _kms_key_id else None,
+            encrypted=True,
+            kms_key_id=_kms_key_id if _kms_key_id else 'alias/aws/elasticfilesystem',
             throughput_mode=get_config_key(
                 key_name=f"Config.storage.{fs_key}.efs.throughput_mode",
                 required=False,
