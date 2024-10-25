@@ -4331,12 +4331,12 @@ class SOCAInstall(Stack):
             security_groups=[self.soca_resources["nlb_sg"]],
             internet_facing=_nlb_public_bool,
             vpc_subnets=ec2.SubnetSelection(subnets=_nlb_isubnets_list),
-            deletion_protection=get_config_key(
-                key_name="Config.termination_protection",
-                expected_type=bool,
-                required=False,
-                default=True,
-            ),
+            #deletion_protection=get_config_key(
+            #    key_name="Config.termination_protection",
+            #    expected_type=bool,
+            #    required=False,
+            #    default=True,
+            #),
             cross_zone_enabled=get_config_key(
                 key_name="Config.network.cross_zone_enabled",
                 expected_type=bool,
