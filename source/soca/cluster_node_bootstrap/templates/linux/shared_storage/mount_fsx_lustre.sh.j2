@@ -42,10 +42,9 @@ function rhel_driver_install {
 
 function mount_fsx_lustre {
   log_info "Preparing FSx Lustre mount"
-  local FSX_ENDPOINT="${1}" # FSxL DNS
-  local MOUNT_POINT="${2}" # Local linux folder to use as mountpoint
-  local FSX_ID=$(echo "${FSX_ENDPOINT}" | cut -d. -f1)
-  local GET_FSX_MOUNT_NAME=$(echo "${FSX_ENDPOINT}" | cut -d"@tcp:/" -f2)
+  local ENDPOINT="${1}" # FSxL DNS
+  local MOUNT_POINT="${2}" # Local linux folder to use as mount point
+  local FSX_ID=$(echo "${ENDPOINT}" | cut -d. -f1)
   local KERNEL=$(uname -r)
   local MACHINE=$(uname -m)
 
@@ -57,19 +56,21 @@ function mount_fsx_lustre {
         log_error "FSx Lustre Not available yet .. trying again in 60 seconds, attempt ${LIFECYCLE_VERIFICATION}"
       fi
       if [[ ${LIFECYCLE_VERIFICATION} -eq 30 ]]; then
-          log_error "Unable to determine if the filesystem is in AVAILABLE state after 30 attempts. Exiting."
-          exit_fail
+          exit_fail "Unable to determine if the filesystem is in AVAILABLE state after 30 attempts. Exiting."
       fi
       sleep 60
     done
 
-  if [[ -z ${FSX_MOUNT_MOUNT_NAME} ]]; then
+  if [[ "${ENDPOINT}" == *"@tcp:/"* ]]; then
+    log_info "FSX Mount Name already specified"
+  else
     log_info "FSX Mount Name not specified, trying to retrieve it"
-    GET_FSX_MOUNT_NAME=$(aws_cli fsx describe-file-systems --file-system-ids "${FSX_ID}" --query FileSystems[].LustreConfiguration.MountName --output text)
-    log_info "Mount Name: ${GET_FSX_MOUNT_NAME}"
+    ENDPOINT+="@tcp:/$(aws_cli fsx describe-file-systems --file-system-ids "${FSX_ID}" --query FileSystems[].LustreConfiguration.MountName --output text)"
   fi
 
-  if grep -qF "${FSX_ENDPOINT}@tcp:/${GET_FSX_MOUNT_NAME} ${MOUNT_POINT}" /etc/fstab; then
+  log_info "Mount endpoint: ${ENDPOINT}"
+
+  if grep -qF "${ENDPOINT} ${MOUNT_POINT}" /etc/fstab; then
     log_error "This entry seems to already exist on /etc/fstab, skipping it"
     echo -n "success"
     return
@@ -131,8 +132,8 @@ function mount_fsx_lustre {
       log_info "FSx Lustre Driver already installed ..."
     fi
 
-    echo "${FSX_ENDPOINT}@tcp:/${GET_FSX_MOUNT_NAME} ${MOUNT_POINT} lustre defaults,noatime,flock,_netdev 0 0" >> /etc/fstab
-    log_info "Completed FSx Lustre mount for ${FSX_ENDPOINT} on ${MOUNT_POINT}"
+    echo "${ENDPOINT} ${MOUNT_POINT} lustre defaults,noatime,flock,_netdev 0 0" >> /etc/fstab
+    log_info "Completed FSx Lustre mount for ${ENDPOINT} on ${MOUNT_POINT}"
 }
 {% endif %}
 {% endif %}
