@@ -61,10 +61,10 @@
                   <div class="col-md-12">
                   <nav>
                       <div class="nav nav-tabs" id="nav-tab" role="tablist">
-                          <a class="nav-item nav-link active" id="nav-home-tab" data-toggle="tab" href="#nav-add" role="tab" aria-controls="nav-home" aria-selected="true">Create new application profile</a>
-                          <a class="nav-item nav-link" id="nav-contact-tab" data-toggle="tab" href="#nav-edit" role="tab" aria-controls="nav-contact" aria-selected="false">Edit application profile</a>
-                          <a class="nav-item nav-link" id="nav-contact-tab" data-toggle="tab" href="#nav-delete" role="tab" aria-controls="nav-delete" aria-selected="false">Delete application profile</a>
-                          <a class="nav-item nav-link" id="nav-contact-tab" data-toggle="tab" href="#nav-importexport" role="tab" aria-controls="nav-delete" aria-selected="false">Import/Export</a>
+                          <a class="nav-item nav-link active" id="nav-home-tab" data-bs-toggle="tab" href="#nav-add" role="tab" aria-controls="nav-home" aria-selected="true">Create new application profile</a>
+                          <a class="nav-item nav-link" id="nav-contact-tab" data-bs-toggle="tab" href="#nav-edit" role="tab" aria-controls="nav-contact" aria-selected="false">Edit application profile</a>
+                          <a class="nav-item nav-link" id="nav-contact-tab" data-bs-toggle="tab" href="#nav-delete" role="tab" aria-controls="nav-delete" aria-selected="false">Delete application profile</a>
+                          <a class="nav-item nav-link" id="nav-contact-tab" data-bs-toggle="tab" href="#nav-importexport" role="tab" aria-controls="nav-delete" aria-selected="false">Import/Export</a>
 
                       </div>
                   </nav>
@@ -79,12 +79,12 @@
                               <div class="card-body">
                                   <nav>
                                       <div class="nav nav-tabs" id="nav-tab" role="tablist">
-                                          <a class="nav-item nav-link active" id="nav-home-tab" data-toggle="tab" href="#nav-designform" role="tab" aria-controls="nav-designform" aria-selected="true">Step1: Design the form</a>
-                                          <a class="nav-item nav-link" id="nav-contact-tab" data-toggle="tab" href="#nav-designscript" role="tab" aria-controls="nav-designscript" aria-selected="false">Step2: Design the job script</a>
+                                          <a class="nav-item nav-link active" id="nav-home-tab" data-bs-toggle="tab" href="#nav-designform" role="tab" aria-controls="nav-designform" aria-selected="true">Step1: Design the form</a>
+                                          <a class="nav-item nav-link" id="nav-contact-tab" data-bs-toggle="tab" href="#nav-designscript" role="tab" aria-controls="nav-designscript" aria-selected="false">Step2: Design the job script</a>
                                          {% if action == "edit" %}
-                                             <a class="nav-item nav-link" id="nav-contact-tab" data-toggle="tab" href="#nav-save" role="tab" aria-controls="nav-sav" aria-selected="false">Step3: Update the profile</a>
+                                             <a class="nav-item nav-link" id="nav-contact-tab" data-bs-toggle="tab" href="#nav-save" role="tab" aria-controls="nav-sav" aria-selected="false">Step3: Update the profile</a>
                                           {% else %}
-                                             <a class="nav-item nav-link" id="nav-contact-tab" data-toggle="tab" href="#nav-save" role="tab" aria-controls="nav-sav" aria-selected="false">Step3: Create the profile</a>
+                                             <a class="nav-item nav-link" id="nav-contact-tab" data-bs-toggle="tab" href="#nav-save" role="tab" aria-controls="nav-sav" aria-selected="false">Step3: Create the profile</a>
                                           {% endif %}
 
                                       </div>
@@ -105,7 +105,7 @@
                                                       <div>
                                                             <div id="HeadProtectedVariable">
                                                               <h2 class="mb-0">
-                                                                <button class="btn btn-link" type="button" data-toggle="collapse" data-target="#collapseProtectedVariable" aria-expanded="true" aria-controls="collapseOne">SOCA reserved variables
+                                                                <button class="btn btn-link" type="button" data-bs-toggle="collapse" data-target="#collapseProtectedVariable" aria-expanded="true" aria-controls="collapseOne">SOCA reserved variables
                                                                 </button>
                                                               </h2>
                                                             </div>
@@ -126,7 +126,7 @@
 
                                                     <div id="headingOne">
                                                       <h2 class="mb-0">
-                                                        <button class="btn btn-link" type="button" data-toggle="collapse" data-target="#collapseOne" aria-expanded="true" aria-controls="collapseOne">
+                                                        <button class="btn btn-link" type="button" data-bs-toggle="collapse" data-target="#collapseOne" aria-expanded="true" aria-controls="collapseOne">
                                                           Calculate number of nodes to provision automatically
                                                         </button>
                                                       </h2>
@@ -141,7 +141,7 @@
                                                   <div>
                                                     <div id="headingTwo">
                                                       <h2 class="mb-0">
-                                                        <button class="btn btn-link collapsed" type="button" data-toggle="collapse" data-target="#collapseTwo" aria-expanded="false" aria-controls="collapseTwo">
+                                                        <button class="btn btn-link collapsed" type="button" data-bs-toggle="collapse" data-target="#collapseTwo" aria-expanded="false" aria-controls="collapseTwo">
                                                           Configure Job Cost Estimate automatically
                                                         </button>
                                                       </h2>
@@ -193,7 +193,7 @@
 #PBS -q %queue_name%
 #PBS -N %job_name%
 #PBS -P %project_name%
-# https://awslabs.github.io/scale-out-computing-on-aws/tutorials/integration-ec2-job-parameters/
+# https://awslabs.github.io/scale-out-computing-on-aws-documentation/tutorials/integration-ec2-job-parameters/
 #PBS -l instance_type=%instance_type%
 #PBS -l walltime=%wall_time%
 #PBS -l force_ri=%force_ri%
@@ -223,7 +223,7 @@ cd $PBS_O_WORKDIR
 ## [End: Commands to be added after the solver. This cannot be changed by the users]
                                           {% endif %}</textarea>
                                       <div class="alert alert-primary">
-                                          PBS parameters are optional. If not set, your job will use the default settings configured for your queue (if no queue is specified, the job will use <code>normal</code> queue). Refer to <a href="https://awslabs.github.io/scale-out-computing-on-aws/web-interface/create-your-own-queue/#option1-i-want-to-use-the-same-settings-as-an-existing-queue" target="_blank" rel="noopener,noreferrer"> this link for more.</a>
+                                          PBS parameters are optional. If not set, your job will use the default settings configured for your queue (if no queue is specified, the job will use <code>normal</code> queue). Refer to <a href="https://awslabs.github.io/scale-out-computing-on-aws-documentation/documentation/web-interface/create-your-own-queue/#option1-i-want-to-use-the-same-settings-as-an-existing-queue" target="_blank" rel="noopener,noreferrer"> this link for more.</a>
                                           </div>
                                       </div> <!-- nav script -->
 
@@ -368,7 +368,7 @@ cd $PBS_O_WORKDIR
                                   </div>
                                   <div class="card-body">
                                    <div class="alert alert-warning">
-                                       <a  target="_blank" rel="noopener,noreferrer" href="https://awslabs.github.io/scale-out-computing-on-aws/web-interface/import-export-application-profiles">Click here to learn how to Import/Export your profiles</a>
+                                       <a  target="_blank" rel="noopener,noreferrer" href="https://awslabs.github.io/scale-out-computing-on-aws-documentation/documentation/web-interface/import-export-application-profiles">Click here to learn how to Import/Export your profiles</a>
                                   </div>
                                   <div class="row">
                                       <div class="col-md-6">
