@@ -2302,6 +2302,9 @@ if __name__ == "__main__":
     fsx = session.client(
         "fsx", region_name=install_parameters["region"], config=boto_extra_config
     )
+    ssm = session.client(
+        "ssm", region_name=install_parameters["region"], config=boto_extra_config
+    )
 
     cloudformation = session.client(
         "cloudformation",
@@ -2481,11 +2484,35 @@ if __name__ == "__main__":
             install_parameters["cluster_id"],
         )
 
+        # Temporarily disable SSM Throughput if needed (https://docs.aws.amazon.com/systems-manager/latest/userguide/parameter-store-throughput.html)
+        # Settings will be re-disabled if needed post deployment
+        disable_ssm_high_throughput_post_install = False
+
+        _check_ssm_high_throughput = ssm.get_service_setting(
+            SettingId="/ssm/parameter-store/high-throughput-enabled"
+        )
+
+        if _check_ssm_high_throughput.get("ServiceSetting").get("SettingValue") == "false":
+            logger.warning("Temporarily enabling /ssm/parameter-store/high-throughput-enabled for SOCA deployment")
+            ssm.update_service_setting(
+                SettingId="/ssm/parameter-store/high-throughput-enabled",
+                   SettingValue="true"
+            )
+            disable_ssm_high_throughput_post_install = True
+
     # Then launch the actual SOCA installer
     logger.info("\n====== Deploying SOCA ======\n")
     launch_installer = os.system(cmd)  # nosec
 
     if cdk_cmd == "deploy":
+        # Optional - Re-enable SSM default high-throughput settings
+        if disable_ssm_high_throughput_post_install:
+            logger.warning(
+                "Restoring /ssm/parameter-store/high-throughput-enabled to its previous value post-deployment")
+            ssm.update_service_setting(
+                SettingId="/ssm/parameter-store/high-throughput-enabled",
+                SettingValue="false")
+
         if int(launch_installer) == 0:
             # SOCA is installed. We will now wait until SOCA is fully configured (when the ELB returns HTTP 200)
             logger.info(f"[bold green]SOCA was installed successfully![/bold green]")

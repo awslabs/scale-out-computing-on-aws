@@ -176,6 +176,9 @@
                 "ssm:AddTagsToResource",
                 "ssm:PutParameter",
                 "ssm:GetParameter*",
+                "ssm:GetServiceSetting",
+                "ssm:ResetServiceSetting",
+                "ssm:UpdateServiceSetting",
                 "sts:DecodeAuthorizationMessage",
                 "sts:GetCallerIdentity"
             ],
