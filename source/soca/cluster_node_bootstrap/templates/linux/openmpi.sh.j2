@@ -17,7 +17,7 @@ function install_openmpi () {
     mkdir -p "/apps/openmpi/${OPENMPI_VERSION}"
     pushd "${SOCA_BOOTSTRAP_ASSETS_FOLDER}/openmpi/installer"
     file_download --download-url="${OPENMPI_URL}" --save-as="openmpi_installer_${OPENMPI_VERSION}.tgz" --sha256-checksum="${OPENMPI_SHA256}"
-    tar xzf "openmpi_installer_${OPENMPI_URL}.tgz" --strip-components=1 -C .
+    tar xzf "openmpi_installer_${OPENMPI_VERSION}.tgz" --strip-components=1 -C .
     ./configure --prefix="/apps/openmpi/${OPENMPI_VERSION}"
     make -j "${NCPU}"
     make install
