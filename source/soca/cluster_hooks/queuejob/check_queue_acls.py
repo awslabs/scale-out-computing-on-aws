@@ -17,10 +17,10 @@ Doc:
 > https://awslabs.github.io/scale-out-computing-on-aws/tutorials/manage-queue-acls/
 
 create hook check_queue_acls event=queuejob
-import hook check_queue_acls application/x-python default /apps/soca/%SOCA_CONFIGURATION/cluster_hooks/queuejob/check_queue_acls.py
+import hook check_queue_acls application/x-python default /apps/soca/%SOCA_CLUSTER_ID/cluster_hooks/queuejob/check_queue_acls.py
 
 Note: If you make any change to this file, you MUST re-execute the import command.
-If you are installing this file manually, make sure to replace %SOCA_CONFIGURATION path below
+If you are installing this file manually, make sure to replace %SOCA_CLUSTER_ID path below
 """
 
 import os
@@ -28,11 +28,11 @@ import sys
 import pbs
 
 if (
-    "/apps/soca/%SOCA_CONFIGURATION/python/latest/lib/python3.9/site-packages"
+    "/apps/soca/%SOCA_CLUSTER_ID/python/latest/lib/python3.9/site-packages"
     not in sys.path
 ):
     sys.path.append(
-        "/apps/soca/%SOCA_CONFIGURATION/python/latest/lib/python3.9/site-packages"
+        "/apps/soca/%SOCA_CLUSTER_ID/python/latest/lib/python3.9/site-packages"
     )
 import yaml
 
@@ -41,7 +41,7 @@ pbs.logmsg(pbs.LOG_DEBUG, f"queue_acl: PyYAML version: {yaml.__version__}")
 
 def find_users_in_ldap_group(group_dn: str) -> list:
     if os.path.isdir(
-        "/apps/soca/%SOCA_CONFIGURATION/cluster_node_bootstrap/ad_automation"
+        "/apps/soca/%SOCA_CLUSTER_ID/cluster_node_bootstrap/ad_automation"
     ):
         pbs.logmsg(
             pbs.LOG_DEBUG,
@@ -49,19 +49,19 @@ def find_users_in_ldap_group(group_dn: str) -> list:
         )
         # Active Directory
         with open(
-            "/apps/soca/%SOCA_CONFIGURATION/cluster_node_bootstrap/ad_automation/join_domain_user.cache",
+            "/apps/soca/%SOCA_CLUSTER_ID/cluster_node_bootstrap/ad_automation/join_domain_user.cache",
             "r",
         ) as f:
             ad_user = f.read()
 
         with open(
-            "/apps/soca/%SOCA_CONFIGURATION/cluster_node_bootstrap/ad_automation/join_domain.cache",
+            "/apps/soca/%SOCA_CLUSTER_ID/cluster_node_bootstrap/ad_automation/join_domain.cache",
             "r",
         ) as f:
             ad_password = f.read()
 
         with open(
-            "/apps/soca/%SOCA_CONFIGURATION/cluster_node_bootstrap/ad_automation/domain_name.cache",
+            "/apps/soca/%SOCA_CLUSTER_ID/cluster_node_bootstrap/ad_automation/domain_name.cache",
             "r",
         ) as f:
             domain_name = f.read()
@@ -116,7 +116,7 @@ pbs.logmsg(pbs.LOG_DEBUG, f"queue_acl: owner: {job_owner} job_queue {job_queue}"
 
 # Validate queue_mapping YAML is not malformed
 try:
-    queue_settings_file = "/apps/soca/%SOCA_CONFIGURATION/cluster_manager/orchestrator/settings/queue_mapping.yml"
+    queue_settings_file = "/apps/soca/%SOCA_CLUSTER_ID/cluster_manager/orchestrator/settings/queue_mapping.yml"
     queue_reader = open(queue_settings_file, "r")
     docs = yaml.safe_load(queue_reader)
 
@@ -149,14 +149,14 @@ try:
                     e.reject(
                         "allowed_users is not specified on "
                         + queue_settings_file
-                        + ". See https://awslabs.github.io/scale-out-computing-on-aws/tutorials/manage-queue-acls/ for examples"
+                        + ". See https://awslabs.github.io/scale-out-computing-on-aws-documentation/documentation/security/manage-queue-acls/ for examples"
                     )
 
                 if "excluded_users" not in v.keys():
                     e.reject(
                         "excluded_users is not specified on "
                         + queue_settings_file
-                        + ". See https://awslabs.github.io/scale-out-computing-on-aws/tutorials/manage-queue-acls/ for examples"
+                        + ". See https://awslabs.github.io/scale-out-computing-on-aws-documentation/documentation/security/manage-queue-acls/ for examples"
                     )
 
                 # ensure expected keys are valid lists
@@ -265,4 +265,3 @@ except Exception as err:
         + ". Double check the YAML syntax is correct and you don't have any invalid indent.\n Error: "
         + str(err)
     )
-#    e.reject(message)

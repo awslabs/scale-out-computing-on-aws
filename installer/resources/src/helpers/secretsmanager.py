@@ -15,9 +15,9 @@ from aws_cdk import (
     aws_secretsmanager as secretsmanager,
     aws_kms as kms,
 )
-
+import ast
 from constructs import Construct
-
+import boto3
 
 def create_secret(
     scope: Construct,
@@ -53,7 +53,19 @@ def create_secret(
         encryption_key=kms_key_id if kms_key_id else None,
     )
 
+
 def resolve_secret_as_str(
     secret_construct: Construct, password_key: str = "password"
 ) -> str:
     return secret_construct.secret_value_from_json(password_key).to_string()
+
+
+def retrieve_secret_value(secret_id: str, region_name: str) -> dict:
+    _sm_client = boto3.client("secretsmanager", region_name=region_name)
+    _get_secret = _sm_client.get_secret_value(SecretId=secret_id).get(
+        "SecretString", None
+    )
+    if _get_secret:
+        return ast.literal_eval(_get_secret)
+    else:
+        return {}

@@ -19,14 +19,7 @@ function ec2_describe_instance_types () {
     local JQ_QUERY=".InstanceTypes[].${PARAMETER}"
   fi
 
-  CACHED_RESULT=$(cache_get_key "/soca/{{ context.get("/configuration/BaseOS") }}/ec2/describe-instance-types/${INSTANCE_TYPE}" "json")
-
-  if [[ ${CACHED_RESULT} == "CACHE_MISS" ]]; then
-    INSTANCE_INFO=$(aws_cli ec2 describe-instance-types --instance-types ${INSTANCE_TYPE} --output json)
-  else
-    INSTANCE_INFO=${CACHED_RESULT}
-  fi
-
+  INSTANCE_INFO=$(aws_cli ec2 describe-instance-types --instance-types "${INSTANCE_TYPE}" --output json)
   echo -n ${INSTANCE_INFO} | jq -r "${JQ_QUERY}  // empty" 2>/dev/null || echo -n ""
 }
 # End - Wrapper EC2

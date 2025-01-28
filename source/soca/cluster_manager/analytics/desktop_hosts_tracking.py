@@ -73,7 +73,7 @@ if __name__ == "__main__":
     ec2_client = get_boto(service_name="ec2").message
     _index_name = "soca_desktops"
     _cluster_id = SocaConfig(key='/configuration/ClusterId').get_value().message
-    _log_file_location = f"/apps/soca/{_cluster_id}/cluster_manager/analytics/desktop_hosts_tracking.log"
+    _log_file_location = f"/apps/soca/{_cluster_id}/cluster_manager/analytics/logs/desktop_hosts_tracking.log"
     logger = SocaLogger(name="analytics_desktop_hosts_tracking").rotating_file_handler(file_path=_log_file_location)
 
     logger.info(f"Tracking active SOCA Virtual Desktops . Log: {_log_file_location}")

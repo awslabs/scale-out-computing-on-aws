@@ -3,7 +3,9 @@
 
 {% include "templates/linux/common/log.sh.j2" %}
 
-{% include "templates/linux/packages_management.sh.j2" %}
+{% include "templates/linux/common/file_download.sh.j2" %}
+
+{% include "templates/linux/system_packages/packages_management.sh.j2" %}
 
 {% include "templates/linux/common/reboot_management.sh.j2" %}
 
@@ -15,9 +17,7 @@
 
 {% include "templates/linux/common/wrapper_secretsmanager.sh.j2" %}
 
-{% include "templates/linux/epel.sh.j2" %}
-
-{% include "templates/linux/jq.sh.j2" %}
+{% include "templates/linux/common/setup_environment_file.sh.j2" %}
 
 {% set PATH = '/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin:/opt/pbs/bin:/opt/pbs/sbin:/apps/soca/' ~ context.get("/configuration/ClusterId") %}
 export PATH={{ PATH }}:${PATH}

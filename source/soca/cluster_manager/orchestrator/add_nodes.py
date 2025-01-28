@@ -23,7 +23,7 @@ from botocore.exceptions import ClientError
 from botocore import exceptions
 
 sys.path.append(
-    f"/apps/soca/{os.environ.get('SOCA_CONFIGURATION', 'SOCA_CONFIGURATION_NOT_FOUND')}/cluster_manager"
+    f"/apps/soca/{os.environ.get('SOCA_CLUSTER_ID', 'SOCA_CONFIGURATION_NOT_FOUND')}/cluster_manager"
 )
 import cloudformation_builder
 from utils.aws.ssm_parameter_store import SocaConfig
@@ -36,7 +36,9 @@ iam = get_boto(service_name="iam").message
 servicequotas = get_boto(service_name="service-quotas").message
 
 
-def is_placement_group_supported(instance_type: [str, list[str]], placement_group_type: str = "cluster") -> bool:
+def is_placement_group_supported(
+    instance_type: [str, list[str]], placement_group_type: str = "cluster"
+) -> bool:
     """
     Determine if a given instance type supports the given placement group type by sending a query to the AWS API.
     """
@@ -53,18 +55,22 @@ def is_placement_group_supported(instance_type: [str, list[str]], placement_grou
         return False
 
     if placement_group_type not in {"cluster", "partition", "spread"}:
-        print(f"ERROR - {placement_group_type} is not a valid placement group type. Must be one of cluster, partition, spread.")
+        print(
+            f"ERROR - {placement_group_type} is not a valid placement group type. Must be one of cluster, partition, spread."
+        )
         return False
 
     try:
         # Paginator not needed since this should be an exact match query
-        _resp: dict = ec2.describe_instance_types(
-            InstanceTypes=_query_instance_list
-        )
+        _resp: dict = ec2.describe_instance_types(InstanceTypes=_query_instance_list)
         for _instance_type in _resp.get("InstanceTypes", []):
-            _instance_type_name: str = _instance_type.get("InstanceType", "unknown-instance-name")
+            _instance_type_name: str = _instance_type.get(
+                "InstanceType", "unknown-instance-name"
+            )
             # If we see the proper supported PG type - append to our running list of supported
-            _supported_pgs: list = _instance_type.get("PlacementGroupInfo", {}).get("SupportedStrategies", [])
+            _supported_pgs: list = _instance_type.get("PlacementGroupInfo", {}).get(
+                "SupportedStrategies", []
+            )
 
             if placement_group_type in _supported_pgs:
                 if _instance_type_name not in _pg_supported_list:
@@ -222,10 +228,10 @@ def verify_vcpus_limit(instance_type, desired_capacity, quota_info):
 
     if not quota_info or instance_type not in quota_info.keys():
         all_instances_available = []
-        paginator = ec2.get_paginator('describe_instance_types')
+        paginator = ec2.get_paginator("describe_instance_types")
         for page in paginator.paginate():
-            for instance in page['InstanceTypes']:
-                all_instances_available.append(instance['InstanceType'])
+            for instance in page["InstanceTypes"]:
+                all_instances_available.append(instance["InstanceType"])
 
         all_instances_for_quota = [
             instance_family
@@ -483,9 +489,9 @@ def check_config(**kwargs):
                     )
 
                 else:
-                    kwargs["fsx_lustre_configuration"][
-                        "fsx_lustre_deployment_type"
-                    ] = kwargs["fsx_lustre_deployment_type"].upper()
+                    kwargs["fsx_lustre_configuration"]["fsx_lustre_deployment_type"] = (
+                        kwargs["fsx_lustre_deployment_type"].upper()
+                    )
 
                 # If deployment_type is PERSISTENT, configure Per unit throughput and default to 200mb/s
                 if kwargs["fsx_lustre_configuration"][
@@ -548,20 +554,20 @@ def check_config(**kwargs):
                             pass
                         elif check_user_specified_path.__len__() == 2:
                             # import path default to bucket root if not specified
-                            kwargs["fsx_lustre_configuration"][
-                                "export_path"
-                            ] = check_user_specified_path[1]
+                            kwargs["fsx_lustre_configuration"]["export_path"] = (
+                                check_user_specified_path[1]
+                            )
                             kwargs["fsx_lustre_configuration"]["import_path"] = kwargs[
                                 "fsx_lustre_configuration"
                             ]["s3_backend"]
                         elif check_user_specified_path.__len__() == 3:
                             # When customers specified both import and export path
-                            kwargs["fsx_lustre_configuration"][
-                                "export_path"
-                            ] = check_user_specified_path[1]
-                            kwargs["fsx_lustre_configuration"][
-                                "import_path"
-                            ] = check_user_specified_path[2]
+                            kwargs["fsx_lustre_configuration"]["export_path"] = (
+                                check_user_specified_path[1]
+                            )
+                            kwargs["fsx_lustre_configuration"]["import_path"] = (
+                                check_user_specified_path[2]
+                            )
                         else:
                             error.append(
                                 f"Error setting up Import/Export path: {kwargs['fsx_lustre']}). Syntax is <bucket_name>+<export_path>+<import_path>. If import_path is not specified it defaults to bucket root level"
@@ -677,13 +683,18 @@ def check_config(**kwargs):
                     kwargs["subnet_id"] = [kwargs["subnet_id"][0]]
 
             # Final validation that our instances support Placement groups
-            if is_placement_group_supported(
-                instance_type=kwargs["instance_type"],
-                placement_group_type="cluster",
-            ) is False:
+            if (
+                is_placement_group_supported(
+                    instance_type=kwargs["instance_type"],
+                    placement_group_type="cluster",
+                )
+                is False
+            ):
                 # Placement group of cluster is not supported by this instance type
                 kwargs["placement_group"] = False
-                print(f"WARNING - Placement group of cluster is not supported by {kwargs['instance_type']} - defaulting to no PG")
+                print(
+                    f"WARNING - Placement group of cluster is not supported by {kwargs['instance_type']} - defaulting to no PG"
+                )
 
             # Validate additional security group ids
             if kwargs["security_groups"]:
@@ -1067,30 +1078,6 @@ def main(**kwargs):
                 "Key": "max_efa_interfaces",
                 "Default": params.get("max_efa_interfaces", 0),
             },
-            "FileSystemApps": {
-                "Key": None,
-                "Default": SocaConfig(key="/configuration/FileSystemApps")
-                .get_value()
-                .message,
-            },
-            "FileSystemAppsProvider": {
-                "Key": None,
-                "Default": SocaConfig(key="/configuration/FileSystemAppsProvider")
-                .get_value()
-                .message,
-            },
-            "FileSystemData": {
-                "Key": None,
-                "Default": SocaConfig(key="/configuration/FileSystemData")
-                .get_value()
-                .message,
-            },
-            "FileSystemDataProvider": {
-                "Key": None,
-                "Default": SocaConfig(key="/configuration/FileSystemDataProvider")
-                .get_value()
-                .message,
-            },
             "FSxLustreConfiguration": {
                 "Key": "fsx_lustre_configuration",
                 "Default": False,
@@ -1130,11 +1117,14 @@ def main(**kwargs):
             "S3Bucket": {
                 "Key": None,
                 "Default": SocaConfig(key="/configuration/S3Bucket")
-                .get_value().get("message"),
+                .get_value()
+                .get("message"),
             },
             "S3InstallFolder": {
                 "Key": None,
-                "Default": SocaConfig(key="/configuration/S3InstallFolder").get_value().get("message"),
+                "Default": SocaConfig(key="/configuration/S3InstallFolder")
+                .get_value()
+                .get("message"),
             },
             "ControllerPrivateDnsName": {
                 "Key": None,

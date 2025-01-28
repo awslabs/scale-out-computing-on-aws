@@ -3,17 +3,17 @@
 
 # Begin: Reboot management. Added via common.sh.j2
 function unset_reboot_required () {
-  echo -n "no" > /root/soca_reboot_required.txt
+  echo -n "no" > /root/.soca_reboot_required.txt
 }
 
 function set_reboot_required () {
   log_info "[REBOOT REQUIRED]: ${1}"
-  echo -n "yes" > /root/soca_reboot_required.txt
+  echo -n "yes" > /root/.soca_reboot_required.txt
 }
 
 function get_reboot_required () {
-  if [[ -f /root/soca_reboot_required.txt ]]; then
-    cat /root/soca_reboot_required.txt
+  if [[ -f /root/.soca_reboot_required.txt ]]; then
+    cat /root/.soca_reboot_required.txt
   else
      echo -n "no"
   fi

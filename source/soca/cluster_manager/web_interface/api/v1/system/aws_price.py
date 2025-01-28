@@ -13,107 +13,76 @@
 
 from flask_restful import Resource, reqparse
 import logging
-import boto3
 import ast
 import re
 import math
 import utils.aws.boto3_wrapper as utils_boto3
 from utils.response import SocaResponse
+from utils.aws.ssm_parameter_store import SocaConfig
 
 logger = logging.getLogger("soca_logger")
 
 
-def get_compute_pricing(ec2_instance_type):
-    pricing = {}
-    region_mapping = {
-        "ap-east-1": "APE1-",
-        "ap-northeast-1": "APN1-",
-        "ap-northeast-2": "APN2-",
-        "ap-south-1": "APS1-",
-        "ap-southeast-1": "APS1-",
-        "ap-southeast-2": "APS1-",
-        "ca-central-1": "CAC1-",
-        "eu-central-1": "EUC1-",
-        "eu-north-1": "EUN1-",
-        "eu-south-1": "EUS1-",
-        "eu-west-1": "EUW1-",
-        "eu-west-2": "EUW2-",
-        "eu-west-3": "EUW3-",
-        "me-south-1": "MES1-",
-        "us-east-1": "",
-        "us-east-2": "USE2-",
-        "us-west-1": "USW1-",
-        "us-west-2": "USW2-",
-        "sa-east-1": "SAE1-",
-    }
+def get_compute_pricing(instance_type: str) -> dict:
+    _pricing = {}
     client_pricing = utils_boto3.get_boto(
         service_name="pricing", region_name="us-east-1"
     ).message
 
-    session = boto3.session.Session()
-    region = session.region_name
+    region = SocaConfig(key="/configuration/Region").get_value().message
+
     response = client_pricing.get_products(
         ServiceCode="AmazonEC2",
         Filters=[
             {
                 "Type": "TERM_MATCH",
-                "Field": "usageType",
-                "Value": region_mapping[region] + "BoxUsage:" + ec2_instance_type,
+                "Field": "instanceType",
+                "Value": instance_type,
+            },
+            {
+                "Type": "TERM_MATCH",
+                "Field": "regionCode",
+                "Value": region,
+            },
+            {
+                "Type": "TERM_MATCH",
+                "Field": "operatingSystem",
+                "Value": "Linux",
+            },
+            {
+                "Type": "TERM_MATCH",
+                "Field": "tenancy",
+                "Value": "Shared",
             },
         ],
     )
+    logger.debug(f"Retrieving pricing information for {instance_type}: {response}")
     for data in response["PriceList"]:
-        data = ast.literal_eval(data)
-        for k, v in data["terms"].items():
-            if k == "OnDemand":
-                for skus in v.keys():
-                    for ratecode in v[skus]["priceDimensions"].keys():
-                        instance_data = v[skus]["priceDimensions"][ratecode]
-                        if (
-                            "on demand linux "
-                            + str(ec2_instance_type)
-                            + " instance hour"
-                            in instance_data["description"].lower()
-                        ):
-                            pricing["ondemand"] = float(
-                                instance_data["pricePerUnit"]["USD"]
-                            )
-            else:
-                for skus in v.keys():
+        _price_list = ast.literal_eval(data)
+        for term_type, term_data in _price_list["terms"].items():
+            for sku, sku_data in term_data.items():
+                for rate_code, price_dimension in sku_data["priceDimensions"].items():
+                    description = price_dimension["description"].lower()
+                    price = float(price_dimension["pricePerUnit"]["USD"])
+
+                    # On-Demand Pricing
                     if (
-                        v[skus]["termAttributes"]["OfferingClass"] == "standard"
-                        and v[skus]["termAttributes"]["LeaseContractLength"] == "1yr"
-                        and v[skus]["termAttributes"]["PurchaseOption"] == "No Upfront"
+                        term_type == "OnDemand"
+                        and f"on demand linux {instance_type} instance hour"
+                        in description.lower()
                     ):
-                        for ratecode in v[skus]["priceDimensions"].keys():
-                            instance_data = v[skus]["priceDimensions"][ratecode]
-                            if (
-                                "Linux/UNIX (Amazon VPC)"
-                                in instance_data["description"]
-                            ):
-                                pricing["reserved"] = float(
-                                    instance_data["pricePerUnit"]["USD"]
-                                )
-    return pricing
+                        _pricing["ondemand"] = price
 
-
-def compute(instance_type, walltime, nodect):
-    compute_data = {}
-    if instance_type:
-        compute_price = get_compute_pricing(instance_type)
-
-    compute_data["on_demand_hourly_rate"] = "%.3f" % compute_price["ondemand"]
-    compute_data["reserved_hourly_rate"] = "%.3f" % compute_price["reserved"]
-    compute_data["nodes"] = nodect
-    compute_data["walltime"] = "%.3f" % walltime
-    compute_data["instance_type"] = instance_type
-    compute_data["estimated_on_demand_cost"] = "%.3f" % (
-        (compute_price["ondemand"] * nodect) * walltime
-    )
-    compute_data["estimated_reserved_cost"] = "%.3f" % (
-        (compute_price["reserved"] * nodect) * walltime
-    )
-    return compute_data
+                    # Reserved Pricing (1 year, no upfront)
+                    elif (
+                        term_type != "OnDemand"
+                        and sku_data["termAttributes"]["OfferingClass"] == "standard"
+                        and sku_data["termAttributes"]["LeaseContractLength"] == "1yr"
+                        and sku_data["termAttributes"]["PurchaseOption"] == "No Upfront"
+                        and "linux/unix (amazon vpc)" in description.lower()
+                    ):
+                        _pricing["reserved"] = price
+    return _pricing
 
 
 class AwsPrice(Resource):
@@ -158,7 +127,7 @@ class AwsPrice(Resource):
             type=int,
             location="args",
             help="Please specify your AMI root disk space (Default 10gb)",
-            default=10,
+            default=40,
         )
         parser.add_argument(
             "fsx_capacity",
@@ -178,37 +147,23 @@ class AwsPrice(Resource):
         sim_cost = {}
 
         # Change value below as needed if you use a different region
-        EBS_GP2_STORAGE_BASELINE = 0.1  # us-east-1 0.1 cts per gb per month
-        FSX_STORAGE_BASELINE = 0.14  # us-east-1 Persistent (50 MB/s/TiB baseline, up to 1.3 GB/s/TiB burst)  Scratch (200 MB/s/TiB baseline, up to 1.3 GB/s/TiB burst)
+        EBS_GP3_STORAGE_BASELINE = 0.08  # us-east-1 0.08 cts per gb per month
+        FSX_STORAGE_BASELINE = 0.13  # us-east-1 Persistent (50 MB/s/TiB baseline, up to 1.3 GB/s/TiB burst)  Scratch (200 MB/s/TiB baseline, up to 1.3 GB/s/TiB burst)
 
-        # Get WallTime in hours
-        wall_time_unformated = args["wall_time"].split(":")
-        if wall_time_unformated.__len__() != 3:
-            return {
-                "message": "wall_time must use HH:MM:SS format. For example 90 minutes will be 00:90:00 or 01:30:00"
-            }, 500
         try:
-            sim_hours = (
-                float(wall_time_unformated[0])
-                if wall_time_unformated[0] != "00"
-                else 0.000
+            sim_hours, sim_minutes, sim_seconds = map(
+                float, args["wall_time"].split(":")
             )
-            sim_minutes = (
-                float(wall_time_unformated[1])
-                if wall_time_unformated[1] != "00"
-                else 0.000
-            )
-            sim_seconds = (
-                float(wall_time_unformated[2])
-                if wall_time_unformated[2] != "00"
-                else 0.000
-            )
+
         except ValueError:
-            return {"message": "wall_time must use HH:MM:SS and only use numbers"}, 500
+            return SocaResponse(
+                success=False,
+                message="wall_time must use HH:MM:SS format and only use valid numbers",
+            ).as_flask()
 
         walltime = sim_hours + (sim_minutes / 60) + (sim_seconds / 3600)
 
-        # Calculate number of nodes required based on instance type and CPUs requested
+        # Calculate number of nodes required based on instance type and CPUs (not vCPUs) requested
         if cpus is None:
             nodect = 1
         else:
@@ -223,61 +178,87 @@ class AwsPrice(Resource):
             nodect = math.ceil(int(cpus) / cpu_per_system)
 
         # Calculate EBS Storage (storage * ebs_price * sim_time_in_secs / (walltime_seconds * 30 days) * number of nodes
-        sim_cost["scratch_size"] = "%.3f" % (
-            (scratch_size * EBS_GP2_STORAGE_BASELINE * (walltime * 3600) / (86400 * 30))
-            * nodect
+        sim_cost["scratch_size"] = (
+            f"{(scratch_size * EBS_GP3_STORAGE_BASELINE * (walltime * 3600) / (86400 * 30)) * nodect:.3f}"
         )
-        sim_cost["root_size"] = "%.3f" % (
-            (root_size * EBS_GP2_STORAGE_BASELINE * (walltime * 3600) / (86400 * 30))
-            * nodect
+        sim_cost["root_size"] = (
+            f"{(root_size * EBS_GP3_STORAGE_BASELINE * (walltime * 3600) / (86400 * 30)) * nodect:.3f}"
         )
 
         # Calculate FSx Storage (storage * fsx_price * sim_time_in_secs / (second_in_a_day * 30 days)
-        sim_cost["fsx_capacity"] = "%.3f" % (
-            fsx_storage * FSX_STORAGE_BASELINE * (walltime * 3600) / (86400 * 30)
+        sim_cost["fsx_capacity"] = (
+            f"{(fsx_storage * FSX_STORAGE_BASELINE * (walltime * 3600) / (86400 * 30)):.3f}"
         )
-        # Calculate Compute
+
+        # Calculate Compute Price
         try:
-            sim_cost["compute"] = compute(instance_type, walltime, nodect)
+            _compute_price = {}
+            _compute_price = get_compute_pricing(instance_type=instance_type)
+            if not _compute_price:
+                return SocaResponse(
+                    success=False,
+                    message=f"Unable to retrieve price for {instance_type}",
+                ).as_flask()
+
+            if "ondemand" not in _compute_price:
+                return SocaResponse(
+                    success=False,
+                    message=f"Unable to retrieve 'ondemand' price for {instance_type}: {_compute_price}",
+                ).as_flask()
+
+            if "reserved" not in _compute_price:
+                return SocaResponse(
+                    success=False,
+                    message=f"Unable to retrieve 'reserved' price for {instance_type}: {_compute_price}",
+                ).as_flask()
+
+            _compute_price["on_demand_hourly_rate"] = float(
+                f"{_compute_price['ondemand']:.3f}"
+            )
+            _compute_price["reserved_hourly_rate"] = float(
+                f"{_compute_price['reserved']:.3f}"
+            )
+            _compute_price["nodes"] = nodect
+            _compute_price["walltime"] = float(f"{walltime:.3f}")
+            _compute_price["instance_type"] = instance_type
+            _compute_price["estimated_on_demand_cost"] = float(
+                f"{(_compute_price['ondemand'] * nodect) * walltime:.3f}"
+            )
+            _compute_price["estimated_reserved_cost"] = float(
+                f"{(_compute_price['reserved'] * nodect) * walltime:.3f}"
+            )
+
+            sim_cost["compute"] = _compute_price
         except Exception as err:
-            sim_cost["compute"] = {
-                "message": "Unable to get compute price. Instance type may be incorrect or region name not tracked correctly? Error: "
-                + str(err)
-            }
-            return sim_cost, 500
+            return SocaResponse(
+                success=False,
+                message=f"Unable to get compute price. Instance type may be incorrect or region name not tracked correctly? Error: {err}",
+            ).as_flask()
 
         # Output
-        sim_cost["estimated_storage_cost"] = "%.3f" % (
-            float(sim_cost["fsx_capacity"])
-            + float(sim_cost["scratch_size"])
-            + float(sim_cost["root_size"])
+        sim_cost["estimated_storage_cost"] = float(
+            f"{float(sim_cost['fsx_capacity']) + float(sim_cost['scratch_size']) + float(sim_cost['root_size']) :.3f}"
         )
-        sim_cost["estimated_total_cost"] = "%.3f" % (
-            float(sim_cost["estimated_storage_cost"])
-            + float(sim_cost["compute"]["estimated_on_demand_cost"])
+
+        sim_cost["estimated_total_cost"] = float(
+            f"{float(sim_cost['estimated_storage_cost']) + float(sim_cost['compute']['estimated_on_demand_cost']) :.3f}"
         )
-        sim_cost["estimated_hourly_cost"] = "%.3f" % (
-            float(sim_cost["estimated_total_cost"]) / float(walltime)
+
+        sim_cost["estimated_hourly_cost"] = float(
+            f"{float(sim_cost['estimated_total_cost']) / float(walltime) :.3f}"
         )
-        sim_cost["storage_pct"] = (
-            "%.3f"
-            % (
-                float(sim_cost["estimated_storage_cost"])
-                / float(sim_cost["estimated_total_cost"])
-                * 100
-            )
+
+        sim_cost["storage_pct"] = float(
+            f"{float((sim_cost['estimated_storage_cost']) / float(sim_cost['estimated_total_cost'])) * 100 :.3f}"
             if float(sim_cost["estimated_storage_cost"]) != 0.000
             else 0
         )
+
         sim_cost["compute_pct"] = (
-            "%.3f"
-            % (
-                float(sim_cost["compute"]["estimated_on_demand_cost"])
-                / float(sim_cost["estimated_total_cost"])
-                * 100
-            )
+            f"{float((sim_cost['compute']['estimated_on_demand_cost']) / float(sim_cost['estimated_total_cost'])) * 100 :.3f}"
             if float(sim_cost["compute"]["estimated_on_demand_cost"]) != 0.000
             else 0
         )
+
         sim_cost["compute"]["cpus"] = cpus
         return SocaResponse(success=True, message=sim_cost).as_flask()

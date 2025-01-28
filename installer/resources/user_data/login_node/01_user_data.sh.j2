@@ -5,32 +5,63 @@
 
 # Important: Keep this file < 16 KBs (AWS EC2 UserData requirement)
 
+# Load common logging feature
 {% include "templates/linux/common/log.sh.j2" %}
 
+log_info "User Data Start Date: $(date)"
+
+# Load packages management functions
+{% include "templates/linux/system_packages/packages_management.sh.j2" %}
+
+# Load common File Download wrapper
+{% include "templates/linux/common/file_download.sh.j2" %}
+
+# Configure HTTP proxy if any
 {% include "templates/linux/http_proxy.sh.j2" %}
 
 source /etc/environment
 
 {% if context.get("/configuration/BaseOS") == "centos7" %}
+  # CentOS7 is EOL, manual patch to support Yum repo
   {% include "templates/linux/patch_centos7_repos.sh.j2" %}
 {% endif %}
 
-{% include "templates/linux/packages_management.sh.j2" %}
-
+# Install awscli
 {% include "templates/linux/awscli.sh.j2" %}
 
+# Load custom wrappers
 {% include "templates/linux/common/wrapper_awscli.sh.j2" %}
+{% include "templates/linux/common/wrapper_imds.sh.j2" %}
+{% include "templates/linux/common/setup_environment_file.sh.j2" %}
 
+# Install AWS Systems Manager agent
 {% include "templates/linux/aws_ssm_agent.sh.j2" %}
 
-{% include "templates/linux/mount_apps_data.sh.j2" %}
+# Note: Log generated prior to filesystems mount will be automatically copied over the POST_FILESYSTEM_MOUNT_LOGS_FOLDER post filesystems mount
+PRE_FILESYSTEM_MOUNT_LOGS_FOLDER="/root/soca_boostrap_$(instance_id)/logs"
+POST_FILESYSTEM_MOUNT_LOGS_FOLDER="{{ context.get("/job/BootstrapPath") }}/$(hostname -s)/$(date +%s)"
 
-# Wait until initial Controller script has completed as this is the one setting up the filesystem structure
-NODE_BOOTSTRAP_FOLDER="{{ context.get("/job/BootstrapPath") }}/$(hostname -s)/$(date +%s)"
+# Remove any previous references of SOCA to the environment file (if any)
+cp /etc/environment /etc/environment.original.$(date +%s)
+sed -i '/[SOCA_DO_NOT_DELETE]/d' /etc/environment
 
+# Set Environment Variables
+set_environment_variable "AWS_DEFAULT_REGION" "{{ context.get("/configuration/Region") }}"
+set_environment_variable "SOCA_BOOTSTRAP_ASSETS_FOLDER" "/root/soca_boostrap_$(instance_id)"
+set_environment_variable "SOCA_BOOTSTRAP_LOGS_FOLDER" ${PRE_FILESYSTEM_MOUNT_LOGS_FOLDER}
+set_environment_variable "SOCA_CLUSTER_ID" "{{ context.get("/configuration/ClusterId") }}"
+
+# Create SOCA Bootstrap structure
+mkdir -p ${SOCA_BOOTSTRAP_ASSETS_FOLDER}
+mkdir -p ${PRE_FILESYSTEM_MOUNT_LOGS_FOLDER}
+
+# Mount Filesystems
+{% include "templates/linux/filesystems_automount.sh.j2" %}
+
+# Wait until SOCA is ready
 VERIFY_FILE_COUNT=0
 while [[ ! -d "/apps/soca/{{ context.get("/configuration/ClusterId") }}/cluster_node_bootstrap/" ]]; do
-     echo "Waiting for the initial Controller setup sequence, checking if /apps/soca/{{ context.get("/configuration/ClusterId") }} exist,  ... trying again in 60 seconds"
+     log_info "/apps/soca/{{ context.get("/configuration/ClusterId") }} not ready yet"
      if [[ ${VERIFY_FILE_COUNT} -gt 30 ]]; then
       exit_fail "Unable to verify filesystem"
      fi
@@ -38,22 +69,25 @@ while [[ ! -d "/apps/soca/{{ context.get("/configuration/ClusterId") }}/cluster_
     sleep 60
 done
 
-mkdir -p "${NODE_BOOTSTRAP_FOLDER}"
+# Post Filesystems Mount, override SOCA_BOOTSTRAP_LOGS_FOLDER to point to the shared filesystem
+set_environment_variable "SOCA_BOOTSTRAP_LOGS_FOLDER" ${POST_FILESYSTEM_MOUNT_LOGS_FOLDER}
+mkdir -p ${SOCA_BOOTSTRAP_LOGS_FOLDER}
 
-# Wait until all parameters have been added to CDK
-while ! aws_cli ssm get-parameter --name "/soca/{{ context.get("/configuration/ClusterId") }}/cdk_completed" > /dev/null 2>&1; do
-    log_info "/soca/{{ context.get("/configuration/ClusterId") }}/cdk_completed not found on SSM, CDK & CloudFormation are probably still in creation, waiting a little longer"
-    sleep 120
-done
+log_info "Boostrap Asset Folder: ${SOCA_BOOTSTRAP_ASSETS_FOLDER}"
+log_info "Boostrap Logs Folder: ${SOCA_BOOTSTRAP_LOGS_FOLDER}"
 
-# Generate bootstrap script
-export SOCA_CONFIGURATION="{{ context.get("/configuration/ClusterId") }}"
-export AWS_DEFAULT_REGION="{{ context.get("/configuration/Region") }}"
+# Copy the User Data logs into the shared filesystem to simplify troubleshooting
+cp /var/log/messages ${SOCA_BOOTSTRAP_LOGS_FOLDER} || echo "/var/log/messages found on this system"
+cp /var/log/cloud-init* ${SOCA_BOOTSTRAP_LOGS_FOLDER} || echo "/var/log/cloud-init not found on this system"
+cp "${PRE_FILESYSTEM_MOUNT_LOGS_FOLDER}/*" ${SOCA_BOOTSTRAP_LOGS_FOLDER}
 
+# Generate bootstrap script and execute it
 /bin/bash /apps/soca/{{ context.get("/configuration/ClusterId") }}/cluster_manager/tools/j2generator/j2generator.sh --get-template "compute_node/02_setup.sh.j2" \
-    --output-file "${NODE_BOOTSTRAP_FOLDER}/02_setup.sh" \
+    --output-file "{{ context.get("/job/BootstrapPath") }}/02_setup.sh" \
     --ssm-key "/" \
     --add-value "KEY=/job/NodeType VALUE=login_node TYPE=str" \
     --template-dirs "/apps/soca/{{ context.get("/configuration/ClusterId") }}/cluster_node_bootstrap/"
 
-/bin/bash ${NODE_BOOTSTRAP_FOLDER}/02_setup.sh >>  ${NODE_BOOTSTRAP_FOLDER}/02_setup.sh.log 2>&1
+log_info "User Data End: $(date)"
+
+/bin/bash {{ context.get("/job/BootstrapPath") }}/02_setup.sh >> ${SOCA_BOOTSTRAP_LOGS_FOLDER}/02_setup.sh.log 2>&1

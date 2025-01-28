@@ -53,20 +53,17 @@ def validate_password(user, password, check_sudo=False):
         return False
     else:
         # password are not stored in DB. We determine successfully login via LDAP bind
-        check_auth = post(
-            config.Config.FLASK_ENDPOINT + "/api/ldap/authenticate",
-            headers={"X-SOCA-TOKEN": config.Config.API_ROOT_KEY},
-            data={"user": user, "password": password},
-            verify=False,
-        )  # nosec
+        check_auth = SocaHttpClient(
+            endpoint="/api/ldap/authenticate",
+            headers={"X-SOCA-TOKEN": config.Config.API_ROOT_KEY}).post(
+            data={"user": user, "password": password})
+
         if check_auth.status_code == 200:
             if check_sudo:
-                check_sudo_permission = get(
-                    config.Config.FLASK_ENDPOINT + "/api/ldap/sudo",
-                    headers={"X-SOCA-TOKEN": config.Config.API_ROOT_KEY},
-                    params={"user": user},
-                    verify=False,
-                )  # nosec
+                check_sudo_permission = SocaHttpClient(
+                    endpoint="/api/ldap/sudo",
+                    headers={"X-SOCA-TOKEN": config.Config.API_ROOT_KEY}).get(param={"user": user})
+
                 if check_sudo_permission.status_code == 200:
                     return True
                 else:

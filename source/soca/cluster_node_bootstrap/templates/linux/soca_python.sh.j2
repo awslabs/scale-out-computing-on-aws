@@ -8,36 +8,50 @@
 {% if context.get("/configuration/BaseOS") in ("amazonlinux2", "amazonlinux2023", "centos7", "rhel7", "rhel8", "rhel9", "rocky8", "rocky9") %}
 function install_soca_python () {
   log_info "Installing SOCA Python"
-  pushd /root
+  mkdir -p "${SOCA_BOOTSTRAP_ASSETS_FOLDER}/soca_python"
+  pushd "${SOCA_BOOTSTRAP_ASSETS_FOLDER}/soca_python"
   local PYTHON_VERSION="{{ context.get("/system/python/version") }}"
   local PYTHON_URL="{{ context.get("/system/python/url") }}"
-  local PYTHON_TGZ="{{ context.get("/system/python/tgz") }}"
   local PYTHON_SHA256="{{ context.get("/system/python/sha256") }}"
   local PYTHON_INSTALLED_VERS=$(/apps/soca/"{{ context.get("/configuration/ClusterId") }}"/python/latest/bin/python3 --version | awk {'print $NF'})
 
   if [[ "${PYTHON_INSTALLED_VERS}" != "${PYTHON_VERSION}" ]]; then
     log_info "SOCA Python not detected, installing"
-    mkdir -p /root/soca_python/"{{ context.get("/configuration/ClusterId") }}"/python/installer
-    cd /root/soca_python/"{{ context.get("/configuration/ClusterId") }}"/python/installer
-    wget "${PYTHON_URL}"
-    if [[ $(sha256sum "${PYTHON_TGZ}" | awk '{print $1}') != "${PYTHON_SHA256}" ]];  then
-        echo -e "FATAL ERROR: Checksum for Python failed. File may be compromised." > /etc/motd
-        exit 1
+    mkdir -p "{{ context.get("/configuration/ClusterId") }}"/python/installer
+    pushd "{{ context.get("/configuration/ClusterId") }}"/python/installer
+    file_download --download-url="${PYTHON_URL}" --save-as="python3_soca_installer.tgz" --sha256-checksum="${PYTHON_SHA256}"
+    tar xvf "python3_soca_installer.tgz" --strip-components=1 -C .
+    if ! ./configure CXX="g++" \
+      LDFLAGS="-L/usr/lib64/openssl" \
+      CPPFLAGS="-I/usr/include/openssl" \
+      -enable-loadable-sqlite-extensions \
+      --prefix="/apps/soca/{{ context.get("/configuration/ClusterId") }}/python/${PYTHON_VERSION}" \
+      --enable-optimizations; then
+        exit_fail "Unable to run './configure' for SOCA_PYTHON. Check bootstrap logs."
     fi
-    tar xvf ${PYTHON_TGZ}
-    cd "Python-${PYTHON_VERSION}"
-    ./configure LDFLAGS="-L/usr/lib64/openssl" CPPFLAGS="-I/usr/include/openssl" -enable-loadable-sqlite-extensions --prefix="/apps/soca/{{ context.get("/configuration/ClusterId") }}/python/${PYTHON_VERSION}"
-    make -j $(nproc)
-    make install
+
+    if ! make -j$(nproc); then
+      exit_fail "Unable to run 'make' for SOCA_PYTHON. Check bootstrap logs."
+    fi
+
+    if ! make install -j$(nproc); then
+       exit_fail "Unable to run 'make install' for SOCA_PYTHON. Check bootstrap logs."
+    fi
+
+    popd
+    popd
     ln -sf "/apps/soca/{{ context.get("/configuration/ClusterId") }}/python/${PYTHON_VERSION}" "/apps/soca/{{ context.get("/configuration/ClusterId") }}/python/latest"
   else
     log_info "Python already installed and at correct version (${PYTHON_VERSION})."
   fi
 
   # Install Python required libraries
-  echo "{%- include  "templates/linux/soca_python_requirements.txt.j2" -%}" > /root/requirements.txt
+  echo "{%- include "templates/linux/soca_python_requirements.txt.j2" -%}" > requirements.txt
 
-  /apps/soca/{{ context.get("/configuration/ClusterId") }}/python/${PYTHON_VERSION}/bin/pip3 install -r /root/requirements.txt
+  if ! /apps/soca/{{ context.get("/configuration/ClusterId") }}/python/${PYTHON_VERSION}/bin/pip3 install -r requirements.txt; then
+    exit_fail "Unable to install SOCA Python requirements (see templates/linux/soca_python_requirements.txt.j2)"
+  fi
+
   popd
   log_info "Python and relevant dependency installed"
 }

@@ -1,0 +1,89 @@
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# Begin: File Downloader (HTTP and S3) Added via common.j2
+function file_download() {
+
+  # file_download --download-url="https://link/file.txt" --save-as="file.txt" <-- will download from internet via https
+  # file_download --download-url="s3://mybucket/file.txt" --save-as="file.txt"  <-- will download from s3 via awscli
+  # Optional: Specify --sha256-checksum to verify data integrity
+  # Optional: Specify --wget-options to add any addition options (note: --quiet is enabled by default)
+
+  local DOWNLOAD_URL
+  local SAVE_AS
+  local SHA256_CHECKSUM_EXPECTED
+  local SHA256_CHECKSUM_FOUND
+  local WGET_OPTIONS
+  local DOWNLOAD_TYPE
+  log_info "Detected file_download request with args: ${*}"
+
+  for arg in "$@"; do
+    case $arg in
+      --download-url=*) DOWNLOAD_URL="${arg#*=}" ;;
+      --save-as=*) SAVE_AS="${arg#*=}" ;;
+      --sha256-checksum=*) SHA256_CHECKSUM_EXPECTED="${arg#*=}" ;;
+      --wget-options=*) WGET_OPTIONS="${arg#*=}" ;;
+      *) exit_fail "Unknown arg ${arg} for file_download";;
+    esac
+  done
+
+  if [[ ${DOWNLOAD_URL} =~ ^s3://$ ]]; then
+      log_info "${DOWNLOAD_URL} seems to be a S3 URL, setting DOWNLOAD_TYPE to S3"
+      DOWNLOAD_TYPE="s3"
+  else
+       log_info "${DOWNLOAD_URL} seems to be an HTTP URL, setting DOWNLOAD_TYPE to http"
+      DOWNLOAD_TYPE="http"
+  fi
+
+  if [[ -z ${DOWNLOAD_URL} ]]; then
+    exit_fail "DOWNLOAD_URL not found for file_download. Please specify --download-url"
+  fi
+
+  if [[ -z ${DOWNLOAD_TYPE} ]]; then
+    log_info "DOWNLOAD_TYPE not found, default to HTTP. Specify --download-type http or s3. "
+    DOWNLOAD_TYPE="http"
+  fi
+
+  if [[ ! ${DOWNLOAD_TYPE} == "s3" ]] && [[ ! ${DOWNLOAD_TYPE} == "http" ]]; then
+    exit_fail "DOWNLOAD_TYPE must be either s3 or http. Detected ${DOWNLOAD_TYPE} . Specify --download-type http or s3. "
+  fi
+
+
+  if [[ -z ${SAVE_AS} ]]; then
+    exit_fail "SAVE_AS not found, for file_download. Please specify --save-as"
+  fi
+
+  if [[ ${DOWNLOAD_TYPE} == "http" ]]; then
+    # HTTP
+    if ! verify_package_installed wget; then
+      packages_install wget
+    fi
+
+    # note: Do not add WGET_OPTIONS between quotes to avoid them being treated as string
+    if wget --quiet ${WGET_OPTIONS} "${DOWNLOAD_URL}" -O "${SAVE_AS}"; then
+      log_info "${DOWNLOAD_URL} downloaded successfully and saved as ${SAVE_AS}"
+    else
+      exit_fail "Error downloading [${DOWNLOAD_URL}] wget returned an error, check the logs for more details"
+    fi
+
+  else
+    # S3
+    if aws_cli s3 cp ${DOWNLOAD_URL} ${SAVE_AS} --quiet; then
+      log_info "${DOWNLOAD_URL} downloaded successfully and saved as ${SAVE_AS}"
+    else
+      exit_fail "Error downloading ${DOWNLOAD_URL}. aws_cli returned an error"
+    fi
+  fi
+
+  # If --sha256-checksum is provided, proceed to an integrity check
+  if [[ -n ${SHA256_CHECKSUM_EXPECTED} ]]; then
+    log_info "--sha256-checksum found, verifying file"
+    SHA256_CHECKSUM_FOUND=$(sha256sum "${SAVE_AS}" | awk '{print $1}')
+    if [[ "${SHA256_CHECKSUM_FOUND}" != "${SHA256_CHECKSUM_EXPECTED}" ]];  then
+      exit_fail "Checksum for ${DOWNLOAD_URL} failed. Expected SHA256 ${SHA256_CHECKSUM_EXPECTED}, but found ${SHA256_CHECKSUM_FOUND} File may be compromised."
+    else
+      log_info "Checksum verified: Expected SHA256 ${SHA256_CHECKSUM_EXPECTED}, found ${SHA256_CHECKSUM_FOUND}"
+    fi
+  fi
+}
+# End: File Downloader

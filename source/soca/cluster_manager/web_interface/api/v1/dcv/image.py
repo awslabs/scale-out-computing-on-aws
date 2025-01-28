@@ -140,6 +140,7 @@ class ManageImage(Resource):
             "rhel8",
             "rhel9",
             "amazonlinux2",
+            "amazonlinux2023",
             "windows",
         ]
         if args.get("os").lower() not in _allowed_dcv_base_os:

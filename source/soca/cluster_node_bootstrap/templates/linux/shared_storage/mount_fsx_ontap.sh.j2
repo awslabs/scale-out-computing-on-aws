@@ -2,27 +2,134 @@
 # SPDX-License-Identifier: Apache-2.0
 
 # Begin: FSx OnTap
-{% if context.get("/configuration/BaseOS") in ("amazonlinux2", "amazonlinux2023", "centos7", "rhel7", "rhel8", "rhel9", "rocky8", "rocky9") %}
 
-{% include "templates/linux/shared_storage/nfs_wrapper.sh.j2" %}
+{% if "templates/linux/shared_storage/mount_fsx_ontap.sh.j2" not in ns.template_already_included %}
+  {% set _ = ns.template_already_included.append("templates/linux/shared_storage/mount_fsx_ontap.sh.j2") %}
 
-function mount_fsx_ontap () {
-  local ENDPOINT="${1}"
-  local MOUNT_POINT="${2}" # Local linux folder to use as mountpoint
-  local GET_FSX_MOUNT_PATH=$(echo "${ENDPOINT}" | cut -d":" -f2)
-  if [[ -z ${GET_FSX_MOUNT_PATH} ]]; then
-    log_info "FSx OnTap Junction Path  not specified, trying to retrieve it"
-    GET_FSX_MOUNT_NAME=$(aws_cli fsx describe-file-systems --file-system-ids "${FSX_ID}" --query FileSystems[].OntapConfiguration.JunctionPath --output text)
-    log_info "FSx OnTap Junction Path: ${GET_FSX_MOUNT_PATH}"
-    ENDPOINT+=":${GET_FSX_MOUNT_PATH}"
-  fi
-  local NFS_OPTS_DATA="nfsvers=4.1,rsize=1048576,wsize=1048576,hard,timeo=600,retrans=2,noresvport"
-  if wrapper_mount_nfs ${ENDPOINT} ${MOUNT_POINT} ${NFS_OPTS_DATA} == "success"; then
-    log_info "Successfully mounted ${ENDPOINT} as ${MOUNT_POINT}"
-  else
-    log_error "Unable to mount  ${ENDPOINT} as ${MOUNT_POINT}"
-    exit_fail
-  fi
-}
+  {% include "templates/linux/shared_storage/fstab_wrapper.sh.j2" %}
+
+  function mount_fsx_ontap () {
+
+    # MOUNT_TARGET (required): FSxN Volume ID. Used to determine actual mount endpoint if ENDPOINT is not set
+    # MOUNT_PATH (required): Unix path to mount the the filesystem on
+    # ON_MOUNT_FAILURE (required): What to do if the mount is not successful (exit or ignore)
+    # MOUNT_OPTIONS (optional): NFS options to use
+    # ENABLED (optional): Whether the automount is enabled
+
+    local MOUNT_TARGET
+    local MOUNT_PATH
+    local MOUNT_OPTIONS
+    local ON_MOUNT_FAILURE
+    for arg in "$@"; do
+        case $arg in
+            --mount-target=*) MOUNT_TARGET="${arg#*=}" ;;
+            --mount-path=*) MOUNT_PATH="${arg#*=}" ;;
+            --mount-options=*) MOUNT_OPTIONS="${arg#*=}" ;;
+            --on-mount-failure=*) ON_MOUNT_FAILURE="${arg#*=}" ;;
+            --enabled=*) ENABLED="${arg#*=}" ;;
+            *) exit_fail "Unknown arg ${arg} for mount_efs";;
+        esac
+    done
+
+    if ! verify_package_installed jq; then
+      log_info "jq not found, installing it ..."
+      packages_install jq
+    fi
+
+    if [[ -z "${ENABLED}" ]]; then
+      ENABLED="true"
+      log_warning "--enabled not set, default to ${ENABLED}"
+    fi
+
+    if [[ -z "${MOUNT_PATH}" ]]; then
+      exit_fail "--mount-path not set for mount_fsx_ontap"
+    fi
+
+    if [[ -z "${ON_MOUNT_FAILURE}" ]]; then
+      ON_MOUNT_FAILURE="ignore"
+      log_warning "--on-mount-failure not specified, default to ${ON_MOUNT_FAILURE}"
+    fi
+
+    if [[ -z "${MOUNT_TARGET}" ]]; then
+      exit_fail "--mount-target not set for mount_fsx_ontap"
+    fi
+
+    if [[ -z "${MOUNT_OPTIONS}" ]]; then
+      # Note: mounting via nfsv4 without idmapd configuration will cause group membership to break and default to nobody
+      MOUNT_OPTIONS="defaults,noatime,_netdev"
+      log_warning "--mount-options not set, default to ${MOUNT_OPTIONS}"
+    fi
+
+    if [[ "${ENABLED}" == "true" ]]; then
+      # Retrieve FSx ONTAP Volume info
+      local FSX_DESCRIBE_VOLUME=$(aws_cli fsx describe-volumes --volume-ids ${MOUNT_TARGET})
+      local FSX_VOLUME_SVM_ID=$(echo ${FSX_DESCRIBE_VOLUME} | jq -r '.Volumes[].OntapConfiguration.StorageVirtualMachineId // "NO_VALUE"')
+      local FSX_VOLUME_JUNCTION_PATH=$(echo ${FSX_DESCRIBE_VOLUME} | jq -r '.Volumes[].OntapConfiguration.JunctionPath // "NO_VALUE"')
+      local FSX_VOLUME_RESOURCE_ARN=$(echo ${FSX_DESCRIBE_VOLUME} | jq -r '.Volumes[].ResourceARN // "NO_VALUE"')
+
+      if [[ "${FSX_VOLUME_SVM_ID}" == "NO_VALUE" ]] || [[ "${FSX_VOLUME_JUNCTION_PATH}" == "NO_VALUE" ]] || [[ "${FSX_VOLUME_RESOURCE_ARN}" == "NO_VALUE" ]]; then
+        exit_fail "Unable to verify required FSx Volume Information for ${MOUNT_TARGET} : FSX_VOLUME_RESOURCE_ARN = ${FSX_VOLUME_RESOURCE_ARN}, FSX_VOLUME_SVM_ID=${FSX_VOLUME_SVM_ID}, FSX_VOLUME_JUNCTION_PATH=${FSX_VOLUME_JUNCTION_PATH}. API Result ${FSX_DESCRIBE_VOLUME}"
+      fi
+
+      # Retrieve FSx ONTAP SVM info
+      local FSX_DESCRIBE_SVM=$(aws_cli fsx describe-storage-virtual-machines --storage-virtual-machine-ids ${FSX_VOLUME_SVM_ID})
+      if [[ ${FSX_VOLUME_SVM_ID} == "NO_VALUE" ]]; then
+        exit_fail "Unable to determine SVM ID for FSX Volume ${MOUNT_TARGET}. API Result ${FSX_DESCRIBE_SVM}"
+      else
+        local NFS_DNS_NAME=$(echo ${FSX_DESCRIBE_SVM} | jq -r '.StorageVirtualMachines[].Endpoints.Nfs.DNSName // "NO_VALUE"' )
+        if [[ ${NFS_DNS_NAME} == "NO_VALUE" ]]; then
+          exit_fail "Unable to determine StorageVirtualMachines[].Endpoints.Nfs.DNSName for ${FSX_VOLUME_SVM_ID}. API Result ${FSX_DESCRIBE_SVM}"
+        fi
+
+        local DS_DOMAIN_NAME=$(echo ${FSX_DESCRIBE_SVM} | jq -r '.StorageVirtualMachines[0].ActiveDirectoryConfiguration.SelfManagedActiveDirectoryConfiguration.DomainName // "NO_VALUE"')
+        if [[ ${DS_DOMAIN_NAME} == "NO_VALUE" ]]; then
+          log_warning "Unable to determine AD Domain Name for ${FSX_VOLUME_SVM_ID}, group membership may default to nobody. API Result ${FSX_DESCRIBE_SVM}"
+        else
+           log_info "Updating idmap.conf to support correct AD group/user membership when using FSxN with nfs4"
+            # Valid idmapd configuration is required when using NetApp otherwise group membership will be set to `nobody`
+            # > https://kb.netapp.com/on-prem/ontap/da/NAS/NAS-KBs/NFSv4.x_mounts_show_file_and_group_owner_as_nobody
+            cp /etc/idmapd.conf /etc/idmapd.conf.original.$(date +%s)
+            log_info "Check if Domain=${DS_DOMAIN_NAME} exists in idmapd.conf"
+            if grep -q "^[^#]*Domain=${DS_DOMAIN_NAME}" /etc/idmapd.conf; then
+              log_info "Domain=${DS_DOMAIN_NAME} already found in idmapd.conf, ignoring ..."
+            else
+              if grep -q '^[^#]*Domain=' /etc/idmapd.conf; then
+                log_info "Domain= found but not pointing to ${DS_DOMAIN_NAME}, remove the line ... "
+                sed -i '/^[^#]*Domain=/d' /etc/idmapd.conf
+              fi
+              log_info "Adding Domain=${DS_DOMAIN_NAME} under the [General] section on /etc/idmapd.conf"
+              sed -i "/^\[General\]/a Domain=${DS_DOMAIN_NAME}" /etc/idmapd.conf
+              nfsidmap -c
+            fi
+        fi
+        ENDPOINT="${NFS_DNS_NAME}:${FSX_VOLUME_JUNCTION_PATH}"
+      fi
+
+      if [[ "${SOCA_NODE_TYPE}" == "controller" ]]; then
+       # Check if tag soca:OntapFirstSetup == true is there, only applicable on the controller
+       # If yes, SOCA will proceed to initial CIFS/SVM configuration
+        local FSX_VOLUME_TAG_ONTAP_FIRST_SETUP=$(aws_cli fsx list-tags-for-resource --resource-arn "${FSX_VOLUME_RESOURCE_ARN}" --query "Tags[?Key=='soca:OntapFirstSetup'].Value" --output text)
+        if [[ "${FSX_VOLUME_TAG_ONTAP_FIRST_SETUP}" == "true" ]]; then
+          log_info "Tag soca:OntapFirstSetup = true exist on this FSx for NetApp ONTAP, processing to CIFS share creation and SVM conf"
+          {% include "templates/linux/shared_storage/fsx/ontap/first_setup.sh.j2" %}
+          fsx_ontap_first_setup "${MOUNT_TARGET}"
+        else
+          log_info "soca:OntapFirstSetup not present or not true, fsx_ontap_first_setup is not needed"
+        fi
+      fi
+
+      if fstab_wrapper "${ENDPOINT} ${MOUNT_PATH} nfs4 ${MOUNT_OPTIONS} 0 0"; then
+        log_info "Successfully mounted ${ENDPOINT} as ${MOUNT_PATH}"
+      else
+        if [[ ${ON_MOUNT_FAILURE} == "exit" ]]; then
+          exit_fail "Unable to mount ${ENDPOINT} as ${MOUNT_PATH}"
+        else
+          log_warning "Unable to mount ${ENDPOINT} as ${MOUNT_PATH}, ignoring"
+        fi
+      fi
+    else
+      log_warning "FSx ONTAP Filesystem ${MOUNT_TARGET}, mount path ${MOUNT_PATH} is not enabled. Skipping ... Detected enabled flag ${ENABLED}"
+    fi
+  }
 {% endif %}
 # End: FSx OnTap mount

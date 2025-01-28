@@ -33,6 +33,7 @@ class SocaJinja2Generator:
         logger.info(f"Jinja2 template dir: {self._template_dirs}")
         _jinja2_env = Environment(
             loader=FileSystemLoader(self._template_dirs),
+            extensions=['jinja2.ext.do'],
             autoescape=select_autoescape(
                 enabled_extensions=("j2", "jinja2"),
                 default_for_string=True,

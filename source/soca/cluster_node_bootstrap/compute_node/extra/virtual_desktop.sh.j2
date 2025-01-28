@@ -7,5 +7,5 @@ log_info "Checking if host is a Virtual Desktop machine"
   {% include "templates/linux/dcv/system_requirements.sh.j2" %}
   {% include "templates/linux/dcv/dcv_server.sh.j2" %}
 {% else %}
-  log_info "This host is not a dvc (virtual desktop) node"
+  log_info "This host is not a DCV (virtual desktop) node"
 {% endif %}

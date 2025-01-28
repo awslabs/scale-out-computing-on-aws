@@ -18,7 +18,7 @@ import sys
 import logging
 
 sys.path.append(
-    f"/apps/soca/{os.environ.get('SOCA_CONFIGURATION', 'SOCA_CONFIGURATION_NOT_FOUND')}/cluster_manager"
+    f"/apps/soca/{os.environ.get('SOCA_CLUSTER_ID', 'SOCA_CONFIGURATION_NOT_FOUND')}/cluster_manager"
 )
 
 from datetime import datetime, timezone, timedelta

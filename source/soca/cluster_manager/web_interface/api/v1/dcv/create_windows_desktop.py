@@ -288,7 +288,7 @@ class CreateWindowsDesktop(Resource):
 
             jinja2_env = Environment(
                 loader=FileSystemLoader(
-                    f"/apps/soca/{os.environ.get('SOCA_CONFIGURATION')}/cluster_node_bootstrap/"
+                    f"/apps/soca/{os.environ.get('SOCA_CLUSTER_ID')}/cluster_node_bootstrap/"
                 ),
                 autoescape=select_autoescape(
                     enabled_extensions=("j2", "jinja2"),

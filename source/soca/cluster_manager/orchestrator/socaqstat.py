@@ -71,7 +71,7 @@ if __name__ == "__main__":
     # Retrieve Default Queue parameters
     queue_settings_file = (
         "/apps/soca/"
-        + os.environ["SOCA_CONFIGURATION"]
+        + os.environ["SOCA_CLUSTER_ID"]
         + "/cluster_manager/orchestrator/settings/queue_mapping.yml"
     )
     queue_parameter_values = {}

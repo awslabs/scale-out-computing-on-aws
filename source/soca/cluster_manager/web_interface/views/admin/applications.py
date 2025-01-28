@@ -183,7 +183,7 @@ def export_application():
         check_app = ApplicationProfiles.query.filter_by(id=request.form["app"]).first()
         if check_app:
             output = {
-                "Instructions:": "https://awslabs.github.io/scale-out-computing-on-aws/web-interface/import-export-application-profiles",
+                "Instructions:": "https://awslabs.github.io/scale-out-computing-on-aws-documentation/documentation/web-interface/import-export-application-profiles",
                 "profile_form": check_app.profile_form,
                 "profile_job": check_app.profile_job,
                 "profile_interpreter": check_app.profile_interpreter,

@@ -15,8 +15,7 @@ function configure_chronyd () {
     log_info "chrony is not installed, installing it ... "
     packages_install chrony
   fi
-
-  mv /etc/chrony.conf /etc/chrony.conf.original
+  mv /etc/chrony.conf /etc/chrony.conf.original.$(date +%s)
   echo -e "
 # use the local instance NTP service, if available
 server 169.254.169.123 prefer iburst minpoll 4 maxpoll 4

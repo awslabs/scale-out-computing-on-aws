@@ -39,6 +39,21 @@ logger = logging.getLogger("soca_logger")
 client_ec2 = utils_boto3.get_boto(service_name="ec2").message
 client_cfn = utils_boto3.get_boto(service_name="cloudformation").message
 
+def clean_user_data(text_to_remove: list, data: str) -> str:
+    _ec2_user_data = data
+    for _t in text_to_remove:
+        _ec2_user_data = re.sub(f"{_t}", "", _ec2_user_data, flags=re.IGNORECASE)
+
+    # Remove leading spaces
+    _ec2_user_data =  re.sub(r"^[ \t]+", "", _ec2_user_data, flags=re.MULTILINE)
+
+    # Remove lines that start with '#' but not '#!'
+    _ec2_user_data =  re.sub(r"^(?!#!)#.*\n?", "", _ec2_user_data, flags=re.MULTILINE)
+
+    # Finally remove blank lines
+    _ec2_user_data = re.sub(r"^\s*\n", "", _ec2_user_data, flags=re.MULTILINE)
+
+    return _ec2_user_data
 
 def get_arch_for_instance_type(instancetype: str) -> str:
     _found_arch = None
@@ -277,7 +292,7 @@ class CreateLinuxDesktop(Resource):
 
             jinja2_env = Environment(
                 loader=FileSystemLoader(
-                    f"/apps/soca/{os.environ.get('SOCA_CONFIGURATION')}/cluster_node_bootstrap/"
+                    f"/apps/soca/{os.environ.get('SOCA_CLUSTER_ID')}/cluster_node_bootstrap/"
                 ),
                 autoescape=select_autoescape(
                     enabled_extensions=("j2", "jinja2"),
@@ -328,8 +343,10 @@ class CreateLinuxDesktop(Resource):
             logger.debug(f"soca_parameters for DCV User Data: {soca_parameters}")
 
             # Create User Data
-            user_data = jinja2_env.get_template("compute_node/01_user_data.sh.j2").render(
-                context=soca_parameters
+            user_data = clean_user_data(
+                text_to_remove=["# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.",
+                                "# SPDX-License-Identifier: Apache-2.0"],
+                data=jinja2_env.get_template("compute_node/01_user_data.sh.j2").render(context=soca_parameters)
             )
 
             # Create bootstrap setup invoked by user data

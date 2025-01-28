@@ -10,12 +10,11 @@ function install_nvidia_grid_drivers () {
   fi
 
   log_info "Installing NVIDIA GRID Drivers"
-  mkdir -p /root/soca_bootstrap/gpu_drivers
   {% if context.get("/configuration/BaseOS") in ("rhel8", "rhel9", "rocky8", "rocky9") %}
     packages_install vulkan-loader
   {% endif %}
-
-  pushd /root/soca_bootstrap/gpu_drivers
+  mkdir -p "${SOCA_BOOTSTRAP_ASSETS_FOLDER}/gpu_drivers"
+  pushd "${SOCA_BOOTSTRAP_ASSETS_FOLDER}/gpu_drivers"
   rm -rf NVIDIA-Linux-x86_64*.run || log_info "No previous .run file detected"
   local DRIVER_BUCKET_REGION=$(curl -s --head "{{ context.get("/system/gpu/gpu_settings/nvidia/grid_drivers/s3_bucket_url") }}" | grep bucket-region | awk '{print $2}' | tr -d '\r\n')
   aws_cli --region ${DRIVER_BUCKET_REGION} s3 cp --quiet --recursive "{{ context.get("/system/gpu/gpu_settings/nvidia/grid_drivers/s3_bucket_path") }}" .
@@ -54,8 +53,8 @@ function install_nvidia_public_tesla_drivers() {
     packages_install vulkan-loader
   {% endif %}
 
-  mkdir -p /root/soca_bootstrap/gpu_drivers
-  pushd /root/soca_bootstrap/gpu_drivers
+  mkdir -p "${SOCA_BOOTSTRAP_ASSETS_FOLDER}/gpu_drivers"
+  pushd "${SOCA_BOOTSTRAP_ASSETS_FOLDER}/gpu_drivers"
   rm -rf NVIDIA-Linux-*.run || echo "No previous .run file detected"
   curl -fSsl -O ${DRIVER_URL_ENDPOINT}
 

@@ -15,7 +15,7 @@
 This hook reject the job if the user does not have a valid budget associated
 Doc: https://awslabs.github.io/scale-out-computing-on-aws/analytics/set-up-budget-project/
 create hook check_project_budget event=queuejob
-import hook check_project_budget application/x-python default /apps/soca/%SOCA_CONFIGURATION/cluster_hooks/queuejob/check_project_budget.py
+import hook check_project_budget application/x-python default /apps/soca/%SOCA_CLUSTER_ID/cluster_hooks/queuejob/check_project_budget.py
 
 Note: If you make any change to this file, you MUST re-execute the import command
 """
@@ -25,14 +25,14 @@ import sys
 import pbs
 from configparser import (
     SafeConfigParser,
-)  # PBS env is py3.7 or py3.6, so use configparser (instead of ConfigParser in py2.7)
+)
 
 if (
-    "/apps/soca/%SOCA_CONFIGURATION/python/latest/lib/python3.9/site-packages"
+    "/apps/soca/%SOCA_CLUSTER_ID/python/latest/lib/python3.9/site-packages"
     not in sys.path
 ):
     sys.path.append(
-        "/apps/soca/%SOCA_CONFIGURATION/python/latest/lib/python3.9/site-packages"
+        "/apps/soca/%SOCA_CLUSTER_ID/python/latest/lib/python3.9/site-packages"
     )
 import boto3
 
@@ -48,8 +48,8 @@ def get_all_budgets():
             for account in config.options(section):
                 budget_per_project[section].append(account)
     except Exception as ex:
-        msg = "Error. Budget file is incorrect: " + str(ex)
-        e.reject(msg)
+        e.reject(f"Error. Budget file is incorrect: {ex}")
+
     return budget_per_project
 
 
@@ -64,7 +64,7 @@ job_project = (
 
 # User Variables
 aws_account_id = "<YOUR_AWS_ACCOUNT_ID>"
-budget_config_file = "/apps/soca/%SOCA_CONFIGURATION/cluster_manager/orchestrator/settings/project_cost_manager.txt"  # Link to example
+budget_config_file = "/apps/soca/%SOCA_CLUSTER_ID/cluster_manager/orchestrator/settings/project_cost_manager.txt"  # Link to example
 user_must_belong_to_project = (
     True  # Change if you don't want to restrict project to a list of users
 )
@@ -76,12 +76,13 @@ allow_user_multiple_projects = (
 )
 
 if job_project is None and allow_job_no_project is False:
-    msg = "Error. You tried to submit job without project. Specify project using -P parameter"
-    e.reject(msg)
+    e.reject(
+        "Error. You tried to submit job without project. Specify project using -P parameter"
+    )
 
 else:
     try:
-        pbs.logmsg(pbs.LOG_DEBUG, "checking_budget: project: " + str(job_project))
+        pbs.logmsg(pbs.LOG_DEBUG, f"checking_budget: project: {job_project}")
         # Get all budgets
         projects_list = get_all_budgets()
 
@@ -89,36 +90,21 @@ else:
         user_to_project = [
             key for (key, value) in projects_list.items() if job_owner in value
         ]
-        pbs.logmsg(pbs.LOG_DEBUG, "Budget: user_budget" + str(user_to_project))
+        pbs.logmsg(pbs.LOG_DEBUG, f"Budget: user_budget {user_to_project}")
         if user_to_project:
             if user_to_project.__len__() > 1 and allow_user_multiple_projects is False:
-                msg = (
-                    "Error. "
-                    + job_owner
-                    + " has been assigned to more than 1 budget ("
-                    + str(user_to_project)
-                    + ")"
+                e.reject(
+                    f"Error {job_owner} has been assigned to more than 1 budget {str(user_to_project)}"
                 )
-                e.reject(msg)
 
             if job_project not in user_to_project:
-                msg = (
-                    "Error. "
-                    + job_owner
-                    + " is not assigned to project: "
-                    + job_project
-                    + " See "
-                    + budget_config_file
+                e.reject(
+                    f"Error {job_owner}  is not assigned to project: {str(job_project)}. Please check {budget_config_file}"
                 )
-                e.reject(msg)
         else:
-            msg = (
-                "User "
-                + job_owner
-                + " is not assigned to any project. See "
-                + budget_config_file
+            e.reject(
+                f"Error {job_owner}  is not assigned to any project. Please check {budget_config_file}"
             )
-            e.reject(msg)
 
         # Project is valid and user is authorized. Calculating budget left for project
 
@@ -127,8 +113,7 @@ else:
                 AccountId=aws_account_id, BudgetName=job_project
             )
         except Exception as ex:
-            msg = "Error. Unable to query AWS Budget API. ERROR: " + str(ex)
-            e.reject(msg)
+            e.reject(f"Error. Unable to query AWS Budget API. ERROR: {ex}")
 
         actual_spend = float(
             budget_query["Budget"]["CalculatedSpend"]["ActualSpend"]["Amount"]
@@ -136,12 +121,9 @@ else:
         allocated_budget = float(budget_query["Budget"]["BudgetLimit"]["Amount"])
 
         if actual_spend > allocated_budget:
-            msg = (
-                "Error. Budget for "
-                + job_project
-                + " exceed allocated threshold. Update it on AWS Budget Console"
+            e.reject(
+                f"Error. Budget for {job_project} exceed allocated threshold. Update it on AWS Budget Console"
             )
-            e.reject(msg)
         else:
             e.accept()
 

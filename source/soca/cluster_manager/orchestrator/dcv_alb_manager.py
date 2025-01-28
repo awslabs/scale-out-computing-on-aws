@@ -16,7 +16,7 @@ import random
 import sys
 
 sys.path.append(
-    f"/apps/soca/{os.environ.get('SOCA_CONFIGURATION', 'SOCA_CONFIGURATION_NOT_FOUND')}/cluster_manager"
+    f"/apps/soca/{os.environ.get('SOCA_CLUSTER_ID', 'SOCA_CONFIGURATION_NOT_FOUND')}/cluster_manager"
 )
 from utils.aws.ssm_parameter_store import SocaConfig
 import utils.aws.boto3_wrapper as utils_boto3_wrapper

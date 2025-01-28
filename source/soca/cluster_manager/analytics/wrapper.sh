@@ -13,23 +13,23 @@ fi
 
 source /etc/environment
 
-if [[ -z "${SOCA_CONFIGURATION}" ]]; then
-  echo "SOCA_CONFIGURATION environment variable not found."
+if [[ -z "${SOCA_CLUSTER_ID}" ]]; then
+  echo "SOCA_CLUSTER_ID environment variable not found."
   exit 1
 
 else
-  export PYTHONPATH=/apps/soca/${SOCA_CONFIGURATION}/cluster_manager/
+  export PYTHONPATH=/apps/soca/${SOCA_CLUSTER_ID}/cluster_manager/
   case ${ANALYTICS_MODE} in
     cluster_nodes_tracking)
-      "/apps/soca/${SOCA_CONFIGURATION}/python/latest/bin/python3" "/apps/soca/${SOCA_CONFIGURATION}/cluster_manager/analytics/cluster_nodes_tracking.py"
+      "/apps/soca/${SOCA_CLUSTER_ID}/python/latest/bin/python3" "/apps/soca/${SOCA_CLUSTER_ID}/cluster_manager/analytics/cluster_nodes_tracking.py"
       ;;
 
     job_tracking)
-      "/apps/soca/${SOCA_CONFIGURATION}/python/latest/bin/python3" "/apps/soca/${SOCA_CONFIGURATION}/cluster_manager/analytics/job_tracking.py"
+      "/apps/soca/${SOCA_CLUSTER_ID}/python/latest/bin/python3" "/apps/soca/${SOCA_CLUSTER_ID}/cluster_manager/analytics/job_tracking.py"
       ;;
 
     desktop_hosts_tracking)
-       "/apps/soca/${SOCA_CONFIGURATION}/python/latest/bin/python3" "/apps/soca/${SOCA_CONFIGURATION}/cluster_manager/analytics/desktop_hosts_tracking.py"
+       "/apps/soca/${SOCA_CLUSTER_ID}/python/latest/bin/python3" "/apps/soca/${SOCA_CLUSTER_ID}/cluster_manager/analytics/desktop_hosts_tracking.py"
       ;;
 
     *)

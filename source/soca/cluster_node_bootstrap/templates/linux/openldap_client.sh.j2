@@ -15,7 +15,7 @@ function openldap_client {
     local SOCA_LDAP_HOST=${HOST_PORT%%:*}
     local SOCA_LDAP_PORT=${HOST_PORT##*:}
 
-    cp /etc/openldap/ldap.conf /etc/openldap/ldap.conf.backup
+    cp /etc/openldap/ldap.conf /etc/openldap/ldap.conf.original.$(date +%s)
     # In case of custom AMI, we clean previous URI & BASE
     sed -i '/^[[:space:]]*URI/d'
     sed -i '/^[[:space:]]*BASE/d'
@@ -23,7 +23,7 @@ function openldap_client {
     echo "BASE ${LDAP_BASE}" >> /etc/openldap/ldap.conf
 
     if [[ -e "/etc/sssd/sssd.conf" ]]; then
-        cp /etc/sssd/sssd.conf /etc/sssd/sssd.conf.orig
+        cp /etc/sssd/sssd.conf /etc/sssd/sssd.conf.original.$(date +%s)
     fi
     mkdir -p /etc/openldap/cacerts/
     echo -e "[domain/default]

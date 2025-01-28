@@ -1,0 +1,85 @@
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# Begin: Install/Update Required Linux Packages
+
+# Add EPEL
+{% include "templates/linux/epel.sh.j2" %}
+
+function system_packages_install {
+  log_info "# Begin: Install/Update Required Linux Packages"
+  # Will Create a lock file to avoid re-installing packages if bootstrap has already been executed
+  local PACKAGES_ALREADY_INSTALLED_FILE_LOCK="/root/.soca_preinstalled_packages_{{ context.get('/configuration/ClusterId') }}.log"
+  local SYSTEM_PKGS # List of packages to be installed on all nodes
+  local USER_EXTRA_PKGS # Additional packages to install at runtime
+  local ADD_PKGS # Custom list of packages to add based on distro, see below
+  local REMOVE_PKGS # Custom list of packages to remove based on distro, see below see below
+
+  # Include potential extra package specified by customer
+  {% include "templates/linux/system_packages/user_extra_packages.sh.j2" %}
+
+  if [[ ! -f "${PACKAGES_ALREADY_INSTALLED_FILE_LOCK}" ]]; then
+    log_info "No preinstalled package log found on ${PACKAGES_ALREADY_INSTALLED_FILE_LOCK} - preparing BaseOS - {{ context.get("/configuration/BaseOS") }} .."
+
+    # Get list of Linux packages to install for each distribution
+    {% if context.get("/configuration/BaseOS") == "amazonlinux2023" %}
+      {% include "templates/linux/system_packages/os/amazonlinux2023.sh.j2" %}
+
+    {% elif context.get("/configuration/BaseOS") == "amazonlinux2" %}
+      {% include "templates/linux/system_packages/os/amazonlinux2.sh.j2" %}
+
+    {% elif context.get("/configuration/BaseOS") == "centos7"  %}
+      {% include "templates/linux/system_packages/os/centos7.sh.j2" %}
+
+    {% elif context.get("/configuration/BaseOS") == "rhel7"  %}
+      {% include "templates/linux/system_packages/os/rhel7.sh.j2" %}
+
+    {% elif context.get("/configuration/BaseOS") == "rhel8" %}
+      {% include "templates/linux/system_packages/os/rhel8.sh.j2" %}
+
+    {% elif context.get("/configuration/BaseOS") == "rhel9" %}
+      {% include "templates/linux/system_packages/os/rhel9.sh.j2" %}
+
+    {% elif context.get("/configuration/BaseOS") == "rocky8" %}
+      {% include "templates/linux/system_packages/os/rocky8.sh.j2" %}
+
+    {% elif context.get("/configuration/BaseOS") == "rocky9" %}
+      {% include "templates/linux/system_packages/os/rocky9.sh.j2" %}
+
+    {% else %}
+      exit_fail "System Packages Installer: Unrecognized base os: {{ context.get('/configuration/BaseOS') }}"
+    {% endif %}
+
+    # Add distro specific packages and ensure uniqueness
+    SYSTEM_PKGS=($(printf '%s\n' "${SYSTEM_PKGS[@]}" "${ADD_PKGS[@]}" | sort | uniq))
+
+    # Avoid kernel update is Lustre is on the mount table as lustre-client is kernel specific.
+    if cat /etc/fstab | grep -q lustre; then
+      log_info "Lustre filesystem found in /etc/fstab. Removing kernel from package update to avoid version mismatch with lustre-client version"
+      REMOVE_PKGS+=(kernel)
+    fi
+
+    # Ensure packages in REMOVE_PKGS won't be installed
+    for pkg_to_remove in "${REMOVE_PKGS[@]}"; do
+      SYSTEM_PKGS=($(printf '%s\n' "${SYSTEM_PKGS[@]}" | grep -vE "^${pkg_to_remove}$"))
+      USER_EXTRA_PKGS=($(printf '%s\n' "${USER_EXTRA_PKGS[@]}" | grep -vE "^${pkg_to_remove}$"))
+    done
+
+    # Proceed to the actual installation
+    packages_install ${SYSTEM_PKGS[@]} ${USER_EXTRA_PKGS[@]}
+
+    # Create file to bypass package installation if we create an AMI from this machine
+    touch ${PACKAGES_ALREADY_INSTALLED_FILE_LOCK}
+
+    # Post Install commands
+    {% if context.get("/configuration/BaseOS") in ("rhel8", "rocky8", "rhel9", "rocky9") %}
+      systemctl enable hibinit-agent
+    {% endif %}
+
+  else
+    log_info "Existing Package log ${PACKAGES_ALREADY_INSTALLED_FILE_LOCK} found. Bypassing package installation steps. Remove this file if you have modified the list of package to install"
+  fi
+  log_info "End: Install/Update Required Linux Packages"
+}
+system_packages_install
+# End: Install/Update Required Linux Packages

@@ -14,18 +14,18 @@ function install_aws_cloudwatch_agent () {
     log_info "Installing CloudWatch Agent"
     local DOWNLOAD_LINK_PATTERN="{{ context.get("/system/cloudwatch_agent/download_link_pattern") }}"
     local AWS_REGION="{{ context.get("/configuration/Region") }}"
-    {%- if context.get("/configuration/BaseOS") in ("amazonlinux2", "amazonlinux2023") %}
+    {% if context.get("/configuration/BaseOS") in ("amazonlinux2", "amazonlinux2023") %}
     local OS="amazon_linux"
     local EXT="rpm"
-    {%- elif context.get("/configuration/BaseOS") in ("rhel7", "rhel8", "rhel9", "rocky8", "rocky9") %}
+    {% elif context.get("/configuration/BaseOS") in ("rhel7", "rhel8", "rhel9", "rocky8", "rocky9") %}
     local OS="redhat"
     local EXT="rpm"
-    {%- elif context.get("/configuration/BaseOS") == "centos7" %}
+    {% elif context.get("/configuration/BaseOS") == "centos7" %}
     local OS="centos"
     local EXT="rpm"
-    {%- endif %}
+    {% endif %}
 
-    case $MACHINE in
+    case ${MACHINE} in
       aarch64)
         local ARCHITECTURE="arm64"
         ;;
@@ -34,10 +34,10 @@ function install_aws_cloudwatch_agent () {
         ;;
     esac
 
-    LOCAL CLOUDWATCH_AGENT_DOWNLOAD_LINK=$(echo "${DOWNLOAD_LINK_PATTERN}" | sed -e "s/%region%/${AWS_REGION}/g" -e "s/%os%/${OS}/g" -e "s/%architecture%/${ARCHITECTURE}/g" -e "s/%ext%/${EXT}/g")
+    local CLOUDWATCH_AGENT_DOWNLOAD_LINK=$(echo "${DOWNLOAD_LINK_PATTERN}" | sed -e "s/%region%/${AWS_REGION}/g" -e "s/%os%/${OS}/g" -e "s/%architecture%/${ARCHITECTURE}/g" -e "s/%ext%/${EXT}/g")
     log_info "Downloading CloudWatch Agent from ${DOWNLOAD_LINK}"
 
-    wget "${CLOUDWATCH_AGENT_DOWNLOAD_LINK}"
+    file_download --download-url="${CLOUDWATCH_AGENT_DOWNLOAD_LINK}" --save-as="${CLOUDWATCH_AGENT_PACKAGE_NAME}"
     local CLOUDWATCH_AGENT_PACKAGE_NAME="$(basename ${CLOUDWATCH_AGENT_DOWNLOAD_LINK})"
     rpm -U ./${CLOUDWATCH_AGENT_PACKAGE_NAME}
 

@@ -17,11 +17,11 @@ Key Features:
 
 ## :book: Documentation
 
-[https://awslabs.github.io/scale-out-computing-on-aws/](https://awslabs.github.io/scale-out-computing-on-aws/)
+[https://awslabs.github.io/scale-out-computing-on-aws-documentation/](https://awslabs.github.io/scale-out-computing-on-aws-documentation/)
 
 ## :rocket: How to install Scale-Out Computing on AWS
 
-Refer to [https://awslabs.github.io/scale-out-computing-on-aws/tutorials/install-soca-cluster/](https://awslabs.github.io/scale-out-computing-on-aws/tutorials/install-soca-cluster/) for installation instructions.
+Refer to [SOCA Installation Documentation](https://awslabs.github.io/scale-out-computing-on-aws-documentation/documentation/01-install-soca-cluster/) for installation instructions.
 
 
 This solution collects anonymous operational metrics to help AWS improve the quality of features of the solution. For more information, including how to disable this capability, please see the [https://docs.aws.amazon.com/solutions/latest/scale-out-computing-on-aws/appendix-d.html](https://docs.aws.amazon.com/solutions/latest/scale-out-computing-on-aws/appendix-d.html).

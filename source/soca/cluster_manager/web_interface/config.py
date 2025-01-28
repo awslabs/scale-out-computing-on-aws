@@ -159,21 +159,62 @@ class Config(object):
     )
 
     # User Directory
-    DIRECTORY_AUTH_PROVIDER = SocaConfig(key="/configuration/UserDirectory/provider").get_value().get("message")
-    DIRECTORY_GROUP_SEARCH_BASE = SocaConfig(key="/configuration/UserDirectory/group_search_base").get_value().get("message")
-    DIRECTORY_PEOPLE_SEARCH_BASE = SocaConfig(key="/configuration/UserDirectory/people_search_base").get_value().get("message")
-    DIRECTORY_ADMIN_SEARCH_BASE = SocaConfig(key="/configuration/UserDirectory/admins_search_base").get_value().get("message")
-    DIRECTORY_BASE_DN = SocaConfig(key="/configuration/UserDirectory/domain_base").get_value().get("message")
-    DIRECTORY_DOMAIN_NAME = SocaConfig(key="/configuration/UserDirectory/domain_name").get_value().get("message")
-    DIRECTORY_SERVICE_ID = SocaConfig(key="/configuration/UserDirectory/ad_aws_directory_service_id").get_value().get("message")
-    DIRECTORY_NETBIOS = SocaConfig(key="/configuration/UserDirectory/short_name").get_value().get("message")
-    DIRECTORY_ENDPOINT = SocaConfig(key="/configuration/UserDirectory/endpoint").get_value().get("message")
-    DIRECTORY_SERVICE_RESET_LAMBDA_ARN = SocaConfig(key="/configuration/UserDirectory/ad_aws_lambda_reset_password").get_value().get("message")
+    DIRECTORY_AUTH_PROVIDER = (
+        SocaConfig(key="/configuration/UserDirectory/provider")
+        .get_value()
+        .get("message")
+    )
+    DIRECTORY_GROUP_SEARCH_BASE = (
+        SocaConfig(key="/configuration/UserDirectory/group_search_base")
+        .get_value()
+        .get("message")
+    )
+    DIRECTORY_PEOPLE_SEARCH_BASE = (
+        SocaConfig(key="/configuration/UserDirectory/people_search_base")
+        .get_value()
+        .get("message")
+    )
+    DIRECTORY_ADMIN_SEARCH_BASE = (
+        SocaConfig(key="/configuration/UserDirectory/admins_search_base")
+        .get_value()
+        .get("message")
+    )
+    DIRECTORY_BASE_DN = (
+        SocaConfig(key="/configuration/UserDirectory/domain_base")
+        .get_value()
+        .get("message")
+    )
+    DIRECTORY_DOMAIN_NAME = (
+        SocaConfig(key="/configuration/UserDirectory/domain_name")
+        .get_value()
+        .get("message")
+    )
+    DIRECTORY_SERVICE_ID = (
+        SocaConfig(key="/configuration/UserDirectory/ad_aws_directory_service_id")
+        .get_value()
+        .get("message")
+    )
+    DIRECTORY_NETBIOS = (
+        SocaConfig(key="/configuration/UserDirectory/short_name")
+        .get_value()
+        .get("message")
+    )
+    DIRECTORY_ENDPOINT = (
+        SocaConfig(key="/configuration/UserDirectory/endpoint")
+        .get_value()
+        .get("message")
+    )
     # To identify group/user, group associated to "user" will be named "user<GROUP_NAME_SUFFIX>"
     DIRECTORY_GROUP_NAME_SUFFIX = "socagroup"
     # Fetch Directory service account
-    _soca_ds_service_account_secret = SocaConfig(key="/configuration/UserDirectory/service_account_secret_arn").get_value().get("message")
-    DIRECTORY_ADMIN_USER_SECRET = SocaSecret(secret_id_prefix="", secret_id=_soca_ds_service_account_secret).get_secret()
+    _soca_ds_service_account_secret = (
+        SocaConfig(key="/configuration/UserDirectory/service_account_secret_arn")
+        .get_value()
+        .get("message")
+    )
+    DIRECTORY_ADMIN_USER_SECRET = SocaSecret(
+        secret_id_prefix="", secret_id=_soca_ds_service_account_secret
+    ).get_secret()
     if not DIRECTORY_ADMIN_USER_SECRET.success:
         print("Unable to retrieve Directory credentials.")
         sys.exit(1)

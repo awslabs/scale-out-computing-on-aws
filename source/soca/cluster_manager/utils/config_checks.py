@@ -36,7 +36,7 @@ class SocaConfigKeyVerifier:
         "list_of_ec2_subnet_ids",
     ]
 
-    _KEY_CONFIG_FILE = f"/apps/soca/{os.environ.get('SOCA_CONFIGURATION')}/cluster_manager/utils/settings/socaconfig_key_validator.yml"
+    _KEY_CONFIG_FILE = f"/apps/soca/{os.environ.get('SOCA_CLUSTER_ID')}/cluster_manager/utils/settings/socaconfig_key_validator.yml"
 
     def __init__(self, key: str):
         self.key = key
@@ -81,6 +81,12 @@ class SocaConfigKeyVerifier:
             return SocaError.SOCA_CONFIG_KEY_VERIFIER(
                 helper=f"Unable to access YAML config file {SocaConfigKeyVerifier._KEY_CONFIG_FILE} due to {err}"
             )
+        # /configuration/FileSystems tree has an extra unique UUID (fs name)
+        # e.g /configuration/FileSystems/mycustompath/provider
+        # We remove `mycustompath` as this is customer supplier and validate the key /configuration/FileSystems/provider
+        if "/configuration/FileSystems/" in key:
+            _key = key.split("/configuration/FileSystems/")[1]
+            key = f"/configuration/FileSystems/{'/'.join(_key.split('/')[1:])}"
 
         # key uses this type of format /configuration/BaseOS, but yaml db is dict {"configuration": { "BaseOS": ... } }
         # we flatten the key e.g: ["configuration","BaseOS"] then parse the dictionary tree

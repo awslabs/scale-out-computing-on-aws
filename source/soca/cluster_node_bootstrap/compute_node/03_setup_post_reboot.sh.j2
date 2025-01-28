@@ -12,7 +12,9 @@
 # Load common functions
 {% include "templates/linux/common.sh.j2" %}
 
-# Include cache client
+log_info "Setup Post Reboot Start Date: $(date)"
+
+# Add cache client functions (Cache CLI is automatically installed if needed)
 {% include "templates/linux/cache_client.sh.j2" %}
 
 log_info "Starting Post Reboot bootstrap sequence"
@@ -28,6 +30,7 @@ crontab -l | grep -v $(readlink -f "$0") | crontab -
 
 log_info "Starting Post-Reboot bootstrap sequence"
 
+# Detect if GPU is available
 GPU_DETECTED=$(ec2_describe_instance_types "GpuInfo.Gpus[].Manufacturer")
 
 log_info "GPU Detected (if any): ${GPU_DETECTED}"
@@ -40,21 +43,27 @@ if [[ -n ${GPU_DETECTED} ]]; then
 
   # Optional GPU Optimization for NVIDIA
   if [[ ${GPU_DETECTED} == "NVIDIA" ]]; then
-    {% include "templates/linux/gpu/optimize_gpu.sh.j2" %}
     log_info "GPU Optimization can takes several minutes to run and is disabled by default. Uncomment the line below if you want to activate it"
-    # gpu_instance_optimize_gpu_clock_speed_nvidia
+    {# include "templates/linux/gpu/optimize_gpu.sh.j2" #}
   fi
 else
   log_info "No GPU detected on this machine"
 fi
 
+# Install EFA if needed
 {% if context.get("/job/Efa", False) %}
   {% include "templates/linux/efa.sh.j2" %}
 {% endif %}
 
+# Configure FSx for Lustre if needed
 {% if context.get("/job/FSxLustreConfiguration", False) %}
   {% if context.get("/job/FSxLustreConfiguration").get("fsx_lustre") or context.get("/job/FSxLustreConfiguration").get("existing_fsx") %}
     {% include "templates/linux/shared_storage/mount_fsx_lustre.sh.j2" %}
+    # FSx_Lustre will be mounted on this path
+    FSX_LUSTRE_MOUNT_PATH="/fsx_lustre"
+    mkdir -p ${FSX_LUSTRE_MOUNT_PATH}
+
+    # Deploy an ephemeral FSxL, filesystem will be destroyed once the job is completed
     {% if context.get("/job/FSxLustreConfiguration").get("fsx_lustre") %}
       log_info "detected Ephemeral FSx for Lustre specific to this job"
       # Retrieve FSX DNS assigned to this job
@@ -62,18 +71,22 @@ fi
         --tag-filters "Key=soca:FSx,Values=true" "Key=soca:JobId,Values={{ context.get("/job/JobId") }}" "Key=soca:ClusterId,Values={{ context.get("/configuration/ClusterId") }}"  \
         --query ResourceTagMappingList[].ResourceARN --output text)
       log_info "Retrieved FSx Arn: ${FSX_ARN}"
-      FSX_DNS=$(aws_cli fsx describe-file-systems --file-system-ids "$(echo "${FSX_ARN}" | cut -d/ -f2)"  --query 'FileSystems[].DNSName' --output text)
-      log_info "Retrieved FSx DNSName: ${FSX_DNS}"
-      mount_fsx_lustre "${FSX_DNS}" "/fsx"
+      FSX_ID="$(echo "${FSX_ARN}" | cut -d/ -f2)"
+      log_info "Retrieved FSx Lustre FileSystemId: ${FSX_ID}"
+      mount_fsx_lustre --mount-target="${FSX_ID}" --mount-path="${FSX_LUSTRE_MOUNT_PATH}"
 
+    # Mount an existing FSx for Lustre filesystem ID
     {% elif context.get("/job/FSxLustreConfiguration").get("existing_fsx") %}
-      log_info "detected Existing FSx for Lustre specific to this job"
-      mount_fsx_lustre {{ context.get("/job/FSxLustreConfiguration").get("existing_fsx") }} "/fsx"
+      log_info "detected Existing FSx ID {{ context.get("/job/FSxLustreConfiguration").get("existing_fsx") }}  for Lustre specific to this job"
+      mount_fsx_lustre --mount-target={{ context.get("/job/FSxLustreConfiguration").get("existing_fsx") }} --mount-path="${FSX_LUSTRE_MOUNT_PATH}"
+
     {% endif %}
-      {% include "templates/linux/shared_storage/fsx/lustre_client_tuning_prereboot.sh.j2" %}
+    # Include FSxL client tuning pre-reboot
+    {% include "templates/linux/shared_storage/fsx/lustre/client_tuning_prereboot.sh.j2" %}
   {% endif %}
 {% endif %}
 
+# Disable HyperThreading
 {% if not context.get("/job/ThreadsPerCore", False) %}
   {% include "templates/linux/disable_hyperthreading.sh.j2" %}
 {% endif %}
@@ -87,24 +100,22 @@ fi
 # Setup final MOTD
 {% include "templates/linux/motd.sh.j2" %}
 
+log_info "Setup Post Reboot End Date: $(date)"
+
 # Check if a final reboot is needed, otherwise mount all disks and start scheduler
 REBOOT_REQUIRED=$(get_reboot_required)
 if [[ "${REBOOT_REQUIRED}" == "no" ]]; then
    log_info "No final reboot needed, mounting all disks and starting PBS"
-  # Mount all disks
-  mount -a
   systemctl enable pbs
   systemctl start pbs
   log_info "Bootstrap Sequence Completed: Node Ready"
 else
   log_info "Final reboot needed, preparing rc.local to be executed post final reboot"
   cat << 'EOF' >> /etc/rc.local
-# Mount all disks
-mount -a
 {% if context.get("/job/FSxLustreConfiguration", False) %}
 {% if context.get("/job/FSxLustreConfiguration").get("fsx_lustre") or context.get("/job/FSxLustreConfiguration").get("existing_fsx") %}
 # Post-Mount FSxL perf tuning
-{% include "templates/linux/shared_storage/fsx/lustre_client_tuning_postmount.sh.j2" %}
+{% include "templates/linux/shared_storage/fsx/lustre/client_tuning_postmount.sh.j2" %}
 {% endif %}
 {% endif %}
 {% if not context.get("/job/ThreadsPerCore", False) %}

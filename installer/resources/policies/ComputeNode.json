@@ -13,7 +13,9 @@
                 "arn:%%AWS_PARTITION%%:s3:::nvidia-gaming/*",
                 "arn:%%AWS_PARTITION%%:s3:::nvidia-gaming-drivers",
                 "arn:%%AWS_PARTITION%%:s3:::ec2-amd-linux-drivers/*",
-                "arn:%%AWS_PARTITION%%:s3:::ec2-amd-linux-drivers"
+                "arn:%%AWS_PARTITION%%:s3:::ec2-amd-linux-drivers",
+                "arn:%%AWS_PARTITION%%:s3:::%%BUCKET%%/*",
+                "arn:%%AWS_PARTITION%%:s3:::%%BUCKET%%"
             ],
             "Effect": "Allow"
         },
@@ -43,9 +45,13 @@
                 "ec2:DescribeInstanceTypes",
                 "fsx:CreateDataRepositoryTask",
                 "fsx:DescribeFileSystems",
+                "fsx:DescribeVolumes",
+                "fsx:DescribeStorageVirtualMachines",
                 "tag:GetResources",
                 "tag:GetTagValues",
-                "tag:GetTagKeys"
+                "tag:GetTagKeys",
+                "elasticfilesystem:DescribeAccessPoints",
+                "elasticfilesystem:DescribeMountTargets"
             ],
             "Resource": "*",
             "Effect": "Allow"

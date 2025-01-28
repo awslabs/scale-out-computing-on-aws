@@ -9,27 +9,19 @@ function install_openmpi () {
   # This will take a while and is not system blocking, so adding at the end of the install process
   local OPENMPI_VERSION="{{ context.get("/system/openmpi/version") }}"
   local OPENMPI_URL="{{ context.get("/system/openmpi/url") }}"
-  local OPENMPI_TGZ="{{ context.get("/system/openmpi/tgz") }}"
   local OPENMPI_SHA256="{{ context.get("/system/openmpi/sha256") }}"
 
   if [[ ! -d "/apps/openmpi/${OPENMPI_VERSION}" ]]; then
     log_info "/apps/openmpi/${OPENMPI_VERSION} does not exist, installing OpenMPI ..."
-    mkdir -p /root/soca_bootstrap/{{ context.get("/configuration/ClusterId") }}/openmpi/installer
+    mkdir -p "${SOCA_BOOTSTRAP_ASSETS_FOLDER}/openmpi/installer"
     mkdir -p "/apps/openmpi/${OPENMPI_VERSION}"
-    cd "/root/soca_bootstrap/{{context.get("/configuration/ClusterId") }}/openmpi/installer"
-
-    wget ${OPENMPI_URL}
-
-    if [[ $(sha256sum "${OPENMPI_TGZ}" | awk '{print $1}') != "${OPENMPI_SHA256}" ]];  then
-        echo -e "FATAL ERROR: Checksum for OpenMPI failed. File may be compromised." > /etc/motd
-        exit 1
-    fi
-
-    tar xzf "${OPENMPI_TGZ}"
-    cd "openmpi-${OPENMPI_VERSION}"
+    pushd "${SOCA_BOOTSTRAP_ASSETS_FOLDER}/openmpi/installer"
+    file_download --download-url="${OPENMPI_URL}" --save-as="openmpi_installer_${OPENMPI_VERSION}.tgz" --sha256-checksum="${OPENMPI_SHA256}"
+    tar xzf "openmpi_installer_${OPENMPI_URL}.tgz" --strip-components=1 -C .
     ./configure --prefix="/apps/openmpi/${OPENMPI_VERSION}"
     make -j "${NCPU}"
     make install
+    popd
   else
     log_info "/apps/openmpi/${OPENMPI_VERSION} already exist, skipping OpenMPI install"
   fi

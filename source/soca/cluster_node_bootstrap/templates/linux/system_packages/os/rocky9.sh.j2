@@ -1,0 +1,28 @@
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+{% include "templates/linux/system_packages/os/base_packages/rhel_based_distributions.sh.j2" %}
+
+log_info "Customizing Linux packages installation for Rocky 9"
+dnf config-manager --set-enabled crb
+
+# Packages not available or with a different name in this distro
+REMOVE_PKGS=(
+  libselinux-python
+  libverto-tevent
+  system-lsb
+  redhat-lsb
+  dejavu-fonts-common
+  python-sssdconfig
+  compat-openldap
+)
+
+# New packages to add  (specific to this distro)
+ADD_PKGS=(
+  python3-libselinux
+  python3-sss
+  ec2-hibinit-agent
+)
+
+log_info "Removing packages for Rocky9: ${REMOVE_PKGS[*]}"
+log_info "Adding extra packages for Rocky9: ${ADD_PKGS[*]}"

@@ -1,0 +1,205 @@
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+{% if context.get("/job/NodeType") == "controller" %}
+  {% if "templates/linux/shared_storage/fsx/ontap/first_setup.sh.j2" not in ns.template_already_included %}
+    {% set _ = ns.template_already_included.append("templates/linux/shared_storage/fsx/ontap/first_setup.sh.j2") %}
+
+    function ontap_rest_wrapper () {
+      local HTTP_METHOD
+      local API_RESOURCE
+      local FSX_ENDPOINT
+      local FSX_ADMIN_AUTH
+      local DATA
+      for arg in "$@"; do
+          case $arg in
+              --method=*) HTTP_METHOD="${arg#*=}" ;;
+              --resource=*) API_RESOURCE="${arg#*=}" ;;
+              --endpoint=*) FSX_ENDPOINT="${arg#*=}" ;;
+              --auth=*) FSX_ADMIN_AUTH="${arg#*=}" ;;
+              --data=*) DATA="${arg#*=}" ;;
+              *) exit_fail "Unknown arg ${arg} for ontap_rest_wrapper";;
+          esac
+      done
+
+      if [[ -z "${DATA}" ]]; then
+        curl -u "${FSX_ADMIN_AUTH}" -sk \
+        -X "${HTTP_METHOD}" \
+        "${FSX_ENDPOINT}${API_RESOURCE}" \
+        -H "accept: application/hal+json" \
+        -H "Content-Type: text/plain"
+
+      else
+        curl -u "${FSX_ADMIN_AUTH}" -sk \
+          -X "${HTTP_METHOD}" \
+          "${FSX_ENDPOINT}${API_RESOURCE}" \
+          -H "accept: application/hal+json" \
+          -H "Content-Type: text/plain" \
+          -d "${DATA}"
+      fi
+    }
+
+    function fsx_ontap_first_setup {
+      # This function finalize FSxN setup and is executed only once when using a brand new FSx for NetApp ONTAP
+      # 1 - Register LDAP/AD Client on the SVM
+      # 2 - Create UNIX/NTFS Name Mapping to ensure correct ACL between Windows and Linux
+      # 3 - Create CIFS share
+      # 4 - Update default permissions when file/folder is created from Windows:
+      # - File: 644
+      # - Folder: 755
+      local FSX_ONTAP_VOLUME_ID="${1}"
+
+      if [[ -z "${FSX_ONTAP_VOLUME_ID}" ]]; then
+        exit_fail "FSX_ONTAP_VOLUME_ID as first parameter is needed for fsx_ontap_first_setup"
+      fi
+
+      if ! verify_package_installed jq; then
+        log_info "jq not found, installing it ..."
+        packages_install jq
+      fi
+
+      # Query FSx APIs and retrieve Volume/SVM information
+      local FSX_DESCRIBE_VOLUME=$(aws_cli fsx describe-volumes --volume-ids ${FSX_ONTAP_VOLUME_ID})
+      local FSX_VOLUME_SVM_ID=$(echo ${FSX_DESCRIBE_VOLUME} | jq -r '.Volumes[0].OntapConfiguration.StorageVirtualMachineId // "NO_VALUE"')
+      local FSX_VOLUME_JUNCTION_PATH=$(echo ${FSX_DESCRIBE_VOLUME} | jq -r '.Volumes[0].OntapConfiguration.JunctionPath // "NO_VALUE"')
+      local FSX_FILESYSTEM_ID=$(echo ${FSX_DESCRIBE_VOLUME} | jq -r '.Volumes[0].FileSystemId // "NO_VALUE"')
+
+      if [[ "${FSX_VOLUME_SVM_ID}" == "NO_VALUE" || "${FSX_VOLUME_JUNCTION_PATH}" == "NO_VALUE" || "${FSX_FILESYSTEM_ID}" == "NO_VALUE" ]]; then
+        exit_fail "Unable to determine required values for FSX Volume ${FSX_ONTAP_VOLUME_ID}. Details- FSX_VOLUME_SVM_ID=${FSX_VOLUME_SVM_ID}, FSX_VOLUME_JUNCTION_PATH=${FSX_VOLUME_JUNCTION_PATH}, FSX_FILESYSTEM_ID=${FSX_FILESYSTEM_ID}"
+      fi
+
+      # Retrieve the FSx SVM associated to the volume
+      local FSX_DESCRIBE_SVM=$(aws_cli fsx describe-storage-virtual-machines --storage-virtual-machine-ids ${FSX_VOLUME_SVM_ID})
+      local FSX_SVM_NAME=$(echo ${FSX_DESCRIBE_SVM} | jq -r  '.StorageVirtualMachines[0].Name // "NO_VALUE"')
+
+      if [[ "${FSX_SVM_NAME}" == "NO_VALUE" ]]; then
+        exit_fail "Unable to determine required values for FSX Storage Virtual Machine. Details, FSX_SVM_NAME=${FSX_SVM_NAME}"
+      fi
+
+      # Retrieve filesystem and tag containing Secret Manager information
+      local FSX_DESCRIBE_FILESYSTEM=$(aws_cli fsx describe-file-systems --file-system-ids ${FSX_FILESYSTEM_ID})
+      local FSX_ENDPOINT_MANAGEMENT="https://$(echo ${FSX_DESCRIBE_FILESYSTEM} | jq -r '.FileSystems[0].OntapConfiguration.Endpoints.Management.DNSName // "NO_VALUE"')"
+      local FSX_FILESYSTEM_TAG_FSX_ADMIN_SECRET=$(echo ${FSX_DESCRIBE_FILESYSTEM} | jq -r '.FileSystems[0].Tags[] | select(.Key == "soca:FsxAdminSecretName") | .Value')
+
+      if [[ "${FSX_ENDPOINT_MANAGEMENT}" == "NO_VALUE" ]]; then
+        exit_fail "Unable to determine FSX Endpoint Management . Details - FSX_ENDPOINT_MANAGEMENT=${FSX_ENDPOINT_MANAGEMENT}"
+      fi
+
+      if [[ -z "${FSX_FILESYSTEM_TAG_FSX_ADMIN_SECRET}" ]]; then
+        exit_fail "Unable to proceed to FSx ONTAP first setup because tag soca:FsxAdminSecretName is missing"
+      else
+        log_info "Retrieving fsxadmin credentials from ${FSX_FILESYSTEM_TAG_FSX_ADMIN_SECRET}"
+        local FSX_ADMIN_SECRETMANAGER_ID=$(get_secret "${FSX_FILESYSTEM_TAG_FSX_ADMIN_SECRET}")
+        local FSX_ADMIN_USER=$(echo ${FSX_ADMIN_SECRETMANAGER_ID} | jq -r ". | fromjson.username")
+        local FSX_ADMIN_PASSWORD=$(echo ${FSX_ADMIN_SECRETMANAGER_ID} | jq -r ". | fromjson.password")
+      fi
+
+      # Active Directory information for SVM domain join
+      local DS_DOMAIN_NAME=$(echo ${FSX_DESCRIBE_SVM} | jq -r '.StorageVirtualMachines[0].ActiveDirectoryConfiguration.SelfManagedActiveDirectoryConfiguration.DomainName // "NO_VALUE"')
+      local DS_DOMAIN_BASE=$(echo "${DS_DOMAIN_NAME}" | sed 's/\./,DC=/g' | sed 's/^/DC=/')
+      local DS_SHORT_NAME=$(echo "${DS_DOMAIN_NAME%%.*}" | cut -c1-15 | tr '[:lower:]' '[:upper:]')
+
+
+      if [[ "${DS_DOMAIN_NAME}" == "NO_VALUE" ]]; then
+        exit_fail "Unable to determine AD required values for FSX SVM Details- DS_DOMAIN_NAME=${DS_DOMAIN_NAME}"
+      fi
+
+      # Replace / with _ on Share name: e.g: if junction path is /data then CIFS share name will be data
+      local FSX_ONTAP_CIFS_SHARE_NAME=$(echo "${FSX_VOLUME_JUNCTION_PATH}" | sed 's|/|_|g; s/^_//')
+
+      log_info "About to configure FSxN SVM ${FSX_SVM_NAME} for first launch"
+      pushd ${SOCA_BOOTSTRAP_ASSETS_FOLDER}
+
+      # First, get the SVM UUID associated to SVM
+      log_info "Retrieve SVM UUID: GET ${FSX_ENDPOINT_MANAGEMENT}/api/svm/svms?name=${FSX_SVM_NAME}"
+      FSX_SVM_UUID=$(ontap_rest_wrapper --auth="${FSX_ADMIN_USER}:${FSX_ADMIN_PASSWORD}" \
+        --endpoint="${FSX_ENDPOINT_MANAGEMENT}" \
+        --method="GET" \
+        --resource="/api/svm/svms?name=${FSX_SVM_NAME}" | jq -r '.records[0].uuid')
+
+      if [[ -z "${FSX_SVM_UUID}" ]]; then
+        exit_fail "Unable to retrieve SVM UUID for ${FSX_SVM_NAME}, are you sure the SVM exists?"
+      fi
+
+      # vserver services name-service ldap client create -client-config ldap_config -ad-domain "${DS_DOMAIN_NAME}" -base-dn "${DS_DOMAIN_BASE}" -schema AD-IDMU -vserver "${FSX_SVM_NAME}";
+      # vserver services name-service ldap create -vserver "${FSX_SVM_NAME}" -client-config ldap_config;
+      log_info "Configuring LDAP Name Service: POST ${FSX_ENDPOINT_MANAGEMENT}/api/name-services/ldap"
+      ontap_rest_wrapper --auth="${FSX_ADMIN_USER}:${FSX_ADMIN_PASSWORD}" \
+       --endpoint="${FSX_ENDPOINT_MANAGEMENT}" \
+       --method="POST" \
+       --resource="/api/name-services/ldap" \
+       --data="{
+            \"svm\": { \"uuid\": \"${FSX_SVM_UUID}\" },
+            \"ad_domain\": \"${DS_DOMAIN_NAME}\",
+            \"base_dn\": \"${DS_DOMAIN_BASE}\",
+            \"schema\": \"AD-IDMU\"
+       }"
+
+      # vserver services name-service ns-switch modify -vserver "${FSX_SVM_NAME}" -database passwd,group,namemap -sources ldap;
+      log_info "Configuring LDAP Name Service: PATCH ${FSX_ENDPOINT_MANAGEMENT}/api/svm/svms/${FSX_SVM_UUID}"
+      ontap_rest_wrapper --auth="${FSX_ADMIN_USER}:${FSX_ADMIN_PASSWORD}" \
+       --endpoint="${FSX_ENDPOINT_MANAGEMENT}" \
+       --method="PATCH" \
+       --resource="/api/svm/svms/${FSX_SVM_UUID}" \
+       --data="{
+            \"nsswitch\": { \"passwd\": [\"ldap\"], \"group\": [\"ldap\"],\"namemap\": [\"ldap\"]  }
+       }"
+
+      # vserver name-mapping create -vserver "${FSX_SVM_NAME}" -direction win-unix -position 1 -pattern ${DS_SHORT_NAME}\\(.+) -replacement \1;
+      log_info "Configuring win-unix name mapping: POST ${FSX_ENDPOINT_MANAGEMENT}/api/name-services/name-mappings"
+      ontap_rest_wrapper --auth="${FSX_ADMIN_USER}:${FSX_ADMIN_PASSWORD}" \
+       --endpoint="${FSX_ENDPOINT_MANAGEMENT}" \
+       --method="POST" \
+       --resource="/api/name-services/name-mappings" \
+       --data="{
+            \"svm\": { \"uuid\": \"${FSX_SVM_UUID}\" },
+            \"direction\": \"win-unix\",
+            \"index\": \"1\",
+            \"pattern\": \"${DS_SHORT_NAME}\\\(.+)\",
+            \"replacement\": \"\\\1\"
+       }"
+
+      # vserver name-mapping create -vserver "${FSX_SVM_NAME}" -direction unix-win -position 1 -pattern (.+) -replacement ${DS_SHORT_NAME}\\\1;
+      log_info "Configuring unix-win name mapping: POST ${FSX_ENDPOINT_MANAGEMENT}/api/name-services/name-mappings"
+      ontap_rest_wrapper --auth="${FSX_ADMIN_USER}:${FSX_ADMIN_PASSWORD}" \
+       --endpoint="${FSX_ENDPOINT_MANAGEMENT}" \
+       --method="POST" \
+       --resource="/api/name-services/name-mappings" \
+       --data="{
+            \"svm\": { \"uuid\": \"${FSX_SVM_UUID}\" },
+            \"direction\": \"unix-win\",
+            \"index\": \"1\",
+            \"pattern\": \"(.+)\",
+            \"replacement\": \"${DS_SHORT_NAME}\\\(.+)\"
+       }"
+
+      # vserver nfs modify -vserver "${FSX_SVM_NAME}" -v4-id-domain "${DS_DOMAIN_NAME}";
+      log_info "Modifying nfs -v4-id-domain: PATCH ${FSX_ENDPOINT_MANAGEMENT}/api/protocols/nfs/services/${FSX_SVM_UUID}"
+      ontap_rest_wrapper --auth="${FSX_ADMIN_USER}:${FSX_ADMIN_PASSWORD}" \
+       --endpoint="${FSX_ENDPOINT_MANAGEMENT}" \
+       --method="PATCH" \
+       --resource="/api/protocols/nfs/services/${FSX_SVM_UUID}" \
+       --data="{
+            \"protocol\": { \"v4_id_domain\": \"${DS_DOMAIN_NAME}\" }
+       }"
+
+      # vserver cifs share create -vserver "${FSX_SVM_NAME}" -share-name ${FSX_ONTAP_CIFS_SHARE_NAME} -path \\${FSX_VOLUME_JUNCTION_PATH};
+      log_info "Creating CIFS share: POST ${FSX_ENDPOINT_MANAGEMENT}/api/protocols/cifs/shares"
+      ontap_rest_wrapper --auth="${FSX_ADMIN_USER}:${FSX_ADMIN_PASSWORD}" \
+       --endpoint="${FSX_ENDPOINT_MANAGEMENT}" \
+       --method="POST" \
+       --resource="/api/protocols/cifs/shares" \
+       --data="{
+            \"svm\": { \"uuid\": \"${FSX_SVM_UUID}\" },
+            \"name\": \"${FSX_ONTAP_CIFS_SHARE_NAME}\",
+            \"path\": \"\\${FSX_VOLUME_JUNCTION_PATH}\",
+            \"file_umask\": \"133\",
+            \"dir_umask\": \"133\"
+      }"
+
+      popd
+    }
+  {% endif %}
+{% else %}
+  log_warning "Fsx First Setup can only be executed from SOCA controller host"
+{% endif %}

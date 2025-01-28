@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 # Note: Any entries must have been created as PBS resource first.
-# Refer to the documentation for instruction https://awslabs.github.io/scale-out-computing-on-aws/tutorials/job-licenses-flexlm/
+# Refer to the documentation for instruction https://awslabs.github.io/scale-out-computing-on-aws-documentation/tutorials/job-licenses-flexlm/
 # Examples below (adjust as needed)
 
 ansys:

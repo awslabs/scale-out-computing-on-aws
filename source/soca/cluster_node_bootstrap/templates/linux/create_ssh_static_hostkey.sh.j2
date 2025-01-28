@@ -9,7 +9,7 @@ function create_static_hostkey {
   # This is to avoid getting SSH Fingerprint warnings
 
   log_info "Commenting existing HostKey sections"
-  cp /etc/ssh/sshd_config /etc/ssh/sshd_config.original
+  cp /etc/ssh/sshd_config /etc/ssh/sshd_config.original.$(date +%s)
   sed -i '/^HostKey/ s/^/#/' /etc/ssh/sshd_config
   local STATIC_KEY_FOLDER="/apps/soca/{{  context.get("/configuration/ClusterId") }}/cluster_node_bootstrap/custom_automation/static_ssh_keys"
   local RSA_KEY_NAME="soca_ssh_host_rsa_key"

@@ -3,13 +3,44 @@
 
 # Begin - Wrapper AWSCLI. Added via common.sh.j2
 function aws_cli () {
-  # Wrapper for AWS API call with --region pre-defined if not specifically specified
   local AWS=$(command -v aws)
+
+  # Will verify if the output of the command to run is on the cache
+  local CHECK_CACHE="true"
+  local CACHED_RESULT
+
+  # Automatically add --region if not specified
   if [[ "$*" == *"--region"* ]]; then
     local AWS_API_CALL="${AWS} $*"
   else
     local AWS_API_CALL="${AWS} --region {{ context.get("/configuration/Region") }} $*"
   fi
-  ${AWS_API_CALL}
+
+  # Do not check cache_get_key for any query specific to secretsmanager as cache_get_key has a dependency with aws_cli
+  # and will cause circular dependency errors. Moreover, secrets must not be cached on ElastiCache.
+  if [[ "$*" == "secretsmanager"* ]]; then
+    CHECK_CACHE="false"
+  fi
+
+  # Check if this API call has already been executed previously and results are available on ElastiCache
+  if [[ "${CHECK_CACHE}" == "true" ]]; then
+    # cache_get_key is not available on User Data and imported via cache_client.sh.j2
+    if declare -F cache_get_key > /dev/null; then
+      CACHED_RESULT=$(cache_get_key "${AWS_API_CALL}")
+      if [[ ${CACHED_RESULT} == "CACHE_MISS" ]]; then
+        # Key does not exist on ElastiCache, run actual API call
+        ${AWS_API_CALL}
+      else
+        echo -n ${CACHED_RESULT}
+      fi
+    else
+      # cache_get_key function does not exist, import it via cache_client.sh.j2, default actual API call.
+      ${AWS_API_CALL}
+    fi
+  else
+    # bypass cache, run actual API call
+    ${AWS_API_CALL}
+  fi
+
 }
 # End - Wrapper AWSCLI

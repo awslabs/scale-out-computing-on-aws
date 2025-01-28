@@ -2,26 +2,44 @@
 # SPDX-License-Identifier: Apache-2.0
 
 function build_openpbs {
-  cd ${1}
+  pushd ${1}
   log_info "Building OpenPBS from $(pwd)"
   local NCPUS=$(nproc)
   log_info "Running AutoGen"
-  ./autogen.sh
+
+  if ! ./autogen.sh; then
+    exit_fail "Unable to run autogen.sh for OpenPBS. See log for additional details"
+  fi
   log_info "Running Configure"
-  ./configure --prefix=/opt/pbs
+
+  if ! ./configure --prefix=/opt/pbs; then
+    exit_fail "Unable to run ./configure --prefix=/opt/pbs for OpenPBS. See log for additional details"
+  fi
+
   log_info "Running Make"
-  make -j ${NCPU}
-  make install -j ${NCPU}
+
+  if ! make -j ${NCPU}; then
+    exit_fail "Unable to run make -j ${NCPU} for OpenPBS. See log for additional details"
+  fi
+
+  if ! make install -j ${NCPU}; then
+    exit_fail "Unable to run make install -j ${NCPU} for OpenPBS. See log for additional details"
+  fi
+
   log_info "Post Build Command"
-  /opt/pbs/libexec/pbs_postinstall
+  if ! /opt/pbs/libexec/pbs_postinstall; then
+    exit_fail "Unable to run  /opt/pbs/libexec/pbs_postinstall for OpenPBS. See log for additional details"
+  fi
+
   chmod 4755 /opt/pbs/sbin/pbs_iff /opt/pbs/sbin/pbs_rcp
   log_info "Build Completed"
+  popd
 }
 
 
 function openpbs_install {
     local OPENPBS_INSTALLED_VERS=$(/opt/pbs/bin/qstat --version | awk {'print $NF'})
-    local INSTALLER_DIR="/root/soca_bootstrap/openpbs"
+    local INSTALLER_DIR="${SOCA_BOOTSTRAP_ASSETS_FOLDER}/openpbs"
     mkdir -p ${INSTALLER_DIR}
     pushd ${INSTALLER_DIR}
 
@@ -29,16 +47,11 @@ function openpbs_install {
       log_info "Installing OpenPBS via tgz download"
       local OPENPBS_VERSION="{{ context.get("/system/scheduler/openpbs/tgz/version") }}"
       local OPENPBS_URL="{{ context.get("/system/scheduler/openpbs/tgz/url") }}"
-      local OPENPBS_TGZ="{{ context.get("/system/scheduler/openpbs/tgz/tgz") }}"
       local OPENPBS_SHA256="{{ context.get("/system/scheduler/openpbs/tgz/sha256") }}"
       if [[ "${OPENPBS_INSTALLED_VERS}" != "${OPENPBS_VERSION}" ]]; then
           log_info "OpenPBS Not Detected, Installing OpenPBS"
-          wget ${OPENPBS_URL}
-          if [[ $(sha256sum "${OPENPBS_TGZ}" | awk '{print $1}') != "${OPENPBS_SHA256}" ]];  then
-              echo -e "FATAL ERROR: Checksum for OpenPBS failed. File may be compromised." > /etc/motd
-              exit 1
-          fi
-          tar zxvf ${OPENPBS_TGZ} -C ${INSTALLER_DIR} --strip-components=1
+          file_download --download-url="${OPENPBS_URL}" --save-as="openpbs_installer_${OPENPBS_VERSION}.tgz" --sha256-checksum="${OPENPBS_SHA256}"
+          tar zxvf "openpbs_installer_${OPENPBS_VERSION}.tgz" -C ${INSTALLER_DIR} --strip-components=1
           build_openpbs ${INSTALLER_DIR}
 
       else
@@ -66,10 +79,10 @@ function openpbs_install {
 
           # Install Pre-requisite
           if ! verify_package_installed cmake3; then
-            log_info "cmake3 not installed, installting it "
+            log_info "cmake3 not installed, installing it "
             packages_install cmake3
           fi
-
+         # todo: understand why libcjson(-dev) from yum does not work here
          if test ! -e "/lib64/libcjson.so"; then
           log_info "/lib64/libcjson.so not found, installing it"
           git clone https://github.com/DaveGamble/cJSON.git
@@ -81,6 +94,7 @@ function openpbs_install {
           make install
           ln -sf /usr/local/lib64/libcjson.so.1 /lib64/libcjson.so.1
         fi
+
         build_openpbs ${INSTALLER_DIR}
 
       else
@@ -90,11 +104,12 @@ function openpbs_install {
     {% elif context.get("/configuration/SchedulerDeploymentType") == "s3_tgz" %}
      local OPENPBS_VERSION="{{ context.get("/system/scheduler/openpbs/s3_tgz/version") }}"
      local OPENPBS_S3_URI="{{ context.get("/system/scheduler/openpbs/s3_tgz/s3_uri") }}"
+
      log_info "Installing OpenPBS via an OpenPBS archive stored on S3"
       if [[ "${OPENPBS_INSTALLED_VERS}" != "${OPENPBS_VERSION}" ]]; then
           log_info "OpenPBS Not Detected, Installing OpenPBS"
-          aws_cli s3 cp ${OPENPBS_S3_URI} ./openpbs_installer.tar.gz
-          tar zxvf ./openpbs_installer.tar.gz -C ${INSTALLER_DIR} --strip-components=1
+          file_download --download-url="${OPENPBS_S3_URI}" --save-as="openpbs_installer_${OPENPBS_VERSION}.tgz" --download-type="s3"
+          tar zxvf "openpbs_installer_${OPENPBS_VERSION}.tgz" -C ${INSTALLER_DIR} --strip-components=1
           build_openpbs ${INSTALLER_DIR}
       else
           log_info "OpenPBS already installed, and at correct version (${OPENPBS_VERSION})."

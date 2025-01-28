@@ -4,6 +4,61 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [25.1.0] - 2025-01-28
+
+### Features
+
+- Introduction of [SOCA Storage AutoMount](https://awslabs.github.io/scale-out-computing-on-aws-documentation/documentation/storage/shared-storage/), a wrapper to simplify filesystems management
+- Added support for FSx for NetApp ONTAP for /apps & /data partitions (including ACL and CIFS automatic setup)
+- Added support for S3-Mountpoint (Mountpoint for Amazon S3 is a simple, high-throughput file client for mounting an Amazon S3 bucket as a local file system)
+- Enabled [SOCA Easy AMI setup](https://awslabs.github.io/scale-out-computing-on-aws-documentation/tutorials/reduce-compute-node-launch-time-with-custom-ami/) 
+- Added `file_download` wrapper for [SOCA Node Boostrap customizations](https://awslabs.github.io/scale-out-computing-on-aws-documentation/documentation/architecture/node-bootstrap/customize-node-boostrap/)
+
+### Changed
+
+**_IMPORTANT BASE OS CHANGES_**
+-  **NOTE** - This is part of a multi-release deprecation process for older/unsupported BaseOSes
+- Continue to wind-down support for `CentOS 7`, `CentOS 8` and `RHEL 7` for new installations
+  - You can enable installation to these BaseOSes with custom AMIs by manually adding AMIs to the proper sections in the `installer/region_map.yaml` file
+  - Migration should take place ASAP if you are still using these unsupported releases
+
+- Update `region_map.yaml` to include newer AWS regions / AMIs (not all BaseOSes are available in all regions)
+- `SOCA_CONFIGURATION` environment variable has been renamed to `SOCA_CLUSTER_ID` to be consistent with `SocaConfig` naming convention
+- ERROR/WARNING and FATAL bootstrap log messages are now copied to discrete log files in addition to standard stdout log
+- Reworked Linux System Packages template to simplify support for current and future operating systems
+- Simplified `default_config.yml` syntax by removing un-necessary keys
+- Adding `orchestrator` and `analytics` folder to the S3 logs backup mechanism
+- Boto3 / botocore updated to `1.36.2`
+- Python updated from `3.9.19` to `3.9.21`
+- OpenMPI updated from `5.0.5` to `5.0.6`
+- AWS EFA installer updated from `1.34.0` to `1.38.0`
+- Added `m7i.large` and `m6i.large` as default instance types for consideration during installations
+- Default to `TLS1.2` policy for OpenSearch deployments for better security and compatibility
+- Default to `OpenSearch 2.17` engine for new installations where SOCA creates the OpenSearch cluster
+- Update `OpenPBS` installation method to install from a specific GitHub `commitid` versus a specific release
+  - This allows several defect fixes/updates since the most recent release of `OpenPBS`
+  - This can be adjusted in the `default_config.yaml` to restore the previous behavior (**NOTE:** May contain defects that are already fixed!)
+- Removed redundant/retired Lambdas (`ResetDSPassword`, `GetESPrivateIPLambda`) and associated resources as the functionality has been updated/replaced
+
+### Fixes
+
+- Improve the experience during installation to regions with limited instance type options.
+- Various smaller fixes (typos, linting, etc)
+- CloudFormation outputs now returns the correct VPC Endpoint for OpenSearch
+
+### Known Issues
+
+- Some BaseOS combinations may not work in all situations (Controller BaseOS, Compute Node, VDI, etc) or features due to the age of the BaseOS. BaseOSes that are past their End of Life (EOL) support dates from the supplier may be removed in a future SOCA version.
+- If you select differing architectures (e.g. `x86_64` and `arm64` for the instance_types in the cluster - the cluster will fail). This will be addressed in a future release.
+- Linux VDI/DCV instances default to `Amazon Linux 2` - not the installed BaseOS of the cluster.
+- Creating a VDI session with an unsupported name will filter-out the unsupported characters - potentially causing conflict with the CloudFormation stackname.
+- Under rapid changes - the WebUI file browser may show incorrect results
+- The default deployment makes use of synthetic POSIX `uid` and `gid` generated for linux instances via `sssd`. This is not compatible in all scenarios.
+- Current Windows VDI images default to `40GB` root disks, and have approx `15GB` free after startup. This may not be enough for some larger installation packages. A larger default is expected in a future SOCA release.
+- Windows VDI/DCV launches will fail in CloudFormation when using `ED25519` Key Pairs. This is not a SOCA restriction/defect. A future SOCA version will detect this and not allow the attempted launch.
+
+
+
 ## [24.10.0] - 2024-10-24
 
 ### Forward

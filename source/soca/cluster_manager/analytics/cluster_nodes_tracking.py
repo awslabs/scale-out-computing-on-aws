@@ -24,7 +24,7 @@ from utils.logger import SocaLogger
 if __name__ == "__main__":
     _index_name = "soca_nodes"
 
-    _log_file_location = f"/apps/soca/{SocaConfig(key='/configuration/ClusterId').get_value().message}/cluster_manager/analytics/cluster_nodes_tracking.log"
+    _log_file_location = f"/apps/soca/{SocaConfig(key='/configuration/ClusterId').get_value().message}/cluster_manager/analytics/logs/cluster_nodes_tracking.log"
     logger = SocaLogger(name="analytics_cluster_nodes_tracking").rotating_file_handler(file_path=_log_file_location)
 
     logger.info(f"Tracking active SOCA HPC compute nodes. Log: {_log_file_location}")

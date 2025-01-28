@@ -4,17 +4,17 @@
 import click
 from commands.config import config
 from commands.cache import cache
+from commands.filesystems import filesystems
 from utils.logger import SocaLogger
 import os
-
 
 @click.group()
 def cli():
     pass
 
-
 cli.add_command(config)
 cli.add_command(cache)
+cli.add_command(filesystems)
 
 if __name__ == "__main__":
     # Log file is located in the user's home directory

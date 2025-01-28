@@ -1,0 +1,115 @@
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# Begin: Amazon S3 MountPoint
+{% if "templates/linux/shared_storage/mount_s3.sh.j2" not in ns.template_already_included %}
+  {% set _ = ns.template_already_included.append("templates/linux/shared_storage/mount_s3.sh.j2") %}
+
+  function mount_s3 () {
+      # MOUNT_TARGET (required): Bucket name
+      # MOUNT_PATH (required): Unix path to mount the EFS on
+      # ON_MOUNT_FAILURE (required): What to do if the mount is not successful (exit or ignore)
+      # MOUNT_OPTIONS (optional): NFS options to use
+      # ENABLED (optional): Whether the automount is enabled
+      pushd ${SOCA_BOOTSTRAP_ASSETS_FOLDER}
+
+      if ! verify_package_installed mount-s3; then
+        log_info "mount-s3 not found, installing it ..."
+        local MACHINE=$(uname -m)
+        local MOUNT_S3_INSTALLER_URL
+        local MOUNT_S3_INSTALLER_HASH
+        local MOUNT_S3_INSTALLER_FILENAME="$(date +%s)_mountpoint-s3.rpm"
+        if [[ ${MACHINE} == "x86_64" ]]; then
+          MOUNT_S3_INSTALLER_URL="{{ context.get("/system/s3_mountpoint/x86_64/url") }}"
+          MOUNT_S3_INSTALLER_HASH="{{ context.get("/system/s3_mountpoint/x86_64/sha256") }}"
+        else
+          MOUNT_S3_INSTALLER_URL="{{ context.get("/system/s3_mountpoint/aarch64/url") }}"
+          MOUNT_S3_INSTALLER_HASH="{{ context.get("/system/s3_mountpoint/aarch64/sha256") }}"
+        fi
+      fi
+
+      file_download --download-url="${MOUNT_S3_INSTALLER_URL}" --save-as="${MOUNT_S3_INSTALLER_FILENAME}" --sha256-checksum="${MOUNT_S3_INSTALLER_HASH}"
+      packages_install ${MOUNT_S3_INSTALLER_FILENAME}
+
+      local MOUNT_TARGET
+      local MOUNT_PATH
+      local MOUNT_OPTIONS
+      local ON_MOUNT_FAILURE
+
+      for arg in "$@"; do
+          case $arg in
+              --mount-target=*) MOUNT_TARGET="${arg#*=}" ;;
+              --mount-path=*) MOUNT_PATH="${arg#*=}" ;;
+              --mount-options=*) MOUNT_OPTIONS="${arg#*=}" ;;
+              --on-mount-failure=*) ON_MOUNT_FAILURE="${arg#*=}" ;;
+              --enabled=*) ENABLED="${arg#*=}" ;;
+              *) exit_fail "Unknown arg ${arg} for mount_efs";;
+          esac
+      done
+
+      if [[ -z "${ENABLED}" ]]; then
+        ENABLED="true"
+        log_warning "--enabled not set, default to ${ENABLED}"
+      fi
+
+      if [[ -z "${MOUNT_PATH}" ]]; then
+        exit_fail "--mount-path not set for mount_s3"
+      fi
+
+      if [[ -z "${ON_MOUNT_FAILURE}" ]]; then
+        ON_MOUNT_FAILURE="ignore"
+        log_warning "--on-mount-failure not specified, default to ${ON_MOUNT_FAILURE}"
+      fi
+
+      if [[ -z "${MOUNT_TARGET}" ]]; then
+        exit_fail "--mount-target not set for mount_s3"
+      fi
+
+      if [[ -z "${MOUNT_OPTIONS}" ]]; then
+        MOUNT_OPTIONS=""
+        log_warning "no --mount-options specified, default to ${MOUNT_OPTIONS}"
+      fi
+
+       if [[ "${ENABLED}" == "true" ]]; then
+        # Amazon S3 MountPoint does not currently support automatically mounting a bucket at system boot time.
+        # A tracking issue is open for fstab support: https://github.com/awslabs/mountpoint-s3/issues/44
+        MOUNT_S3_BIN=$(which mount-s3)
+        FUSERMOUNT_BIN=$(which fusermount)
+
+        log_info "Creating ${MOUNT_POINT} if needed"
+        mkdir -p ${MOUNT_POINT}
+
+        echo "[Unit]
+Description=Amazon S3 Mountpoint for "${MOUNT_PATH}"
+Wants=network.target
+AssertPathIsDirectory="${MOUNT_PATH}"
+
+[Service]
+Type=forking
+User=root
+Group=root
+ExecStart=${MOUNT_S3_BIN} "${MOUNT_TARGET}" "${MOUNT_PATH}" "${MOUNT_OPTIONS}"
+ExecStop=${FUSERMOUNT_BIN} -u ${MOUNT_PATH}
+
+[Install]
+WantedBy=remote-fs.target"  > /etc/systemd/system/soca-s3-${MOUNT_TARGET}-automount.service
+
+        log_info "Enabling & start soca-s3-${MOUNT_TARGET}-automount.service"
+        systemctl enable "soca-s3-${MOUNT_TARGET}-automount.service"
+
+        if systemctl start "soca-s3-${MOUNT_TARGET}-automount.service"; then
+          log_info "Successfully mounted ${MOUNT_TARGET} as ${MOUNT_PATH}"
+        else
+          if [[ ${ON_MOUNT_FAILURE} == "exit" ]]; then
+            exit_fail "Unable to mount ${MOUNT_TARGET} as ${MOUNT_PATH}. Did the IAM role has permissions to mount the bucket? Check /var/log/message for more info"
+          else
+            log_warning "Unable to mount ${MOUNT_TARGET} as ${MOUNT_PATH}, ignoring"
+          fi
+        fi
+      else
+        log_warning "S3 Bucket ${MOUNT_TARGET}, mount path ${MOUNT_PATH} is not enabled. Skipping ... Detected enabled flag ${ENABLED}"
+      fi
+      popd
+    }
+{% endif %}
+# End: Amazon S3 MountPoint

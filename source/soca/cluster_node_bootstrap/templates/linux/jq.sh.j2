@@ -2,14 +2,11 @@
 # SPDX-License-Identifier: Apache-2.0
 
 # Begin: Install jq
-{% if context.get("/configuration/BaseOS") in ("amazonlinux2", "amazonlinux2023", "centos7", "rhel7", "rhel8", "rhel9", "rocky8", "rocky9") %}
 function install_jq () {
   log_info "Begin: Install jq"
   if ! verify_package_installed jq; then
     packages_install jq
   fi
-
 }
 install_jq
-{% endif %}
 # End: Install jq

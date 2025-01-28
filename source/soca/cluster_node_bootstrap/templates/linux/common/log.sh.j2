@@ -2,24 +2,49 @@
 # SPDX-License-Identifier: Apache-2.0
 
 # Begin: Log Functions. Added via common.j2
+function log_debug() {
+  log_wrapper "DEBUG" "${@}"
+}
+
 function log_info() {
-  echo "[$(date +"%Y-%m-%d %H:%M:%S,%3N")] [INFO] ${@}"
+  log_wrapper "INFO" "${@}"
 }
 
 function log_warning() {
-  echo "[$(date +"%Y-%m-%d %H:%M:%S,%3N")] [WARNING] ${@}"
+  log_wrapper "WARNING" "${@}"
 }
 
 function log_error() {
-  echo "[$(date +"%Y-%m-%d %H:%M:%S,%3N")] [ERROR] ${@}"
-}
-
-function log_debug() {
-  echo "[$(date +"%Y-%m-%d %H:%M:%S,%3N")] [DEBUG] ${@}"
+  log_wrapper "ERROR" "${@}"
 }
 
 function exit_fail () {
-   echo "[$(date +"%Y-%m-%d %H:%M:%S,%3N")] [FATAL] ${@}"
+  log_wrapper "FATAL" "${@}"
   exit 1
+}
+
+function log_wrapper() {
+  # To avoid issue with native echo and log_info in function (both write to stdout), we are redirecting log_info to stderr
+  # we use echo to return function output from specific functions
+  local LOG_LEVEL="$1"
+  shift
+  local VALID_LOG_LEVELS=("INFO" "DEBUG" "WARNING" "ERROR" "FATAL")
+  if [[ ! "${VALID_LOG_LEVELS[*]}" =~ "${LOG_LEVEL}" ]]; then
+    echo "[$(date +"%Y-%m-%d %H:%M:%S,%3N")] [INVALID] Invalid log level: ${LOG_LEVEL}, Call log_debug log_info log_warning log_error or exit_fail directly." >&2
+    exit 1
+  fi
+
+  local LOG_MESSAGE="[$(date +"%Y-%m-%d %H:%M:%S,%3N")] [${LOG_LEVEL}] ${@}"
+  if [[ -n "${SOCA_BOOTSTRAP_LOGS_FOLDER}" ]] && [[ -d "${SOCA_BOOTSTRAP_LOGS_FOLDER}" ]]; then
+    # Keep track of warning/fatal/error on stdout as well as separate files
+    if [[ ${LOG_LEVEL} == "WARNING" ]] || [[ ${LOG_LEVEL} == "FATAL" ]] || [[ ${LOG_LEVEL} == "ERROR" ]]; then
+      echo "${LOG_MESSAGE}" | tee -a "${SOCA_BOOTSTRAP_LOGS_FOLDER}/bootstrap_${LOG_LEVEL}.log" >&2
+    else
+      echo "${LOG_MESSAGE}" >&2
+    fi
+  else
+    # Handle case where SOCA_BOOTSTRAP_LOGS_FOLDER is not set
+    echo "${LOG_MESSAGE}" >&2
+  fi
 }
 # End: Log Functions

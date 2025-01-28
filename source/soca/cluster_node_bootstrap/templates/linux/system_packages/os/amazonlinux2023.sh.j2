@@ -1,0 +1,34 @@
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+{% include "templates/linux/system_packages/os/base_packages/rhel_based_distributions.sh.j2" %}
+
+log_info "Customizing Linux packages installation for amazonlinux2023"
+
+# Packages not available or with a different name in this distro
+REMOVE_PKGS=(
+  libselinux-python
+  libverto-tevent
+  system-lsb
+  tcp_wrappers
+  redhat-lsb
+  dejavu-fonts-common
+  postgresql
+  postgresql-contrib
+  postgresql-server
+  compat-openldap
+  http-parser
+)
+
+# New packages to add  (specific to this distro)
+ADD_PKGS=(
+  python3-libselinux
+  dejavu-fonts-all
+  postgresql15
+  postgresql15-contrib
+  postgresql15-server
+  openldap-compat
+)
+
+log_info "Removing packages for ALI2023: ${REMOVE_PKGS[*]}"
+log_info "Adding extra packages for ALI2023: ${ADD_PKGS[*]}"

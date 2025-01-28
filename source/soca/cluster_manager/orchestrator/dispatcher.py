@@ -31,7 +31,7 @@ import yaml
 from botocore.exceptions import ClientError
 
 sys.path.append(
-    f"/apps/soca/{os.environ.get('SOCA_CONFIGURATION', 'SOCA_CONFIGURATION_NOT_FOUND')}/cluster_manager"
+    f"/apps/soca/{os.environ.get('SOCA_CLUSTER_ID', 'SOCA_CONFIGURATION_NOT_FOUND')}/cluster_manager"
 )
 from utils.aws.boto3_wrapper import get_boto
 import add_nodes
@@ -550,9 +550,9 @@ if __name__ == "__main__":
         )
         sys.exit(1)
 
-    if "SOCA_CONFIGURATION" not in os.environ:
+    if "SOCA_CLUSTER_ID" not in os.environ:
         print(
-            "SOCA_CONFIGURATION not found, make sure to source /etc/environment first"
+            "SOCA_CLUSTER_ID not found, make sure to source /etc/environment first"
         )
         sys.exit(1)
 
@@ -564,10 +564,10 @@ if __name__ == "__main__":
         "qdel": "/opt/pbs/bin/qdel",
         "pbsnodes": "/opt/pbs/bin/pbsnodes",
         "socaqstat": "/apps/soca/"
-        + os.environ["SOCA_CONFIGURATION"]
+        + os.environ["SOCA_CLUSTER_ID"]
         + "/cluster_manager/orchestrator/socaqstat.py",
         "python": "/apps/soca/"
-        + os.environ["SOCA_CONFIGURATION"]
+        + os.environ["SOCA_CLUSTER_ID"]
         + "/python/latest/bin/python3",
     }
 
@@ -609,7 +609,7 @@ if __name__ == "__main__":
     # Retrieve Default Queue parameters
     queue_settings_file = (
         "/apps/soca/"
-        + os.environ["SOCA_CONFIGURATION"]
+        + os.environ["SOCA_CLUSTER_ID"]
         + "/cluster_manager/orchestrator/settings/queue_mapping.yml"
     )
     try:
@@ -636,7 +636,7 @@ if __name__ == "__main__":
     # Generate FlexLM mapping
     license_mapping_file = (
         "/apps/soca/"
-        + os.environ["SOCA_CONFIGURATION"]
+        + os.environ["SOCA_CLUSTER_ID"]
         + "/cluster_manager/orchestrator/settings/licenses_mapping.yml"
     )
     try:
@@ -660,7 +660,7 @@ if __name__ == "__main__":
     for queue_name in queues:
         log_file = logging.FileHandler(
             "/apps/soca/"
-            + os.environ["SOCA_CONFIGURATION"]
+            + os.environ["SOCA_CLUSTER_ID"]
             + "/cluster_manager/orchestrator/logs/"
             + queue_name
             + ".log",
@@ -1112,7 +1112,7 @@ if __name__ == "__main__":
                                 )
                                 compute_unit = "job" + job_hash
                                 stack_id = (
-                                    os.environ["SOCA_CONFIGURATION"]
+                                    os.environ["SOCA_CLUSTER_ID"]
                                     + "-job-"
                                     + job_hash
                                 )

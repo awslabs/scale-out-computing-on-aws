@@ -75,18 +75,22 @@ def get(ctx, key, output):
     help="New Value",
 )
 @click.pass_context
-def set(ctx, key, value):
+def set(ctx, key, value, called_from=False):
     """
     Update a SOCA configuration key.
 
     config set --key /configuration/ClusterId --value "MyValue"
     """
     if is_controller_instance():
+        if "/configuration/FileSystems/" in key and called_from != "filesystems":
+            print_output(
+                f"/configuration/FileSystems/ tree can only be managed via 'socactl filesystems'.",
+                error=True)
         _update = SocaConfig(key=key).set_value(value=value)
 
         if _update.success:
             ctx.meta["echo"] = False
-            ctx.invoke(cache_set, key=key, value=value, called_from_config=True)
+            ctx.invoke(cache_set, key=key, value=value, called_from="config")
             print_output(f"Success: Key has been updated successfully")
         else:
             print_output(f"{_update.message}", error=True)

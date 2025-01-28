@@ -85,18 +85,18 @@
                                   </div>
                                   <hr>
                                   <p>
-                                      <a data-toggle="collapse" href="#disclaimer" role="button" aria-expanded="false" aria-controls="collapseExample">
+                                      <a data-bs-toggle="collapse" href="#disclaimer" role="button" aria-expanded="false" aria-controls="collapseExample">
                                           Disclaimer: Baseline numbers
                                       </a>
                                   </p>
                                   <div class="collapse" id="disclaimer">
                                       <div class="card card-body">
-                                          Theses numbers are just an estimate based on:
-                                          <li>Does not reflect any additional charges such as network or storage transfer or usage of io1 volume (default to gp3)</li>
-                                          <li>Compute rate retrieved for your running region</li>
+                                          <strong>IMPORTANT</strong>These numbers are just an estimate:
+                                          <li>Does not reflect any additional charges such as network or storage transfer or usage of io2 volume (default to gp3)</li>
+                                          <li>Compute rate are retrieved for your running region</li>
                                           <li>FSx Persistent Baseline: (50 MB/s/TiB baseline, up to 1.3 GB/s/TiB burst)</li>
                                           <li>FSx Scratch Baseline: (200 MB/s/TiB baseline, up to 1.3 GB/s/TiB burst)</li>
-                                          <li>EBS/FSx rates as of May 2020 based on us-east-1</li>
+                                          <li>EBS/FSx rates as of January 2025 based on us-east-1</li>
                                       </div>
                                   </div>
                                   {% endif %}
@@ -184,13 +184,15 @@
                          Estimated compute price with RI</strong> $' + cost_data.compute.estimated_reserved_cost + ' <br>  </div>\
                           <hr><h5>Storage</h5> \
                           <ul style="list-style: none;"> \
-                         <li><strong>Root Partition:</strong> ' + root_size + ' GB for $' + cost_data.root_size + ' </li>\
+                         <li><strong>Root Partition (default 40GB if not set):</strong> $' + cost_data.root_size + ' </li>\
                          <li><strong>Scratch Partition:</strong> ' + scratch_size + ' GB for $' + cost_data.scratch_size + ' </li>\
                          <li><strong>FSx for Lustre:</strong> ' + fsx_capacity + ' GB for $' + cost_data.fsx_capacity + ' </li> \
-                         <li><strong>Estimated Storage:</strong> $' + cost_data.estimated_storage_cost + ' </li></ul>'
-
+                         <li><strong>Estimated Storage:</strong> $' + cost_data.estimated_storage_cost + ' </li></ul> \
+                         <hr> \
+                          <div class="alert alert-warning"> <strong> IMPORTANT </strong>Node Count is based on the number of physical CPUs (<strong>not vCPUs</strong>) per machine. (e.g: a c6i.xlarge has 2 physical CPUs but 4 vCPUs. If you request 8 CPUs SOCA will provision 4 instances)</div>'
 
                           $("#cost_result").html(cost_response);
+
 
                       }).fail(function (data) {
                           $("#cost_result").html("<div class='alert alert-danger'><h3><i class='fas fa-exclamation-triangle'></i>Unable to estimate cost</h3> <strong>Error:</strong> <br> " + JSON.stringify(data.responseJSON)) + "</div>";

@@ -62,9 +62,15 @@ class Reset(Resource):
         parser = reqparse.RequestParser()
         parser.add_argument("user", type=str, location="form")
         parser.add_argument("password", type=str, location="form")
+        parser.add_argument("directory_id", type=str, location="form")
         args = parser.parse_args()
         user = args["user"]
         password = args["password"]
+        directory_id = args["directory_id"]
+        if directory_id is None:
+            logger.info("directory_id not set, defaulting to SOCA DS ID if known.")
+            directory_id = config.Config.DIRECTORY_SERVICE_ID
+
         logger.info(f"Received AWS DS password reset request for {user} for directory service: {config.Config.DIRECTORY_SERVICE_ID}")
         if user.lower() in password.lower():
             return SocaError.IDENTITY_PROVIDER_ERROR(helper="Password cannot contain username").as_flask()
@@ -72,37 +78,30 @@ class Reset(Resource):
         if not re.search(ds_password_complexity, password):
             return SocaError.IDENTITY_PROVIDER_ERROR(helper=f"Password does not meet the required complexity. Regex is {ds_password_complexity}").as_flask()
 
-        lambda_client = utils_boto3.get_boto(service_name="lambda").message
         if user is None:
             return SocaError.CLIENT_MISSING_PARAMETER(parameter="user").as_flask()
 
         if password is None:
             return SocaError.CLIENT_MISSING_PARAMETER(parameter="password").as_flask()
 
-        ds_password_reset_lambda_arn = config.Config.DIRECTORY_SERVICE_RESET_LAMBDA_ARN
-        if not ds_password_reset_lambda_arn:
-            return SocaError.IDENTITY_PROVIDER_ERROR(helper="Missing DIRECTORY_SERVICE_RESET_LAMBDA_ARN in config").as_flask()
+
+
+        _ds_client = utils_boto3.get_boto(service_name="ds").message
 
         try:
-            req = lambda_client.invoke(
-                FunctionName=ds_password_reset_lambda_arn,
-                Payload=json.dumps(
-                    {
-                        "Username": user,
-                        "Password": password,
-                        "DirectoryServiceId": config.Config.DIRECTORY_SERVICE_ID,
-                    },
-                    indent=2,
-                ).encode("utf-8"),
-            )
+            _reset_password = _ds_client.reset_user_password(
+                DirectoryId=directory_id,
+                UserName=user,
+                NewPassword=password)
 
-            _response = json.load(req['Payload'].decode("utf-8") if isinstance(req['Payload'], bytes) else req['Payload'])
-            logger.info(f"Result Lambda Reset password: {_response}")
-            if _response["success"] is True:
+            if _reset_password.get("ResponseMetadata").get("HTTPStatusCode") == 200:
                 return SocaResponse(success=True, message="Password updated correctly").as_flask()
             else:
-                return SocaError.IDENTITY_PROVIDER_ERROR(helper=f"Unable to reset password due to {_response['message']}").as_flask()
-
+                return SocaError.IDENTITY_PROVIDER_ERROR(helper=f"Unable to reset password due to {_reset_password}").as_flask()
+        except _ds_client.exceptions.InvalidPasswordException as err:
+            return SocaError.IDENTITY_PROVIDER_ERROR(helper=f"Password is invalid: {err}").as_flask()
+        except _ds_client.exceptions.UserDoesNotExistException as err:
+            return SocaError.IDENTITY_PROVIDER_ERROR(helper=f"{user} does not seems to exist in this directory: {err}").as_flask()
         except Exception as err:
             exc_type, exc_obj, exc_tb = sys.exc_info()
             fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]

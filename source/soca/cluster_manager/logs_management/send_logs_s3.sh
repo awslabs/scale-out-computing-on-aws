@@ -14,43 +14,58 @@
 
 # This file send the scheduler logs to S3 every day
 # This is particularly useful is you are planning to do data mining with services such as Glue / Athena
-# To prevent disk to fill up, we also remove files after 10 days (default). This value can be changed using DATA_RETENTION variable
+# To prevent disk to fill up, we also remove ***unmodified*** files after 10 days (default). This value can be changed using DATA_RETENTION_IN_DAYS variable
 
-# Note: SOCA also supports AWS Backup  https://awslabs.github.io/scale-out-computing-on-aws/security/backup-restore-your-cluster/
+# Note: SOCA also supports AWS Backup  https://awslabs.github.io/scale-out-computing-on-aws-documentation/documentation/security/backup-restore-your-cluster/
 
 exec > "$(dirname "$(realpath "$0")")/send_logs_s3.log" 2>&1
+
 source /etc/environment
-DATA_RETENTION=10 # number of days logs stay in the server 
 AWSCLI=$(which aws)
-BACKUP_S3_PREFIX_LOCATION="s3://${SOCA_INSTALL_BUCKET}/${SOCA_CONFIGURATION}/cluster_logs"
 S3_BUCKET_REGION=$(${AWSCLI} s3api get-bucket-location --bucket ${SOCA_INSTALL_BUCKET} --output text)
 
-# Note: we use the last  part of the path as the name of the folder in S3
+# Number of days logs stay in the server without being modified
+# It's not recommended to keep this settings too low, as the script could delete config file for job that hasn't been processed yet
+# Recommended to keep this value > 5 days
+DATA_RETENTION_IN_DAYS=10
+
+# Backup location
+BACKUP_S3_PREFIX_LOCATION="s3://${SOCA_INSTALL_BUCKET}/${SOCA_CLUSTER_ID}/${SOCA_VERSION}/cluster_logs"
+
+# Content of these directory will be backup to S3, and file/dir may be subject to removal based on DATA_RETENTION_IN_DAYS value
 DIRS_TO_SYNC=(
   "/var/spool/pbs/server_logs/"
   "/var/spool/pbs/sched_logs/"
   "/var/spool/pbs/server_priv/accounting/"
-  "/apps/soca/${SOCA_CONFIGURATION}/cluster_node_bootstrap/logs/dcv_node/"
-  "/apps/soca/${SOCA_CONFIGURATION}/cluster_node_bootstrap/logs/compute_node/"
-  "/apps/soca/${SOCA_CONFIGURATION}/cluster_node_bootstrap/logs/login_node/"
+  "/apps/soca/${SOCA_CLUSTER_ID}/cluster_node_bootstrap/logs/dcv_node/"
+  "/apps/soca/${SOCA_CLUSTER_ID}/cluster_node_bootstrap/logs/compute_node/"
+  "/apps/soca/${SOCA_CLUSTER_ID}/cluster_node_bootstrap/logs/login_node/"
+  "/apps/soca/${SOCA_CLUSTER_ID}/cluster_manager/orchestrator/logs/"
+  "/apps/soca/${SOCA_CLUSTER_ID}/cluster_manager/analytics/logs/"
 )
 
 for DIR in "${DIRS_TO_SYNC[@]}"
 do
+  if [[ -d "${DIR}" ]]; then
+    # Sync directory to S3
+    ${AWSCLI} s3 sync "${DIR}" "${BACKUP_S3_PREFIX_LOCATION}/${DIR}" --region ${S3_BUCKET_REGION} --quiet
 
-  ${AWSCLI} s3 sync ${DIR} "${BACKUP_S3_PREFIX_LOCATION}/${DIR}" --region ${S3_BUCKET_REGION}
-
-  if [[ ${DIR} =~ "/apps/soca/${SOCA_CONFIGURATION}/cluster_node_bootstrap/logs/" ]]; then
-    # remove log directory
-    find ${DIR} -mindepth 1 -type d -mtime +${DATA_RETENTION} -print | xargs -I {} rm -r "{}"
+    # Delete file/directory if needed
+    if [[ ${DIR} =~ "/apps/soca/${SOCA_CLUSTER_ID}/cluster_node_bootstrap/logs/compute_node/" ]] || [[ ${DIR} =~ "/apps/soca/${SOCA_CLUSTER_ID}/cluster_node_bootstrap/logs/dcv_node/" ]]; then
+      # Find all directory and delete them if older than data retention
+      # These directory contains log file specific to ephemeral hosts (DCV/HPC nodes)
+      find "${DIR}" -mindepth 1 -maxdepth 1 -type d -mtime +${DATA_RETENTION_IN_DAYS} -print0 | while IFS= read -r -d '' dir; do
+        echo "Removing compute_node/dcv_node directory: ${dir}"
+        rm -r "${dir}"
+      done
+    else
+      # Find all files and delete them if older than data retention
+      find "${DIR}" -type f -mtime +${DATA_RETENTION_IN_DAYS} -print0 | while IFS= read -r -d '' file; do
+        echo "Removing file: ${file}"
+        rm "$file"
+      done
+   fi
   else
-    # remove files, don't touch directory
-    find ${DIR} -type f -mtime +${DATA_RETENTION} -print | xargs -I {} rm "{}"
+    echo "Skipping Directory ${DIR} because it does not exist."
   fi
-
 done
-
-
-
-
-

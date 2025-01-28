@@ -5,55 +5,50 @@
 
 # Log Path: {{ context.get("/job/BoostrapPath") }}
 ############
-
-echo "## [BEGIN] SOCA Configuration - Do Not Delete" >> /etc/environment
-{
-  echo export "AWS_DEFAULT_REGION=\"{{ context.get("/configuration/Region") }}\""
-  echo export "SOCA_BASE_OS=\"{{ context.get("/configuration/BaseOS") }}\""
-  echo export "SOCA_NODE_TYPE=\"{{ context.get("/job/NodeType") }}\""
-  echo export "SOCA_CONFIGURATION=\"{{ context.get("/configuration/ClusterId") }}\""
-  echo export "SOCA_VERSION=\"{{ context.get("/configuration/Version") }}\""
-  echo export "DIRECTORY_AUTH_PROVIDER=\"{{ context.get("/configuration/UserDirectory/provider") }}\""
-
-} >> /etc/environment
-
-{% if context.get("/job/NodeType") == "compute_node" %}
-  {
-    echo export "SOCA_JOB_QUEUE=\"{{ context.get("/job/JobQueue") }}\""
-    echo export "SOCA_JOB_OWNER=\"{{ context.get("/job/JobOwner") }}\""
-    echo export "SOCA_JOB_NAME=\"{{ context.get("/job/JobName") }}\""
-    echo export "SOCA_JOB_PROJECT=\"{{ context.get("/job/JobProject") }}\""
-    echo export "SOCA_JOB_EFA=\"{{ context.get("/job/Efa") | lower }}\""
-    echo export "SOCA_JOB_ID=\"{{ context.get("/job/JobId") }}\""
-    echo export "SOCA_SCRATCH_SIZE=\"{{ context.get("/job/ScratchSize") }}\""
-    echo export "SOCA_FSX_LUSTRE_BUCKET=\"{{ context.get("/job/FSxLustreConfiguration").get("fsx_lustre") | lower }}\""
-    echo export "SOCA_FSX_LUSTRE_DNS=\"{{ context.get("/job/FSxLustreConfiguration").get("existing_fsx") | lower }}\""
-    echo export "SOCA_INSTANCE_HYPERTHREADING=\"{{ context.get("/job/ThreadsPerCore") }}\""
-    echo export "SOCA_SYSTEM_METRICS=\"{{ context.get("/job/SystemMetrics") | lower }}\""
-  } >> /etc/environment
-{% endif %}
-
-echo "## [END] SOCA Configuration - Do Not Delete" >> /etc/environment
-
-# Load common functions
 {% include "templates/linux/common.sh.j2" %}
 
-log_info "Stopping OpenPBS services"
-systemctl stop pbs
+log_info "Setup Start Date: $(date)"
 
-{% include "templates/linux/epel.sh.j2" %}
+# Add cache client functions (Cache CLI is automatically installed if needed)
+{% include "templates/linux/cache_client.sh.j2" %}
 
+# Adding additional SOCA Environment Variables
+set_environment_variable "SOCA_NODE_TYPE" "{{ context.get("/job/NodeType") }}"
+set_environment_variable "SOCA_VERSION" "{{ context.get("/configuration/Version") }}"
+set_environment_variable "SOCA_INSTALL_BUCKET" "{{ context.get("/configuration/S3Bucket") }}"
+
+{% if context.get("/job/NodeType") == "compute_node" %}
+  # Added via cluster_manager/orchestrator/cloudformation_builder.py
+  set_environment_variable "SOCA_JOB_QUEUE" "{{ context.get("/job/JobQueue") }}"
+  set_environment_variable "SOCA_JOB_OWNER" "{{ context.get("/job/JobOwner") }}"
+  set_environment_variable "SOCA_JOB_NAME" "{{ context.get("/job/JobName") }}"
+  set_environment_variable "SOCA_JOB_PROJECT" "{{ context.get("/job/JobProject") }}"
+  set_environment_variable "SOCA_JOB_ID" "{{ context.get("/job/JobId") }}"
+{% elif context.get("/job/NodeType") == "dcv_node" %}
+  # Added via cluster_manager/web_interface/api/v1/dcv/create_linux_desktop.py
+  set_environment_variable "SOCA_DCV_SESSION_OWNER" "{{ context.get("/dcv/SessionOwner") }}"
+  set_environment_variable "SOCA_DCV_SESSION_ID" "{{ context.get("/dcv/SessionId") }}"
+  set_environment_variable "SOCA_DCV_SESSION_NAME" "{{ context.get("/dcv/SessionName") }}"
+{% elif context.get("/job/NodeType") == "login_node" %}
+  # Add any additional variable for login nodes if needed
+{% endif %}
+
+log_info "Stopping OpenPBS services if already there"
+systemctl stop pbs || echo "PBS service not found yet, ignoring"
+
+# Install jq
 {% include "templates/linux/jq.sh.j2" %}
 
 {% set PATH = '/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin:/opt/pbs/bin:/opt/pbs/sbin:/opt/pbs/bin:/apps/soca/' ~ context.get("/configuration/ClusterId") %}
 
+# Install awscliv2
 {% include "templates/linux/awscli.sh.j2" %}
 
+# Install AWS SSM Agent
 {% include "templates/linux/aws_ssm_agent.sh.j2" %}
 
-{% include "templates/linux/system_packages.sh.j2" %}
-
-{% include "templates/linux/cache_client.sh.j2" %}
+# Install Required System library/packages
+{% include "templates/linux/system_packages/install_required_packages.sh.j2" %}
 
 if [[ $(rpm -qa kernel | wc -l) -gt 1 ]]; then
     set_reboot_required "Kernel was updated during package install"
@@ -87,12 +82,11 @@ fi
 {% if context.get("/configuration/UserDirectory/provider") in ["existing_openldap", "openldap"] %}
   # OpenLDAP configuration
   {% include "templates/linux/openldap_client.sh.j2" %}
-{% elif context.get("/configuration/UserDirectory/provider") in ["existing_activedirectory","aws_ds_managed_activedirectory", "aws_ds_simple_activedirectory"] %}
+{% elif context.get("/configuration/UserDirectory/provider") in ["existing_active_directory","aws_ds_managed_activedirectory", "aws_ds_simple_activedirectory"] %}
   # Active Directory configuration
   {% include "templates/linux/join_activedirectory.sh.j2" %}
 {% else %}
-  log_error "UserDirectory/provider must be existing_activedirectory, existing_openldap, openldap, aws_ds_simple_activedirectory, aws_ds_managed_activedirectory, detected {{ context.get("/configuration/UserDirectory/provider") }}"
-  exit 1
+  exit_fail "UserDirectory/provider must be existing_active_directory, existing_openldap, openldap, aws_ds_simple_activedirectory, aws_ds_managed_activedirectory, detected {{ context.get("/configuration/UserDirectory/provider") }}"
 {% endif %}
 
 # Disable StrictHostKeyChecking
@@ -110,16 +104,20 @@ fi
 # Tag Network Interface for the Compute Node
 {% include "templates/linux/tags/eni.sh.j2" %}
 
+log_info "Setup End Date: $(date)"
+
 # Prepare crontab for post-reboot or execute the post-reboot script automatically
 REBOOT_REQUIRED=$(get_reboot_required)
 {% if context.get("/job/NodeType") in ("dcv_node", "compute_node") %}
 if [[ "${REBOOT_REQUIRED}" == "yes" ]]; then
-  echo "@reboot /bin/bash "{{ context.get('/job/BootstrapPath') }}/03_setup_post_reboot.sh" >> {{ context.get('/job/BootstrapPath') }}/$(hostname -s)/03_setup_post_reboot.log 2>&1" | crontab -
+  echo "@reboot /bin/bash "{{ context.get('/job/BootstrapPath') }}/03_setup_post_reboot.sh" >> ${SOCA_BOOTSTRAP_LOGS_FOLDER}/03_setup_post_reboot.log 2>&1" | crontab -
+  log_info "Final bootstrap sequence will be executed post reboot, verifying crontab"
+  crontab -l
   log_info "Rebooting the machine"
   reboot
 else
   log_info "No reboot needed, continuing bootstrap sequence"
-  /bin/bash "{{ context.get('/job/BootstrapPath') }}/03_setup_post_reboot.sh" >> {{ context.get('/job/BootstrapPath') }}/$(hostname -s)/03_setup_post_reboot.log 2>&1
+  /bin/bash "{{ context.get('/job/BootstrapPath') }}/03_setup_post_reboot.sh" >> ${SOCA_BOOTSTRAP_LOGS_FOLDER}/03_setup_post_reboot.log 2>&1
 fi
 {% else %}
  log_info "No post_reboot customizations for login_nodes or controller host"

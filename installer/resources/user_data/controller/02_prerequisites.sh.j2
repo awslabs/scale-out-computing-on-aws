@@ -10,22 +10,26 @@
 # This file exist as the 01_user_data.sh is limited in size (16Kb)
 # and we can't invoke 03_setup.sh.j2 directly from CDK as not all AWS resources are available.
 
+# Load common function such as logging, awscli wrapper
 {% include "templates/linux/common.sh.j2" %}
 
-{% include "templates/linux/packages_management.sh.j2" %}
+log_info "Pre-Requisite Start Date: $(date)"
 
-{% include "templates/linux/common/wrapper_awscli.sh.j2" %}
+# Prevent script to be executed twice (or more)
+if [[ -f "/root/.soca_bootstrap_controller_{{ context.get('/configuration/ClusterId') }}_completed" ]]; then
+  exit_fail "/root/.soca_bootstrap_controller_{{ context.get('/configuration/ClusterId') }}_completed already exist. To prevent configuration overwrite, we exit the script, since this machine seems to be already configured"
+fi
 
+# Install AWS SSM Agent
 {% include "templates/linux/aws_ssm_agent.sh.j2" %}
 
-{% include "templates/linux/system_packages.sh.j2" %}
+# Install Required System library/packages
+{% include "templates/linux/system_packages/install_required_packages.sh.j2" %}
 
 # Install SOCA Python
 {% include "templates/linux/soca_python.sh.j2" %}
 
-{% include "templates/linux/cache_client.sh.j2" %}
-
-# Retrieve SOCA configuration under soca.tar.gz and extract it on /apps/
+# Retrieve the region of the bucket specified at install time
 {% if context.get("/configuration/Region") in ('us-gov-east-1', 'us-gov-west-1')  %}
   S3_BUCKET_REGION=$(curl -s --head {{ context.get("/configuration/S3Bucket") }}.s3.{{ context.get("/configuration/Region") }}.amazonaws.com | grep bucket-region | awk '{print $2}' | tr -d '\r\n')
 {% else %}
@@ -33,23 +37,24 @@
 {% endif %}
 
 # Retrieve SOCA configuration under soca.tar.gz and extract it on /apps/
-aws_cli s3 --region ${S3_BUCKET_REGION} cp s3://{{ context.get("/configuration/S3Bucket") }}/{{ context.get("/configuration/ClusterId") }}/soca.tar.gz /root
+aws_cli s3 --region ${S3_BUCKET_REGION} cp s3://{{ context.get("/configuration/S3Bucket") }}/{{ context.get("/configuration/ClusterId") }}/soca.tar.gz ${SOCA_BOOTSTRAP_ASSETS_FOLDER}
 
 # Download codebase, temp extract on root just to retrieve j2generator
-tar -xvf /root/soca.tar.gz -C /apps/soca/{{ context.get("/configuration/ClusterId") }} --no-same-owner
+tar -xvf ${SOCA_BOOTSTRAP_ASSETS_FOLDER}/soca.tar.gz -C /apps/soca/{{ context.get("/configuration/ClusterId") }} --no-same-owner
 mkdir -p /apps/soca/{{ context.get("/configuration/ClusterId") }}/cluster_manager/orchestrator/logs
-chmod +x /apps/soca/{{ context.get("/configuration/ClusterId") }}/cluster_manager/orchestrator/socaqstat.py
-chmod +x /apps/soca/{{ context.get("/configuration/ClusterId") }}/cluster_manager/tools/j2generator/j2generator.sh
 
 # Apply permissions
 chmod -R 600 /apps/soca/{{ context.get("/configuration/ClusterId") }}/cluster_manager/
-chmod -R 600 /apps/soca/{{ context.get("/configuration/ClusterId") }}/cluster_node_boostrap/
+chmod -R 600 /apps/soca/{{ context.get("/configuration/ClusterId") }}/cluster_node_bootstrap/
 chmod -R 600 /apps/soca/{{ context.get("/configuration/ClusterId") }}/cluster_hooks/
 chmod -R 600 /apps/soca/{{ context.get("/configuration/ClusterId") }}/resources/
 chmod -R 655 /apps/soca/{{ context.get("/configuration/ClusterId") }}/python/
+chmod +x /apps/soca/{{ context.get("/configuration/ClusterId") }}/cluster_manager/orchestrator/socaqstat.py
+chmod +x /apps/soca/{{ context.get("/configuration/ClusterId") }}/cluster_manager/tools/j2generator/j2generator.sh
+chmod +x /apps/soca/{{ context.get("/configuration/ClusterId") }}/cluster_manager/socactl
 
 # Download Setup.sh Jinja template
-aws_cli s3 --region ${S3_BUCKET_REGION} cp s3://{{ context.get("/configuration/S3Bucket") }}/{{ context.get("/configuration/ClusterId") }}/user_data/controller/03_setup.sh.j2 /root
+aws_cli s3 --region ${S3_BUCKET_REGION} cp s3://{{ context.get("/configuration/S3Bucket") }}/{{ context.get("/configuration/ClusterId") }}/config/do_not_delete/user_data/controller/03_setup.sh.j2 ${SOCA_BOOTSTRAP_ASSETS_FOLDER}
 
 # Wait until all parameters have been added to CDK
 while ! aws_cli ssm get-parameter --name "/soca/{{ context.get("/configuration/ClusterId") }}/cdk_completed" > /dev/null 2>&1; do
@@ -58,16 +63,16 @@ while ! aws_cli ssm get-parameter --name "/soca/{{ context.get("/configuration/C
 done
 
 # Prepare the final setup phase now that all resources are fully available from SSM
-export SOCA_CONFIGURATION="{{ context.get("/configuration/ClusterId") }}"
-export AWS_DEFAULT_REGION="{{ context.get("/configuration/Region") }}"
+source /etc/environment
 
+# Generate the final Setup Script
 /bin/bash /apps/soca/{{ context.get("/configuration/ClusterId") }}/cluster_manager/tools/j2generator/j2generator.sh --get-template "03_setup.sh.j2" \
-    --output-file "/root/03_setup.sh" \
+    --output-file "${SOCA_BOOTSTRAP_ASSETS_FOLDER}/03_setup.sh" \
     --ssm-key "/" \
     --add-value "KEY=/job/NodeType VALUE=controller TYPE=str" \
     --template-dirs "/apps/soca/{{ context.get("/configuration/ClusterId") }}/cluster_node_bootstrap/" \
-    --template-dirs "/root/"
+    --template-dirs "${SOCA_BOOTSTRAP_ASSETS_FOLDER}"
 
-/bin/bash /root/03_setup.sh >> /root/03_setup.sh.log 2>&1
+/bin/bash ${SOCA_BOOTSTRAP_ASSETS_FOLDER}/03_setup.sh >> ${SOCA_BOOTSTRAP_LOGS_FOLDER}/03_setup.sh.log 2>&1
 
 

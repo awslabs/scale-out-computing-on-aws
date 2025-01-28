@@ -4,10 +4,9 @@
 # SPDX-License-Identifier: Apache-2.0
 
 source /etc/environment
-if [[ -z "${SOCA_CONFIGURATION}" ]]; then
-  echo "SOCA_CONFIGURATION environment variable not found."
+if [[ -z "${SOCA_CLUSTER_ID}" ]]; then
+  echo "SOCA_CLUSTER_ID environment variable not found."
   exit 1
 else
-  export PYTHONPATH=/apps/soca/${SOCA_CONFIGURATION}/cluster_manager/
-  "/apps/soca/${SOCA_CONFIGURATION}/python/latest/bin/python3" "/apps/soca/${SOCA_CONFIGURATION}/cluster_manager/tools/socactl/app.py" "$@"
-fi
+  export PYTHONPATH=/apps/soca/${SOCA_CLUSTER_ID}/cluster_manager/
+  "/apps/soca/${SOCA_CLUSTER_ID}/python/latest/bin/python3" "/apps/soca/${SOCA_CLUSTER_ID}/cluster_manager/tools/socactl/app.py"

@@ -20,7 +20,7 @@ class SocaConfig:
         key: str,
         parameter_name_prefix: Optional[
             str
-        ] = f"/soca/{os.environ.get('SOCA_CONFIGURATION')}",
+        ] = f"/soca/{os.environ.get('SOCA_CLUSTER_ID')}",
         cache_admin: bool = True
     ):
         self._parameter_name_prefix = parameter_name_prefix
@@ -161,7 +161,7 @@ class SocaConfig:
             else:
                 return SocaError.AWS_API_ERROR(
                     service_name="ssm_parameterstore",
-                    helper=f"{self._full_parameter_name} not found. Add '/' at the end if this key is a hierarchy tree",
+                    helper=f"{self._full_parameter_name} not found. Add '/' at the end if this key is a hierarchy tree"
                 )
 
         except Exception as e:
@@ -170,7 +170,7 @@ class SocaConfig:
             else:
                 return SocaError.AWS_API_ERROR(
                     service_name="ssm_parameterstore",
-                    helper=f"Unknown error while trying to retrieve parameter {self._full_parameter_name} due to {e}",
+                    helper=f"Unknown error while trying to retrieve parameter {self._full_parameter_name} due to {e}"
                 )
 
     def get_value_history(self, sort: Optional[str] = "desc") -> dict:
@@ -211,7 +211,7 @@ class SocaConfig:
                 else:
                     return SocaError.AWS_API_ERROR(
                         service_name="ssm_parameterstore",
-                        helper=f"Unknown error while trying to retrieve parameter {self._full_parameter_name} due to {_get_parameter_history}",
+                        helper=f"Unknown error while trying to retrieve parameter {self._full_parameter_name} due to {_get_parameter_history}"
                     )
             else:
                 return SocaResponse(
@@ -221,7 +221,7 @@ class SocaConfig:
         except Exception as e:
             return SocaError.AWS_API_ERROR(
                 service_name="ssm_parameterstore",
-                helper=f"Unknown error while trying to retrieve parameter {self._full_parameter_name} due to {e}",
+                helper=f"Unknown error while trying to retrieve parameter {self._full_parameter_name} due to {e}"
             )
 
     def set_value(self, value: str) -> [str, bool]:
@@ -249,7 +249,7 @@ class SocaConfig:
                 else:
                     return SocaError.AWS_API_ERROR(
                         service_name="ssm_parameterstore",
-                        helper=f"Unknown error while trying to update parameter {_update_key}",
+                        helper=f"Unknown error while trying to update parameter {_update_key}"
                     )
 
         except Exception as e:
@@ -258,5 +258,6 @@ class SocaConfig:
             )
             return SocaError.AWS_API_ERROR(
                 service_name="ssm_parameterstore",
-                helper=f"Unknown error while trying to retrieve parameter {self._full_parameter_name} due to {e}",
+                helper=f"Unknown error while trying to retrieve parameter {self._full_parameter_name} due to {e}"
             )
+           

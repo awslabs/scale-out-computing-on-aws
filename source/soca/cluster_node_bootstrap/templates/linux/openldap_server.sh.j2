@@ -5,8 +5,12 @@
 {% if context.get("/configuration/BaseOS") in ("amazonlinux2", "amazonlinux2023", "centos7", "rhel7", "rhel8", "rhel9", "rocky8", "rocky9") %}
 function openldap_server_install () {
   log_info "Configuring OpenLDAP Server"
-  pushd /root/
-  # Note: OpenLDAP is installed via system_packages
+  pushd ${SOCA_BOOTSTRAP_ASSETS_FOLDER}
+
+  if ! verify_package_installed openldap-servers; then
+    packages_install openldap-servers
+  fi
+
   systemctl enable slapd
   systemctl start slapd
   local OPENLDAP_SERVICE_ACCOUNT_SECRET=$(get_secret "{{ context.get("/configuration/UserDirectory/service_account_secret_arn") }}")

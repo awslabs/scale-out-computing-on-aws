@@ -2,21 +2,82 @@
 # SPDX-License-Identifier: Apache-2.0
 
 # Begin: EFS mount
-{% if context.get("/configuration/BaseOS") in ("amazonlinux2", "amazonlinux2023", "centos7", "rhel7", "rhel8", "rhel9", "rocky8", "rocky9") %}
+{% if "templates/linux/shared_storage/mount_efs.sh.j2" not in ns.template_already_included %}
+  {% set _ = ns.template_already_included.append("templates/linux/shared_storage/mount_efs.sh.j2") %}
 
-{% include "templates/linux/shared_storage/nfs_wrapper.sh.j2" %}
+  {% include "templates/linux/shared_storage/fstab_wrapper.sh.j2" %}
 
-function mount_efs () {
-  local ENDPOINT="${1}" # Make sure the Endpoint include the SOURCE MOUNT! eg: endpoint:/ and not just efs_endpoint
-  local MOUNT_POINT="${2}" # Local linux folder to use as mountpoint
-  local NFS_OPTS_DATA="nfsvers=4.1,rsize=1048576,wsize=1048576,hard,timeo=600,retrans=2,noresvport"
-  # todo: efs-mount-helper
-  if wrapper_mount_nfs ${ENDPOINT} ${MOUNT_POINT} ${NFS_OPTS_DATA} == "success"; then
-    log_info "Successfully mounted ${ENDPOINT} as ${MOUNT_POINT}"
-  else
-    log_error "Unable to mount ${ENDPOINT} as ${MOUNT_POINT}"
-    exit_fail
-  fi
-}
+  function mount_efs () {
+      # MOUNT_TARGET (required): EFS Filesystem ID. Used to determine actual mount endpoint if ENDPOINT is not set
+      # MOUNT_PATH (required): Unix path to mount the EFS on
+      # ON_MOUNT_FAILURE (required): What to do if the mount is not successful (exit or ignore)
+      # MOUNT_OPTIONS (optional): NFS options to use
+      # ENABLED (optional): Whether the automount is enabled
+
+      local MOUNT_TARGET
+      local MOUNT_PATH
+      local MOUNT_OPTIONS
+      local ON_MOUNT_FAILURE
+      local ENABLED
+
+      for arg in "$@"; do
+          case $arg in
+              --mount-target=*) MOUNT_TARGET="${arg#*=}" ;;
+              --mount-path=*) MOUNT_PATH="${arg#*=}" ;;
+              --mount-options=*) MOUNT_OPTIONS="${arg#*=}" ;;
+              --on-mount-failure=*) ON_MOUNT_FAILURE="${arg#*=}" ;;
+              --enabled=*) ENABLED="${arg#*=}" ;;
+              *) exit_fail "Unknown arg ${arg} for mount_efs";;
+          esac
+      done
+
+      if [[ -z "${ENABLED}" ]]; then
+        ENABLED="true"
+        log_warning "--enabled not set, default to ${ENABLED}"
+      fi
+
+      if [[ -z "${MOUNT_PATH}" ]]; then
+        exit_fail "--mount-path not set for mount_efs"
+      fi
+
+      if [[ -z "${ON_MOUNT_FAILURE}" ]]; then
+        ON_MOUNT_FAILURE="ignore"
+        log_warning "--on-mount-failure not specified, default to ${ON_MOUNT_FAILURE}"
+      fi
+
+      if [[ -z ${MOUNT_OPTIONS} ]]; then
+        MOUNT_OPTIONS="nfsvers=4.1,rsize=1048576,wsize=1048576,hard,timeo=600,retrans=2,noresvport"
+        log_warning "--mount-options not set, default to ${MOUNT_OPTIONS}"
+      fi
+
+      if [[ "${ENABLED}" == "true" ]]; then
+
+        # todo: efs-mount-helper
+        # Retrieve the EFS mount target for the given AZ based on the EFS filesystem ID
+
+        if [[ -z "${MOUNT_TARGET}" ]]; then
+          exit_fail "--mount-target not set for mount_efs"
+        else
+          local EFS_ENDPOINT=$(aws_cli efs describe-mount-targets --file-system-id ${MOUNT_TARGET} --query "MountTargets[?AvailabilityZoneName=='$(instance_az)'].IpAddress" --output text)
+          if [[ -z ${EFS_ENDPOINT} ]]; then
+             exit_fail "Unable to find Mount Target for ${MOUNT_TARGET}"
+          fi
+          ENDPOINT="${EFS_ENDPOINT}:/"
+        fi
+
+        if fstab_wrapper "${ENDPOINT} ${MOUNT_PATH} nfs4 ${MOUNT_OPTIONS} 0 0"; then
+          log_info "Successfully mounted ${ENDPOINT} as ${MOUNT_PATH}"
+        else
+          if [[ "${ON_MOUNT_FAILURE}" == "exit" ]]; then
+            exit_fail "Unable to mount ${ENDPOINT} as ${MOUNT_PATH}"
+          else
+            log_warning "Unable to mount ${ENDPOINT} as ${MOUNT_PATH}, ignoring"
+          fi
+        fi
+
+      else
+        log_warning "EFS Filesystem ${MOUNT_TARGET}, mount path ${MOUNT_PATH} is not enabled. Skipping ... Detected enabled flag ${ENABLED}"
+      fi
+    }
 {% endif %}
 # End: EFS mount

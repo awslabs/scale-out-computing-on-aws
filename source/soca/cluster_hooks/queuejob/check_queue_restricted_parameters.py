@@ -14,24 +14,24 @@
 """
 This hook reject the job if the user is not allowed to use the queue
 Doc:
-> https://awslabs.github.io/scale-out-computing-on-aws/tutorials/manage-queue-restricted-parameters/
+> https://awslabs.github.io/scale-out-computing-on-aws-documentation/documentation/security/manage-queue-restricted-parameters/
 
 create hook check_queue_restricted_parameters event=queuejob
-import hook check_queue_restricted_parameters application/x-python default /apps/soca/%SOCA_CONFIGURATION/cluster_hooks/queuejob/check_queue_restricted_parameters.py
+import hook check_queue_restricted_parameters application/x-python default /apps/soca/%SOCA_CLUSTER_ID/cluster_hooks/queuejob/check_queue_restricted_parameters.py
 
 Note: If you make any change to this file, you MUST re-execute the import command.
-If you are installing this file manually, make sure to replace %SOCA_CONFIGURATION path below
+If you are installing this file manually, make sure to replace %SOCA_CLUSTER_ID path below
 """
 
 import sys
 import pbs
 
 if (
-    "/apps/soca/%SOCA_CONFIGURATION/python/latest/lib/python3.9/site-packages"
+    "/apps/soca/%SOCA_CLUSTER_ID/python/latest/lib/python3.9/site-packages"
     not in sys.path
 ):
     sys.path.append(
-        "/apps/soca/%SOCA_CONFIGURATION/python/latest/lib/python3.9/site-packages"
+        "/apps/soca/%SOCA_CLUSTER_ID/python/latest/lib/python3.9/site-packages"
     )
 import yaml
 
@@ -44,7 +44,7 @@ pbs.logmsg(pbs.LOG_DEBUG, "queue_acl: job_queue  " + str(job_queue))
 
 # Validate queue_mapping YAML is not malformed
 try:
-    queue_settings_file = "/apps/soca/%SOCA_CONFIGURATION/cluster_manager/orchestrator/settings/queue_mapping.yml"
+    queue_settings_file = "/apps/soca/%SOCA_CLUSTER_ID/cluster_manager/orchestrator/settings/queue_mapping.yml"
     queue_reader = open(queue_settings_file, "r")
     docs = yaml.safe_load(queue_reader)
 except Exception as err:
@@ -65,7 +65,7 @@ for doc in docs.values():
                 e.reject(
                     "restricted_parameters is not specified on "
                     + queue_settings_file
-                    + ". See https://awslabs.github.io/scale-out-computing-on-aws/tutorials/manage-queue-restricted-parameters/ for examples"
+                    + ". See https://awslabs.github.io/scale-out-computing-on-aws-documentation/documentation/security/manage-queue-restricted-parameters/ for examples"
                 )
 
             if isinstance(v["restricted_parameters"], list) is not True:
@@ -85,4 +85,4 @@ for doc in docs.values():
                         + " is a restricted parameter and can't be configure by the user. Contact your HPC admin and update "
                         + queue_settings_file
                     )
-                    e.reject(message)
+                    e.reje

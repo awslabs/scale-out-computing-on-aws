@@ -1,0 +1,7 @@
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+{% include "templates/linux/system_packages/os/base_packages/rhel_based_distributions.sh.j2" %}
+
+log_info "Customizing Linux packages installation for RHEL 7"
+yum-config-manager --enable rhel-7-server-rhui-optional-rpms

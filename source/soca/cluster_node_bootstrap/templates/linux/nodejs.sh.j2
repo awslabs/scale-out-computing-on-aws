@@ -6,11 +6,11 @@
 {% if context.get("/configuration/BaseOS") in ("amazonlinux2", "amazonlinux2023", "centos7", "rhel7", "rhel8", "rhel9", "rocky8", "rocky9") %}
 # Usage: Ensure NVM_DIR environment variable is added to /etc/environment when nodejs is installed.
 function install_nodejs () {
-  local NVM_INSTALL_SCRIPT="{{ context.get("/system/nvm/install_script") }}"
+  pushd "${SOCA_BOOTSTRAP_ASSETS_FOLDER}"
   local NVM_URL="{{ context.get("/system/nvm/url") }}"
   local NVM_SHA256="{{ context.get("/system/nvm/sha256") }}"
 
-  {%- if context.get("/configuration/BaseOS") == "amazonlinux2023" %}
+  {% if context.get("/configuration/BaseOS") == "amazonlinux2023" %}
   local NODE_VERSION="{{ context.get("/system/nvm/node_version") }}"
   {% else %}
   # Older distro don't have support for required GLIBC_2.27 / GLIBC_2.28  required by Node 18+
@@ -18,25 +18,19 @@ function install_nodejs () {
   {% endif %}
 
   # Install NodeJS/NPM if needed
-  if [[ ! $(command -v npm) ]];
-  then
-
+  if ! command -v npm; then
     log_info "npm not detected, installing it ... "
-    export NVM_DIR="/root/nvm/$(date +%s)/.nvm"
+    export NVM_DIR="${SOCA_BOOTSTRAP_ASSETS_FOLDER}/nvm/$(date +%s)/.nvm"
     mkdir -p ${NVM_DIR}
     log_info "Downloading ${NVM_URL}"
-    wget ${NVM_URL}
-    if [[ $(sha256sum ${NVM_INSTALL_SCRIPT} | awk '{print $1}') != ${NVM_SHA256} ]];  then
-          echo -e "FATAL ERROR: Checksum for NVM failed. File may be compromised." > /etc/motd
-          exit 1
-    fi
-    chmod +x ${NVM_INSTALL_SCRIPT}
-    /bin/bash ${NVM_INSTALL_SCRIPT}
+    file_download --download-url="${NVM_URL}" --save-as="install_node.sh" --sha256-checksum="${NVM_SHA256}"
+    chmod +x install_node.sh
+    /bin/bash install_node.sh
     source "${NVM_DIR}/nvm.sh"  # This loads nvm
-    # shellcheck disable=SC1090
     source "${NVM_DIR}/bash_completion"
     nvm install ${NODE_VERSION}
   fi
+  popd
 }
 
 install_nodejs

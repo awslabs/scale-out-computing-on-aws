@@ -14,7 +14,7 @@ $Hostname = Invoke-RestMethod -Headers @{"X-aws-ec2-metadata-token" = $IMDSToken
 $InstanceId = Invoke-RestMethod -Headers @{"X-aws-ec2-metadata-token" = $IMDSToken} -Method GET -Uri http://169.254.169.254/latest/meta-data/instance-id
 $DCVHostAltname = ${Hostname}.split(".")[0]
 
-{% if context.get('/configuration/UserDirectory/provider') in ("aws_ds_managed_activedirectory", "aws_ds_simple_activedirectory", "existing_activedirectory") %}
+{% if context.get('/configuration/UserDirectory/provider') in ("aws_ds_managed_activedirectory", "aws_ds_simple_activedirectory", "existing_active_directory") %}
     # DOMAIN\<local_user>
     $LocalUser = "{{ context.get('/configuration/UserDirectory/short_name') }}\{{ context.get('/job/LocalUser') }}"
 {% else %}
@@ -38,7 +38,7 @@ $Password = ConvertTo-SecureString -String "{{ context.get('/job/LocalAdminPassw
 $UserAccount = Get-LocalUser -Name "Administrator"
 $UserAccount | Set-LocalUser -Password $Password
 
-{% if  context.get('/configuration/UserDirectory/provider') in ("aws_ds_managed_activedirectory", "aws_ds_simple_activedirectory", "existing_activedirectory") %}
+{% if  context.get('/configuration/UserDirectory/provider') in ("aws_ds_managed_activedirectory", "aws_ds_simple_activedirectory", "existing_active_directory") %}
     {% include "templates/windows/join_activedirectory.ps.j2" %}
 
 {% else %}

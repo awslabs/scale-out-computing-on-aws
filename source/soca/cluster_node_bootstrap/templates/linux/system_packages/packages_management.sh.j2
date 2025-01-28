@@ -1,13 +1,13 @@
 # Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-# These functions are available on all services (compute node, login node, scheduler ...) via `common.sh.j2`
+# These functions are available on all services (controller, compute node, login node, scheduler ...) via `common.sh.j2`
+# Always use theses function when interacting with system packages.
 
 function packages_remove () {
-  # Remove specified packages
+  # Remove specified packages (e.g: packages_remove pkg1 pkg2 ... pkgN)
   if [[ $# -eq 0 ]]; then
-    log_info "No package list specified. Exiting... "
-    exit_fail
+    exit_fail "packages_remove - No package list specified. Exiting... "
   fi
 
   {% if context.get("/configuration/BaseOS") in ("amazonlinux2", "amazonlinux2023", "centos7", "rhel7") %}
@@ -20,10 +20,9 @@ function packages_remove () {
 }
 
 function packages_install () {
-  # Install specified packages
+  # Install specified packages (e.g: packages_install pkg1 pkg2 ... pkgN)
   if [[ $# -eq 0 ]]; then
-    log_info "No package list specified. Exiting... "
-    exit_fail
+    exit_fail "packages_install - No package list specified. Exiting... "
   fi
 
   {% if context.get("/configuration/BaseOS") in ("amazonlinux2", "amazonlinux2023", "centos7", "rhel7") %}
@@ -36,10 +35,9 @@ function packages_install () {
 }
 
 function verify_package_installed () {
-  # Return "true" is a given package is installed
+  # Return "true" is a given package is installed (e.g: verify_package_installed pkg_name)
   if [[ $# -eq 0 ]]; then
-    log_info "No package list specified. Exiting... "
-    exit_fail
+    exit_fail "verify_package_installed - No package list specified. Exiting... "
   fi
 
   {% if context.get("/configuration/BaseOS") in ("amazonlinux2", "amazonlinux2023", "centos7", "rhel7", "rhel8", "rhel9", "rocky8", "rocky9") %}
@@ -73,20 +71,20 @@ function packages_exec_command () {
   # wrapper for all exec commands
   local MAX_ATTEMPTS=10
   local ATTEMPT_NUMBER=1
+  local SLEEP_TIME_SECONDS=60
   local EXEC_COMMAND=("$@")
-  log_info "Attempting to run ${EXEC_COMMAND}"
+  log_info "Attempting to run ${EXEC_COMMAND[@]}"
   while [[ ${ATTEMPT_NUMBER} -le ${MAX_ATTEMPTS} ]]; do
     log_info "Attempt ${ATTEMPT_NUMBER}/${MAX_ATTEMPTS})"
     "${EXEC_COMMAND[@]}"
     if [[ $? -eq 0 ]]; then
       log_info "Command successful after: ${ATTEMPT_NUMBER}/${MAX_ATTEMPTS} attempts"
-      return
+      return 0
     else
-      log_error "Command failed on Attempt ${ATTEMPT_NUMBER}/${MAX_ATTEMPTS} . Sleeping for 60sec for retry"
-      sleep 60
+      log_error "${EXEC_COMMAND[@]} failed on Attempt ${ATTEMPT_NUMBER}/${MAX_ATTEMPTS}. Will try again in ${SLEEP_TIME_SECONDS} seconds"
+      sleep ${SLEEP_TIME_SECONDS}
       ((ATTEMPT_NUMBER++))
     fi
   done
-  log_error "Command failed after all attempts, exiting .."
-  exit_fail
+  exit_fail "${EXEC_COMMAND[@]} failed after all attempts, exiting .."
 }

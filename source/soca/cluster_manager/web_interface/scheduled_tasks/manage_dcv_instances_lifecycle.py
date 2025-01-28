@@ -65,7 +65,7 @@ def retrieve_host(instances_info, instance_state):
             {"Name": "instance-id", "Values": instance_ids},
             {
                 "Name": "tag:soca:ClusterId",
-                "Values": [os.environ["SOCA_CONFIGURATION"]],
+                "Values": [os.environ["SOCA_CLUSTER_ID"]],
             },
             {
                 "Name": "tag:soca:DCVSupportHibernate",
@@ -78,7 +78,7 @@ def retrieve_host(instances_info, instance_state):
             {"Name": "instance-state-name", "Values": ["stopped"]},
             {
                 "Name": "tag:soca:ClusterId",
-                "Values": [os.environ["SOCA_CONFIGURATION"]],
+                "Values": [os.environ["SOCA_CLUSTER_ID"]],
             },
             {
                 "Name": "tag:soca:DCVSupportHibernate",
@@ -836,3 +836,4 @@ def schedule_auto_stop():
                     if instance_distro != "windows"
                 )
             )
+        

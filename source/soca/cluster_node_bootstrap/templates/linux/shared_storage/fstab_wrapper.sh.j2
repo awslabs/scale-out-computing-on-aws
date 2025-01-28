@@ -1,0 +1,88 @@
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+{% if "templates/linux/shared_storage/nfs_wrapper.sh.j2" not in ns.template_already_included %}
+  {% set _ = ns.template_already_included.append("templates/linux/shared_storage/nfs_wrapper.sh.j2") %}
+
+  function fstab_wrapper () {
+    # $1 = <file system> <mount point> <type> <options> <dump> <pass>
+    # filesystem: The device/partition (by /dev location or UUID) that contain a file system.
+    # mount point: The directory on your root file system (aka mount point) from which it will be possible to access the content of the device/partition. Mount points should not have spaces in the names.
+    # type: Type of file system (ext4, nfs4, lustre ..)
+    # options: Mount options of access to the device/partition
+    # dump: Enable or disable backing up of the device/partition. Default to 0 (Disable) it if not specified
+    # pass: Controls the order in which fsck checks the device/partition for errors at boot time. The root device should be 1. Other partitions should be 2, or 0 to disable checking. Default to 0 if not set
+    # eg: 10.1.1.6:/   /mypath          nfs4    defaults   0       0
+
+    # Note: Return 0 for successful mount or 1 for error
+
+    local FSTAB_ENTRY=(${1})
+    local MOUNT_FILESYSTEM=${FSTAB_ENTRY[0]}
+    local MOUNT_POINT=${FSTAB_ENTRY[1]}
+    local MOUNT_TYPE=${FSTAB_ENTRY[2]}
+    local MOUNT_OPTIONS=${FSTAB_ENTRY[3]}
+    local MOUNT_DUMP=${FSTAB_ENTRY[4]-"0"}
+    local MOUNT_PASS=${FSTAB_ENTRY[5]-"0"}
+
+    local MOUNT_VERIFICATION
+    local MOUNT_ATTEMPT
+
+    log_info "Received new fstab entry request: ${FSTAB_ENTRY}"
+
+    if [[ -z "${MOUNT_FILESYSTEM}" ]] || [[ -z "${MOUNT_POINT}" ]] || [[ -z "${MOUNT_TYPE}" ]] || [[ -z "${MOUNT_OPTIONS}" ]]; then
+      log_error "Invalid entry. Expected <filesystem> <mount_point> <mount_type> <options> [[<dump> <pass>]], received ${FSTAB_ENTRY}"
+      return 1
+    fi
+
+    if grep -qF "${MOUNT_FILESYSTEM} ${MOUNT_POINT}" /etc/fstab; then
+      log_info "This entry seems to already exist on /etc/fstab"
+      return 0
+    fi
+
+    if mount | grep -q "${MOUNT_POINT}"; then
+      if mount | grep "${MOUNT_POINT}" | grep -q ${MOUNT_FILESYSTEM} ; then
+        log_info "${MOUNT_POINT} is already mounted"
+        return 0
+      else
+        log_error "${MOUNT_POINT} is mounted to a different disk"
+        return 1
+      fi
+    fi
+
+    # nslookup install
+    if ! verify_package_installed bind-utils; then
+      packages_install bind-utils
+    fi
+
+    # nfs-utils
+    if ! verify_package_installed nfs-utils; then
+      log_info "Installing nfs-utils"
+      packages_install nfs-utils
+    fi
+
+    log_info "Creating ${MOUNT_POINT} if needed"
+    mkdir -p ${MOUNT_POINT}
+
+    # Adding to /etc/fstab
+    log_info "Adding ${MOUNT_FILESYSTEM} ${MOUNT_POINT} ${MOUNT_TYPE} ${MOUNT_OPTIONS} ${MOUNT_DUMP} ${MOUNT_PASS} to /ec/fstab"
+    echo "${MOUNT_FILESYSTEM} ${MOUNT_POINT} ${MOUNT_TYPE} ${MOUNT_OPTIONS} ${MOUNT_DUMP} ${MOUNT_PASS}" >> /etc/fstab
+
+    # Trying to mount
+    for ((MOUNT_ATTEMPT=1; MOUNT_ATTEMPT<=10; MOUNT_ATTEMPT++)); do
+      log_info "Mounting attempt ${MOUNT_ATTEMPT}/10 ..."
+
+      if mount ${MOUNT_POINT}; then
+        log_info "mount ${MOUNT_POINT} command completed successfully"
+        break
+      fi
+
+      local SLEEP_TIME=$(( RANDOM % 60 ))
+      sleep ${SLEEP_TIME}
+      if [[ "${MOUNT_ATTEMPT}" -eq 5 ]]; then
+        log_error "Failed to mount ${MOUT_MOUNT_FILESYSTEM} after 10 attempts."
+        return 1
+      fi
+    done
+    return 0
+  }
+{% endif %}

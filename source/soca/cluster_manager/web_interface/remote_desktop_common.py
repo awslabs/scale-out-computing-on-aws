@@ -67,9 +67,11 @@ def can_launch_instance(launch_parameters: dict) -> dict:
             SecurityGroupIds=[launch_parameters["security_group_id"]],
             InstanceType=launch_parameters["instance_type"],
             IamInstanceProfile={"Arn": launch_parameters["instance_profile"]},
-            SubnetId=random.choice(launch_parameters["soca_private_subnets"])
-            if not launch_parameters["subnet_id"]
-            else launch_parameters["subnet_id"],
+            SubnetId=(
+                random.choice(launch_parameters["soca_private_subnets"])
+                if not launch_parameters["subnet_id"]
+                else launch_parameters["subnet_id"]
+            ),
             Placement={"Tenancy": launch_parameters["tenancy"]},
             UserData=launch_parameters["user_data"],
             ImageId=launch_parameters["image_id"],
@@ -100,7 +102,7 @@ def session_already_exist(session_number: int, os: str) -> bool:
             "is_active": "true",
             "session_number": str(session_number),
         },
-        verify=False, # nosec
+        verify=False,  # nosec
     )
     if get_desktops.status_code == 200:
         user_sessions = get_desktops.json()["message"]
@@ -235,11 +237,20 @@ def _generate_allowed_instances_list_aws_api() -> list:
 
 def generate_default_ami_linux() -> dict:
     logger.debug(f"Generating _generate_default_ami_linux list")
-    return (
+    _unsupported_os = ["rhel7", "centos7"]  # eol
+    # Retrieve CustomAMIMap
+    _get_all_soca_base_os = (
         SocaConfig(key="/configuration/CustomAMIMap")
         .get_value(return_as=dict)
         .get("message")
     )
+    # Remove references to unsupported/EOL OS
+    for arch in _get_all_soca_base_os:
+        for _os in _unsupported_os:
+            if _os in _get_all_soca_base_os[arch].keys():
+                del _get_all_soca_base_os[arch][_os]
+
+    return _get_all_soca_base_os
 
 
 def resolve_windows_dcv_ami_id(

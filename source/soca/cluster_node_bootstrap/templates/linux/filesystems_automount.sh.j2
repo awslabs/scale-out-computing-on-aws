@@ -1,0 +1,30 @@
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# Download SOCA FileSystems AutoMount from S3 and execute it
+# This script will mount all filesystems specified on SSM in /configuration/FileSystems tree
+# Note: soca_filesystems_automount.sh is generated at install time, template code is available under installer/resources/script
+# File is then uploaded to S3 during the first install
+
+if [[ -z "${S3_BUCKET_REGION}" ]]; then
+  {% if context.get("/configuration/Region") in ('us-gov-east-1', 'us-gov-west-1')  %}
+    S3_BUCKET_REGION=$(curl -s --head {{ context.get("/configuration/S3Bucket") }}.s3.{{ context.get("/configuration/Region") }}.amazonaws.com | grep bucket-region | awk '{print $2}' | tr -d '\r\n')
+  {% else %}
+    S3_BUCKET_REGION=$(curl -s --head {{ context.get("/configuration/S3Bucket") }}.s3.amazonaws.com | grep bucket-region | awk '{print $2}' | tr -d '\r\n')
+  {% endif %}
+fi
+
+mkdir -p ${SOCA_BOOTSTRAP_ASSETS_FOLDER}/soca_filesystems_automount
+pushd ${SOCA_BOOTSTRAP_ASSETS_FOLDER}
+
+log_info "Downloading SocaFileSystemsAutomount scripts from s3"
+aws_cli s3 --region ${S3_BUCKET_REGION}  cp s3://{{ context.get("/configuration/S3Bucket") }}/{{ context.get("/configuration/ClusterId") }}/config/do_not_delete/scripts/soca_filesystems_automount.sh .
+
+log_info "Executing SocaFileSystemsAutoMount mount"
+if /bin/bash soca_filesystems_automount.sh >> ${SOCA_BOOTSTRAP_LOGS_FOLDER}/soca_filesystems_automount.sh.log 2>&1; then
+  log_info "SocaFileSystemsAutoMount completed successfully"
+else
+  log_error "SocaFileSystemsAutoMount failed. Check logs."
+fi
+
+popd

@@ -4,7 +4,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 Config:
-  version: "24.10"  # version automatically populated as part of RELEASE-PIPELINE.sh (see github_release.py)
+  version: "25.1.0"  # version automatically populated as part of RELEASE-PIPELINE.sh (see github_release.py)
   termination_protection: true  # Enable (recommended) or Disable Cloudformation Stack termination protection
   entry_points_subnets: "Public"  # Public (recommended) or Private. In public mode the scheduler and ELB are deployed on PublicSubnets and assigned Public IPS. In Private mode scheduler and ELB are deployed in private subnets. In both case compute nodes and OpenSearch/EFS/FSxL are deployed in private subnets. Public does not means your cluster will be accessible to everyone by default, access to your cluster is still protected by security groups
   skip_quotas: false  # Enable (True) or Disable (False) AWS Service quotas check. It's recommended to disable this setting only when the AWS Service Quotas API is not accessible (e.g: isolated subnets)
@@ -85,15 +85,23 @@ Config:
     # apps and data are required
     # Additional filesystems can be created by creating a new config tree
     kms_key_id: ~  # Storge-wide KMS KeyID
-
     apps:
-      provider: "efs"  # efs or fsx_lustre
-      mount_point: "/apps"  # Where this should be mounted in the filesystem namespace.
+      mount_point: "/apps"  # (Just for reference, this cannot be changed today) Where this should be mounted in the filesystem namespace.
       kms_key_id: ~  # Specify your own CMK to encrypt filesystem.
       efs:
         throughput_mode: "bursting"  # https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-efs-filesystem.html#cfn-efs-filesystem-throughputmode
         performance_mode: "generalPurpose"  # https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-efs-filesystem.html#cfn-efs-filesystem-performancemode
         deletion_policy: "NO_RETAIN"  # RETAIN will preserve the EFS even if you delete the stack. Any other value will delete EFS if you delete the CFN stack
+      fsx_ontap:
+         deployment_type: "MULTI_AZ_2"
+         automatic_backup_retention_days: 7
+         daily_automatic_backup_start_time: "03:00"
+         throughput_capacity: 384
+         storage_capacity: 1024
+         junction_path: "/apps"
+         netbios_name: "SOCAAPPSSVM" # 15 Chars Max, must be unique to your AD
+         file_system_administrators_group: ~ # Leave default if using AWS DS (will use AWS Delegated FSx Administrators)
+         organizational_unit_distinguished_name: ~ # Leave default if using AWS DS (OU=Computers, <BASE_DOMAIN>)
       fsx_lustre:
         deployment_type: "PERSISTENT_2"  # Allowed values: PERSISTENT_1 | PERSISTENT_2 | SCRATCH_1 | SCRATCH_2. Region availability information  https://docs.aws.amazon.com/fsx/latest/LustreGuide/using-fsx-lustre.html
         drive_cache_type: "READ"  # Allowed values: NONE | READ. Required when storage_type is HDD. https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-fsx-filesystem-lustreconfiguration.html#cfn-fsx-filesystem-lustreconfiguration-drivecachetype
@@ -102,14 +110,23 @@ Config:
         storage_type: "SSD"  # Allowed values: SSD or HDD. https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-fsx-filesystem.html#cfn-fsx-filesystem-storagetype
 
     data:
-      provider: "efs"  # efs or fsx_lustre
-      mount_point: "/data"  # Where this should be mounted in the filesystem namespace.
+      mount_point: "/data"  # (Just for reference, this cannot be changed today) Where this should be mounted in the filesystem namespace.
       kms_key_id: ~  # Specify your own CMK to encrypt filesystem.
       efs:
         throughput_mode: "bursting"  # https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-efs-filesystem.html#cfn-efs-filesystem-throughputmode
         performance_mode: "generalPurpose"  # https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-efs-filesystem.html#cfn-efs-filesystem-performancemode
         transition_to_ia: "AFTER_30_DAYS"  # https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-efs-filesystem-lifecyclepolicy.html
         deletion_policy: "NO_RETAIN"  # RETAIN will preserve the EFS even if you delete the stack. Any other value will delete EFS if you delete the CFN stack
+      fsx_ontap:
+        deployment_type: "MULTI_AZ_2"
+        automatic_backup_retention_days: 7
+        daily_automatic_backup_start_time: "03:00"
+        throughput_capacity: 384
+        storage_capacity: 1024
+        junction_path: "/data"
+        netbios_name: "SOCADATASVM" # 15 Chars Max, must be unique to your AD.
+        file_system_administrators_group: ~ # Leave default if using AWS DS (will use AWS Delegated FSx Administrators)
+        organizational_unit_distinguished_name: ~ # Leave default if using AWS DS (OU=Computers, <BASE_DOMAIN>)
       fsx_lustre:
         deployment_type: "PERSISTENT_2"  # Allowed values: PERSISTENT_1 | PERSISTENT_2 | SCRATCH_1 | SCRATCH_2. Region availability information  https://docs.aws.amazon.com/fsx/latest/LustreGuide/using-fsx-lustre.html
         drive_cache_type: "READ"  # Allowed values: NONE | READ. Required when storage_type is HDD. https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-fsx-filesystem-lustreconfiguration.html#cfn-fsx-filesystem-lustreconfiguration-drivecachetype
@@ -120,7 +137,7 @@ Config:
 
   # Configure your EC2 instance used as login host below
   login_node:
-    instance_type: ["m7i-flex.large", "m6a.large", "m5.large"]  # Type of EC2 machine to deploy for login_node
+    instance_type: ["m7i-flex.large", "m7i.large", "m6a.large", "m6i.large", "m5.large"]  # Type of EC2 machine to deploy for login_node
     min_count: 1  # Minimum Number of login node(s) to provision. This value can be changed post deployment
     desired_count: ~  # Default is to match minimum count
     max_count: 2  # Maximum Number of login node(s) to provision. This value can be changed post deployment
@@ -142,11 +159,11 @@ Config:
 
   scheduler:
     scheduler_engine: "openpbs"
-    deployment_type: "tgz"  # tgz (supported), git (experimental) or s3_tgz (experimental). on see Parameters.scheduler section below for more info
+    deployment_type: "git"  # tgz (supported), git (supported) or s3_tgz (experimental). on see Parameters.scheduler section below for more info
 
   # Configure your EC2 instance used as controller host below
   controller:
-    instance_type: ["m7i-flex.large", "m6a.large", "m5.large"]  # Type of EC2 machine to deploy for controller
+    instance_type: ["m7i-flex.large", "m7i.large", "m6a.large", "m6i.large", "m5.large"]  # Type of EC2 machine to deploy for controller
     volume_size: 200  # Size of the EBS root disk in GB
     volume_type: "gp3"  #  'gp2' may be needed for AWS Outposts installations
     volume_throughput: 150  #  For Provisioned IOPS SSD (io1) volumes
@@ -183,22 +200,22 @@ Config:
     #   - "arn:aws:backup:us-east-1:123456789012:backup-vault:backupvaultname"
 
   dcv:
-    allowed_instances: ["m7i-flex.*", "m7i.*", "m6i.*", "m5.*", "g6.*", "gr6.*", "g5.*", "g5g.*", "g4dn.*"]  # Which instances should be displayed for the user?
+    allowed_instances: ["m7i-flex.*", "m7i.*", "c6i.*", "c7g.*", "m5.*", "g6.*", "gr6.*", "g5.*", "g5g.*", "g4dn.*"]  # Which instances should be displayed for the user?
     allow_metal_instances: true  # Should the user be presented with metal instances?
     version: "2023.1.16388"
     high_scale: false  # Should DCV be configured to support HA and high scale?
     gateway:
-      instance_type: ["m7i-flex.large", "m6a.large", "m5.large"]  # EC2 instance to deploy
+      instance_type: ["m7i-flex.large", "m7i.large", "m6a.large", "m6i.large", "m5.large"]  # EC2 instance to deploy
       instance_count: 1  # Number of DCV gateway node(s) to provision. This value can be changed post deployment
       volume_size: 50  # Size of the EBS root disk in GB
       volume_type: "gp3"
     broker:
-      instance_type: ["m7i-flex.large", "m6a.large", "m5.large"]  # EC2 instance to deploy
+      instance_type: ["m7i-flex.large", "m7i.large", "m6a.large", "m6i.large", "m5.large"]  # EC2 instance to deploy
       instance_count: 1  # Number of DCV broker node(s) to provision. This value can be changed post deployment
       volume_size: 50  # Size of the EBS root disk in GB
       volume_type: "gp3"
     manager:
-      instance_type: ["m7i-flex.large", "m6a.large", "m5.large"]  # EC2 instance to deploy
+      instance_type: ["m7i-flex.large", "m7i.large", "m6a.large", "m6i.large", "m5.large"]  # EC2 instance to deploy
       instance_count: 1  # Number of DCV session_manager node(s) to provision. This value can be changed post deployment
       volume_size: 50  # Size of the EBS root disk in GB
       volume_type: "gp3"
@@ -209,9 +226,8 @@ Config:
     # Choose the Directory to use on SOCA:
     # 1 - aws_ds_managed_activedirectory (Recommended) - Create a new AWS Directory Service Managed Active Directory -  https://docs.aws.amazon.com/directoryservice/latest/admin-guide/directory_microsoft_ad.html
     # 2 - existing_active_directory (Experimental) - Connect to an existing Microsoft Active Directory
-    # 3 - aws_ds_simple_activedirectory (Experimental) - Create a new AWS Directory Service Simple Active Directory - https://docs.aws.amazon.com/directoryservice/latest/admin-guide/directory_simple_ad.html
-    # 4 - openldap - Create a new standalone OpenLDAP hosted on the Controller host - https://www.openldap.org/
-    # 5 - existing_openldap - Connect to an existing OpenLDAP
+    # 3 - openldap - Create a new standalone OpenLDAP hosted on the Controller host - https://www.openldap.org/
+    # 4 - existing_openldap - Connect to an existing OpenLDAP
     provider: "aws_ds_managed_activedirectory"
 
     # DNS Domain name for your deployment. Automatically populated as <clusterID>.local unless specified here (e.g: soca-test.local)
@@ -229,21 +245,23 @@ Config:
       size: "Small"  # Small or Large - https://docs.aws.amazon.com/directoryservice/latest/admin-guide/directory_simple_ad.html
       # Note: These are the default settings created by AWS Directory Simple AD which cannot be changed. Displayed for information only.
       # people_search_base: "cn=Users,<base_dn>", group_search_base: "cn=Group,<base_dn>", admins_search_base: "cn=Enterprise Admins,<base_dn>"
+      admins_search_base: "cn=socasudoadminsgroup"  # Any users created in this group will have Linux SUDO & SOCA Admin permissions
 
     aws_ds_managed_activedirectory:
       edition: "Standard"  # https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-directoryservice-microsoftad.html#cfn-directoryservice-microsoftad-edition
       # Note: These are the default settings created by AWS Directory Simple AD which cannot be changed. Displayed for information only.
       # people_search_base: "cn=Users,<base_dn>", group_search_base: "cn=Group,<base_dn>", admins_search_base: "cn=AWS Delegated Administrators,ou=AWS Delegated Groups,<base_dn>"
+      admins_search_base: "cn=socasudoadminsgroup"  # Any users created in this group will have Linux SUDO & SOCA Admin permissions
 
     openldap:
       people_search_base: "ou=People" # Users will be created or authenticated in this OrganizationAL Unit (OU) - (base_dn is automatically added as suffix if not present)
       group_search_base: "ou=Group" # Groups in this OU will be usable in SOCA - (base_dn is automatically added as suffix if not present)
-      admins_search_base: "ou=Sudoers"  # Any users created in this OU will have SUDO permissions https://www.sudo.ws/docs/man/sudoers.ldap.man/ (base_dn is automatically added as suffix if not present)
+      admins_search_base: "ou=Sudoers"  # Any users created in this OU  will have Linux SUDO & SOCA Admin permissions https://www.sudo.ws/docs/man/sudoers.ldap.man/ (base_dn is automatically added as suffix if not present)
 
     existing_openldap:
       people_search_base: ~ # Users will be created or authenticated in this OrganizationAL Unit (OU) - (base_dn is automatically added as suffix if not present)
       group_search_base: ~ # Groups in this OU will be usable in SOCA - (base_dn is automatically added as suffix if not present)
-      admins_search_base: ~  # Any users created in this OU will have SUDO permissions  (base_dn is automatically added as suffix if not present)
+      admins_search_base: ~  # Any users created in this Group will have Linux SUDO & SOCA Admin permissions (base_dn is automatically added as suffix if not present)
 
       #  If you change this value, SOCA will !!!NOT!!! create an OpenLDAP and will connect to the one you have specified.
       #  1. Verify if your OpenLDAP is reachable from the AWS Environment where you are about to install SOCA
@@ -268,8 +286,8 @@ Config:
       service_account_secret_name_arn: ~
 
     existing_active_directory:
-      people_search_base: ~ # Users will be created or authenticated in this OrganizationAL Unit (OU) - (base_dn is automatically added as suffix if not present)
-      group_search_base: ~ # Groups in this OU will be usable in SOCA - (base_dn is automatically added as suffix if not present)
+      people_search_base: ~  # Users will be created or authenticated in this OrganizationAL Unit (OU) - (base_dn is automatically added as suffix if not present)
+      group_search_base: ~  # Groups in this OU will be usable in SOCA - (base_dn is automatically added as suffix if not present)
       admins_search_base: ~  # Any users created in this OU will have SUDO permissions https://www.sudo.ws/docs/man/sudoers.ldap.man/ (base_dn is automatically added as suffix if not present)
 
       # If you change this value, SOCA will !!!NOT!!! create an Active Directory and will connect to the one you have specified.
@@ -278,6 +296,12 @@ Config:
       #  3. You MUST set existing_directory_service_account_secret_name below
       #  4. Verify the provider (above) is the correct one based on your Directory platform
       endpoint: ~ # ex: ldaps://10.5.5.10, ldap://myad.mycompany.com ... must start with ldap:// or ldaps://
+
+      #  List Domain Controller IPs, only needed if you are planning to use FSx for NetApp ONTAP
+      # dc_ips:
+      # - ip1
+      # - ip2
+      dc_ips: ~
 
       # A service account with enough privileges to join other objects into the directory.
       # Left blank if you are not using an existing Directory, SOCA will automatically create a secure secret on SecretManager for you
@@ -320,32 +344,36 @@ Parameters:
         x86_64: "https://awscli.amazonaws.com/AWSCLIV2.msi"
 
     python:
-      version: "3.9.19"
-      tgz: "Python-3.9.19.tgz"
-      url: "https://www.python.org/ftp/python/3.9.19/Python-3.9.19.tgz"
-      sha256: "f5f9ec8088abca9e399c3b62fd8ef31dbd2e1472c0ccb35070d4d136821aaf71"
+      version: "3.9.21"
+      url: "https://www.python.org/ftp/python/3.9.21/Python-3.9.21.tgz"
+      sha256: "667c3ba2ca98d39ead1162f6548c3475768582e2ff89e0821d25eb956ac09944"
 
     scheduler:
       openpbs:
         tgz: # Download OpenPBS tgz from the URL listed below
           version: "23.06.06"
-          tgz: "v23.06.06.tar.gz"
           url: "https://github.com/openpbs/openpbs/archive/v23.06.06.tar.gz"
           sha256: "689df6caa101422237118d81f9cfb0e6cad432209c77a6b3b8021cf984a91a90"
         git: # Install OpenPBS from Source.
-          version: ~ # Version to install (this can be anything, it's just used to avoid re-installation if the same version is already detected)
-          repo: ~ # Repo to clone from, e.g https://github.com/openpbs/openpbs.git
-          branch: ~ # (Optional: Specify the branch if you do not want to use the default) - Note: You cannot specify both Branch and Commit ID
-          commit_id: ~ # (Optional: Specify the commit id if you do not want to use the default) - Note: You cannot specify both Branch and Commit ID
+          version: "23.06.06" # Version to install (this can be anything, it's just used to avoid re-installation if the same version is already detected)
+          repo: "https://github.com/openpbs/openpbs.git" # Repo to clone from, e.g https://github.com/openpbs/openpbs.git
+          branch: "master" # (Optional: Specify the branch if you do not want to use the default)
+          commit_id: "494e0f0186dd7d51ae5a8005f21438d900c0a842" # (Optional: Specify the commit id if you do not want to use the default)
         s3_tgz:
           version: ~ # Version to install (this can be anything, it's just used to avoid re-installation if the same version is already detected)
           s3_uri: ~ # Full name of your file archive on S3 (e.g: s3://mcrozes-soca-test-bucket/tarball/openpbs-23.06.06.tar.gz)
 
+    cache_client:
+      valkey:
+        url: "https://github.com/valkey-io/valkey/archive/refs/tags/8.0.2.tar.gz"
+        sha256: "e052c45b3cbe512e24fdfdc3fd337f9f5e4b8f8b8713f349ba867b829c8ff11a"
+      redis:
+        url: "http://download.redis.io/redis-stable.tar.gz"
+
     openmpi:
-      version: "5.0.5"
-      tgz: "openmpi-5.0.5.tar.gz"
-      url: "https://download.open-mpi.org/release/open-mpi/v5.0/openmpi-5.0.5.tar.gz"
-      sha256: "5cbefa0780b84f4126743c40cdd6a334b2f0574cd7fd95050fb1ac0ddbb7f0b8"
+      version: "5.0.6"
+      url: "https://download.open-mpi.org/release/open-mpi/v5.0/openmpi-5.0.6.tar.gz"
+      sha256: "1d6dd41f6b53c00db23b40e56733d16a996fa743957ef8add8e117feffd92689"
 
     cloudwatch_agent:
       download_link_pattern: "https://s3.%region%.amazonaws.com/amazoncloudwatch-agent-%region%/%os%/%architecture%/latest/amazon-cloudwatch-agent.%ext%"
@@ -354,27 +382,30 @@ Parameters:
       x86_64: "https://s3.amazonaws.com/ec2-downloads-windows/SSMAgent/latest/linux_amd64/amazon-ssm-agent.rpm"
       aarch64: "https://s3.amazonaws.com/ec2-downloads-windows/SSMAgent/latest/linux_arm64/amazon-ssm-agent.rpm"
 
+    s3_mountpoint:
+      x86_64:
+        url: "https://s3.amazonaws.com/mountpoint-s3-release/1.14.0/x86_64/mount-s3-1.14.0-x86_64.rpm"
+        sha256: "ea6f6f76602b0034642a88a8ce31542a185c36c9fa5e50c49dffe445b8b70cd7"
+      aarch64:
+        url: "https://s3.amazonaws.com/mountpoint-s3-release/1.14.0/arm64/mount-s3-1.14.0-arm64.rpm"
+        sha256: "5c13de3fa0a8fd884444c5bf149cc4c3967aadad5c6fc4925df2529d4a83a5dd"
+
     nvm:
       node_version: "20.9.0"  # Note:  Older distro (ALI2, centos7, rhel7 ... ) will use 17.9.0 as GLIBC on these distro are not compatible with Node18+
-      install_script: "install.sh"
       url: "https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.7/install.sh"
       sha256: "8e45fa547f428e9196a5613efad3bfa4d4608b74ca870f930090598f5af5f643"
 
     efa:
-      version: "1.34.0"
-      tgz: "aws-efa-installer-1.34.0.tar.gz"
-      url: "https://efa-installer.amazonaws.com/aws-efa-installer-1.34.0.tar.gz"
-      sha256: "bd68839e741b0afd3ec2e37d50603803cfa7a279c120f0a736cc57c2ff2d7fdc"
+      version: "1.38.0"
+      url: "https://efa-installer.amazonaws.com/aws-efa-installer-1.38.0.tar.gz"
+      sha256: "4f436954f35ad53754b4d005fd8d0be63de3b4184de41a695b504bdce0fecb22"
 
     epel:
       el7:
-        rpm: "epel-release-latest-7.noarch.rpm"
         url: "https://dl.fedoraproject.org/pub/epel/epel-release-latest-7.noarch.rpm"
       el8:
-        rpm: "epel-release-latest-8.noarch.rpm"
         url: "https://dl.fedoraproject.org/pub/epel/epel-release-latest-8.noarch.rpm"
       el9:
-        rpm: "epel-release-latest-9.noarch.rpm"
         url: "https://dl.fedoraproject.org/pub/epel/epel-release-latest-9.noarch.rpm"
 
     gpu:
@@ -403,278 +434,39 @@ Parameters:
       al2: # Amazon Linux 2
         x86_64:
           version: "2024.0-17979-el7-only-al2-x86_64"
-          tgz: "nice-dcv-2024.0-17979-el7-only-al2-x86_64.tgz"
           url: "https://d1uj6qtbmh3dt5.cloudfront.net/2024.0/Servers/nice-dcv-2024.0-17979-el7-only-al2-x86_64.tgz"
           sha256: "0dc68b98a27e245697e56e4d27c0eb4d648613a60290e7976f31a9b1aaca7e67"
         aarch64:
           version: "2024.0-17979-el7-only-al2-aarch64"
-          tgz: "nice-dcv-2024.0-17979-el7-only-al2-aarch64.tgz"
           url: "https://d1uj6qtbmh3dt5.cloudfront.net/2024.0/Servers/nice-dcv-2024.0-17979-el7-only-al2-aarch64.tgz"
           sha256: "59011a340e903c058013c8c8f2aa346e864eb3a4168f6d74779e21f9ea8e8e86"
 
       el7:  ## Centos7/RHEL7 [IMPORTANT: Latest supported is 2023.1]
         x86_64:
           version: "2023.1-17701-el7-x86_64"
-          tgz: "nice-dcv-2023.1-17701-el7-x86_64.tgz"
           url: "https://d1uj6qtbmh3dt5.cloudfront.net/2023.1/Servers/nice-dcv-2023.1-17701-el7-x86_64.tgz"
           sha256: "dd63c2aad943e2c106ac4e519c308bba4786eb1e4c11674bedad9111c65c6230"
         aarch64:
           version: "nice-dcv-2023.1-17701-el7-aarch64"
-          tgz: "nice-dcv-2023.1-17701-el7-aarch64.tgz"
           url: "https://d1uj6qtbmh3dt5.cloudfront.net/2023.1/Servers/nice-dcv-2023.1-17701-el7-aarch64.tgz"
           sha256: "e44f3c06e1830ccc52d25995227bbbb2060bc81a9623420ade8ef69317784fdd"
 
       el8:  ## Centos8/RHEL8/Rocky8
         x86_64:
           version: "2024.0-17979-el8-x86_64"
-          tgz: "nice-dcv-2024.0-17979-el8-x86_64.tgz"
           url: "https://d1uj6qtbmh3dt5.cloudfront.net/2024.0/Servers/nice-dcv-2024.0-17979-el8-x86_64.tgz"
           sha256: "8958505f859dd62749936f0a709eb679162ad268f402ff01a0554eea19bb5b0c"
         aarch64:
           version: "2024.0-17979-el8-aarch64"
-          tgz: "nice-dcv-2024.0-17979-el8-aarch64.tgz"
           url: "https://d1uj6qtbmh3dt5.cloudfront.net/2024.0/Servers/nice-dcv-2024.0-17979-el8-aarch64.tgz"
           sha256: "24909cb2aaca358404a1e69ad5e1c7e7596668d907329403c09299d26a6672e8"
 
       el9:  ## RHEL9/Rocky9
         x86_64:
           version: "2024.0-17979-el9-x86_64"
-          tgz: "nice-dcv-2024.0-17979-el9-x86_64.tgz"
           url: "https://d1uj6qtbmh3dt5.cloudfront.net/2024.0/Servers/nice-dcv-2024.0-17979-el9-x86_64.tgz"
           sha256: "d6a961619412d2f63fdd82133125a4e3916c904f4b58897953ecd69ff6f4c7d7"
         aarch64:
           version: "2024.0-17979-el9-aarch64"
-          tgz: "nice-dcv-2024.0-17979-el9-aarch64.tgz"
           url: "https://d1uj6qtbmh3dt5.cloudfront.net/2024.0/Servers/nice-dcv-2024.0-17979-el9-aarch64.tgz"
           sha256: "cf1f4453f5a82b57a73845f0173de3dc2d1f58cd269ffb2635b36a68d1108ce6"
-
-  packages:
-    # Add any extra package you want to install as part of the SOCA node bootstrap sequence
-    # user_extra is the only customizable value post-install via socactl
-    # Please note this cannot be empty and must have at least one entry
-    user_extra:
-      -
-        telnet
-
-    # List of required package for system, controller specific packages, openldap etc ..
-    # Keys below cannot be modified post-install via socactl
-    system:
-      -
-        wget
-        bind-utils
-        chrony
-        cronie
-        cpp
-        e2fsprogs
-        e2fsprogs-libs
-        gcc
-        gcc-c++
-        gcc-gfortran
-        glibc
-        glibc-common
-        glibc-devel
-        glibc-headers
-        gssproxy
-        htop
-        kernel
-        kernel-devel
-        kernel-headers
-        keyutils
-        keyutils-libs-devel
-        krb5-devel
-        krb5-libs
-        libbasicobjects
-        libcollection
-        libcom_err
-        telnet
-        libcom_err-devel
-        libevent
-        libffi-devel
-        libgcc
-        libgfortran
-        libgomp
-        libini_config
-        libkadm5
-        libmpc
-        libnfsidmap
-        libpath_utils
-        libref_array
-        libselinux
-        libselinux-devel
-        libselinux-python
-        libselinux-utils
-        libsepol
-        libsepol-devel
-        libss
-        libstdc++
-        libstdc++-devel
-        libtalloc
-        libtevent
-        libtirpc
-        libverto-devel
-        libverto-tevent
-        libglvnd-devel
-        lshw
-        mpfr
-        mdadm
-        nvme-cli
-        elfutils-libelf-devel
-        nfs-utils
-        git
-        jq
-        openssl
-        openssl-devel
-        openssl-libs
-        pcre
-        pcre-devel
-        perl
-        perl-Carp
-        perl-Encode
-        perl-Env
-        perl-Exporter
-        perl-File-Path
-        perl-File-Temp
-        perl-Filter
-        perl-Getopt-Long
-        perl-HTTP-Tiny
-        perl-PathTools
-        perl-Pod-Escapes
-        perl-Pod-Perldoc
-        perl-Pod-Simple
-        perl-Pod-Usage
-        perl-Scalar-List-Utils
-        perl-Socket
-        perl-Storable
-        perl-Switch
-        perl-Text-ParseWords
-        perl-Time-HiRes
-        perl-Time-Local
-        perl-constant
-        perl-libs
-        perl-macros
-        perl-parent
-        perl-podlators
-        perl-threads
-        perl-threads-shared
-        quota
-        quota-nls
-        rpcbind
-        sqlite-devel
-        systemd-devel
-        system-lsb
-        nss-pam-ldapd
-        tcp_wrappers
-        vim
-        zlib
-        zlib-devel
-        redhat-lsb
-
-    controller:
-      -
-        bind-utils
-        dejavu-fonts-common
-        dejavu-sans-fonts
-        fontconfig
-        fontpackages-filesystem
-        freetype
-        htop
-        hwloc
-        hwloc-libs
-        libICE
-        libSM
-        libX11
-        libX11-common
-        libX11-devel
-        libXau
-        libXft
-        libXrender
-        libical
-        libpng
-        libtool-ltdl
-        libxcb
-        lzma
-        postgresql
-        postgresql-contrib
-        postgresql-devel
-        postgresql-libs
-        postgresql-server
-        tcl
-        tk
-        rpm-build
-        readline-devel
-        libtool
-        hwloc-devel
-        libXt-devel
-        libedit-devel
-        libical-devel
-        ncurses-devel
-        perl
-        python3
-        python3-pip
-        python3-devel
-        tcl-devel
-        tk-devel
-        swig
-        expat-devel
-        openssl-devel
-        libXext
-        libXft
-        autoconf
-        automake
-
-    openldap_server:
-      -
-        compat-openldap
-        cyrus-sasl
-        cyrus-sasl-devel
-        openldap
-        openldap-clients
-        openldap-devel
-        openldap-servers
-        unixODBC
-        unixODBC-devel
-
-    sssd:
-      -
-        adcli
-        avahi-libs
-        bind-libs
-        bind-libs-lite
-        bind-license
-        bind-utils
-        c-ares
-        cups-libs
-        cyrus-sasl-gssapi
-        http-parser
-        krb5-workstation
-        libdhash
-        libipa_hbac
-        libldb
-        libsmbclient
-        libsss_autofs
-        libsss_certmap
-        libsss_idmap
-        libsss_nss_idmap
-        libsss_sudo
-        libtalloc
-        libtdb
-        libtevent
-        libwbclient
-        oddjob
-        oddjob-mkhomedir
-        python-sssdconfig
-        realmd
-        samba-client-libs
-        samba-common
-        samba-common-libs
-        samba-common-tools
-        sssd
-        sssd-ad
-        sssd-client
-        sssd-common
-        sssd-common-pac
-        sssd-ipa
-        sssd-krb5
-        sssd-krb5-common
-        sssd-ldap
-        sssd-proxy

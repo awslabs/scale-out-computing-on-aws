@@ -18,7 +18,7 @@ class SocaSecret:
         secret_id: str,
         secret_id_prefix: Optional[
             str
-        ] = f"/soca/{os.environ.get('SOCA_CONFIGURATION')}/",
+        ] = f"/soca/{os.environ.get('SOCA_CLUSTER_ID')}/",
     ):
         self._secret_id = f"{secret_id_prefix}{secret_id}"
 
@@ -57,3 +57,4 @@ class SocaSecret:
                 service_name="secretsmanager",
                 helper=f"Unknown error while trying to retrieve secret {self._secret_id}. Trace: {e}",
             )
+           

@@ -439,19 +439,12 @@ class User(Resource):
                     ),
                     ("cn", [str(user).encode("utf-8")]),
                     ("uidNumber", [str(uid).encode("utf-8")]),
+                    ("uid", [str(uid).encode("utf-8")]),
                     ("gidNumber", [str(gid).encode("utf-8")]),
 
                     ("loginShell", [shell.encode("utf-8")]),
                     ("homeDirectory", (str(config.Config.USER_HOME) + "/" + str(user)).encode("utf-8")),
                 ]
-
-            if config.Config.DIRECTORY_AUTH_PROVIDER in ["existing_openldap",
-                                                         "existing_activedirectory",
-                                                         "openldap",
-                                                         "aws_ds_simple_activedirectory"]:
-                _directory_sync_sleep_time = 0  # Not needed
-            else:
-                _directory_sync_sleep_time = 5  # Ensure Microsoft AD Domain Controller are in sync after any operation
 
             logger.info(f"About to create new account {user}")
             logger.info("Create group first to prevent GID issue")
@@ -473,22 +466,10 @@ class User(Resource):
 
             _password_reset_request = 0
             if config.Config.DIRECTORY_AUTH_PROVIDER in ["aws_ds_managed_activedirectory", "aws_ds_simple_activedirectory"]:
-                logger.info("Set up Password via Lambda for non-OpenLDAP provider")
-                _pw_reset_request = SocaHttpClient(endpoint="/api/user/reset_password", headers={"X-SOCA-TOKEN": config.Config.API_ROOT_KEY}).post( data={"user": user, "password": password})
+                logger.info("Set up Password reset for AWS Directory Service AD provider")
+                _pw_reset_request = SocaHttpClient(endpoint="/api/user/reset_password", headers={"X-SOCA-TOKEN": config.Config.API_ROOT_KEY}).post( data={"user": user, "password": password, "directory_id": config.Config.DIRECTORY_SERVICE_ID})
                 while not _pw_reset_request.success:
-                    if "UserDoesNotExistException" in _pw_reset_request.message:
-                        logger.info("User has just been created but not fully sync on AD DS, waiting a little longer ... ")
-                        time.sleep(10)
-                        _password_reset_request += 1
-                        if _password_reset_request > 3:
-                            return SocaError.IDENTITY_PROVIDER_ERROR(helper=f"Unable to set password for {user}. User still not active after 30 seconds.").as_flask()
-
-                        _pw_reset_request = SocaHttpClient(endpoint="/api/user/reset_password", headers={"X-SOCA-TOKEN": config.Config.API_ROOT_KEY}).post(data={"user": user, "password": password})
-                    else:
-                        return SocaError.IDENTITY_PROVIDER_ERROR(helper=f"{_pw_reset_request.message}").as_flask()
-
-            logger.info("Sleeping to ensure Microsoft AD Domain Controller are in sync (ignored if not using MSAD)")
-            time.sleep(_directory_sync_sleep_time)
+                    return SocaError.IDENTITY_PROVIDER_ERROR(helper=f"{_pw_reset_request.message}").as_flask()
 
             logger.info("Creating Home Directory for user")
             if create_home(user, group) is False:

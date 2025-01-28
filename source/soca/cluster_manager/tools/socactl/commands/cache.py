@@ -78,8 +78,8 @@ def get(key, output):
     default=86400,
     help="Optional: Set Expiration",
 )
-def set(key, value, expire, called_from_config=False):
-    if called_from_config is True:
+def set(key, value, expire, called_from="config"):
+    if called_from == "config":
         _q = cache_client(is_admin=True).set(key=key, value=value, ex=expire)
     else:
         if check_protected_keys(key) is False:

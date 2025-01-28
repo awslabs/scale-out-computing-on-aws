@@ -21,7 +21,7 @@ from requests import get
 
 """
 To enable SSO auth via cognito, update COGNITO section on config.py
-https://awslabs.github.io/scale-out-computing-on-aws/security/integrate-cognito-sso/
+https://awslabs.github.io/scale-out-computing-on-aws-documentation/documentation/security/integrate-cognito-sso/
 """
 
 

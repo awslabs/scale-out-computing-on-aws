@@ -1,82 +1,132 @@
 # Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-# Begin: Cache Client
-{% if context.get("/job/NodeType") in ("controller", "dcv_node", "login_node") %}
-  # Cache is not installed on Simulation nodes. Add it if needed
-  {% if context.get("/configuration/Cache/enabled") %}
-    # Only Controller nodes have the permission to get_secret for CacheAdminUser
-    CACHE_READONLY_USER_SECRETMANAGER_ID=$(get_secret "/soca/{{ context.get("/configuration/ClusterId") }}/CacheReadOnlyUser")
-    CACHE_READONLY_USER=$(echo ${CACHE_READONLY_USER_SECRETMANAGER_ID} | jq -r ". | fromjson.username")
-    CACHE_READONLY_PASSWORD=$(echo ${CACHE_READONLY_USER_SECRETMANAGER_ID} | jq -r ". | fromjson.password")
+# Begin: Cache Client (CLI installer + Wrapper functions)
+
+
+{% if context.get("/configuration/Cache/enabled") %}
+
+  # First, install Cache CLI if needed (only on controller/dcv_node/login_node).
+  # You can add compute_node as well, however please note CLI install will take a couple of minutes.
+  # Create SOCA Optimized AMI to avoid this time penalty for ephemeral nodes  https://awslabs.github.io/scale-out-computing-on-aws-documentation/tutorials/reduce-compute-node-launch-time-with-custom-ami/
+  {% if context.get("/job/NodeType") in ("controller", "dcv_node", "login_node") %}
+    function install_cache_cli() {
+      log_info "Installing Cache CLI client"
+      mkdir -p "${SOCA_BOOTSTRAP_ASSETS_FOLDER}/cache"
+      pushd "${SOCA_BOOTSTRAP_ASSETS_FOLDER}/cache"
+      {% if context.get("/configuration/Cache/engine") == "redis" %}
+        # Note: do not yum install redis as the default package won't include TLS support (required for ElastiCache)
+        CACHE_CMD="/usr/local/bin/redis-cli"
+        if [[ ! -f ${CACHE_CMD} ]]; then
+          log_info "Building redis-cli client with --tls support"
+          file_download --download-url="{{ context.get("/system/cache_client/redis/url") }}"  --save-as="redis-stable.tar.gz"
+          tar xvzf redis-stable.tar.gz --strip-components=1 -C .
+          make distclean
+          make redis-cli BUILD_TLS=yes
+          sudo install -m 755 src/redis-cli /usr/local/bin/
+        else
+          log_info "${CACHE_CMD} already exist, skipping REDIS install"
+        fi
+
+      {% elif context.get("/configuration/Cache/engine") == "valkey" %}
+        CACHE_CMD="/usr/local/bin/valkey-cli"
+        if [[ ! -f ${CACHE_CMD} ]]; then
+          log_info "Building valkey client"
+          file_download --download-url="{{ context.get("/system/cache_client/valkey/url") }}" --save-as="valkey.tar.gz" --sha256-checksum="{{ context.get("/system/cache_client/valkey/sha256") }}"
+          tar xvzf valkey.tar.gz --strip-components=1 -C .
+          make distclean
+          make valkey-cli BUILD_TLS=yes
+          sudo install -m 755 src/valkey-cli /usr/local/bin/
+        else
+          log_info "${CACHE_CMD} already exist, skipping VALKEY install"
+        fi
+      {% endif %}
+      popd
+    }
+install_cache_cli
+  {% endif %}
+
+  # WRAPPER FUNCTIONS BELOW
+  function get_cache_credentials() {
+    local CREDENTIAL_KEY="${1}"
+    local CACHE_USERNAME_PATH="${SOCA_BOOTSTRAP_ASSETS_FOLDER}/.cache_user_username_{{ context.get('/configuration/ClusterId') }}.cache"
+    local CACHE_PASSWORD_PATH="${SOCA_BOOTSTRAP_ASSETS_FOLDER}/.cache_user_password_{{ context.get('/configuration/ClusterId') }}.cache"
+    local CACHE_USER_CREDENTIALS_SECRETMANAGER_ID
+    local CACHE_USERNAME
+    local CACHE_PASSWORD
+    if [[ ! -f ${CACHE_USERNAME_PATH} ]] || [[ ! -f ${CACHE_PASSWORD_PATH} ]]; then
+      log_info "${CACHE_USERNAME_PATH} or ${CACHE_PASSWORD_PATH} does not exist, querying SecretsManager API to retrieve Cache user"
+
+      {% if context.get("/job/NodeType") == "controller" %}
+        # Controller Host is the only host that can query Cache Admin User
+        CACHE_USER_CREDENTIALS_SECRETMANAGER_ID=$(get_secret "/soca/{{ context.get("/configuration/ClusterId") }}/CacheAdminUser")
+      {% else %}
+        # Retrieve ReadOnly user for non-controller machines (dcv_node / login_node / compute_node ...)
+        CACHE_USER_CREDENTIALS_SECRETMANAGER_ID=$(get_secret "/soca/{{ context.get("/configuration/ClusterId") }}/CacheReadOnlyUser")
+      {% endif %}
+
+      CACHE_USERNAME=$(echo ${CACHE_USER_CREDENTIALS_SECRETMANAGER_ID} | jq -r ". | fromjson.username")
+      CACHE_PASSWORD=$(echo ${CACHE_USER_CREDENTIALS_SECRETMANAGER_ID} | jq -r ". | fromjson.password")
+      echo -n "${CACHE_USERNAME}" > "${CACHE_USERNAME_PATH}"
+      echo -n "${CACHE_PASSWORD}" > "${CACHE_PASSWORD_PATH}"
+      log_info "Cache user credentials temporarily cached on the system"
+    else
+      log_info "${CREDENTIALS_CACHE_PATH} and ${CACHE_PASSWORD_PATH} exists, retrieving cache user on filesystem"
+    fi
+
+    if [[ ${CREDENTIAL_KEY} == "username" ]]; then
+      echo -n $(cat "${CACHE_USERNAME_PATH}")
+    elif [[ ${CREDENTIAL_KEY} == "password" ]]; then
+      echo -n $(cat "${CACHE_PASSWORD_PATH}")
+    else
+      exit_fail "First argument for get_cache_credentials via wrapper_cache.sh.j2 must be username or password"
+    fi
+  }
+
+  function cache_get_key () {
+    local CACHE_KEY="${1}"
+    local CACHE_RESULT_FORMAT="${2}"
+    local CACHE_VALUE
+    local CACHE_GET_COMMAND
+    local CACHE_CMD
+    local CACHE_USERNAME
+    local CACHE_PASSWORD
+    local CACHE_ENDPOINT
+    local CACHE_PORT
+    CACHE_USERNAME=$(get_cache_credentials "username")
+    CACHE_PASSWORD=$(get_cache_credentials "password")
     CACHE_ENDPOINT="{{ context.get("/configuration/Cache/endpoint") }}"
     CACHE_PORT="{{ context.get("/configuration/Cache/port") }}"
 
-    {% if context.get("/configuration/Cache/engine") == "redis" %}
-      # Note: do not yum install redis as the default package won't include TLS support (required for ElastiCache)
-      if [[ ! -f "/usr/local/bin/redis-cli" ]]; then
-        log_info "Building redis-cli client with --tls support"
-        cd /root/soca_bootstrap
-        wget http://download.redis.io/redis-stable.tar.gz
-        tar xvzf redis-stable.tar.gz
-        cd redis-stable
-        make distclean
-        make redis-cli BUILD_TLS=yes
-        sudo install -m 755 src/redis-cli /usr/local/bin/
-      else
-        echo "/usr/local/bin/redis-cli already exist, skipping REDIS install"
-      fi
-      CACHE_CMD="/usr/local/bin/redis-cli"
-    {% elif context.get("/configuration/Cache/engine") == "valkey" %}
-      if [[ ! -f "/usr/local/bin/valkey-cli" ]]; then
-        log_info "Building valkey client"
-        cd /root/soca_bootstrap
-        wget https://github.com/valkey-io/valkey/archive/refs/tags/8.0.1.tar.gz
-        tar xvzf 8.0.1.tar.gz
-        cd valkey-8.0.1
-        make distclean
-        make valkey-cli BUILD_TLS=yes
-        sudo install -m 755 src/valkey-cli /usr/local/bin/
-      else
-        echo "/usr/local/bin/valkey-cli already exist, skipping VALKEY install"
-      fi
+    # Cache client is installed via cache_client_install.sh.h2
+    {% if context.get("/configuration/Cache/engine") == "valkey" %}
       CACHE_CMD="/usr/local/bin/valkey-cli"
+    {% elif context.get("/configuration/Cache/engine") == "redis" %}
+      CACHE_CMD="/usr/local/bin/redis-cli"
     {% endif %}
 
-    cache_get_key () {
-      local CACHE_KEY="${1}"
-      local CACHE_RESULT_FORMAT="${2}"
-      local CACHE_VALUE
-      local CACHE_GET_COMMAND
+    if [[ ${CACHE_RESULT_FORMAT} == "json" ]]; then
+      CACHE_GET_COMMAND="JSON.GET"
+    else
+      CACHE_GET_COMMAND="GET"
+    fi
 
-      if [[ ${CACHE_RESULT_FORMAT} == "json" ]]; then
-        CACHE_GET_COMMAND="JSON.GET"
-      else
-        CACHE_GET_COMMAND="GET"
-      fi
-      # Redirect sterr to /dev/null to hide warning due to --pass (see below) otherwise CACHE_VALUE will also contains this message
-      # Warning: Using a password with '-a' or '-u' option on the command line interface may not be safe.
-      # Another option is to remove --pass and leverage env variable, but need to review if/when Valkey will stop relying on REDIS_PASSWORD
-      CACHE_VALUE=$(${CACHE_CMD} --tls -h ${CACHE_ENDPOINT} -p ${CACHE_PORT} --user ${CACHE_READONLY_USER} --pass ${CACHE_READONLY_PASSWORD} ${CACHE_GET_COMMAND} "${CACHE_KEY}" 2>/dev/null)
-      if [[ -z ${CACHE_VALUE+x} || ${CACHE_VALUE} == "(nil)" || -z ${CACHE_VALUE} ]] ; then
-          echo -n "CACHE_MISS"
-      else
-          echo -n "${CACHE_VALUE}"
-      fi
-    }
-
-  {% else %}
-    cache_get_key () {
-      # Cache not enabled, always return CACHE_MISS
+    # Redirect stderr to /dev/null to hide warning due to --pass (see below) otherwise CACHE_VALUE will also contains this message
+    # Warning: Using a password with '-a' or '-u' option on the command line interface may not be safe.
+    # Another option is to remove --pass and leverage env variable, but need to review if/when Valkey will stop relying on REDIS_PASSWORD
+    CACHE_VALUE=$(${CACHE_CMD} --tls -h ${CACHE_ENDPOINT} -p ${CACHE_PORT} --user ${CACHE_USERNAME} --pass ${CACHE_PASSWORD} ${CACHE_GET_COMMAND} "${CACHE_KEY}" 2>/dev/null)
+    if [[ -z ${CACHE_VALUE+x} ]] || [[ ${CACHE_VALUE} == "(nil)" ]] || [[ -z ${CACHE_VALUE} ]]; then
       echo -n "CACHE_MISS"
-    }
-  {% endif %}
-
-{% else %}
-  cache_get_key () {
-    # Cache not deployed on this given machine.
-    # By default cache is deployed only on persistent nodes such as controller/login node or dcv node and not on compute (simulation) nodes
-    echo -n "CACHE_MISS"
+    else
+      echo -n "${CACHE_VALUE}"
+    fi
   }
 
+{% else %}
+  function cache_get_key () {
+    # Cache not enabled, always return CACHE_MISS.
+    # IMPORTANT: function must exist even if the cache is not enabled
+    echo -n "CACHE_MISS"
+  }
 {% endif %}
+# End: Cache Client

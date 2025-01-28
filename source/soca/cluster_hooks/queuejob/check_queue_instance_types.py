@@ -17,21 +17,21 @@ Doc:
 > https://awslabs.github.io/scale-out-computing-on- aws/tutorials/manage-queue-instance-types/
 
 create hook check_queue_instance_types event=queuejob
-import hook check_queue_instance_types application/x-python default /apps/soca/%SOCA_CONFIGURATION/cluster_hooks/queuejob/check_queue_instance_types.py
+import hook check_queue_instance_types application/x-python default /apps/soca/%SOCA_CLUSTER_ID/cluster_hooks/queuejob/check_queue_instance_types.py
 
 Note: If you make any change to this file, you MUST re-execute the import command.
-If you are installing this file manually, make sure to replace %SOCA_CONFIGURATION path below
+If you are installing this file manually, make sure to replace %SOCA_CLUSTER_ID path below
 """
 
 import sys
 import pbs
 
 if (
-    "/apps/soca/%SOCA_CONFIGURATION/python/latest/lib/python3.9/site-packages"
+    "/apps/soca/%SOCA_CLUSTER_ID/python/latest/lib/python3.9/site-packages"
     not in sys.path
 ):
     sys.path.append(
-        "/apps/soca/%SOCA_CONFIGURATION/python/latest/lib/python3.9/site-packages"
+        "/apps/soca/%SOCA_CLUSTER_ID/python/latest/lib/python3.9/site-packages"
     )
 import yaml
 
@@ -84,7 +84,7 @@ else:
 
 # Validate queue_mapping YAML is not malformed
 try:
-    queue_settings_file = "/apps/soca/%SOCA_CONFIGURATION/cluster_manager/orchestrator/settings/queue_mapping.yml"
+    queue_settings_file = "/apps/soca/%SOCA_CLUSTER_ID/cluster_manager/orchestrator/settings/queue_mapping.yml"
     queue_reader = open(queue_settings_file, "r")
     docs = yaml.safe_load(queue_reader)
 except Exception as err:
@@ -105,14 +105,14 @@ for doc in docs.values():
                 e.reject(
                     "allowed_instance_types is not specified on "
                     + queue_settings_file
-                    + ". See https://awslabs.github.io/scale-out-computing-on-aws/tutorials/manage-queue-instance-types/ for examples"
+                    + ". See https://awslabs.github.io/scale-out-computing-on-aws-documentation/documentation/security/manage-queue-instance-types/ for examples"
                 )
 
             if "excluded_instance_types" not in v.keys():
                 e.reject(
                     "excluded_instance_types is not specified on "
                     + queue_settings_file
-                    + ". See https://awslabs.github.io/scale-out-computing-on-aws/tutorials/manage-queue-instance-types/ for examples"
+                    + ". See https://awslabs.github.io/scale-out-computing-on-aws-documentation/documentation/security/manage-queue-instance-types/ for examples"
                 )
 
             # ensure expected keys are valid lists
@@ -153,4 +153,4 @@ for doc in docs.values():
                     + " .Contact your HPC admin and update "
                     + queue_settings_file
                 )
-                e.reject(message)
+                e.r

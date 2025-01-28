@@ -1,0 +1,32 @@
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# Begin - Setup /etc/environment
+function set_environment_variable () {
+  local VARIABLE_NAME=${1}
+  local VARIABLE_VALUE=${2}
+  local SOCA_LINE_SUFFIX_IDENTIFIER="# SOCA Environment Variable, [SOCA_DO_NOT_DELETE]" # added to each entry
+
+  if [[ -z ${VARIABLE_NAME} ]]; then
+    exit_fail "set_environment_variable. VARIABLE_NAME (first argument) not found"
+  fi
+  if [[ -z ${VARIABLE_VALUE} ]]; then
+    exit_fail "set_environment_variable. VARIABLE_VALUE (second argument) not found"
+  fi
+  log_info "Setting ${VARIABLE_NAME}=${VARIABLE_VALUE} to /etc/environment"
+  if grep -q "^[^#]*${VARIABLE_NAME}=${VARIABLE_VALUE}" /etc/environment; then
+      log_info "${VARIABLE_NAME}=${VARIABLE_VALUE} already found in  /etc/environment, ignoring ..."
+  else
+      if grep -q "^[^#]*${VARIABLE_NAME}=" /etc/environment; then
+        log_info "${VARIABLE_NAME}= found but not pointing to ${VARIABLE_VALUE}, remove the line ... "
+        sed -i "/^[^#]*${VARIABLE_NAME}=/d" /etc/environment
+      fi
+      log_info "Adding ${VARIABLE_NAME}=${VARIABLE_VALUE} to /etc/environment"
+      {
+        echo export "${VARIABLE_NAME}=\"${VARIABLE_VALUE}\"" ${SOCA_LINE_SUFFIX_IDENTIFIER}
+      } >> /etc/environment
+      # Export for current shell
+      export "${VARIABLE_NAME}=${VARIABLE_VALUE}"
+  fi
+}
+# End - Setup /etc/environment

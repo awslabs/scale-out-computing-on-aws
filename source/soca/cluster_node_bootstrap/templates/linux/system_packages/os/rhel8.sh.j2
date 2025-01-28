@@ -1,0 +1,32 @@
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+{% include "templates/linux/system_packages/os/base_packages/rhel_based_distributions.sh.j2" %}
+
+log_info "Customizing Linux packages installation for RHEL 8"
+dnf config-manager --set-enabled codeready-builder-for-rhel-8-rhui-rpms
+
+# Packages not available or with a different name in this distro
+REMOVE_PKGS=(
+  libselinux-python
+  libverto-tevent
+  system-lsb
+  openldap-compat
+  compat-openldap
+  lzma
+  tcp_wrappers
+  python-sssdconfig
+)
+
+# New packages to add  (specific to this distro)
+ADD_PKGS=(
+  python3-libselinux
+  python3-sss
+  dejavu-fonts-common
+  redhat-lsb
+  ec2-hibinit-agent
+  xz-devel
+)
+
+log_info "Removing packages for RHEL8: ${REMOVE_PKGS[*]}"
+log_info "Adding extra packages for RHEL8: ${ADD_PKGS[*]}"

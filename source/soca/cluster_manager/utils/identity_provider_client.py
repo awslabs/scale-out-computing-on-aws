@@ -27,30 +27,77 @@ def is_initialized(func):
 class SocaIdentityProviderClient:
     def __init__(
         self,
-        provider: Optional[str] = SocaConfig(key="/configuration/UserDirectory/provider").get_value().get("message"),
+        provider: Optional[str] = SocaConfig(
+            key="/configuration/UserDirectory/provider"
+        )
+        .get_value()
+        .get("message"),
         ldap_endpoint: Optional[str] = None,
         ldap_base_dn: Optional[str] = None,
     ):
         self._provider = provider.lower()
         self._ldap_endpoint = None
         self._ldap_base_dn = None
-        self._ldap_domain_name = SocaConfig(key="/configuration/UserDirectory/domain_name").get_value().get("message")
-        self._ldap_people_search_base = SocaConfig(key="/configuration/UserDirectory/people_search_base").get_value().get("message")
-        self._ldap_group_search_base = SocaConfig(key="/configuration/UserDirectory/group_search_base").get_value().get("message")
-        self._ldap_admins_search_dn = SocaConfig(key="/configuration/UserDirectory/admins_search_base").get_value().get("message")
+        self._ldap_domain_name = (
+            SocaConfig(key="/configuration/UserDirectory/domain_name")
+            .get_value()
+            .get("message")
+        )
+        self._ldap_people_search_base = (
+            SocaConfig(key="/configuration/UserDirectory/people_search_base")
+            .get_value()
+            .get("message")
+        )
+        self._ldap_group_search_base = (
+            SocaConfig(key="/configuration/UserDirectory/group_search_base")
+            .get_value()
+            .get("message")
+        )
+        self._ldap_admins_search_dn = (
+            SocaConfig(key="/configuration/UserDirectory/admins_search_base")
+            .get_value()
+            .get("message")
+        )
+        self._domain_controller_ips = (
+            SocaConfig(key="/configuration/UserDirectory/domain_controller_ips")
+            .get_value(default=[], return_as=list)
+            .get("message")
+        )
+        self.service_account_secret_arn = (
+            SocaConfig(key="/configuration/UserDirectory/service_account_secret_arn")
+            .get_value(default=None)
+            .get("message")
+        )
         self._conn = None
         self._secure_ldap = None
 
         logger.debug("Initializing SocaIdentityProviderClient")
-
         if ldap_endpoint is None:
             logger.debug("No ldap endpoint specified, retrieving value on SSM")
-            self._ldap_endpoint = SocaConfig(key="/configuration/UserDirectory/endpoint").get_value().get("message")
+            self._ldap_endpoint = (
+                SocaConfig(key="/configuration/UserDirectory/endpoint")
+                .get_value()
+                .get("message")
+            )
+
+        if not self._domain_controller_ips:
+            logger.warning(
+                "/configuration/UserDirectory/domain_controller_ips is empty, SOCA will perform all operations via generic DNS. Specify DC IPs if you want to pin operations on a given AD DC."
+            )
+        else:
+            logger.info(
+                f"Domain Controller IPs have been specified {self._domain_controller_ips=}, all operations will default to the first IP in this list "
+            )
+            self._ldap_endpoint = f"ldap://{self._domain_controller_ips[0]}"
 
         # Retrieve LDAP Base if not specified
         if ldap_base_dn is None:
             logger.info("No ldap base dn specified, retrieving value on SSM")
-            self._ldap_base_dn = SocaConfig(key="/configuration/UserDirectory/domain_base").get_value().get("message")
+            self._ldap_base_dn = (
+                SocaConfig(key="/configuration/UserDirectory/domain_base")
+                .get_value()
+                .get("message")
+            )
 
         self._secure_ldap = (
             True if self._ldap_endpoint.startswith("ldaps://") else False
@@ -132,7 +179,9 @@ class SocaIdentityProviderClient:
                 logger.debug(f"Successfully initialized {self._provider} client")
                 return SocaResponse(success=True, message="User is valid")
             except Exception as err:
-                return SocaError.IDENTITY_PROVIDER_ERROR(helper=f"Unable to initialize ldap due to {err}")
+                return SocaError.IDENTITY_PROVIDER_ERROR(
+                    helper=f"Unable to initialize ldap due to {err}"
+                )
 
         except Exception as err:
             return SocaError.IDENTITY_PROVIDER_ERROR(
@@ -144,20 +193,30 @@ class SocaIdentityProviderClient:
         logger.debug(
             f"Received User Directory Service Account bind request for {self._provider}"
         )
-        _admin_secret = SocaSecret(secret_id="UserDirectoryServiceAccount").get_secret()
+        _secret_id = (
+            self.service_account_secret_arn
+            if self.service_account_secret_arn is not None
+            else "UserDirectoryServiceAccount"
+        )
+        _secret_prefix = "" if self.service_account_secret_arn else None
+        _admin_secret = SocaSecret(
+            secret_id=_secret_id, secret_id_prefix=_secret_prefix
+        ).get_secret()
         if not _admin_secret.success:
             return SocaError.IDENTITY_PROVIDER_ERROR(
-                helper=f"Unable to retrieve Ldap Admin user/password. Verify IAM role has permission to read OpenLDAP secrets: {_admin_secret.get('message')}"
+                helper=f"Unable to retrieve Ldap Admin user/password. Verify IAM role has permission to read secrets: {_admin_secret.get('message')}"
             )
 
         _admin_user_directory_credentials = _admin_secret.message
-        _root_user_dn = _admin_user_directory_credentials.get('username')
-        _root_user_password = _admin_user_directory_credentials.get('password')
+        _root_user_dn = _admin_user_directory_credentials.get("username")
+        _root_user_password = _admin_user_directory_credentials.get("password")
         logger.info(f"Root User DN: {_root_user_dn}")
         try:
             self._conn.bind_s(_root_user_dn, _root_user_password, ldap.AUTH_SIMPLE)
             logger.debug("UserDirectory: Successfully bind as service account")
-            return SocaResponse(success=True, message="Successfully bind as service account")
+            return SocaResponse(
+                success=True, message="Successfully bind as service account"
+            )
 
         except ldap.INVALID_CREDENTIALS:
             return SocaError.IDENTITY_PROVIDER_ERROR(
@@ -167,7 +226,6 @@ class SocaIdentityProviderClient:
             return SocaError.IDENTITY_PROVIDER_ERROR(
                 helper=f"Unable to bind {_root_user_dn} due to {err}",
             )
-
 
     @is_initialized
     def bind_as_user(
@@ -224,15 +282,16 @@ class SocaIdentityProviderClient:
                 success=True, message=f"Resource {dn} has been modified successfully"
             )
         except ldap.NO_SUCH_OBJECT:
-            return SocaResponse(
-                success=True, message=f"Resource {dn} does not exist."
-            )
+            return SocaResponse(success=False, message=f"Resource {dn} does not exist.")
         except ldap.UNWILLING_TO_PERFORM as err:
             return SocaError.IDENTITY_PROVIDER_ERROR(
-                helper=f"The LDAP server is unwilling to perform due to {err}")
+                helper=f"The LDAP server is unwilling to perform due to {err}"
+            )
 
         except ldap.INSUFFICIENT_ACCESS:
-            return SocaError.IDENTITY_PROVIDER_ERROR(helper=f"The service account has insufficient access to perform the operation.")
+            return SocaError.IDENTITY_PROVIDER_ERROR(
+                helper=f"The service account has insufficient access to perform the operation."
+            )
 
         except Exception as err:
             return SocaError.IDENTITY_PROVIDER_ERROR(
@@ -255,11 +314,14 @@ class SocaIdentityProviderClient:
                 success=True, message=f"Resource {dn} has been added successfully"
             )
         except ldap.INSUFFICIENT_ACCESS:
-            return SocaError.IDENTITY_PROVIDER_ERROR(helper=f"The service account has insufficient access to perform the operation")
+            return SocaError.IDENTITY_PROVIDER_ERROR(
+                helper=f"The service account has insufficient access to perform the operation"
+            )
 
         except ldap.UNWILLING_TO_PERFORM as err:
             return SocaError.IDENTITY_PROVIDER_ERROR(
-                helper=f"The LDAP server is unwilling to perform due to {err}")
+                helper=f"The LDAP server is unwilling to perform due to {err}"
+            )
 
         except Exception as err:
             return SocaError.IDENTITY_PROVIDER_ERROR(
@@ -276,15 +338,16 @@ class SocaIdentityProviderClient:
                 success=True, message=f"Resource {dn} has been deleted successfully"
             )
         except ldap.NO_SUCH_OBJECT:
-            return SocaResponse(
-                success=True, message=f"Resource {dn} does not exist."
-            )
+            return SocaResponse(success=True, message=f"Resource {dn} does not exist.")
         except ldap.INSUFFICIENT_ACCESS:
-            return SocaError.IDENTITY_PROVIDER_ERROR(helper=f"The service account has insufficient access to perform the operation")
+            return SocaError.IDENTITY_PROVIDER_ERROR(
+                helper=f"The service account has insufficient access to perform the operation"
+            )
 
         except ldap.UNWILLING_TO_PERFORM as err:
             return SocaError.IDENTITY_PROVIDER_ERROR(
-                helper=f"The LDAP server is unwilling to perform due to {err}")
+                helper=f"The LDAP server is unwilling to perform due to {err}"
+            )
 
         except Exception as err:
             return SocaError.IDENTITY_PROVIDER_ERROR(
@@ -310,7 +373,14 @@ class SocaIdentityProviderClient:
 
             for dn, attrs in _search_result:
                 decoded_attrs = {
-                    key: [value.decode('utf-8') if isinstance(value, bytes) and key not in _do_not_decode else value for value in values]
+                    key: [
+                        (
+                            value.decode("utf-8")
+                            if isinstance(value, bytes) and key not in _do_not_decode
+                            else value
+                        )
+                        for value in values
+                    ]
                     for key, values in attrs.items()
                 }
                 _decoded_result.append((dn, decoded_attrs))
@@ -318,13 +388,16 @@ class SocaIdentityProviderClient:
             return SocaResponse(success=True, message=_decoded_result)
 
         except ldap.INSUFFICIENT_ACCESS:
-            return SocaError.IDENTITY_PROVIDER_ERROR(helper=f"The service account has insufficient access to perform the operation")
+            return SocaError.IDENTITY_PROVIDER_ERROR(
+                helper=f"The service account has insufficient access to perform the operation"
+            )
 
         except ldap.UNWILLING_TO_PERFORM as err:
             return SocaError.IDENTITY_PROVIDER_ERROR(
-                helper=f"The LDAP server is unwilling to perform due to {err}")
+                helper=f"The LDAP server is unwilling to perform due to {err}"
+            )
 
         except Exception as err:
             return SocaError.IDENTITY_PROVIDER_ERROR(
-                helper=f"Unable to search {base} with scope {scope}, filter {filter}, attr_list {attr_list},  due to {err}",
+                helper=f"Unable to search {base} with scope {scope}, filter {filter}, attr_list {attr_list}, due to {err}",
             )

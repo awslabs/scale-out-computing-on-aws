@@ -12,7 +12,7 @@ import inspect
 class PathTruncatingFormatter(logging.Formatter):
     def format(self, record):
         # custom_pathname return anything after /apps/soca/<cluster_id>/
-        _truncate_after = f"/apps/soca/{os.environ.get('SOCA_CONFIGURATION')}/"
+        _truncate_after = f"/apps/soca/{os.environ.get('SOCA_CLUSTER_ID')}/"
         start_pos = record.pathname.find(_truncate_after) + len(_truncate_after)
         record.custom_pathname = record.pathname[start_pos:]
 
@@ -74,8 +74,8 @@ class SocaLogger:
             if _debug or self._level == logging.DEBUG:
                 _format = "[%(asctime)s] [%(levelname)s] [%(lineno)d] [%(custom_pathname)s] [%(call_chain)s] [%(funcName)s] [%(message)s]"
             else:
-                # custom_pathname & call_chain are left empty when debug is disabled to avoid un-necessary text.
-                _format = "[%(asctime)s] [%(levelname)s] [%(lineno)d] [] [] [%(funcName)s] [%(message)s]"
+                # call_chain is left empty when debug is disabled to avoid un-necessary text.
+                _format = "[%(asctime)s] [%(levelname)s] [%(lineno)d] [%(custom_pathname)s] [] [%(funcName)s] [%(message)s]"
             self._formatter = PathTruncatingFormatter(_format)
         else:
             self._formatter = logging.Formatter(formatter)

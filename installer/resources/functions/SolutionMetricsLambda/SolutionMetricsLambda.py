@@ -20,14 +20,17 @@ import os
 
 """
 To improve performance and usability, SOCA sends anonymous metrics to AWS.
-You can disable this by setting "DefaultMetricCollection" to "False" in AWS Secrets Manager for the cluster configuration.
-Data tracked:
+You can disable this by setting "/configuration/DefaultMetricCollection" to "false" via `socactl`
+
+Anonymous Data tracked:
   - SOCA Instance information (Type, Count, BaseOS, Disk sizing, EFA, DCV) 
   - SOCA Job Launch/Delete time
   - SOCA Version ID
   - SOCA Installed Region
   - SOCA FSx/Lustre configuration/sizing
   - SOCA Misc (from configuration; used for troubleshooting with AWS)
+  
+We do no send any PII data
 """
 
 
@@ -61,7 +64,7 @@ def lambda_handler(event, context):
         }
         # Add data items from the request
         for item in {
-            "StackUUID",
+            "StackUUID",  # SOCA generated anonymous UUID, not the CloudFormation Stack ID
             "DesiredCapacity",
             "BaseOS",
             "InstanceType",

@@ -2,7 +2,6 @@
 # SPDX-License-Identifier: Apache-2.0
 
 # Begin: Disable ulimit
-{% if context.get("/configuration/BaseOS") in ("amazonlinux2", "amazonlinux2023", "centos7", "rhel7", "rhel8", "rhel9", "rocky8", "rocky9") %}
 function disable_ulimits () {
   LIMITS=(
       #"fsize" # maximum filesize (KB)
@@ -25,18 +24,25 @@ function disable_ulimits () {
       #"rtprio" # max realtime priority
 )
 
-  #Note:
+  # Note:
   # "nofile"  # max number of open file descriptors
   # Be careful when you set this, see https://unix.stackexchange.com/questions/432057/pam-limits-so-making-problems-for-sudo
   # It's recommended to not set this value to unlimited and instead pick a lower value otherwise you may run into authentication issues.
 
+
+  cp /etc/security/limits.conf /etc/security/limits.conf.original.$(date +%s)
   for item in ${LIMITS[@]}; do
-  echo -e "
+    # Remove limit entry if found
+    if grep -q "^[^#]*${item}" /etc/security/limits.conf; then
+      log_info "${item} already found in /etc/security/limits.conf, deleting it ..."
+      sed -i "/^[^#]*${item}/d" /etc/security/limits.conf
+    fi
+    log_info "adding * hard & soft  $item unlimited to /etc/security/limits.conf"
+    echo -e "
 * hard $item unlimited
 * soft $item unlimited
 " >> /etc/security/limits.conf
   done
 }
 disable_ulimits
-{% endif %}
 # End: Disable ulimit

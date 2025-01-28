@@ -2,15 +2,17 @@
 # SPDX-License-Identifier: Apache-2.0
 
 # This file is executed at the end of the bootstrap sequence
-if [[ "${SOCA_NODE_TYPE}" == "login_node" ]]; then
+{% if context.get("/job/NodeType") == "login_node" %}
   # Add any customization you only want to run on login nodes
-  log_info "No customization"
-elif [[ "${SOCA_NODE_TYPE}" == "dcv_node" ]]; then
-  # Add any customization you only want to run on dcv nodes
-  log_info "No customization"
-elif [[ "${SOCA_NODE_TYPE}" == "compute_node" ]]; then
-  # Add any customization you only want to run on compute_node nodes
-  log_info "No customization"
-fi
+  log_info "No additional customization found for login_node."
 
-# Code written below this line  will be executed on all machine
+{% elif context.get("/job/NodeType") == "dcv_node" %}
+  # Add any customization you only want to run on dcv nodes
+  log_info "No additional customization found for dcv_node."
+
+{% elif context.get("/job/NodeType") == "compute_node" %}
+  # Add any customization you only want to run on compute_node nodes
+  log_info "No additional customization found for compute_node."
+{% endif %}
+
+# Code written below this line  will be executed on all machines

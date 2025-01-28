@@ -163,7 +163,7 @@ if __name__ == "__main__":
     pricing_client = get_boto(service_name="pricing", region_name="us-east-1").message
 
     _cluster_id = SocaConfig(key='/configuration/ClusterId').get_value().message
-    _log_file_location = f"/apps/soca/{_cluster_id}/cluster_manager/analytics/job_tracking.log"
+    _log_file_location = f"/apps/soca/{_cluster_id}/cluster_manager/analytics/logs/job_tracking.log"
     logger = SocaLogger(name="analytics_job_tracking").rotating_file_handler(file_path=_log_file_location)
 
     logger.info(f"Tracking active HPC jobs . Log: {_log_file_location}")

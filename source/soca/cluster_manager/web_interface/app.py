@@ -34,11 +34,6 @@ from api.v1.user.api_key import ApiKey
 from api.v1.ldap.group import Group
 from api.v1.ldap.groups import Groups
 from api.v1.ldap.authenticate import Authenticate
-if os.environ.get("DIRECTORY_AUTH_PROVIDER") in ["aws_ds_managed_activedirectory", "aws_ds_simple_activedirectory"]:
-    from api.v1.ldap.activedirectory.reset_password import Reset
-else:
-    from api.v1.ldap.reset_password import Reset
-
 from api.v1.login_nodes.list import ListLoginNodes
 from api.v1.system.files import Files
 from api.v1.system.aws_price import AwsPrice
@@ -83,6 +78,10 @@ from config import app_config
 from flask_swagger import swagger
 from swagger_ui import api_doc
 import config
+if config.Config.DIRECTORY_AUTH_PROVIDER in ["aws_ds_managed_activedirectory", "aws_ds_simple_activedirectory"]:
+    from api.v1.ldap.activedirectory.reset_password import Reset
+else:
+    from api.v1.ldap.reset_password import Reset
 from flask_apscheduler import APScheduler
 
 # from apscheduler.schedulers.background import BackgroundScheduler
@@ -126,7 +125,7 @@ def spec():
     swag["info"]["title"] = "SOCA Web API"
     swag["info"]["description"] = (
         "<h3>Documentation for your Scale-Out Computing on AWS (SOCA) API</h3><hr>"
-        "<li>User and Admin Documentation: https://awslabs.github.io/scale-out-computing-on-aws/</li>"
+        "<li>User and Admin Documentation: https://awslabs.github.io/scale-out-computing-on-aws-documentation/</li>"
         "<li>CodeBase: https://github.com/awslabs/scale-out-computing-on-aws</li>"
     )
     return jsonify(swag)

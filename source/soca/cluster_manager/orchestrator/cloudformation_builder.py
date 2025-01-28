@@ -13,6 +13,7 @@
 import base64
 import os
 import sys
+import re
 
 from troposphere import GetAtt
 from troposphere import Ref, Template
@@ -53,10 +54,29 @@ from utils.aws.ssm_parameter_store import SocaConfig
 
 import logging
 import boto3
+from types import SimpleNamespace
+
 
 # FIXME TODO - ExtraConfig / API / versioning?
 ec2_client = boto3.client("ec2")
 logger = logging.getLogger("soca_logger")
+
+
+def clean_user_data(text_to_remove: list, data: str) -> str:
+    _ec2_user_data = data
+    for _t in text_to_remove:
+        _ec2_user_data = re.sub(f"{_t}", "", _ec2_user_data, flags=re.IGNORECASE)
+
+    # Remove leading spaces
+    _ec2_user_data = re.sub(r"^[ \t]+", "", _ec2_user_data, flags=re.MULTILINE)
+
+    # Remove lines that start with '#' but not '#!'
+    _ec2_user_data = re.sub(r"^(?!#!)#.*\n?", "", _ec2_user_data, flags=re.MULTILINE)
+
+    # Finally remove blank lines
+    _ec2_user_data = re.sub(r"^\s*\n", "", _ec2_user_data, flags=re.MULTILINE)
+
+    return _ec2_user_data
 
 
 class CustomResourceSendAnonymousMetrics(AWSCustomObject):
@@ -91,13 +111,17 @@ def is_cpu_options_supported(instance_type: str) -> bool:
     # https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/cpu-options-supported-instances-values.html
 
     # TODO - clean this up a bit , try/except
-    _instance_details = ec2_client.describe_instance_types(InstanceTypes=[instance_type]).get("InstanceTypes", {})[0]
+    _instance_details = ec2_client.describe_instance_types(
+        InstanceTypes=[instance_type]
+    ).get("InstanceTypes", {})[0]
 
     # If we are bare metal - no CpuOptions
     if _instance_details.get("BareMetal", False):
         return False
 
-    _valid_threads_per_core: list = _instance_details.get("VCpuInfo", {}).get("ValidThreadsPerCore", [])
+    _valid_threads_per_core: list = _instance_details.get("VCpuInfo", {}).get(
+        "ValidThreadsPerCore", []
+    )
 
     # Missing ValidThreadsPerCore means no CPUOptions support
     if not _valid_threads_per_core:
@@ -116,9 +140,15 @@ def is_ebs_optimized(instance_type: str) -> bool:
     Determine if a given instance_type supports EBS Optimization.
     """
     # TODO - try/except
-    _instance_details = ec2_client.describe_instance_types(InstanceTypes=[instance_type]).get("InstanceTypes", {})[0]
+    _instance_details = ec2_client.describe_instance_types(
+        InstanceTypes=[instance_type]
+    ).get("InstanceTypes", {})[0]
 
-    _ebs_opt = _instance_details.get("EbsInfo", {}).get("EbsOptimizedSupport", "unsupported").lower()
+    _ebs_opt = (
+        _instance_details.get("EbsInfo", {})
+        .get("EbsOptimizedSupport", "unsupported")
+        .lower()
+    )
 
     if _ebs_opt in {"default", "supported"}:
         return True
@@ -130,8 +160,9 @@ def main(**params):
     try:
         jinja2_env = Environment(
             loader=FileSystemLoader(
-                f"/apps/soca/{os.environ.get('SOCA_CONFIGURATION')}/cluster_node_bootstrap/"
+                f"/apps/soca/{os.environ.get('SOCA_CLUSTER_ID')}/cluster_node_bootstrap/"
             ),
+            extensions=["jinja2.ext.do"],
             autoescape=select_autoescape(
                 enabled_extensions=("j2", "jinja2"),
                 default_for_string=True,
@@ -143,7 +174,7 @@ def main(**params):
         t = Template()
         t.set_version("2010-09-09")
         t.set_description(
-            "(SOCA) - Base template to deploy compute nodes. Version 24.10"
+            "(SOCA) - Base template to deploy compute nodes. Version 25.1.0"
         )
 
         _cluster_id: str = params.get("ClusterId", "unknown-cluster")
@@ -176,9 +207,9 @@ def main(**params):
             soca_parameters[f"/job/{k}"] = v
 
         # Add custom bootstrap path specific to current job id
-        soca_parameters[
-            "/job/BootstrapPath"
-        ] = f"/apps/soca/{soca_parameters.get('/configuration/ClusterId')}/cluster_node_bootstrap/logs/compute_node/{soca_parameters.get('/job/JobId')}"
+        soca_parameters["/job/BootstrapPath"] = (
+            f"/apps/soca/{soca_parameters.get('/configuration/ClusterId')}/cluster_node_bootstrap/logs/compute_node/{soca_parameters.get('/job/JobId')}"
+        )
 
         # add custom NodeType
         soca_parameters["/job/NodeType"] = "compute_node"
@@ -187,8 +218,15 @@ def main(**params):
         soca_parameters["/configuration/BaseOS"] = params.get("BaseOS")
 
         # Create User Data
-        _user_data = jinja2_env.get_template("compute_node/01_user_data.sh.j2").render(
-            context=soca_parameters
+        _user_data = clean_user_data(
+            text_to_remove=[
+                "# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.",
+                "# SPDX-License-Identifier: Apache-2.0",
+            ],
+            data=jinja2_env.get_template("compute_node/01_user_data.sh.j2").render(
+                context=soca_parameters,
+                ns=SimpleNamespace(template_already_included=[]),
+            ),
         )
 
         # Create bootstrap setup invoked by user data
@@ -203,7 +241,10 @@ def main(**params):
             # Render Template
             _bootstrap_setup_template = jinja2_env.get_template(
                 f"compute_node/{_t}.sh.j2"
-            ).render(context=soca_parameters)
+            ).render(
+                context=soca_parameters,
+                ns=SimpleNamespace(template_already_included=[]),
+            )
 
             # Write rendered template
             with open(
@@ -259,7 +300,7 @@ def main(**params):
             else:
                 ltd.InstanceMarketOptions = InstanceMarketOptions(
                     MarketType="spot",
-                    SpotOptions=SpotOptions(MaxPrice=str(params["SpotPrice"]))
+                    SpotOptions=SpotOptions(MaxPrice=str(params["SpotPrice"])),
                 )
         ltd.InstanceType = instances_list[0]
 
@@ -268,9 +309,9 @@ def main(**params):
         #
         ltd.NetworkInterfaces = [
             NetworkInterfaces(
-                InterfaceType="efa"
-                if params["Efa"] is not False
-                else Ref("AWS::NoValue"),
+                InterfaceType=(
+                    "efa" if params["Efa"] is not False else Ref("AWS::NoValue")
+                ),
                 DeleteOnTermination=True,
                 DeviceIndex=0,
                 Groups=security_groups,
@@ -307,9 +348,9 @@ def main(**params):
                 Ebs=EBSBlockDevice(
                     VolumeSize=params["RootSize"],
                     VolumeType=_volume_type,
-                    DeleteOnTermination="false"
-                    if params["KeepEbs"] is True
-                    else "true",
+                    DeleteOnTermination=(
+                        "false" if params["KeepEbs"] is True else "true"
+                    ),
                     Encrypted=True,
                 ),
             )
@@ -321,15 +362,17 @@ def main(**params):
                     DeviceName=_ebs_scratch_device_name,
                     Ebs=EBSBlockDevice(
                         VolumeSize=params["ScratchSize"],
-                        VolumeType="io2"
-                        if int(params["VolumeTypeIops"]) > 0
-                        else _volume_type,
-                        Iops=params["VolumeTypeIops"]
-                        if int(params["VolumeTypeIops"]) > 0
-                        else Ref("AWS::NoValue"),
-                        DeleteOnTermination="false"
-                        if params["KeepEbs"] is True
-                        else "true",
+                        VolumeType=(
+                            "io2" if int(params["VolumeTypeIops"]) > 0 else _volume_type
+                        ),
+                        Iops=(
+                            params["VolumeTypeIops"]
+                            if int(params["VolumeTypeIops"]) > 0
+                            else Ref("AWS::NoValue")
+                        ),
+                        DeleteOnTermination=(
+                            "false" if params["KeepEbs"] is True else "true"
+                        ),
                         Encrypted=True,
                     ),
                 )
@@ -559,31 +602,40 @@ def main(**params):
 
             _ec2_fleet = ec2.EC2Fleet(title="Ec2Fleet", Type="instant")
             _ec2_fleet.LaunchTemplateConfigs = [
-                    ec2.FleetLaunchTemplateConfigRequest(
-                        LaunchTemplateSpecification=ec2.FleetLaunchTemplateSpecificationRequest(
-                            LaunchTemplateId=Ref(lt),
-                            Version=GetAtt(lt, "LatestVersionNumber"),
-                        ),
-                        Overrides=_fleet_overrides,
-                    )
+                ec2.FleetLaunchTemplateConfigRequest(
+                    LaunchTemplateSpecification=ec2.FleetLaunchTemplateSpecificationRequest(
+                        LaunchTemplateId=Ref(lt),
+                        Version=GetAtt(lt, "LatestVersionNumber"),
+                    ),
+                    Overrides=_fleet_overrides,
+                )
             ]
 
             # Spot support for EC2 Fleet
-            if params["SpotPrice"] is not False and params["SpotAllocationCount"] is False:
+            if (
+                params["SpotPrice"] is not False
+                and params["SpotAllocationCount"] is False
+            ):
                 _spot_options_request = ec2.SpotOptionsRequest()
                 _spot_options_request.InstanceInterruptionBehavior = "terminate"
-                _spot_options_request.AllocationStrategy = params["SpotAllocationStrategy"]
+                _spot_options_request.AllocationStrategy = params[
+                    "SpotAllocationStrategy"
+                ]
                 _ec2_fleet.SpotOptions = _spot_options_request
-                _ec2_fleet.TargetCapacitySpecification = ec2.TargetCapacitySpecificationRequest(
-                    TotalTargetCapacity=int(params["DesiredCapacity"]),
-                    DefaultTargetCapacityType="spot"
+                _ec2_fleet.TargetCapacitySpecification = (
+                    ec2.TargetCapacitySpecificationRequest(
+                        TotalTargetCapacity=int(params["DesiredCapacity"]),
+                        DefaultTargetCapacityType="spot",
+                    )
                 )
 
             else:
-                _ec2_fleet.TargetCapacitySpecification = ec2.TargetCapacitySpecificationRequest(
-                    TotalTargetCapacity=int(params["DesiredCapacity"]),
-                    DefaultTargetCapacityType="on-demand",
-                    OnDemandTargetCapacity=int(params["DesiredCapacity"]),
+                _ec2_fleet.TargetCapacitySpecification = (
+                    ec2.TargetCapacitySpecificationRequest(
+                        TotalTargetCapacity=int(params["DesiredCapacity"]),
+                        DefaultTargetCapacityType="on-demand",
+                        OnDemandTargetCapacity=int(params["DesiredCapacity"]),
+                    )
                 )
 
             t.add_resource(_ec2_fleet)

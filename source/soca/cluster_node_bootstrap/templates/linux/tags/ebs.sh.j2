@@ -15,7 +15,7 @@ function tags_ebs_volumes () {
     local NAME_VALUE="${CLUSTER_ID}-DCV-{{ context.get("/dcv/SessionOwner") }}-{{ context.get("/dcv/SessionName") }}"
     local TAGS="Key=Name,Value=\"${NAME_VALUE}\" Key=soca:JobOwner,Value=\"{{ context.get("/dcv/SessionOwner") }}\" Key=soca:JobProject,Value=\"dcv\" Key=soca:ClusterId,Value=\"${CLUSTER_ID}\""
    {% else %}
-    local NAME_VALUE="${CLUSTER_ID}-Job-{{ context.get("/job/JobId") }}"
+   local NAME_VALUE="${CLUSTER_ID}-Job-{{ context.get("/job/JobId") }}"
     local TAGS="Key=Name,Value=\"${NAME_VALUE}\" Key=soca:JobOwner,Value=\"{{ context.get("/job/JobOwner") }}\" Key=soca:JobProject,Value=\"${SOCA_JOB_PROJECT// /_}\" Key=soca:JobId,Value=\"{{ context.get("/job/JobId") }}\" Key=soca:JobQueue,Value=\"{{ context.get("/job/JobQueue") }}\" Key=soca:ClusterId,Value=\"${CLUSTER_ID}\""
   {% endif %}
 

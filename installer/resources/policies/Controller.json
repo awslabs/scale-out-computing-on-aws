@@ -47,12 +47,17 @@
                 "ec2:DescribeKeyPairs",
                 "ec2:DescribeLaunchTemplates",
                 "ec2:DescribeLaunchTemplateVersions",
+                "elasticfilesystem:DescribeAccessPoints",
                 "ec2:DescribeNetworkInterfaces",
                 "ec2:DescribeSpotFleetRequests",
                 "ec2:DescribeSpotFleetInstances",
                 "ec2:DescribeSpotFleetRequestHistory",
                 "ec2:ModifyFleet",
+                "elasticfilesystem:DescribeMountTargets",
                 "fsx:DescribeFileSystems",
+                "fsx:DescribeVolumes",
+                "fsx:DescribeStorageVirtualMachines",
+                "fsx:ListTagsForResource",
                 "iam:GetInstanceProfile",
                 "autoscaling:DescribeAutoScalingGroups",
                 "autoscaling:DescribeScalingActivities",
@@ -232,6 +237,13 @@
             "Resource": [
                 "arn:%%AWS_PARTITION%%:ses:*:%%AWS_ACCOUNT_ID%%:identity/*"
             ],
+            "Effect": "Allow"
+        },
+        {
+            "Action": [
+                "ds:ResetUserPassword"
+            ],
+            "Resource": "arn:%%AWS_PARTITION%%:ds:%%AWS_REGION%%:%%AWS_ACCOUNT_ID%%:directory/*",
             "Effect": "Allow"
         },
         {

@@ -183,7 +183,7 @@
                             <a target="_blank" rel="noopener,noreferrer" href="/editor?uid={{ file_data.uid }}&ts={{ timestamp }}"><i data-toggle="tooltip" data-placement="top" title="View or Edit this file" class="fas fa-edit fa-lg" style="color: grey"></i></a>
                          {% endif %}
 
-                         <a data-toggle="modal" data-target="#deleteModal{{ loop.index }}"><i data-toggle="tooltip" data-placement="top" title="Delete file" style="cursor: pointer" class="fas fa-trash-alt fa-lg" style="color: grey"></i></a>
+                         <a data-bs-toggle="modal" data-bs-target="#deleteModal{{ loop.index }}"><i data-bs-toggle="tooltip" data-placement="top" title="Delete file" style="cursor: pointer" class="fas fa-trash-alt fa-lg" style="color: grey"></i></a>
                      </div>
                         <!-- Begin Modal DELETE -->
                         <div class="modal fade" id="deleteModal{{ loop.index }}" tabindex="-1" role="dialog"  aria-hidden="true">
@@ -191,7 +191,7 @@
                             <div class="modal-content">
                               <div class="modal-header">
                                 <h5 class="modal-title">Entering the danger zone</h5>
-                                <button type="button" class="close" data-bs-dismiss="modal" aria-label="Close">
+                                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close">
                                   <span aria-hidden="true">&times;</span>
                                 </button>
                               </div>

@@ -40,8 +40,14 @@ configuration:
   ControllerSecurityGroup: '^sg-[0-9a-fz]{8,17}$'
   DCVAllowPreviousGenerations: *bool
   DCVDefaultVersion: *str
-  FileSystemAppsProvider: '^(efs|fsx_lustre)$'
   LoadBalancerDNSName: *str
+  FileSystems:
+    provider: *str
+    mount_options: *str
+    mount_path: *str
+    mount_target: *str
+    enabled: *bool
+    on_mount_failure: *str
   OSDomainEndpoint: *str
   AnalyticsEngine: '^(opensearch|elasticsearch)$'
   UserDirectory:
@@ -57,10 +63,9 @@ configuration:
     service_account_secret_name: *str
     ad_aws_directory_service_id: *str
     ad_aws_lambda_reset_password: *str
+    domain_controller_ips: *str
   ComputeNodeIAMRoleArn: '^arn:(aws|aws-us-gov|aws-cn)$:iam::\d{12}:role/.+$'
   ControllerPrivateIP: '^(\d{1,3}\.){3}\d{1,3}$'
-  FileSystemApps: *str
-  FileSystemData: *str
   HPCJobDeploymentMethod: '^(asg|fleet)$'
   LdapName: *str
   MetadataHttpTokens: '^(optional|required)$'

@@ -108,7 +108,7 @@ fi
 
 
 # Python3 must be available to build python dependencies on Lambda
-SOCA_PYTHON_VERSION=${SOCA_PYTHON_VERSION:-"3.12"}
+SOCA_PYTHON_VERSION=${SOCA_PYTHON_VERSION:-"3.12.6"}
 
 # Download and Install PyENV if needed
 PYENV_URL="https://pyenv.run"

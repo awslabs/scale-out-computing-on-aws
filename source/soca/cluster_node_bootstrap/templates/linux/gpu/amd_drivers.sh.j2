@@ -13,8 +13,8 @@ function install_amd_gpu_drivers() {
   # Instance GPU
   # G4ad     Radeon Pro V520
   #
-  mkdir -p /root/soca_bootstrap/gpu_drivers
-  pushd /root/soca_bootstrap/gpu_drivers
+  mkdir -p "${SOCA_BOOTSTRAP_ASSETS_FOLDER}/gpu_drivers"
+  pushd "${SOCA_BOOTSTRAP_ASSETS_FOLDER}/gpu_drivers"
 
   # Enforce pbs stop to avoid pbs restart during amdgpupro install
   systemctl stop pbs
@@ -49,9 +49,14 @@ function install_amd_gpu_drivers() {
      local RHEL_ROCKY_INSTALLER_URL="${AMD_RADEON_REPO_BASE_URL}/${AMD_GPU_VERSION}/el/${OS_VERSION}/main/x86_64/"
 
      # download RPM
-     log_info "Downloading amdgpu-install RPM from ${RHEL_ROCKY_INSTALLER_URL}"
-     wget -r -l1 --no-parent -A "amdgpu-install-*.noarch.rpm" ${RHEL_ROCKY_INSTALLER_URL}
+     if ! verify_installed wget; then
+       log_info "Installing wget"
+       packages_install wget
+     fi
 
+     log_info "Downloading amdgpu-install RPM from ${RHEL_ROCKY_INSTALLER_URL}"
+     # todo: replace this wget with file_download wrapper
+     wget -r -l1 --no-parent -A "amdgpu-install-*.noarch.rpm" ${RHEL_ROCKY_INSTALLER_URL}
      # find RPM and install it
      local AMD_GPU_RPM=$(echo "${RHEL_ROCKY_INSTALLER_URL#https://}amdgpu-install-*.noarch.rpm")
      log_info "Installing RPM ${AMD_GPU_RPM}"
