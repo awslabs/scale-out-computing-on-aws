@@ -1,0 +1,90 @@
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# Begin: XDummy Driver
+function install_x_dummy_driver() {
+  # To use console sessions on Linux servers that do not have a dedicated GPU, ensure that the Xdummy driver is installed and properly configured.
+  # The XDummy driver allows the X server to run with a virtual framebuffer when no real GPU is present.
+  # Refer: https://docs.aws.amazon.com/dcv/latest/adminguide/setting-up-installing-linux-prereq.html#gpu-xdummy
+  log_info "Configuring XDummy Driver"
+  {% if context.get("/configuration/BaseOS") in ("ubuntu2204", "ubuntu2404") %}
+    packages_install xserver-xorg-video-dummy
+  {% else %}
+    packages_install xorg-x11-drv-dummy
+  {% endif %}
+
+  echo -n 'Section "Device"
+    Identifier "DummyDevice"
+    Driver "dummy"
+    Option "ConstantDPI" "true"
+    Option "IgnoreEDID" "true"
+    Option "NoDDC" "true"
+    VideoRam 2048000
+EndSection
+
+Section "Monitor"
+    Identifier "DummyMonitor"
+    HorizSync   5.0 - 1000.0
+    VertRefresh 5.0 - 200.0
+    Modeline "4096x2160" 760.00 4096 4432 4880 5664 2160 2163 2173 2237
+    Modeline "3840x2160" 712.75 3840 4160 4576 5312 2160 2163 2168 2237
+    Modeline "3440x1440" 317.00 3440 3696 4064 4688 1440 1443 1448 1493
+    Modeline "3200x1800" 268.50 3200 3360 3672 4136 1800 1803 1809 1844
+    Modeline "2880x1800" 244.75 2880 3040 3344 3808 1800 1803 1809 1844
+    Modeline "2880x1620" 230.00 2880 3040 3344 3808 1620 1623 1629 1664
+    Modeline "2736x1824" 230.00 2736 2904 3200 3664 1824 1827 1833 1869
+    Modeline "2732x2048" 220.00 2732 2896 3192 3656 2048 2051 2057 2093
+    Modeline "2560x1600" 268.50 2560 2760 3032 3504 1600 1603 1609 1654
+    Modeline "2560x1440" 312.25 2560 2752 3024 3488 1440 1443 1448 1493
+    Modeline "2560x1080" 230.00 2560 2752 3024 3488 1080 1083 1088 1137
+    Modeline "2400x1600" 220.00 2400 2560 2848 3304 1600 1603 1609 1654
+    Modeline "2304x1440" 200.00 2304 2416 2672 3032 1440 1443 1448 1493
+    Modeline "2240x1400" 190.00 2240 2344 2560 2880 1400 1403 1409 1444
+    Modeline "2160x1440" 180.00 2160 2264 2488 2816 1440 1443 1448 1493
+    Modeline "2048x1536" 80.06 2048 2104 2312 2576 1536 1537 1540 1554
+    Modeline "2048x1152" 162.00 2048 2176 2400 2752 1152 1155 1162 1190
+    Modeline "1920x1440" 69.47 1920 1960 2152 2384 1440 1441 1444 1457
+    Modeline "1920x1200" 26.28 1920 1952 2048 2080 1200 1229 1231 1261
+    Modeline "1920x1080" 23.53 1920 1952 2040 2072 1080 1106 1108 1135
+    Modeline "1856x1392" 170.00 1856 1952 2176 2496 1392 1395 1398 1433
+    Modeline "1792x1344" 160.00 1792 1888 2080 2368 1344 1347 1350 1381
+    Modeline "1768x992" 150.00 1768 1840 2048 2336 992 995 998 1027
+    Modeline "1680x1050" 146.25 1680 1784 1960 2240 1050 1053 1059 1089
+    Modeline "1600x1200" 162.00 1600 1664 1856 2160 1200 1201 1204 1250
+    Modeline "1600x900" 33.92 1600 1632 1760 1792 900 921 924 946
+    Modeline "1536x864" 110.00 1536 1600 1728 1920 864 867 870 895
+    Modeline "1440x1080" 122.75 1440 1528 1672 1904 1080 1083 1088 1120
+    Modeline "1440x900" 30.66 1440 1472 1584 1616 900 921 924 946
+    Modeline "1400x1050" 122.00 1400 1480 1624 1848 1050 1053 1057 1089
+    Modeline "1366x768" 72.00 1366 1414 1446 1494 768 771 777 803
+    Modeline "1360x768" 85.50 1360 1432 1568 1776 768 771 777 795
+    Modeline "1280x1024" 108.00 1280 1328 1440 1688 1024 1025 1028 1066
+    Modeline "1280x960" 108.00 1280 1376 1488 1800 960 961 964 1000
+    Modeline "1280x800" 24.15 1280 1312 1400 1432 800 819 822 841
+    Modeline "1280x768" 79.50 1280 1344 1472 1664 768 771 777 795
+    Modeline "1280x720" 74.25 1280 1344 1472 1664 720 723 728 748
+    Modeline "1152x864" 108.00 1152 1216 1344 1600 864 865 868 900
+    Modeline "1152x768" 94.50 1152 1216 1336 1520 768 771 777 795
+    Modeline "1024x768" 18.71 1024 1056 1120 1152 768 786 789 807
+    Modeline "1024x600" 63.50 1024 1072 1168 1312 600 603 607 631
+    Modeline "800x600" 40.00 800 840 968 1056 600 601 605 628
+
+EndSection
+
+Section "Screen"
+    Identifier "DummyScreen"
+    Device "DummyDevice"
+    Monitor "DummyMonitor"
+    DefaultDepth 24
+    SubSection "Display"
+        Viewport 0 0
+        Depth 24
+        Modes "4096x2160" "3840x2160" "2560x1440" "2048x1536" "1920x1440" "1920x1200" "1920x1080" "1600x900" "1440x900" "1366x768" "1280x800" "1024x768"
+        Virtual 4096 2160
+    EndSubSection
+EndSection
+' > /etc/X11/xorg.conf
+  log_info "/etc/X11/xorg.conf has been configured with XDummy Driver"
+}
+install_x_dummy_driver
+# End: XDummy Driver

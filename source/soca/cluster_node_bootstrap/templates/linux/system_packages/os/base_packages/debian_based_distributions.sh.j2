@@ -1,0 +1,187 @@
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# This is the code used for the following distribution:
+# - Ubuntu
+
+# Note: EPEL repo (or equivalent) is enabled when applicable
+
+# /!\ ATTENTION /!\
+# Changing anything beyond this line could cause your SOCA environment to become unstable/crash
+# If you want to add new packages:
+# Option 1 - Edit the USER_EXTRA_PKGS on system_packages/user_extra_packages.sh.j2 (apply to all nodes type, executed at the beginning of the boostrap phase)
+# Option 2 - Edit cluster_node_bootstrap/compute_node/04_setup_user_customization.sh.j2 to apply logic for each node type (executed at the end of the boostrap phase)
+
+# (DO NOT MODIFY) Packages installed on ALL SOCA Nodes
+SYSTEM_PKGS=(
+  adcli
+  autoconf
+  libpam-pwquality
+  automake
+  avahi-daemon
+  bind9
+  bind9-libs
+  bind9-utils
+  libcjson-dev
+  bzip2
+  libbz2-dev
+  libbz2-1.0
+  libc-ares-dev
+  chrony
+  ldap-utils
+  cpp
+  cron
+  libcups2
+  libcups2-dev
+  libsasl2-dev
+  libsasl2-modules-gssapi-mit
+  fonts-dejavu-core
+  fonts-dejavu
+  e2fsprogs
+  libext2fs-dev
+  libelf-dev
+  libexpat1-dev
+  fontconfig
+  xfonts-utils
+  libfreetype6
+  gcc
+  g++
+  gfortran
+  git
+  libc6
+  libc6-dev
+  libcjson-dev
+  gssproxy
+  htop
+  libhttp-parser-dev
+  libhwloc-dev
+  libhwloc15
+  jq
+  linux-headers-$(uname -r)
+  linux-image-$(uname -r)
+  keyutils
+  libkeyutils-dev
+  libkrb5-dev
+  libkrb5-3
+  krb5-user
+  libice-dev
+  libsm-dev
+  libx11-dev
+  libx11-6
+  libxau-dev
+  libxext-dev
+  libxft-dev
+  libxrender-dev
+  libxt-dev
+  libbasicobjects-dev
+  libcollection-dev
+  libcom-err2
+  libdhash-dev
+  libedit-dev
+  libevent-dev
+  libffi-dev
+  libgcc1
+  libgfortran5
+  libglvnd-dev
+  libgomp1
+  libical-dev
+  libical3
+  libini-config-dev
+  libipa-hbac-dev
+   libkrb5-dev
+  libldb-dev
+  libmpc-dev
+  nfs-common
+  libpath-utils-dev
+  libpng-dev
+  libref-array-dev
+  libselinux1
+  libselinux-dev
+  libpython3-dev
+  selinux-utils
+  libsepol-dev
+  libsmbclient-dev
+  libsss-nss-idmap-dev
+  libstdc++6
+  libtalloc-dev
+  libtdb-dev
+  libtevent-dev
+  libtirpc-dev
+  libtool
+  libltdl-dev
+  libverto-dev
+  libwbclient-dev
+  libxcb1-dev
+  lshw
+  lzma
+  make
+  mdadm
+  net-tools
+  ncurses-dev
+  libmpfr-dev
+  libncurses-dev
+  nfs-common
+  nslcd
+  nvme-cli
+  oddjob
+  oddjob-mkhomedir
+  libldap-dev
+  ldap-utils
+  openssl
+  openssh-client
+  openssh-server
+  libss2
+  libsss-idmap-dev
+  libssl3
+  libpcre3
+  libpcre3-dev
+  perl
+  perl-base
+  perl-modules
+  libperl-dev
+  postgresql
+  postgresql-contrib
+  postgresql-server-dev-all
+  postgresql-client
+  postgresql-client-common
+  python3-sss
+  python3
+  python3-dev
+  python3-pip
+  quota
+  libreadline-dev
+  realmd
+  lsb-release
+  rpcbind
+  dpkg-dev
+  rsyslog
+  samba
+  samba-common-bin
+  samba-libs
+  sqlite3
+  libsqlite3-dev
+  sssd
+  sssd-ad
+  sssd-tools
+  swig
+  lsb-base
+  libsystemd-dev
+  libsss-sudo
+  tcl
+  tcl-dev
+  tcpd
+  telnet
+  tk
+  tk-dev
+  unixodbc
+  unixodbc-dev
+  libexpat-dev
+  vim
+  wget
+  xz-utils
+  liblzma-dev
+  zlib1g
+  zlib1g-dev
+  comerr-dev
+  libext2fs-dev
+)

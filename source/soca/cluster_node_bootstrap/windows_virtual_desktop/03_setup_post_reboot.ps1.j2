@@ -1,0 +1,79 @@
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+{% include "templates/windows/common.ps.j2" %}
+
+{% include "templates/windows/common/wrapper_secretsmanager.ps.j2" %}
+
+$currentUser = [System.Security.Principal.WindowsIdentity]::GetCurrent().Name
+Log-Info -Message "Script executed via ${currentUser}"
+
+$SOCABootstrapAssetsFolder = $env:SOCABootstrapAssetsFolder
+
+if ((Get-Service -Name dcvserver -ErrorAction SilentlyContinue).Status -eq 'Running') {
+    Stop-Service -Name dcvserver -Force
+    Log-Info -Message "dcvserver service was running and has been stopped."
+} else {
+   Log-Info -Message "dcvserver service is not running."
+}
+
+if ($service.Status -eq 'Running') {
+    Stop-Service -Name dcvserver -Force
+    Write-Output "dcvserver service was running and has been stopped."
+} else {
+    Write-Output "dcvserver service is not running."
+}
+
+# CD into boostrap location
+Set-Location -Path $SOCABootstrapAssetsFolder
+
+
+# Delete Scheduled Task if it exists
+$taskName = $env:SOCABootstrapPostRebootTaskName
+Log-Info -Message "Checking if Scheduled Task '$taskName' exists."
+$task = Get-ScheduledTask -TaskName $taskName -ErrorAction SilentlyContinue
+if ($task) {
+    Log-Info -Message "Deleting Scheduled Task $taskName to avoid being executed during the next reboot."
+    Unregister-ScheduledTask -TaskName $taskName -Confirm:$false
+} else {
+    Log-Info -Message "Scheduled Task '$taskName' does not exist. No action required."
+}
+
+{% if  context.get('/configuration/UserDirectory/provider') in ("aws_ds_managed_activedirectory", "aws_ds_simple_activedirectory", "existing_active_directory") %}
+    # DOMAIN\<SOCA_user>
+    $SOCAUser = "{{ context.get('/configuration/UserDirectory/short_name') }}\{{ context.get('/dcv/SessionOwner') }}"
+{% else %}
+    $SOCAUser = "{{ context.get('/dcv/SessionOwner') }}"
+{% endif %}
+
+Log-Info -Message "Grant ${SOCAUser} Admin permissions on the local Virtual Desktop machine"
+Add-LocalGroupMember -Group "Administrators" -Member $SOCAUser
+
+{% include "templates/windows/auto_user_logon.ps.j2" %}
+
+Log-Info -Message "Create Desktop Shortcut to SOCA web interface"
+$wshShell = New-Object -comObject WScript.Shell
+$SocaShortcut = $wshShell.CreateShortcut("C:\Users\Default\Desktop\SOCA_Interface.url")
+$SocaShortcut.TargetPath = "https://{{ context.get('/configuration/LoadBalancerDNSName') }}"
+$SocaShortcut.Save()
+
+# Tags EBS disks
+{% include "templates/windows/tag_ebs.ps.j2" %}
+
+# Disable UAC - https://learn.microsoft.com/en-us/windows/security/application-security/application-control/user-account-control/
+{% include "templates/windows/disable_user_access_control.ps.j2" %}
+
+# Disable IE Enhanced Security - https://learn.microsoft.com/en-us/previous-versions/troubleshoot/browsers/security-privacy/enhanced-security-configuration-faq
+{% include "templates/windows/disable_internetexplorer_enhanced_security.ps.j2" %}
+
+# Install any additional packages specified by the user
+{% include "templates/windows/add_additional_packages.ps.j2" %}
+
+Log-Info "Boostrap Completed, creating lock file to avoid new executions"
+New-Item -Path "${SOCABootstrapAssetsFolder}\userdata_completed_${instanceId}.txt" -ItemType File
+
+Log-Info -Message "Starting dcvserver service"
+Start-Service -Name dcvserver
+
+Log-Info -Message "Node is ready"
+

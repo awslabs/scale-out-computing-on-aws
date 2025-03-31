@@ -41,6 +41,7 @@ from aws_cdk import (
     aws_directoryservice as ds,
     aws_efs as efs,
     aws_ec2 as ec2,
+    aws_globalaccelerator as globalaccelerator,
     aws_autoscaling as autoscaling,
     aws_opensearchservice as opensearch,
     aws_opensearchserverless as opensearchserverless,
@@ -62,15 +63,17 @@ from aws_cdk import (
     aws_kms as kms,
     CfnTag,
 )
+
 import json
 import sys
 import base64
 import ast
-import random
-import string
+
 from types import SimpleNamespace
+from typing import Optional
 import jinja2
 from jinja2 import select_autoescape, FileSystemLoader
+
 from helpers import (
     security_groups as security_groups_helper,
     secretsmanager as secretsmanager_helper,
@@ -123,7 +126,7 @@ for _logger_name in ["boto3", "botocore"]:
 
 
 def get_lambda_runtime_version() -> aws_lambda.Runtime:
-    return aws_lambda.Runtime.PYTHON_3_12
+    return typing.cast(aws_lambda.Runtime, aws_lambda.Runtime.PYTHON_3_12)
 
 
 def get_config_key(
@@ -152,9 +155,9 @@ def get_config_key(
         # This makes sure that we return to the caller what they are expecting (e.g. a string) versus a NoneType.
         try:
             if _result is None:
-                logger.debug(
-                    f"Result lookup is empty - Expected {expected_type} for {key_name} / Returning empty equiv for the data type"
-                )
+                # logger.debug(
+                #     f"Result lookup is empty - Expected {expected_type} for {key_name} / Returning empty equiv for the data type"
+                # )
                 if expected_type is str:
                     _ret_value: str = ""
                 elif expected_type is int:
@@ -174,7 +177,9 @@ def get_config_key(
                     )
                     sys.exit(1)
 
-                logger.debug(f"Returning [[ {_ret_value} ]] / {type(_ret_value)}")
+                logger.debug(
+                    f"Returning an empty equiv for key {key_name} - [[ {_ret_value} ]] / {type(_ret_value)}"
+                )
                 return _ret_value
             else:
                 return expected_type(_result)
@@ -199,6 +204,59 @@ def flatten_parameterstore_config(
         else:
             _items.append((_new_key, v))
     return dict(_items)
+
+
+def get_subnet_route_table_by_subnet_id(subnet_ids: list) -> dict:
+    """
+    Return the route tables associated with a list oif given subnets.
+    The returned dict contains the subnetID and route-table IDs for those found.
+    """
+    _return_dict: dict = {}
+
+    logger.debug(f"get_subnet_route_table_by_subnet_id() called with {subnet_ids=}")
+
+    ec2_client = boto3_helper.get_boto(
+        service_name="ec2",
+        profile_name=user_specified_variables.profile,
+        region_name=user_specified_variables.region,
+    )
+
+    _rt_paginator = ec2_client.get_paginator("describe_route_tables")
+    _rt_iterator = _rt_paginator.paginate(
+        Filters=[{"Name": "association.subnet-id", "Values": subnet_ids}]
+    )
+
+    for _rt_i in _rt_iterator:
+        for _rt in _rt_i.get("RouteTables", []):
+            _subnet_id = _rt.get("Associations", [{}])[0].get("SubnetId", "")
+            if _subnet_id in subnet_ids:
+                if _subnet_id not in _return_dict:
+                    _return_dict[_subnet_id] = _rt.get("RouteTableId", "")
+                else:
+                    logger.error(
+                        f"get_subnet_route_table_by_subnet_id() called with {subnet_ids=} / found duplicate subnet {_subnet_id=} in route table {_rt.get('RouteTableId', '')}"
+                    )
+                    sys.exit(1)
+            else:
+                # The response came back for a subnetID we are not interested in?
+                logger.warning(
+                    f"get_subnet_route_table_by_subnet_id() got information for {_subnet_id} - but I didnt ask for it!  Defect?"
+                )
+                continue
+
+    #
+    # Sanity check - make sure we have a route table for each subnet
+    _missing_subnet_ids = [x for x in subnet_ids if x not in _return_dict.keys()]
+    if _missing_subnet_ids:
+        logger.error(
+            f"get_subnet_route_table_by_subnet_id() called with {subnet_ids=} / missing route table for {_missing_subnet_ids=}"
+        )
+        sys.exit(1)
+
+    logger.debug(
+        f"get_subnet_route_table_by_subnet_id() called with {subnet_ids=} / returning {_return_dict=}"
+    )
+    return _return_dict
 
 
 def get_arch_for_instance_type(region: str, instancetype: str) -> str:
@@ -477,8 +535,14 @@ def get_kms_key_id(config_key_names: list, allow_global_default: bool = True) ->
 
 
 class SOCAInstall(Stack):
+
     def __init__(self, scope: Construct, construct_id: str, **kwargs) -> None:
         super().__init__(scope, construct_id, **kwargs)
+
+        self.vpc_interface_endpoints = {}
+        self.vpc_gateway_endpoints = {}
+        self.tag_ec2_resource_lambda = None
+
         _template_dirs = [
             pathlib.Path.cwd().parent,  # for user_data folder
             pathlib.Path(
@@ -495,6 +559,7 @@ class SOCAInstall(Stack):
                 default=True,
             ),
         )
+
         # Init SOCA resources
         self.soca_resources = {
             "acm_certificate_lambda_role": None,
@@ -540,22 +605,23 @@ class SOCAInstall(Stack):
         logger.debug(f"Region: {self._region}")
         logger.debug(f"Partition: {self._partition}")
 
+        _supported_base_os = get_config_key(
+            key_name=f"Parameters.system.base_os.supported",
+            required=True,
+            expected_type=list,
+        )
+        _eol_base_os = get_config_key(
+            key_name=f"Parameters.system.base_os.eol",
+            required=True,
+            expected_type=list,
+        )
         # Store architectures as they may come in handy for jobs that differ from the Controller architecture
         # TODO - a bit of a hack
-        for _arch in {"arm64", "x86_64"}:
+        for _arch in ["arm64", "x86_64"]:
             if _arch not in self.soca_resources["custom_ami_map"]:
                 self.soca_resources["custom_ami_map"][_arch] = {}
-            # TODO - This should be defined elsewhere
-            for _base_os_available in {
-                "amazonlinux2",
-                "amazonlinux2023",
-                "centos7",
-                "rhel7",
-                "rhel8",
-                "rhel9",
-                "rocky8",
-                "rocky9",
-            }:
+
+            for _base_os_available in _eol_base_os + _supported_base_os:
                 self.soca_resources[f"custom_ami_map"][_arch][_base_os_available] = (
                     ""
                     if not get_config_key(
@@ -910,7 +976,12 @@ class SOCAInstall(Stack):
             self.elasticache()  # Create ElastiCache backend (deps: subnets, SGs)
 
         if (
-            get_config_key(key_name="Config.analytics.enabled", expected_type=bool)
+            get_config_key(
+                key_name="Config.analytics.enabled",
+                expected_type=bool,
+                default=True,
+                required=False,
+            )
             is True
         ):
             self.analytics()  # Create Analytics domain
@@ -922,9 +993,12 @@ class SOCAInstall(Stack):
         self.controller()  # Configure the Controller
 
         if get_config_key(
-            key_name="Config.dcv.high_scale", expected_type=bool, default=False
+            key_name="Config.dcv.high_scale",
+            expected_type=bool,
+            default=False,
+            required=False,
         ):
-            print(
+            logger.debug(
                 f"Configuring DCV High-Scale Deployment due to Config.dcv.high_scale==True"
             )
             # Configure HA / high-scale DCV infrastructure
@@ -932,6 +1006,30 @@ class SOCAInstall(Stack):
 
         self.viewer()  # Configure the DCV Load Balancer
         self.login_nodes()  # Configure the Login Nodes
+
+        # Determine AGA configuration status
+        _alb_public_bool: bool = (
+            True
+            if get_config_key(
+                key_name="Config.entry_points_subnets",
+                expected_type=str,
+                default="public",
+                required=False,
+            ).lower()
+            == "public"
+            else False
+        )
+
+        if _alb_public_bool and get_config_key(
+            key_name="Config.network.aws_aga.enabled",
+            expected_type=bool,
+            default=False,
+            required=False,
+        ):
+            logger.debug(f"AGA is enabled, configuring it")
+            self.configure_aws_aga()
+        else:
+            logger.debug(f"AGA is not enabled, skipping it")
 
         if get_config_key(
             key_name="Config.services.aws_pcs.enabled",
@@ -1103,7 +1201,7 @@ class SOCAInstall(Stack):
                     },
                     {
                         "Name": "subnet-id",
-                        "Values": public_subnet_ids,
+                        "Values": [_sn for _subnet_list in [public_subnet_ids, private_subnet_ids] for _sn in _subnet_list],
                     },
                 ]
             )
@@ -1498,14 +1596,17 @@ class SOCAInstall(Stack):
 
         logger.debug(f"User spec vars: {user_specified_variables}")
         if get_config_key(
-            key_name="Config.dcv.high_scale", expected_type=bool, default=False
+            key_name="Config.dcv.high_scale",
+            expected_type=bool,
+            required=False,
+            default=False,
         ):
-            logger.debug(f"DCV High Scale SG skel ..")
-            for _dcv_host_type in {"broker", "gateway", "manager"}:
-                logger.debug(f"DCV High Scale SG skel for {_dcv_host_type}..")
+            logger.debug(f"DCV High Scale SG skeleton creation ..")
+            for _dcv_host_type in ("broker", "gateway", "manager"):
+                logger.debug(f"DCV High Scale SG skeleton for {_dcv_host_type}..")
                 _security_groups[f"dcv_{_dcv_host_type}_sg"] = {
                     "name": f"{user_specified_variables.cluster_id}-{_dcv_host_type}_sg",
-                    "description": f"Security Group used by {_dcv_host_type} DCV",
+                    "description": f"Security Group for DCV-{_dcv_host_type}",
                     "existing_security_group_id": get_config_key(
                         key_name=f"Config.dcv.{_dcv_host_type}.security_group_id",
                         required=False,
@@ -1913,8 +2014,6 @@ class SOCAInstall(Stack):
         """
         Create VPC Endpoints for accessing AWS services.
         """
-        self.vpc_gateway_endpoints = {}
-        self.vpc_interface_endpoints = {}
 
         # If using an existing VPC first import any existing vpc endpoints
         if user_specified_variables.vpc_id:
@@ -2152,14 +2251,14 @@ class SOCAInstall(Stack):
                 expected_type=bool,
                 default=False,
             ):
-                logger.debug(f"DEBUG iam_roles() - creating DCV infra roles...")
-                for _dcv_host_type in {"broker", "gateway", "manager"}:
+                logger.debug(f"Creating DCV High Scale roles...")
+                for _dcv_host_type in ("broker", "gateway", "manager"):
                     logger.debug(
                         f"Creating IAM role for DCV host type: {_dcv_host_type}"
                     )
                     self.soca_resources[f"dcv_{_dcv_host_type}_role"] = iam.Role(
                         self,
-                        f"Dcv{_dcv_host_type}Role",
+                        f"Dcv{_dcv_host_type.capitalize()}Role",
                         description=f"IAM role assigned to DCV {_dcv_host_type} hosts",
                         assumed_by=iam.CompositePrincipal(
                             iam.ServicePrincipal(principals_suffix["ssm"]),
@@ -2399,7 +2498,7 @@ class SOCAInstall(Stack):
             self.directory_service_resource_setup["domain_controller_ips"] = (
                 get_config_key(
                     key_name=f"Config.directoryservice.existing_active_directory.dc_ips",
-                    required=False,
+                    required=True,
                     expected_type=list,
                 )
             )
@@ -2625,6 +2724,75 @@ class SOCAInstall(Stack):
         """
         Create AWS Route53 resolver configurations for domain forwarding.
         """
+
+        # Prepare a security group for the Route53 Resolver(outbound)
+        _r53_security_group = security_groups_helper.create_security_groups(
+            scope=self,
+            construct_id=f"{user_specified_variables.cluster_id}-route53-resolver",
+            vpc=self.soca_resources["vpc"],
+            allow_all_outbound=False,
+            allow_all_ipv6_outbound=False,
+            description=f"{user_specified_variables.cluster_id} Route53 Resolver SG",
+        )
+
+        # Ingress to the Route53 SG
+        for _sg_id in ["controller_sg", "compute_node_sg", "login_node_sg"]:
+            logger.debug(
+                f"Adding ingress traffic for {_sg_id} to Route53 Outbound resolver SG"
+            )
+
+            for _proto in ("TCP", "UDP"):
+                logger.debug(f"Adding {_proto} DNS {_sg_id} -> {_r53_security_group}")
+                security_groups_helper.create_ingress_rule(
+                    security_group=_r53_security_group,
+                    peer=self.soca_resources[_sg_id],
+                    connection=ec2.Port(
+                        protocol=ec2.Protocol(_proto),
+                        string_representation=f"{_proto} DNS",
+                        from_port=53,
+                        to_port=53,
+                    ),
+                    description=f"Allow {_sg_id} {_proto} DNS",
+                )
+
+        # After explicitly listing the cluster SGs, we also include the VPC CIDR range.
+        # This allows for the cluster to work properly with the per-cluster SGs and this rule
+        # to match any missed items. This rule could then be removed if it is considered
+        # too broad by local security policy.
+        for _proto in ("TCP", "UDP"):
+            security_groups_helper.create_ingress_rule(
+                security_group=_r53_security_group,
+                peer=ec2.Peer.ipv4(self.soca_resources["vpc"].vpc_cidr_block),
+                connection=ec2.Port(
+                    protocol=ec2.Protocol(_proto),
+                    string_representation=f"VPC {_proto} DNS",
+                    from_port=53,
+                    to_port=53,
+                ),
+                description=f"Allow VPC CIDR {_proto} DNS",
+            )
+
+        # Egress from the Route53 SG - restricted to DNS traffic only
+        for _address_family in ("ipv4", "ipv6"):
+            logger.debug(f"Adding egress rule for address family: {_address_family}")
+            for _proto in ("TCP", "UDP"):
+                logger.debug(f"Adding egress rule - {_proto} DNS {_r53_security_group}")
+                security_groups_helper.create_egress_rule(
+                    security_group=_r53_security_group,
+                    peer=(
+                        ec2.Peer.any_ipv4()
+                        if _address_family == "ipv4"
+                        else ec2.Peer.any_ipv6()
+                    ),
+                    connection=ec2.Port(
+                        protocol=ec2.Protocol(_proto),
+                        string_representation=f"{_address_family}/{_proto} DNS",
+                        from_port=53,
+                        to_port=53,
+                    ),
+                    description=f"Allow {_address_family}/{_proto} DNS",
+                )
+
         # Create DNS Forwarder. Requests sent to AD will be forwarded to AD DNS
         # Other requests will remain the same. Do not create custom DHCP Option Set otherwise resources such as FSx or EFS won't resolve
         resolver = route53resolver.CfnResolverEndpoint(
@@ -2640,12 +2808,7 @@ class SOCAInstall(Stack):
                     subnet_id=launch_subnets[1]
                 ),
             ],
-            # FIXME - TODO - Should probably be a discrete SG
-            security_group_ids=[
-                self.soca_resources["controller_sg"].security_group_id,
-                self.soca_resources["compute_node_sg"].security_group_id,
-                self.soca_resources["login_node_sg"].security_group_id,
-            ],
+            security_group_ids=[_r53_security_group.security_group_id],
         )
 
         resolver_rule = route53resolver.CfnResolverRule(
@@ -3062,6 +3225,138 @@ class SOCAInstall(Stack):
             "enabled": "true",
         }
 
+    @staticmethod
+    def get_fsx_pricing_data(region: Optional[str]) -> list:
+        """
+        Get pricing data for AmazonFSx
+        """
+
+        _pricing_data: list = []
+
+        # Where we connect to for pricing API endpoint
+        _pricing_region: str = ""
+
+        if region:
+            if region.startswith("ap"):
+                _pricing_region = "ap-south-1"
+            elif region.startswith("eu"):
+                _pricing_region = "eu-central-1"
+            else:
+                # default to us-east-1
+                _pricing_region = "us-east-1"
+        else:
+            # default to us-east-1
+            _pricing_region = "us-east-1"
+
+        logger.debug(f"Using Pricing region endpoint from: {_pricing_region}")
+
+        _pricing_client = boto3_helper.get_boto(
+            service_name="pricing",
+            profile_name=user_specified_variables.profile,
+            region_name=_pricing_region,
+        )
+
+        _pricing_paginator = _pricing_client.get_paginator("get_products")
+
+        _filters: list = []
+
+        if not region:
+            logger.debug(f"Retrieving pricing data for ALL AWS Regions")
+        else:
+            # Add our specific region to the filter to have a smaller API req/response
+            logger.debug(f"Retrieving pricing data for specific region: {region}")
+            _filters.append(
+                {"Field": "regionCode", "Value": region, "Type": "TERM_MATCH"}
+            )
+
+        _pricing_iterator = _pricing_paginator.paginate(
+            ServiceCode="AmazonFSx",
+            Filters=_filters,
+            PaginationConfig={"MaxResults": 100},
+        )
+
+        _pricing_pages: int = 0
+        _pricing_entries: int = 0
+
+        for _page in _pricing_iterator:
+            _pricing_pages += 1
+            for _entry in _page.get("PriceList", {}):
+                _pricing_entries += 1
+                _pricing_data.append(_entry)
+
+        if not _pricing_data:
+            logger.error(
+                f"No FSx pricing data retrieved. Check auth for pricing API at region {_pricing_region}."
+            )
+            exit(1)
+
+        logger.info(
+            f"Pricing data retrieved: {_pricing_pages} pages, {_pricing_entries} entries"
+        )
+        return _pricing_data
+
+    def get_fsx_deployment_options(self, region: Optional[str] = None) -> dict:
+        """
+        Get the deployment options for FSx
+        """
+
+        _reply_data: dict = {}
+        _pricing_data = self.get_fsx_pricing_data(region=region if region else None)
+
+        logger.debug(f"Pricing data retrieved len: {len(_pricing_data)} ")
+
+        for _entry in _pricing_data:
+            _pricing = ast.literal_eval(_entry)
+            _attribs = _pricing.get("product", {}).get("attributes", {})
+            if not _attribs:
+                # something didn't work for this region - just skip it
+                continue
+
+            _region = _attribs.get("regionCode", "")
+            _dep_type = _attribs.get("deploymentOption", "")
+            _fs_type = _attribs.get("fileSystemType", "")
+            _usage_type = _attribs.get("usagetype", "")
+
+            # SnapLock is "" , Backup is "N/A". Skip em.
+            if "N/A" in _dep_type or _dep_type == "":
+                continue
+
+            if _region not in _reply_data:
+                _reply_data[_region] = {}
+
+            if _fs_type not in _reply_data[_region]:
+                _reply_data[_region][_fs_type] = []
+
+            if _dep_type not in _reply_data[_region][_fs_type]:
+                _reply_data[_region][_fs_type].append(_dep_type)
+
+        logger.debug(f"Reply Data len: {len(_reply_data)}")
+        return _reply_data
+
+    def get_fsx_deployment_options_by_region(self, region: str) -> dict:
+        """
+        Get the deployment options for FSx in a specific region
+        """
+
+        logger.debug(f"Getting FSx deployment options for region {region}")
+
+        _fsx_deployment_options: dict = self.get_fsx_deployment_options(region=region)
+
+        if not _fsx_deployment_options:
+            logger.error(f"No FSx deployment options retrieved. Check auth.")
+            exit(1)
+
+        if not _fsx_deployment_options.get(region, {}):
+            logger.error(
+                f"No FSx deployment options retrieved for region {region}. Check auth."
+            )
+            exit(1)
+
+        logger.debug(
+            f"FSx Deployment Options for region {region}: {len(_fsx_deployment_options.get(region, {}))}"
+        )
+        return {region: _fsx_deployment_options.get(region, {})}
+
     def _storage_build_fsx_ontap_filesystem(self, fs_key: str):
         """
         Build an FSx/ONTAP filesystem.
@@ -3071,67 +3366,75 @@ class SOCAInstall(Stack):
         _deployment_type: str = get_config_key(
             key_name=f"Config.storage.{fs_key}.fsx_ontap.deployment_type",
             expected_type=str,
+            required=False,
+            default="MULTI_AZ_2",
         ).upper()
 
-        # As of January 2025
-        _regions_gen2_supported = [
-            "us-east-1",  # US East (N. Virginia)
-            "us-east-2",  # US East (Ohio)
-            "us-west-1",  # US West (N. California)
-            "us-west-2",  # US West (Oregon)
-            "eu-central-1",  # Europe (Frankfurt)
-            "eu-west-1",  # Europe (Ireland)
-            "ap-southeast-2",  # Asia Pacific (Sydney)
-        ]
+        # Determine the regions that various FSx types are supported
+        _fsx_regional_capability: dict = self.get_fsx_deployment_options_by_region(
+            region=user_specified_variables.region
+        )
 
         _throughput_capacity: int = get_config_key(
             key_name=f"Config.storage.{fs_key}.fsx_ontap.throughput_capacity",
             expected_type=int,
+            required=False,
+            default=256,
         )
 
         _storage_capacity: int = get_config_key(
             key_name=f"Config.storage.{fs_key}.fsx_ontap.storage_capacity",
             expected_type=int,
+            required=False,
+            default=1024,
         )
 
-        if (
-            _deployment_type == "MULTI_AZ_2"
-            and user_specified_variables.region not in _regions_gen2_supported
-        ):
-            logger.warning(
-                "You have selected FSx for NetApp ONTAP MULTI_AZ_2 but this region does not support it (as of January 2025), fallback to MULTI_AZ_1 and 256 mb/s Throughput Capacity"
-            )
-            _deployment_type = "MULTI_AZ_1"
-            _throughput_capacity = 256
+        # Is the desired deployment type supported in the region?
+        # Note that the Pricing API uses underscore (_) while the CFN string uses dashes (-)
+        # So we need to convert the CFN string to underscore
+        # There is also a case difference between the service names to accomodate
+        # So we make an extra copy of the string that we plan to mutate
+        _dep_type_lookup: str = _deployment_type.replace("_", "-").upper()
 
-        if (
-            _deployment_type == "SINGLE_AZ_2"
-            and user_specified_variables.region not in _regions_gen2_supported
-        ):
-            logger.warning(
-                "You have selected FSx for NetApp ONTAP SINGLE_AZ_2 but this region does not support it (as of January 2025), fallback to SINGLE_AZ_1 and 256 mb/s Throughput Capacity"
+        # Now adjust the case (since everything is now .upper() and dashed)
+        _dep_type_lookup = _dep_type_lookup.replace("MULTI-AZ", "Multi-AZ")
+        _dep_type_lookup = _dep_type_lookup.replace("SINGLE-AZ", "Single-AZ")
+
+        logger.debug(
+            f"Checking if deployment type {_deployment_type} ({_dep_type_lookup=}) is supported in region {user_specified_variables.region}"
+        )
+        if _dep_type_lookup not in _fsx_regional_capability.get(
+            user_specified_variables.region, {}
+        ).get("ONTAP", []):
+            logger.error(
+                f"Config.storage.{fs_key}.fsx_ontap.deployment_type {_deployment_type} ({_dep_type_lookup=}) is not supported in region {user_specified_variables.region}"
             )
-            _deployment_type = "SINGLE_AZ_1"
-            _throughput_capacity = 256
+            sys.exit(1)
 
         _automatic_backup_retention_days: int = get_config_key(
             key_name=f"Config.storage.{fs_key}.fsx_ontap.automatic_backup_retention_days",
             expected_type=int,
+            required=False,
+            default=7,
         )
 
         _daily_automatic_backup_start_time: str = get_config_key(
             key_name=f"Config.storage.{fs_key}.fsx_ontap.daily_automatic_backup_start_time",
             expected_type=str,
-        ).upper()
+            required=False,
+            default="00:00",
+        )
 
         _junction_path: str = get_config_key(
             key_name=f"Config.storage.{fs_key}.fsx_ontap.junction_path",
             expected_type=str,
+            required=True,
         )
 
         _netbios_name: str = get_config_key(
             key_name=f"Config.storage.{fs_key}.fsx_ontap.netbios_name",
             expected_type=str,
+            required=True,
         ).upper()
 
         if len(_netbios_name) > 15:
@@ -3172,17 +3475,119 @@ class SOCAInstall(Stack):
         # Find all private subnets VPC to deploy FSxONTAP. Note Only 2 can be configured
         # Associate FSxN with all Private Route Tables of your VPC
 
-        _vpc_subnets_id = []
-        _route_table_ids = []
-        for _subnet in (
-            self.soca_resources["vpc"]
-            .select_subnets(subnet_type=ec2.SubnetType.PRIVATE_WITH_EGRESS)
-            .subnets
-        ):
-            _vpc_subnets_id.append(_subnet.subnet_id)
-            _route_id = _subnet.route_table.route_table_id
-            if _route_id not in _route_table_ids:
-                _route_table_ids.append(_route_id)
+        _vpc_subnets_id: list = []
+        _route_table_ids: list = []
+
+        logger.debug(
+            f"FSx/ONTAP - User selected the following private subnets: {user_specified_variables.private_subnets=}"
+        )
+
+        # Determine our subnet usage
+        # did we select private subnets / existing resources during installation?
+        _fsx_ontap_source_subnets: dict = {}
+
+        if user_specified_variables.private_subnets is not None:
+            logger.debug(
+                f"FSx/ONTAP - User selected subnets - probable Existing Resources installation"
+            )
+            for _sn in user_specified_variables.private_subnets:
+                # ['subnet-123,us-east-1b', ...]
+                _sn_id: str = _sn.split(",")[0]
+                if _sn_id not in _fsx_ontap_source_subnets:
+                    # route_table_id comes later
+                    _fsx_ontap_source_subnets[_sn_id] = {
+                        "subnet_id": _sn_id,
+                    }
+                    logger.debug(
+                        f"FSx/ONTAP - User selected the following private subnet: {_sn_id=} / AZ: {_sn.split(',')[1]}"
+                    )
+                else:
+                    logger.error(
+                        f"FSx/ONTAP - Duplicate subnet {_sn_id} selected. Subnets now {_fsx_ontap_source_subnets=}. Probable defect?"
+                    )
+                    exit(1)
+
+            # Now that we have built up _fsx_ontap_source_subnets, we need to populate the route table info
+            _rt_dict: dict = get_subnet_route_table_by_subnet_id(
+                subnet_ids=list(_fsx_ontap_source_subnets.keys())
+            )
+
+            if not _rt_dict:
+                logger.error(
+                    f"FSx/ONTAP - Unable to lookup route tables for {_fsx_ontap_source_subnets=}"
+                )
+                exit(1)
+
+            for _sn_id in _rt_dict:
+                _rt_id: str = _rt_dict.get(_sn_id, "")
+                if not _rt_id:
+                    logger.error(
+                        f"FSx/ONTAP - Unable to lookup route table for subnet {_sn_id}"
+                    )
+                    exit(1)
+                logger.debug(
+                    f"FSx/ONTAP - Using Route Table {_rt_id} for subnet {_sn_id}"
+                )
+                _fsx_ontap_source_subnets[_sn_id].update({"route_table_id": _rt_id})
+
+        else:
+            # New VPC
+            logger.debug(
+                f"FSx/ONTAP - No User selected subnets - probable New VPC installation"
+            )
+            for _sn in (
+                self.soca_resources["vpc"]
+                .select_subnets(subnet_type=ec2.SubnetType.PRIVATE_WITH_EGRESS)
+                .subnets
+            ):
+                if _sn not in _fsx_ontap_source_subnets:
+                    _fsx_ontap_source_subnets[_sn.subnet_id] = {
+                        "subnet_id": _sn.subnet_id,
+                        "route_table_id": _sn.route_table.route_table_id,
+                    }
+                    logger.debug(
+                        f"FSx/ONTAP - Using VPC subnet {_sn.subnet_id} / RTB: {_sn.route_table.route_table_id} . Subnets now {_fsx_ontap_source_subnets=}"
+                    )
+                else:
+                    logger.error(
+                        f"FSx/ONTAP - Duplicate subnet {_sn.subnet_id} selected. Subnets now {_fsx_ontap_source_subnets=}. Probable defect?"
+                    )
+                    exit(1)
+
+        logger.debug(
+            f"FSx/ONTAP - Final FSx/Source Subnets/RTB for consideration: {_fsx_ontap_source_subnets=}"
+        )
+
+        for _subnet in list(_fsx_ontap_source_subnets.keys()):
+            if _subnet not in _vpc_subnets_id:
+
+                logger.debug(f"FSx/ONTAP - Adding VPC subnet {_subnet}")
+                _vpc_subnets_id.append(_subnet)
+
+                _route_id = _fsx_ontap_source_subnets.get(_subnet, {}).get(
+                    "route_table_id", ""
+                )
+                if not _route_id:
+                    logger.error(
+                        f"FSx/ONTAP - Unable to lookup route table for subnet {_subnet}"
+                    )
+                    exit(1)
+
+                if _route_id not in _route_table_ids:
+                    _route_table_ids.append(_route_id)
+                    logger.debug(
+                        f"FSx/ONTAP - Adding Route Table {_route_id} . Route Tables now {_route_table_ids=}"
+                    )
+                else:
+                    # This is just when multiple subnets share the same route table, which is fine
+                    logger.info(
+                        f"FSx/ONTAP - Route Table {_route_id} already exists for filesystem consideration. Route Tables now {_route_table_ids=} (not an indication of a problem)"
+                    )
+            else:
+                # This gets a warning as it shouldn't happen
+                logger.warning(
+                    f"FSx/ONTAP - Subnet {_subnet.subnet_id} already exists. Subnets now {_vpc_subnets_id=}.  Defect?"
+                )
 
         # Determine KMS config
         _kms_key_id = get_kms_key_id(
@@ -3287,11 +3692,15 @@ class SOCAInstall(Stack):
         )
 
         # Create the SVM
-        if str(self.directory_service_resource_setup["domain_controller_ips"]) == []:
+        if not self.directory_service_resource_setup.get("domain_controller_ips", []):
             logger.error(
                 "Unable to retrieve Domain Controller IPs. If using existing AD, you must specific dc_ips"
             )
             sys.exit(1)
+
+        logger.debug(
+            f"Using AD/DC IP addresses: {self.directory_service_resource_setup.get('domain_controller_ips')}"
+        )
 
         _fsx_active_directory_configuration = fsx.CfnStorageVirtualMachine.ActiveDirectoryConfigurationProperty(
             net_bios_name=_netbios_name,
@@ -3373,7 +3782,7 @@ class SOCAInstall(Stack):
         logger.debug(f"Storage Configuration tree: {_fs_list}")
 
         # First - make sure we have our required apps and data
-        # and they are mounted on /apps and /data
+        # , and they are mounted on /apps and /data
         for _req_fs in {"apps", "data"}:
             if not _fs_list.get(_req_fs):
                 raise ValueError(f"Missing required {_req_fs} filesystem configuration")
@@ -3597,7 +4006,6 @@ class SOCAInstall(Stack):
             )
 
         # We manually replace  the variable with the relevant ParameterStore as all ParamStore hierarchy is created at the very end of this CDK
-
         _user_data_variables = {
             "/configuration/BaseOS": user_specified_variables.base_os,
             "/configuration/ClusterId": user_specified_variables.cluster_id,
@@ -3605,7 +4013,7 @@ class SOCAInstall(Stack):
                 key_name="Config.directoryservice.provider"
             ),
             "/configuration/Region": user_specified_variables.region,
-            "/configuration/Version": "25.1.0",
+            "/configuration/Version": "25.3.0",
             "/configuration/CustomAMI": self.soca_resources["ami_id"],
             "/configuration/S3Bucket": user_specified_variables.bucket,
             "/configuration/HPC/SchedulerEngine": get_config_key(
@@ -3640,45 +4048,34 @@ class SOCAInstall(Stack):
             ),
         )
 
-        # Because of size limitation, pre-requisite is stored on S3. This script will then generate the actual setup
-        _pre_requisites = self.jinja2_env.get_template(
-            "user_data/controller/02_prerequisites.sh.j2"
-        ).render(
-            context=_user_data_variables,
-            ns=SimpleNamespace(template_already_included=[]),
-        )
-
-        # Generate SocaFilesystemsAutoMount
-        _soca_filesystems_automount = self.jinja2_env.get_template(
-            "scripts/soca_filesystems_automount.sh.j2"
-        ).render(
-            context=_user_data_variables,
-            ns=SimpleNamespace(template_already_included=[]),
-        )
-
         os.makedirs(
-            f"{pathlib.Path.cwd().parent}/upload_to_s3/user_data/controller/",
+            f"{pathlib.Path.cwd().parent}/upload_to_s3/bootstrap/controller/",
             exist_ok=True,
         )
 
-        with open(
-            f"{pathlib.Path.cwd().parent}/upload_to_s3/user_data/controller/02_prerequisites.sh",
-            "w",
-        ) as f:
-            f.write(_pre_requisites)
+        # Because of size limitation, scripts needed during bootstrap are stored on s3
+        _templates_to_render = [
+            "user_data/controller/02_prerequisites",
+            "templates/linux/system_packages/install_required_packages",
+            "templates/linux/filesystems_automount",
+        ]
+
+        for template in _templates_to_render:
+
+            _t = self.jinja2_env.get_template(f"{template}.sh.j2").render(
+                context=_user_data_variables,
+                ns=SimpleNamespace(template_already_included=[]),
+            )
+            with open(
+                f"{pathlib.Path.cwd().parent}/upload_to_s3/bootstrap/controller/{template.split('/')[-1]}.sh",
+                "w",
+            ) as f:
+                f.write(_t)
 
         shutil.copy(
             f"{pathlib.Path.cwd().parent}/user_data/controller/03_setup.sh.j2",
-            f"{pathlib.Path.cwd().parent}/upload_to_s3/user_data/controller",
+            f"{pathlib.Path.cwd().parent}/upload_to_s3/bootstrap/controller",
         )
-
-        # Create soca_filesystems_automount.sh
-        os.makedirs(f"{pathlib.Path.cwd().parent}/upload_to_s3/scripts/", exist_ok=True)
-        with open(
-            f"{pathlib.Path.cwd().parent}/upload_to_s3/scripts/soca_filesystems_automount.sh",
-            "w",
-        ) as f:
-            f.write(_soca_filesystems_automount)
 
         # Choose subnet where to deploy the controller
         if not user_specified_variables.vpc_id:
@@ -3870,9 +4267,10 @@ class SOCAInstall(Stack):
         # Other controller deps
         # VPC-Endpoints, Directory services, ElastiCache, VPC, Subnets, etc?
         # Some should be automatic - but always good to list them
-        self.soca_resources["controller_instance"].node.add_dependency(
-            self.soca_resources["elasticache"]
-        )
+        if self.soca_resources["elasticache"]:
+            self.soca_resources["controller_instance"].node.add_dependency(
+                self.soca_resources["elasticache"]
+            )
 
     def configuration(self):
         """
@@ -3918,7 +4316,7 @@ class SOCAInstall(Stack):
                 _subnet_listings["private"].append(_sn_id)
 
         else:
-            # SOCA created the VPC - so it should be clean and we can use the CDK methods
+            # SOCA created the VPC - so it should be clean, and we can use the CDK methods
             logger.debug(f"Using SOCA created VPC subnets for Param configuration")
 
             for pub_sub in self.soca_resources["vpc"].public_subnets:
@@ -4023,6 +4421,7 @@ class SOCAInstall(Stack):
             "SSHKeyPair": user_specified_variables.ssh_keypair,
             "CustomAMI": self.soca_resources["ami_id"],
             "CustomAMIMap": self.soca_resources["custom_ami_map"],
+            "DCVEntryPointDNSName": self.soca_resources["alb"].load_balancer_dns_name,
             "LoadBalancerDNSName": self.soca_resources["alb"].load_balancer_dns_name,
             "LoadBalancerArn": self.soca_resources["alb"].load_balancer_arn,
             "NLBLoadBalancerDNSName": self.soca_resources["nlb"].load_balancer_dns_name,
@@ -4126,7 +4525,7 @@ class SOCAInstall(Stack):
                 else:
                     _analytics_config["endpoint"] = user_specified_variables.os_endpoint
         else:
-            _analytics_config["endpoint"] = ""
+            _analytics_config["endpoint"] = "NO_ENDPOINT_CONFIGURED"
 
         # Store SOCA config on AWS SSM Parameter Store
         _parameter_store_prefix = f"/soca/{user_specified_variables.cluster_id}"
@@ -4156,14 +4555,17 @@ class SOCAInstall(Stack):
             if ds_keys in self.directory_service_resource_setup:
                 del self.directory_service_resource_setup[ds_keys]
 
-        # Update directory_service_resource_setup[domain_controller_ips] list to a str
-        self.directory_service_resource_setup["domain_controller_ips"] = str(
+        # Make a copy of the list version of the obj
+        _ds_resources = self.directory_service_resource_setup.copy()
+
+        # Update directory_service_resource_setup[domain_controller_ips] list to a str for SSM
+        _ds_resources["domain_controller_ips"] = str(
             self.directory_service_resource_setup["domain_controller_ips"]
         )
 
         _dicts_to_flatten = {
             "/configuration/Analytics": _analytics_config,
-            "/configuration/UserDirectory": self.directory_service_resource_setup,
+            "/configuration/UserDirectory": _ds_resources,
             "/configuration/Cache": flatten_parameterstore_config(self.cache_info),
             "/configuration/FileSystems": flatten_parameterstore_config(
                 self.soca_filesystems
@@ -4351,6 +4753,8 @@ class SOCAInstall(Stack):
             tier=ssm.ParameterTier.STANDARD,
         )
 
+        # TODO - This should depend on the longest running items to make sure
+        # we don't create it until the very end
         _final_ssm_parameter.node.add_dependency(self.soca_resources["nlb"])
 
     def analytics(self):
@@ -4599,19 +5003,24 @@ class SOCAInstall(Stack):
 
         sanitized_domain: str = user_specified_variables.cluster_id.lower()
         _data_node_instance_type: str = get_config_key(
-            key_name="Config.analytics.data_node_instance_type"
+            key_name="Config.analytics.data_node_instance_type",
+            expected_type=str,
         )
         _data_nodes: int = get_config_key(
-            key_name="Config.analytics.data_nodes", expected_type=int
+            key_name="Config.analytics.data_nodes",
+            expected_type=int,
         )
         _volume_size: int = get_config_key(
-            key_name="Config.analytics.ebs_volume_size", expected_type=int
+            key_name="Config.analytics.ebs_volume_size",
+            expected_type=int,
         )
         _deletion_policy: str = get_config_key(
-            key_name="Config.analytics.deletion_policy", expected_type=str
+            key_name="Config.analytics.deletion_policy",
+            expected_type=str,
         ).upper()
         _desired_engine: str = get_config_key(
-            key_name="Config.analytics.engine", expected_type=str
+            key_name="Config.analytics.engine",
+            expected_type=str,
         ).lower()
 
         if _desired_engine == "opensearch":
@@ -4873,7 +5282,8 @@ class SOCAInstall(Stack):
             ],
         )
 
-    def aws_pcs(self):
+    @staticmethod
+    def aws_pcs():
         """
         Create AWS PCS cluster integration
         """
@@ -4941,7 +5351,8 @@ class SOCAInstall(Stack):
                 "controller_instance"
             ].instance_private_dns_name,
             "/configuration/S3Bucket": user_specified_variables.bucket,
-            "/job/BootstrapPath": f"/apps/soca/{user_specified_variables.cluster_id}/cluster_node_bootstrap/logs/login_node",
+            "/job/BootstrapPath": f"/apps/soca/{user_specified_variables.cluster_id}/shared/logs/bootstrap/login_node",
+            "/job/BootstrapScriptsS3Location": f"s3://{user_specified_variables.bucket}/{user_specified_variables.cluster_id}/config/do_not_delete/bootstrap/login_node",
             "/job/NodeType": "login_node",
         }
 
@@ -4953,6 +5364,11 @@ class SOCAInstall(Stack):
             _user_data_variables[f"/{_ssm_parameter_key}"] = _ssm_parameter_value
 
         # Generate EC2 User Data
+        os.makedirs(
+            f"{pathlib.Path.cwd().parent}/upload_to_s3/bootstrap/login_node/",
+            exist_ok=True,
+        )
+
         # Because of size limitation, the main setup script is stored on S3 as it's only called once.
         _user_data = user_data_helper.remove_text(
             text_to_remove=[
@@ -4966,6 +5382,26 @@ class SOCAInstall(Stack):
                 ns=SimpleNamespace(template_already_included=[]),
             ),
         )
+
+        # Because of size limitation, scripts needed during bootstrap are stored on s3
+        _templates_to_render = [
+            "templates/linux/system_packages/install_required_packages",
+            "templates/linux/filesystems_automount",
+        ]
+
+        for template in _templates_to_render:
+            _t = self.jinja2_env.get_template(f"{template}.sh.j2").render(
+                context=_user_data_variables,
+                ns=SimpleNamespace(template_already_included=[]),
+            )
+            with open(
+                f"{pathlib.Path.cwd().parent}/upload_to_s3/bootstrap/login_node/{template.split('/')[-1]}.sh",
+                "w",
+            ) as f:
+                f.write(_t)
+
+        # final 03_setup.sh.j2 will be generated by controller original setup and uploaded to login_node s3 location
+        # as we have to wait until CDK is fully deployed
 
         _configured_instance_type: list = get_config_key(
             key_name="Config.login_node.instance_type",
@@ -5142,7 +5578,7 @@ class SOCAInstall(Stack):
 
         # Read our configuration for min/max/desired with defaults to 1
         _login_node_count: dict = {}
-        for _node_count in {"min", "max", "desired"}:
+        for _node_count in ("min", "max", "desired"):
             _login_node_count[_node_count] = get_config_key(
                 key_name=f"Config.login_node.{_node_count}_count",
                 expected_type=int,
@@ -5155,13 +5591,22 @@ class SOCAInstall(Stack):
                 f"Configuring LoginNode ASG for {_node_count} == {_login_node_count[_node_count]}"
             )
 
+        # Sanity check
+        _login_node_count["min"] = min(
+            _login_node_count["desired"], _login_node_count["min"]
+        )
+        _login_node_count["max"] = max(
+            _login_node_count["desired"], _login_node_count["max"]
+        )
+        logger.debug(f"LoginNode ASG sizing post-check/fixups: {_login_node_count}")
+
         _login_node_asg = autoscaling.AutoScalingGroup(
             self,
             f"LoginNodeASG",
             vpc=self.soca_resources["vpc"],
             launch_template=_login_node_launch_template,
             max_capacity=_login_node_count["max"],
-            min_capacity=_login_node_count["min"],
+            min_capacity=min(_login_node_count["min"], _login_node_count["desired"]),
             desired_capacity=_login_node_count["desired"],
             vpc_subnets=ec2.SubnetSelection(subnets=_login_node_isubnets),
         )
@@ -5326,9 +5771,10 @@ class SOCAInstall(Stack):
                 )
 
         # Other LoginNode Deps (ElastiCache)
-        self.soca_resources["nlb"].node.add_dependency(
-            self.soca_resources["elasticache"]
-        )
+        if self.soca_resources["elasticache"]:
+            self.soca_resources["nlb"].node.add_dependency(
+                self.soca_resources["elasticache"]
+            )
 
         # Give the controller a head start in resource creation since the LoginNodes need to do some items that depend on Controller
         _login_node_asg.node.add_dependency(self.soca_resources["controller_instance"])
@@ -5510,6 +5956,15 @@ class SOCAInstall(Stack):
             ),
         )
 
+        _configured_ssl_policy_name: str = get_config_key(
+            key_name="Config.network.alb_tls_policy",
+            required=False,
+            default="ELBSecurityPolicy-TLS13-1-2-2021-06",
+            expected_type=str,
+        )
+
+        logger.debug(f"Using SSL policy name: {_configured_ssl_policy_name}")
+
         self.soca_resources["https_listener"] = elbv2.ApplicationListener(
             self,
             "HTTPSListener",
@@ -5529,6 +5984,14 @@ class SOCAInstall(Stack):
             default_action=elbv2.ListenerAction.forward(
                 target_groups=[soca_webui_target_group]
             ),
+        )
+
+        # Use a CDK escape hatch to set the SSL policy
+        # per the docs page versus Enum lookup via CDK
+        # https://docs.aws.amazon.com/elasticloadbalancing/latest/application/describe-ssl-policies.html
+        _https_cdk_override = self.soca_resources["https_listener"].node.default_child
+        _https_cdk_override.add_property_override(
+            "SslPolicy", _configured_ssl_policy_name
         )
 
         self.soca_resources["https_listener"].node.add_dependency(cert_custom_resource)
@@ -5554,6 +6017,157 @@ class SOCAInstall(Stack):
             "WebUserInterface",
             value=f"https://{self.soca_resources['alb'].load_balancer_dns_name}/",
         )
+
+    def configure_aws_aga(self):
+        """
+        Configure an AWS Global Accelerator (AGA) for the SOCA environment.
+        """
+
+        _aga_address_type_str = get_config_key(
+            key_name="Config.network.aws_aga.address_type",
+            expected_type=str,
+            default="IPV4",
+            required=False,
+        ).upper()
+
+        logger.debug(f"Creating AWS AGA using address-type {_aga_address_type_str}")
+
+        self.soca_resources["aga"] = globalaccelerator.CfnAccelerator(
+            self,
+            f"{user_specified_variables.cluster_id}-AGA",
+            name=f"{user_specified_variables.cluster_id}-AGA",
+            enabled=True,
+            ip_address_type=_aga_address_type_str,
+        )
+
+        # Define our listeners to resource mappings
+        # Listeners are arranged in Endpoint groups that go to specific
+        # region resources (ALB, NLB, EC2, etc.)
+
+        _aga_listeners_needed = {
+            #
+            # ALB contains the WebUI
+            #
+            "ALB": {
+                "protocols": {
+                    "TCP": {
+                        "ports": [80, 443],
+                    },
+                },
+                "client_affinity": "SOURCE_IP",
+                "endpoint": self.soca_resources["alb"].load_balancer_arn,
+            },
+            #
+            # NLB contains the VDI/DCV and SSH/login_nodes
+            #
+            "NLB": {
+                "protocols": {
+                    "UDP": {
+                        "ports": [8443],
+                    },
+                    "TCP": {
+                        # "ports": [22, 8443],
+                        "ports": [8443],
+                    },
+                },
+                "client_affinity": "SOURCE_IP",
+                "endpoint": self.soca_resources["nlb"].load_balancer_arn,
+            },
+        }
+
+        # Create our required listeners as configured in the dict
+        logger.debug(f"Creating AGA listeners: {_aga_listeners_needed}")
+
+        _aga_listeners_created: list = []
+
+        for _aga_listener in _aga_listeners_needed:
+            _aga_listener = _aga_listener.upper()
+            logger.debug(
+                f"Creating AGA listener for {_aga_listener}: {_aga_listeners_needed[_aga_listener]}"
+            )
+
+            for _aga_protocol in _aga_listeners_needed[_aga_listener]["protocols"]:
+                logger.debug(
+                    f"Creating AGA listener for {_aga_listener}/{_aga_protocol}"
+                )
+
+                _port_spec_list: list = []
+                for _port in _aga_listeners_needed[_aga_listener]["protocols"][
+                    _aga_protocol
+                ]["ports"]:
+                    logger.debug(f"Adding {_aga_listener}/{_port} to PortSpec")
+                    _port_spec_list.append(
+                        globalaccelerator.CfnListener.PortRangeProperty(
+                            from_port=_port, to_port=_port
+                        )
+                    )
+
+                logger.debug(
+                    f"Final PortSpec for {_aga_listener}/{_aga_protocol}: {_port_spec_list}"
+                )
+
+                # Now that we have built a portspec - we can create the multi-port listener
+                self.soca_resources[f"aga_listener_{_aga_listener}_{_aga_protocol}"] = (
+                    globalaccelerator.CfnListener(
+                        self,
+                        f"{user_specified_variables.cluster_id}-AGAListener-{_aga_listener}-{_aga_protocol}",
+                        client_affinity=_aga_listeners_needed[_aga_listener][
+                            "client_affinity"
+                        ],
+                        accelerator_arn=self.soca_resources["aga"].attr_accelerator_arn,
+                        port_ranges=_port_spec_list,
+                        protocol=_aga_protocol,
+                    )
+                )
+
+                logger.debug(f"Creating AGA endpoint groups for {_aga_listener}")
+                _aga_endpoint_group = globalaccelerator.CfnEndpointGroup(
+                    self,
+                    f"{user_specified_variables.cluster_id}-AGAEndpointGroup{_aga_listener}-{_aga_protocol}",
+                    listener_arn=self.soca_resources[
+                        f"aga_listener_{_aga_listener}_{_aga_protocol}"
+                    ].attr_listener_arn,
+                    endpoint_group_region=user_specified_variables.region,
+                    endpoint_configurations=[
+                        globalaccelerator.CfnEndpointGroup.EndpointConfigurationProperty(
+                            endpoint_id=_aga_listeners_needed[_aga_listener][
+                                "endpoint"
+                            ],
+                            weight=100,
+                            client_ip_preservation_enabled=True,
+                        )
+                    ],
+                )
+                _aga_endpoint_group.node.add_dependency(
+                    self.soca_resources[f"aga_listener_{_aga_listener}_{_aga_protocol}"]
+                )
+
+        # Make sure all of our listeners are listed as deps
+        # for _aga_listener_name in _aga_listeners_created:
+        #     logger.debug(f"Adding Dep for Endpoint group: {_aga_listener_name}")
+        #     _aga_endpoint_group.node.add_dependency(self.soca_resources[_aga_listener_name])
+
+        CfnOutput(
+            self,
+            "AGAAccessPoint",
+            value=f'https://{self.soca_resources["aga"].attr_dns_name}/',
+        )
+
+        # _aga_ipv4_str: str = ", ".join(self.soca_resources["aga"].attr_ipv4_addresses)
+        # CfnOutput(
+        #     self,
+        #     "AGAIPAddressList_ipv4",
+        #     value=_aga_ipv4_str,
+        # )
+
+        # FIXME TODO
+        # Output for IPv6?
+        # _aga_ipv6_list = self.soca_resources["aga"].attr_ipv6_addresses
+        # CfnOutput(
+        #     self,
+        #     "AGAIPAddresses_ipv4",
+        #     value=f"{self.soca_resources["aga"].attr_ipv4_addresses}",
+        # )
 
     def viewer_analytics_opensearch(self):
         """
@@ -5584,7 +6198,8 @@ class SOCAInstall(Stack):
             value=f"https://{self.soca_resources['os_domain'].attr_dashboard_endpoint}",
         )
 
-    def is_instance_available(self, instance_type: str, region: str) -> bool:
+    @staticmethod
+    def is_instance_available(instance_type: str, region: str) -> bool:
         """
         Check if the specified instance type is available in the given region.
         """
@@ -5595,7 +6210,7 @@ class SOCAInstall(Stack):
         )
 
         try:
-            # pagination is not a concern since we are always looking ata single instance type
+            # pagination is not a concern since we are always looking at a single instance type
             response = ec2_client.describe_instance_types(
                 InstanceTypes=[instance_type],
                 Filters=[{"Name": "supported-usage-class", "Values": ["on-demand"]}],
@@ -5682,7 +6297,8 @@ class SOCAInstall(Stack):
         # broker - internal nlb
         # gateway - external / internal nlb (depending on the deployment that the cluster uses)
 
-        for _dcv_node_type in {"manager", "broker", "gateway"}:
+        logger.debug(f"Entering DCV High Scale infrastructure")
+        for _dcv_node_type in ("manager", "broker", "gateway"):
             _dcv_config: str = f"Config.dcv.{_dcv_node_type}"
             logger.debug(
                 f"Creating DCV Node {_dcv_node_type} items using DCV configuration {_dcv_config} ..."
@@ -5690,7 +6306,10 @@ class SOCAInstall(Stack):
 
             # Get our desired list of instances
             _dcv_desired_instance_type: list = get_config_key(
-                key_name=f"{_dcv_config}.instance_type", expected_type=list
+                key_name=f"{_dcv_config}.instance_type",
+                expected_type=list,
+                required=False,
+                default=["m5.large"],
             )
 
             # What AMI should be used for this DCV instance?
@@ -5735,7 +6354,7 @@ class SOCAInstall(Stack):
                     key_name="Config.directoryservice.provider"
                 ),
                 "/configuration/Region": Aws.REGION,
-                "/configuration/Version": "25.1.0",
+                "/configuration/Version": "25.3.0",
                 "/configuration/CustomAMI": self.soca_resources[
                     "ami_id"
                 ],  # FIXME TODO - This needs to be updated from the selected_instance and arch
@@ -5758,6 +6377,7 @@ class SOCAInstall(Stack):
                 f"Reading DCV Node {_dcv_node_type} User Data template {_user_data_file} ..."
             )
 
+            # Generate EC2 User Data and clean all copyright header to save some space
             _user_data = self.jinja2_env.get_template(
                 f"user_data/dcv_{_dcv_node_type}.sh.j2"
             ).render(

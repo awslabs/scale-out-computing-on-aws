@@ -39,7 +39,7 @@ def get_boto(
     endpoint_url: Optional[str] = None,
 ) -> boto3.session:
     if extra_config:
-        _extra_parameters = {"user_agent_extra": "AwsSolution/SO0072/25.1.0"}
+        _extra_parameters = {"user_agent_extra": "AwsSolution/SO0072/25.3.0"}
         _config = botocore.config.Config(**_extra_parameters)
     else:
         _config = None

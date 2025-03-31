@@ -12,11 +12,13 @@ if [[ -f "/root/.soca_bootstrap_controller_{{ context.get('/configuration/Cluste
   exit_fail "/root/.soca_bootstrap_controller_{{ context.get('/configuration/ClusterId') }}_completed already exist. To prevent configuration overwrite, we exit the script, since this machine seems to be already configured"
 fi
 
-# Install SOCA Cache
-{% include "templates/linux/cache_client.sh.j2" %}
-
 # Install JQ
 {% include "templates/linux/jq.sh.j2" %}
+
+{% if context.get("/configuration/BaseOS") in ("ubuntu2204", "ubuntu2404") %}
+  log_info "Disabling auto-update on Ubuntu"
+  sed -ie 's/"1"/"0"/g' /etc/apt/apt.conf.d/20auto-upgrades
+{% endif %}
 
 # Note: OpenPBS must be installed with system python
 log_info "Using Scheduler Engine: OpenPBS"
@@ -25,11 +27,12 @@ log_info "Using Scheduler Engine: OpenPBS"
 {% include "templates/linux/scheduler/openpbs/configure_server.sh.j2" %}
 
 # Set custom PATH
-{% set PATH = '/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin:/opt/pbs/bin:/opt/pbs/sbin:/opt/pbs/bin:/apps/soca/' ~ context.get("/configuration/ClusterId") %}
-PATH="/apps/soca/{{ context.get("/configuration/ClusterId") }}/python/latest/bin:$PATH"
+{% set PATH = '/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin:/opt/pbs/bin:/opt/pbs/sbin:/opt/pbs/bin:/opt/soca/' ~ context.get("/configuration/ClusterId") %}
+PATH="/opt/soca/{{ context.get("/configuration/ClusterId") }}/python/latest/bin:$PATH"
 set_environment_variable "PATH" "{{ PATH }}"
 
-source /etc/environment
+# Set Controller IP, not needed as you are already on the controller host, but making sure the variable exist to stay consistent with the other machines
+set_environment_variable "SOCA_CONTROLLER_IP" "$(hostname -I)"
 
 # Configure User Directory (AD/OpenLDAP)
 {% if context.get("/configuration/UserDirectory/provider") in ["existing_openldap", "openldap"] %}
@@ -60,7 +63,7 @@ source /etc/environment
 {% include "templates/linux/nodejs.sh.j2" %}
 
 # Install required Node modules
-npm install --prefix "/apps/soca/{{ context.get("/configuration/ClusterId") }}/cluster_manager/web_interface/static" monaco-editor@0.52.0
+npm install --prefix "/opt/soca/{{ context.get("/configuration/ClusterId") }}/cluster_manager/web_interface/static" monaco-editor@0.52.0
 
 # Reload OpenPBS
 systemctl restart pbs
@@ -68,57 +71,76 @@ systemctl restart pbs
 # Create crontabs
 echo "
 # SOCA Info: Add export SOCA_DEBUG=1 to enable DEBUG capability
-# ex: export SOCA_DEBUG=1; source /etc/environment; /apps/soca/{{ context.get("/configuration/ClusterId") }}/python/latest/bin/python3  /apps/soca/{{ context.get("/configuration/ClusterId") }}/cluster_manager/orchestrator/nodes_manager.py
+# ex: export SOCA_DEBUG=1; source /etc/environment; /opt/soca/{{ context.get("/configuration/ClusterId") }}/python/latest/bin/python3  /opt/soca/{{ context.get("/configuration/ClusterId") }}/cluster_manager/orchestrator/nodes_manager.py
+###################
+# SOCA Variables
+###################
 
 ###################
 # Cluster Analytics
 ###################
 
-* * * * * source /etc/environment; /apps/soca/{{ context.get("/configuration/ClusterId") }}/cluster_manager/analytics/wrapper.sh cluster_nodes_tracking
-@hourly source /etc/environment; /apps/soca/{{ context.get("/configuration/ClusterId") }}/cluster_manager/analytics/wrapper.sh job_tracking
-*/10 * * * * source /etc/environment; /apps/soca/{{ context.get("/configuration/ClusterId") }}/cluster_manager/analytics/wrapper.sh desktop_hosts_tracking
+* * * * * source /etc/environment;\
+ /opt/soca/{{ context.get("/configuration/ClusterId") }}/cluster_manager/analytics/wrapper.sh cluster_nodes_tracking
+
+@hourly source /etc/environment; \
+ /opt/soca/{{ context.get("/configuration/ClusterId") }}/cluster_manager/analytics/wrapper.sh job_tracking
+
+*/10 * * * * source /etc/environment; \
+ /opt/soca/{{ context.get("/configuration/ClusterId") }}/cluster_manager/analytics/wrapper.sh desktop_hosts_tracking
 
 ########################
 # Cluster Log Management
 ########################
 
-@daily source /etc/environment; /bin/bash /apps/soca/{{ context.get("/configuration/ClusterId") }}/cluster_manager/logs_management/send_logs_s3.sh
+@daily source /etc/environment; /bin/bash /opt/soca/{{ context.get("/configuration/ClusterId") }}/cluster_manager/logs_management/send_logs_s3.sh
 
 ####################
 # Cluster Management
 ####################
 
-* * * * * source /etc/environment;  /apps/soca/{{ context.get("/configuration/ClusterId") }}/python/latest/bin/python3  /apps/soca/{{ context.get("/configuration/ClusterId") }}/cluster_manager/orchestrator/nodes_manager.py
+* * * * * source /opt/soca/{{ context.get("/configuration/ClusterId") }}/python/latest/soca_python.env; \
+ source /etc/environment; \
+ /opt/soca/{{ context.get("/configuration/ClusterId") }}/python/latest/bin/python3 /opt/soca/{{ context.get("/configuration/ClusterId") }}/cluster_manager/orchestrator/nodes_manager.py
 
 # Automatic Host Provisioning
-* * * * * source /etc/environment;  /apps/soca/{{ context.get("/configuration/ClusterId") }}/python/latest/bin/python3 /apps/soca/{{ context.get("/configuration/ClusterId") }}/cluster_manager/orchestrator/dispatcher.py -c /apps/soca/{{ context.get("/configuration/ClusterId") }}/cluster_manager/orchestrator/settings/queue_mapping.yml -t compute
-* * * * * source /etc/environment;  /apps/soca/{{ context.get("/configuration/ClusterId") }}/python/latest/bin/python3 /apps/soca/{{ context.get("/configuration/ClusterId") }}/cluster_manager/orchestrator/dispatcher.py -c /apps/soca/{{ context.get("/configuration/ClusterId") }}/cluster_manager/orchestrator/settings/queue_mapping.yml -t job-shared
-* * * * * source /etc/environment;  /apps/soca/{{ context.get("/configuration/ClusterId") }}/python/latest/bin/python3 /apps/soca/{{ context.get("/configuration/ClusterId") }}/cluster_manager/orchestrator/dispatcher.py -c /apps/soca/{{ context.get("/configuration/ClusterId") }}/cluster_manager/orchestrator/settings/queue_mapping.yml -t test
+* * * * *  source /opt/soca/{{ context.get("/configuration/ClusterId") }}/python/latest/soca_python.env; \
+ source /etc/environment; \
+ /opt/soca/{{ context.get("/configuration/ClusterId") }}/python/latest/bin/python3 /opt/soca/{{ context.get("/configuration/ClusterId") }}/cluster_manager/orchestrator/dispatcher.py -c /opt/soca/{{ context.get("/configuration/ClusterId") }}/cluster_manager/orchestrator/settings/queue_mapping.yml -t compute
+
+* * * * *  source /opt/soca/{{ context.get("/configuration/ClusterId") }}/python/latest/soca_python.env; \
+ source /etc/environment; \
+ /opt/soca/{{ context.get("/configuration/ClusterId") }}/python/latest/bin/python3 /opt/soca/{{ context.get("/configuration/ClusterId") }}/cluster_manager/orchestrator/dispatcher.py -c /opt/soca/{{ context.get("/configuration/ClusterId") }}/cluster_manager/orchestrator/settings/queue_mapping.yml -t job-shared
+
+* * * * * source /opt/soca/{{ context.get("/configuration/ClusterId") }}/python/latest/soca_python.env; \
+  source /etc/environment; \
+  /opt/soca/{{ context.get("/configuration/ClusterId") }}/python/latest/bin/python3 /opt/soca/{{ context.get("/configuration/ClusterId") }}/cluster_manager/orchestrator/dispatcher.py -c /opt/soca/{{ context.get("/configuration/ClusterId") }}/cluster_manager/orchestrator/settings/queue_mapping.yml -t test
 
 # Add/Remove DCV hosts and configure ALB
-*/3 * * * * source /etc/environment; /apps/soca/{{ context.get("/configuration/ClusterId") }}/python/latest/bin/python3 /apps/soca/{{ context.get("/configuration/ClusterId") }}/cluster_manager/orchestrator/dcv_alb_manager.py >> /apps/soca/{{ context.get("/configuration/ClusterId") }}/cluster_manager/orchestrator/logs/dcv_alb_manager.log 2>&1
+*/3 * * * *  source /opt/soca/{{ context.get("/configuration/ClusterId") }}/python/latest/soca_python.env; \
+  /opt/soca/{{ context.get("/configuration/ClusterId") }}/python/latest/bin/python3 /opt/soca/{{ context.get("/configuration/ClusterId") }}/cluster_manager/orchestrator/dcv_alb_manager.py >> /opt/soca/{{ context.get("/configuration/ClusterId") }}/cluster_manager/orchestrator/logs/dcv_alb_manager.log 2>&1
 
 ################
 # Cluster Web UI
 ################
 
 # Restart UI at reboot
-@reboot /apps/soca/{{ context.get("/configuration/ClusterId") }}/cluster_manager/web_interface/socawebui.sh start
+@reboot /opt/soca/{{ context.get("/configuration/ClusterId") }}/cluster_manager/web_interface/socawebui.sh start
 
 " | crontab -
 
 # Generate 10 years internal SSL certificate for Soca Web UI
-pushd /apps/soca/{{ context.get("/configuration/ClusterId") }}/cluster_manager/web_interface
+pushd /opt/soca/{{ context.get("/configuration/ClusterId") }}/cluster_manager/web_interface
 openssl req -new -newkey rsa:4096 -days 3650 -nodes -x509 \
     -subj "/C=US/ST=California/L=Sunnyvale/CN=internal.soca.webui.cert" \
     -keyout cert.key -out cert.crt
 
 # Append the cluster name on the SOCA HTML template
 IFS="-" read name sanitized_cluster_name <<< "echo {{ context.get("/configuration/ClusterId") }}"
-sed -i "s/__SOCA_CLUSTER__NAME__/${sanitized_cluster_name}/g" /apps/soca/{{ context.get("/configuration/ClusterId") }}/cluster_manager/web_interface/templates/common/horizontal_menu_bar.html
+sed -i "s/__SOCA_CLUSTER__NAME__/${sanitized_cluster_name}/g" /opt/soca/{{ context.get("/configuration/ClusterId") }}/cluster_manager/web_interface/templates/common/horizontal_menu_bar.html
 
 # Start Web UI
-chmod +x /apps/soca/{{ context.get("/configuration/ClusterId") }}/cluster_manager/web_interface/socawebui.sh
+chmod +x /opt/soca/{{ context.get("/configuration/ClusterId") }}/cluster_manager/web_interface/socawebui.sh
 ./socawebui.sh start
 
 # Wait until the endpoint is reachable
@@ -129,7 +151,7 @@ START_WEB_UI_CURRENT_ATTEMPT=0
 while [[ "$(curl https://localhost:8443/ping --insecure  -s -o /dev/null -w '%{http_code}')" != "200" ]]; do
   ((START_WEB_UI_CURRENT_ATTEMPT=START_WEB_UI_CURRENT_ATTEMPT+1))
   if [[ $START_WEB_UI_CURRENT_ATTEMPT -ge $START_WEB_UI_MAX_ATTEMPT ]]; then
-      exit_fail "error: Timed out waiting for starting the web interface. please check uwsgi logs under /apps/soca/"{{ context.get("/configuration/ClusterId") }}"/cluster_manager/web_interface/logs/ and run the create user command manually."
+      exit_fail "error: Timed out waiting for starting the web interface. please check uwsgi logs under /opt/soca/"{{ context.get("/configuration/ClusterId") }}"/cluster_manager/web_interface/logs/ and run the create user command manually."
   fi
   log_info "Web UI is not returning HTTP/200 ... restarting process ... "
   ./socawebui.sh stop
@@ -152,7 +174,7 @@ SOCA_DEFAULT_ADMIN_USER=$(get_secret "/soca/{{ context.get("/configuration/Clust
   CREATE_ADMIN_GROUP_ATTEMPT_COUNT=0
   log_info "Creating default SOCA Admin Group on Directory Service"
   while true; do
-    REQUEST_HTTP_CODE_CREATE_GROUP=$(curl --silent -k -H "X-SOCA-TOKEN: $(cat /apps/soca/{{ context.get("/configuration/ClusterId") }}/cluster_manager/web_interface/keys/admin_api_key.txt)" \
+    REQUEST_HTTP_CODE_CREATE_GROUP=$(curl --silent -k -H "X-SOCA-TOKEN: $(cat /opt/soca/{{ context.get("/configuration/ClusterId") }}/cluster_manager/web_interface/keys/admin_api_key.txt)" \
       --data-urlencode "group=${SOCA_AD_ADMIN_GROUP_NAME}"  \
       -w "%{http_code}" -o ${SOCA_BOOTSTRAP_LOGS_FOLDER}/create_admin_group.log -X POST https://127.0.0.1:8443/api/ldap/group)
 
@@ -180,7 +202,7 @@ SOCA_DEFAULT_ADMIN_USER=$(get_secret "/soca/{{ context.get("/configuration/Clust
   MAX_CREATE_USER_ATTEMPT=5
   CREATE_USER_ATTEMPT_COUNT=0
   while true; do
-    REQUEST_HTTP_CODE_CREATE_USER=$(curl --silent -k -H "X-SOCA-TOKEN: $(cat /apps/soca/{{ context.get("/configuration/ClusterId") }}/cluster_manager/web_interface/keys/admin_api_key.txt)" \
+    REQUEST_HTTP_CODE_CREATE_USER=$(curl --silent -k -H "X-SOCA-TOKEN: $(cat /opt/soca/{{ context.get("/configuration/ClusterId") }}/cluster_manager/web_interface/keys/admin_api_key.txt)" \
       --data-urlencode "user=$(echo ${SOCA_DEFAULT_ADMIN_USER} | jq -r ". | fromjson.username")" \
       --data-urlencode "password=$(echo ${SOCA_DEFAULT_ADMIN_USER} | jq -r ". | fromjson.password")" \
       --data-urlencode "sudoers=1" \
@@ -193,11 +215,11 @@ SOCA_DEFAULT_ADMIN_USER=$(get_secret "/soca/{{ context.get("/configuration/Clust
       log_info "User created successfully."
       break
     else
-      log_info "Unable to create new user due to $(cat ${SOCA_BOOTSTRAP_LOGS_FOLDER}/create_new_user.log), trying again soon ..."
+      log_warning "Unable to create new user due to $(cat ${SOCA_BOOTSTRAP_LOGS_FOLDER}/create_new_user.log), trying again soon ..."
       ((CREATE_USER_ATTEMPT_COUNT++))
 
       if [[ ${CREATE_USER_ATTEMPT_COUNT} -ge ${MAX_CREATE_USER_ATTEMPT} ]]; then
-        log_info "Unable to create user after ${MAX_CREATE_USER_ATTEMPT} attempts, bootstrap sequence will continue."
+        log_error "Unable to create user after ${MAX_CREATE_USER_ATTEMPT} attempts, bootstrap sequence will continue."
         break
       fi
 
@@ -208,14 +230,8 @@ SOCA_DEFAULT_ADMIN_USER=$(get_secret "/soca/{{ context.get("/configuration/Clust
   log_info "Using an existing Active Directory or OpenLDAP, skipping User Creation"
 {%  endif %}
 
-# Re-enable ssh access
-{% if context.get("/configuration/BaseOS") in ("amazonlinux2", "amazonlinux2023", "rhel7", "rhel8", "rhel9") %}
-     usermod --shell /bin/bash ec2-user
-{% elif context.get("/configuration/BaseOS") == "centos7" %}
-     usermod --shell /bin/bash centos
-{% endif %}
 
-#  TODO Disable SSH for everyone else or restrict to sudoers only
+# Disable job submission for local users
 {% include "templates/linux/scheduler/openpbs/disable_local_account_job_submission.sh.j2" %}
 
 # Tag EBS disks manually as CFN ASG does not support it
@@ -224,17 +240,20 @@ SOCA_DEFAULT_ADMIN_USER=$(get_secret "/soca/{{ context.get("/configuration/Clust
 # Tag Network Interface for the Compute Node
 {% include "templates/linux/tags/eni.sh.j2" %}
 
-# Enforce minimum permissions for SOCA directory
-chmod 600 /apps/soca/{{ context.get("/configuration/ClusterId") }}
-chmod 600 /apps/soca/{{ context.get("/configuration/ClusterId") }}/cluster_manager
-chmod 600 /apps/soca/{{ context.get("/configuration/ClusterId") }}/cluster_node_bootstrap
-
 # Configure Message Of The Day (MOTD)
 {% include "templates/linux/motd.sh.j2" %}
 
 # Restart/Enable crond
-systemctl enable crond
-systemctl restart crond
+{% if context.get("/configuration/BaseOS") in ("ubuntu2204", "ubuntu2404") %}
+  systemctl enable cron
+  systemctl restart cron
+{% else %}
+  systemctl enable crond
+  systemctl restart crond
+{% endif %}
+
+# Restrict SSH to SOCA Controller Host
+{% include "templates/linux/restrict_ssh_access.sh.j2" %}
 
 # Create bootstrap lock
 touch "/root/.soca_bootstrap_controller_{{ context.get('/configuration/ClusterId') }}_completed"

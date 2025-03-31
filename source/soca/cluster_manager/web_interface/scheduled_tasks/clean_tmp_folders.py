@@ -19,7 +19,8 @@ logger = logging.getLogger("soca_logger")
 
 
 def clean_tmp_folders():
-    directories = ["tmp/zip_downloads/*", "tmp/ssh/*"]
+    # contains zip archive when user request a multi-files upload from the web interface
+    directories = ["tmp/zip_downloads/*"]
     for directory in directories:
         logger.info(f"Removing files inside {directory}")
         files = glob.glob(directory)

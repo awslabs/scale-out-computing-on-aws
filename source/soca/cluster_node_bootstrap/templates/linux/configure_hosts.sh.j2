@@ -2,7 +2,6 @@
 # SPDX-License-Identifier: Apache-2.0
 
 # Begin: Configure /etc/hosts
-{% if context.get("/configuration/BaseOS") in ("amazonlinux2", "amazonlinux2023", "centos7", "rhel7", "rhel8", "rhel9", "rocky8", "rocky9") %}
 function configure_hosts_file () {
   log_info "Begin: Configure /etc/hosts"
   local SERVER_IP=$(hostname -I)
@@ -12,5 +11,4 @@ function configure_hosts_file () {
   log_info "End: Configure /etc/hosts"
 }
 configure_hosts_file
-{% endif %}
 # End: Configure /etc/hosts

@@ -5,14 +5,16 @@ function build_openpbs {
   pushd ${1}
   log_info "Building OpenPBS from $(pwd)"
   local NCPUS=$(nproc)
+  local SOCA_PYTHON="/opt/soca/{{ context.get('/configuration/ClusterId') }}/python"
   log_info "Running AutoGen"
 
   if ! ./autogen.sh; then
     exit_fail "Unable to run autogen.sh for OpenPBS. See log for additional details"
   fi
-  log_info "Running Configure"
+  log_info "Running Configure, adding SOCA Python location to rpath"
 
-  if ! ./configure --prefix=/opt/pbs; then
+  # objdump -x /opt/pbs/sbin/pbs_sched | grep RPATH ensure this contains path to SOCA_PYTHON for hooks
+  if ! LDFLAGS="-Wl,-rpath,${SOCA_PYTHON}/latest/lib" ./configure --prefix=/opt/pbs --with-python=${SOCA_PYTHON}/latest; then
     exit_fail "Unable to run ./configure --prefix=/opt/pbs for OpenPBS. See log for additional details"
   fi
 
@@ -60,40 +62,55 @@ function openpbs_install {
 
     {% elif context.get("/configuration/SchedulerDeploymentType") == "git" %}
       log_info "Installing OpenPBS via git"
-      local OPENBS_GIT_REPO="{{ context.get("/system/scheduler/openpbs/git/repo") }}"
-      local OPENBS_GIT_BRANCH="{{ context.get("/system/scheduler/openpbs/git/branch") }}"
-      local OPENBS_GIT_COMMIT_ID="{{ context.get("/system/scheduler/openpbs/git/commit_id") }}"
+      local OPENPBS_GIT_REPO="{{ context.get("/system/scheduler/openpbs/git/repo") }}"
+      local OPENPBS_GIT_BRANCH="{{ context.get("/system/scheduler/openpbs/git/branch") }}"
+      local OPENPBS_GIT_COMMIT_ID="{{ context.get("/system/scheduler/openpbs/git/commit_id") }}"
       local OPENPBS_VERSION="{{ context.get("/system/scheduler/openpbs/tgz/version") }}"
 
       if [[ "${OPENPBS_INSTALLED_VERS}" != "${OPENPBS_VERSION}" ]]; then
           log_info "OpenPBS Not Detected, Installing OpenPBS"
           # Note: clone in current directory without checkout to avoid new folder creation
-          git clone ${OPENBS_GIT_REPO} --no-checkout {% if context.get("/system/scheduler/openpbs/git/branch") %}--branch ${OPENBS_GIT_BRANCH} {% endif %} ${INSTALLER_DIR}
+          git clone ${OPENPBS_GIT_REPO} --no-checkout {% if context.get("/system/scheduler/openpbs/git/branch") %}--branch ${OPENPBS_GIT_BRANCH} {% endif %} ${INSTALLER_DIR}
 
           # Load actual content
           {% if context.get("/system/scheduler/openpbs/git/commit_id") %}
-          git checkout ${OPENBS_GIT_COMMIT_ID}
+            git checkout ${OPENPBS_GIT_COMMIT_ID}
           {% else %}
-          git checkout
+            git checkout
           {% endif %}
 
           # Install Pre-requisite
-          if ! verify_package_installed cmake3; then
-            log_info "cmake3 not installed, installing it "
-            packages_install cmake3
+          {% if context.get("/configuration/BaseOS") in ("ubuntu2204", "ubuntu2404") %}
+            # Debian Based Distro
+            if ! verify_package_installed cmake; then
+              log_info "cmake version 3+ not installed, installing it"
+              packages_install cmake
+            fi
+          {% else %}
+            # RedHat based Distro
+            if ! verify_package_installed cmake3; then
+              log_info "cmake version 3+ not installed, installing it"
+              packages_install cmake3
+            fi
+          {% endif %}
+
+
+          # todo: understand why libcjson(-dev) from yum does not work here
+          if test ! -e "/lib64/libcjson.so"; then
+              log_info "/lib64/libcjson.so not found, installing it"
+              git clone https://github.com/DaveGamble/cJSON.git
+              pushd cJSON
+              mkdir build
+              pushd build
+              {% if context.get("/configuration/BaseOS") in ("ubuntu2204", "ubuntu2404") %}
+                cmake ..
+              {% else %}
+                cmake3 ..
+              {% endif %}
+              make
+              make install
+              ln -sf /usr/local/lib64/libcjson.so.1 /lib64/libcjson.so.1
           fi
-         # todo: understand why libcjson(-dev) from yum does not work here
-         if test ! -e "/lib64/libcjson.so"; then
-          log_info "/lib64/libcjson.so not found, installing it"
-          git clone https://github.com/DaveGamble/cJSON.git
-          pushd cJSON
-          mkdir build
-          pushd build
-          cmake3 ..
-          make
-          make install
-          ln -sf /usr/local/lib64/libcjson.so.1 /lib64/libcjson.so.1
-        fi
 
         build_openpbs ${INSTALLER_DIR}
 
@@ -119,7 +136,6 @@ function openpbs_install {
       exit_fail "{{ context.get("/configuration/scheduler/deployment_type") }} must be tgz or git"
 
     {% endif %}
-
     popd
     log_info "Completed OpenPBS installation"
 }

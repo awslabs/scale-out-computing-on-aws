@@ -262,11 +262,11 @@ class SocaIdentityProviderClient:
 
         except ldap.INVALID_CREDENTIALS:
             return SocaError.IDENTITY_PROVIDER_ERROR(
-                helper=f"Unable to bind {_user_bind}, verify username and password",
+                helper=f"Invalid credential for {dn}, verify username and password",
             )
         except Exception as err:
             return SocaError.IDENTITY_PROVIDER_ERROR(
-                helper=f"Unable to bind {_user_bind} due to {err}",
+                helper=f"Unable to bind {dn} due to {err}",
             )
 
     @is_initialized
@@ -400,4 +400,75 @@ class SocaIdentityProviderClient:
         except Exception as err:
             return SocaError.IDENTITY_PROVIDER_ERROR(
                 helper=f"Unable to search {base} with scope {scope}, filter {filter}, attr_list {attr_list}, due to {err}",
+            )
+
+    @is_initialized
+    def is_user_authorized(
+        self, username: str, allowed_users: list, allowed_groups: list
+    ) -> SocaResponse:
+        """
+        Verify if a specified user is on a list of valid users or member of a list of valid groups
+        Not in use until we add support for group at project level.
+        """
+        try:
+            logger.info(
+                f"Received is_user_authorized request for {username=}, {allowed_users=}, {allowed_groups=}"
+            )
+            if "*" in allowed_users or "*" in allowed_groups:
+                return SocaResponse(
+                    success=True,
+                    message="User is allowed via wildcard in allowed_users or allowed_groups",
+                )
+            if username in allowed_users:
+                return SocaResponse(
+                    success=True, message="User is allowed via allowed_users list"
+                )
+
+            if allowed_groups:
+                logger.info(f"finding group membership for groups in {allowed_groups}")
+
+                if self._provider in ["openldap", "existing_openldap"]:
+                    _object_class = "posixGroup"
+                    _attr_list = ["cn", "memberUid"]
+                else:
+                    _object_class = "group"
+                    _attr_list = ["cn", "member"]
+
+                _group_filter = f"(&(|{''.join([f'(cn={group})' for group in allowed_groups])})(objectClass={_object_class}))"
+
+                _get_groups = self.search(
+                    base=self._ldap_base_dn,
+                    scope=ldap.SCOPE_SUBTREE,
+                    filter=_group_filter,
+                    attr_list=_attr_list,
+                )
+                logger.debug(f"Group Membership Result {_get_groups}")
+                if _get_groups.get("success") is True:
+                    for group in _get_groups.get("message"):
+                        # ex: ('cn=socaadminsocagroup,ou=group,dc=soca-dev200,dc=local', {'cn': [b'socaadminsocagroup'], 'memberUid': [b'socaadmin']})
+                        group_base = group[0]
+                        if _attr_list[1] in group[1].keys():
+                            for member in group[1][_attr_list[1]]:
+                                if (
+                                    member.decode("utf-8")
+                                    if isinstance(member, bytes)
+                                    else member
+                                ) == username:
+                                    return SocaResponse(
+                                        success=True,
+                                        message=f"User is allowed via allowed_groups list. Found in {group_base}",
+                                    )
+                        else:
+                            logger.warning(
+                                f"{_attr_list[1]} not found in the results. Are you using something different than memberUid (OpenLDAP) or member (AD) ?"
+                            )
+
+            return SocaResponse(
+                success=False,
+                message=f"User not found in specified groups or list of users",
+            )
+
+        except Exception as err:
+            return SocaError.IDENTITY_PROVIDER_ERROR(
+                helper=f"Unable to validat if user is approved  due to {err}",
             )

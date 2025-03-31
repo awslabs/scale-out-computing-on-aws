@@ -1,0 +1,216 @@
+<!--
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: Apache-2.0
+-->
+
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    {% include 'common/header.html' %}
+</head>
+<body id="page-top">
+<div id="wrapper">
+    {% include 'common/vertical_menu_bar.html' %}
+    <div id="content-wrapper" class="d-flex flex-column">
+        <div id="content">
+            <br>
+            <div class="container-fluid">
+                {% include 'common/horizontal_menu_bar.html' %}
+                {% include 'common/flashed_messages.html' %}
+
+                <div class="col-md-12">
+                    <nav>
+                        <div class="nav nav-tabs" id="nav-tab" role="tablist">
+                            <a class="nav-item nav-link active" id="nav-home-tab" data-bs-toggle="tab" href="#nav-add"
+                               role="tab" aria-controls="nav-home" aria-selected="true">Create SOCA Project</a>
+                            <a class="nav-item nav-link" id="nav-profile-tab" data-bs-toggle="tab" href="#nav-delete"
+                               role="tab" aria-controls="nav-delete" aria-selected="false">Manage SOCA Projects</a>
+                        </div>
+                    </nav>
+
+                    <div class="tab-content" id="nav-tabContent">
+                        <div class="tab-pane fade show active" id="nav-add" role="tabpanel"
+                             aria-labelledby="nav-home-tab">
+                            <br>
+                            <div class="card shadow mb-4">
+                                <div class="card-header py-3">
+                                    <h6 class="m-0 font-weight-bold text-primary">Create a new SOCA Project</h6>
+                                </div>
+                                    <div class="card-body">
+                                        <div class="alert alert-primary">
+                                            SOCA Projects let you control visibility for your <a href="/admin/virtual_desktops/software_stacks" target="_blank">Virtual Desktop Software stacks</a>.
+                                        </div>
+
+                                        <form action="/admin/projects/create" method="post">
+                                            <div class="form-group">
+                                                <label for="project_name" data-toggle="tooltip" data-placement="top"
+                                                       title="Name for your project">Project Name</label>
+                                                <input id="project_name" placeholder="Friendly Name for your project"
+                                                       class="form-control"
+                                                       type="text"
+                                                       required name="project_name">
+                                            </div>
+
+                                            <div class="form-group">
+                                                <label for="description" data-toggle="tooltip" data-placement="top"
+                                                       title="Description of your Project">Project Description
+                                                </label>
+                                                <textarea id="description" placeholder="(Optional) Description for your project maximum 500 characters."
+                                                          class="form-control" rows="3"  name="description"></textarea>
+                                            </div>
+
+                                            <div class="form-group">
+                                                <label for="allowed_users" data-toggle="tooltip" data-placement="top"
+                                                       title="Name for your project">Allowed Users</label>
+                                                <input id="allowed_users"
+                                                       class="form-control"
+                                                       type="text"
+                                                       name="allowed_users" value="*" data-ub-tag-variant="primary">
+                                                <small>Notes:
+                                                    <ul>
+                                                        <li>Must be a valid SOCA user</li>
+                                                        <li>Enter <code>*</code> to grant permissions to all users</li>
+                                                        <li>Leave it blank to remove access for all users</li>
+
+                                                    </ul>
+                                                </small>
+                                            </div>
+
+                                             <div class="form-group">
+                                                  <label for="software_stack_ids" data-toggle="tooltip" data-placement="top"
+                                                       title="List of authorized software stacks">Authorized VDI Software Stacks (select all that apply)</label>
+                                                <div class="alert alert-warning" id="numberOfSelectedStacks"></div>
+                                                 <select class="form-control" style="height: 500px;" id="software_stack_ids" name="software_stack_ids" multiple>
+                                                        {% for software_stack_id, software_stack_info in software_stacks.items() %}
+                                                            <option selected value="{{ software_stack_id }}">
+                                                                ID: {{software_stack_id}} - {{ software_stack_info.stack_name }} ({{software_stack_info.ami_arch}})
+                                                            </option>
+                                                        {% endfor %}
+                                                    </select>
+                                             </div>
+
+                                            <div>
+                                                <input type="hidden" name="csrf_token"
+                                                       value="{{ csrf_token() }}">
+                                                <button type="submit" class="btn btn-primary btn-lg">Create new SOCA Project
+                                                </button>
+                                            </div>
+                                        </form>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="tab-pane fade" id="nav-delete" role="tabpanel" aria-labelledby="nav-profile-tab">
+                                <br>
+                                <div class="card shadow mb-4">
+                                    <div class="card-header py-3">
+                                        <h6 class="m-0 font-weight-bold text-primary">Manage SOCA Projects</h6>
+                                    </div>
+                                    <div class="card-body">
+                                        <div class="row">
+                                        {% if projects %}
+                                            <div class="col-md-5">
+                                            <form id="projectForm" action="/admin/projects/delete" method="post">
+                                                <div class="form-group">
+                                                    <select class="form-control" id="project_id" name="project_id">
+                                                        {% for project_id, project_data in projects.items() %}
+                                                        <option value="{{project_id}}"
+                                                        data-soca-allowed-users="{{project_data.allowed_users}}"
+                                                        data-soca-created-on="{{project_data.created_on}}"
+                                                        data-soca-created-by="{{project_data.created_by}}"
+                                                        data-soca-description="{{project_data.description}}"
+                                                        data-soca-allowed-software-stacks="{{project_data.software_stack_ids}}">ID: {{project_id}} - {{project_data.project_name}}
+                                                        </option>
+                                                    {% endfor %}
+                                                    </select>
+
+
+                                                </div>
+                                                <div class="form-group form-check">
+                                                    <input type="checkbox" class="form-check-input" name="verif" id="verif"
+                                                           required>
+                                                    <label class="form-check-label" for="verif">I am sure I want to
+                                                        delete this project from SOCA</label>
+                                                </div>
+                                                <div class="d-flex justify-content-center">
+                                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                                    <button type="submit" class="btn btn-danger btn-lg mr-2">Delete Project</button>
+                                                    <button type="button" class="btn btn-primary btn-lg" onclick="submitEditForm()">Edit Project</button>
+
+                                                </div>
+                                            </form>
+                                                </div>
+                                            <div class="col-md-7">
+                                                 <div id="projectInfo">
+                                                            Select a Project to see details.
+                                                    </div>
+                                            </div>
+                                        {% else %}
+                                            No Project Found
+                                        {% endif %}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    <a class="scroll-to-top rounded" href="#page-top">
+                        <i class="fas fa-angle-up"></i>
+                    </a>
+
+                {% include 'common/footer.html' %}
+                <script>
+                    $(document).ready(function () {
+                        // enable tooltip
+                        $(function () {
+                            $('[data-toggle="tooltip"]').tooltip()
+                        })
+                    })
+                </script>
+                    <script>
+
+                        const selectElement = document.getElementById("software_stack_ids");
+    const countDiv = document.getElementById("numberOfSelectedStacks");
+
+    function updateSelectedCount() {
+        const selectedCount = selectElement.selectedOptions.length;
+        countDiv.innerHTML = `You have selected: <strong>${selectedCount}</strong> Stacks for this profile`;
+    }
+
+    updateSelectedCount();
+
+    selectElement.addEventListener("change", updateSelectedCount);
+
+                        function submitEditForm() {
+                            let form = document.getElementById('projectForm');
+                            form.action = "/admin/projects/edit";
+                            form.submit();
+                        }
+
+                        function updateProjectInfo() {
+                        var selectElement = document.getElementById("project_id");
+                        var selectedOption = selectElement.options[selectElement.selectedIndex];
+
+                        document.getElementById("projectInfo").innerHTML =
+                            "<h3>Project Details:</h3> <hr>" +
+                            "<strong>Allowed Users:</strong> " + selectedOption.getAttribute("data-soca-allowed-users") +
+                            "<br><strong><a href='/admin/virtual_desktops/software_stacks' target='_blank'>Allowed Software Stack IDs:</a></strong> " + selectedOption.getAttribute("data-soca-allowed-software-stacks") +
+                            "<br><strong>Description:</strong> " + selectedOption.getAttribute("data-soca-description") +
+                            "<br><strong>Created By:</strong> " + selectedOption.getAttribute("data-soca-created-by") +
+                            "<br><strong>Created On</strong> " + selectedOption.getAttribute("data-soca-created-on");
+                        }
+
+                        const bootstrapTagInputBoxAllowedUsers = UseBootstrapTag(document.getElementById('allowed_users'));
+
+                        document.addEventListener("DOMContentLoaded", function() {
+                            updateProjectInfo(); // Call the function on page load
+                            document.getElementById("project_id").addEventListener("change", updateProjectInfo);
+                        });
+                    </script>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+</body>
+</html>

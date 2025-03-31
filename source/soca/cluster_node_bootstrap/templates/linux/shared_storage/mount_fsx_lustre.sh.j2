@@ -44,6 +44,7 @@
       fi
       log_info "FSx Driver installed"
     }
+
   {% endif %}
 
   function mount_fsx_lustre {
@@ -168,6 +169,12 @@
               *"5.14.0-70"*) rhel_driver_install 9 's#9#9.0#' ;;
               *) log_error "Can't install FSx for Lustre client as kernel version $KERNEL isn't matching expected versions for EL9";;
             esac
+        {% elif context.get("/configuration/BaseOS") == "ubuntu2204" %}
+            file_download --download-url="https://fsx-lustre-client-repo-public-keys.s3.amazonaws.com/fsx-ubuntu-public-key.asc" --save-as="${SOCA_BOOTSTRAP_ASSETS_FOLDER}/fsx-ubuntu-public-key.asc"
+            gpg --dearmor < ${SOCA_BOOTSTRAP_ASSETS_FOLDER}/fsx-ubuntu-public-key.asc | sudo tee /usr/share/keyrings/fsx-ubuntu-public-key.gpg >/dev/null
+            echo "deb [signed-by=/usr/share/keyrings/fsx-ubuntu-public-key.gpg] https://fsx-lustre-client-repo.s3.amazonaws.com/ubuntu jammy main" > /etc/apt/sources.list.d/fsxlustreclientrepo.list
+            packages_generic_command update
+            packages_install linux-aws lustre-client-modules-aws
         {% endif %}
       else
         log_info "FSx Lustre Driver already installed ..."

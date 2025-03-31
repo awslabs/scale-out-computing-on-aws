@@ -1,0 +1,84 @@
+<!--
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: Apache-2.0
+-->
+
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    {% include 'common/header.html' %}
+</head>
+<body id="page-top">
+<div id="wrapper">
+    {% include 'common/vertical_menu_bar.html' %}
+    <div id="content-wrapper" class="d-flex flex-column">
+        <div id="content">
+            <br>
+            <div class="container-fluid">
+                {% include 'common/horizontal_menu_bar.html' %}
+                {% include 'common/flashed_messages.html' %}
+
+                <div class="col-md-12">
+                    <div class="tab-content" id="nav-tabContent">
+                        <div class="tab-pane fade show active" id="nav-add" role="tabpanel"
+                             aria-labelledby="nav-home-tab">
+                            <br>
+                            <div class="card shadow mb-4">
+                                <div class="card-header py-3">
+                                    <h6 class="m-0 font-weight-bold text-primary">Check project membership for a given user</h6>
+                                </div>
+                                    <div class="card-body">
+                                        <div class="row">
+                                        <div class="col-md-4">
+                                        <form action="/admin/projects/by_user" method="get">
+                                            <div class="form-group">
+                                                <select class="form-control"  id="user_to_check" name="user">
+                                                    {% for user in all_soca_users %}
+                                                    <option value="{{user}}"> {{user}} </option>
+                                                    {% endfor %}
+                                                </select>
+                                            </div>
+                                            <div>
+                                                <button type="submit" class="btn btn-primary btn-lg">Check Project Membership</button>
+                                            </div>
+                                        </form>
+                                        </div>
+
+                                        {% if projects %}
+                                        <div class="col-md-8">
+                                            <h3>Project membership for {{ user_to_check }}:</h3>
+                                            <ul>
+                                                {% for project_id, project_data in projects.items() %}
+                                                <li>ID {{project_id}} - {{project_data.project_name}}</li>
+                                                {% endfor %}
+                                            </ul>
+                                        </div>
+                                        {% endif %}
+                                            </div>
+
+
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    <a class="scroll-to-top rounded" href="#page-top">
+                        <i class="fas fa-angle-up"></i>
+                    </a>
+
+                {% include 'common/footer.html' %}
+                <script>
+                    $(document).ready(function () {
+                        // enable tooltip
+                        $(function () {
+                            $('[data-toggle="tooltip"]').tooltip()
+                        })
+                    })
+                </script>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+</body>
+</html>

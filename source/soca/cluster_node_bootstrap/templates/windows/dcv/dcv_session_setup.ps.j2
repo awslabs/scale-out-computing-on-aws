@@ -1,0 +1,48 @@
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# Begin - Configure DCVSession
+
+function Configure-DCVSession {
+
+    Log-Info -Message "Configuring DCV Session"
+    $dcvPath = "Microsoft.PowerShell.Core\Registry::\HKEY_USERS\S-1-5-18\Software\GSettings\com\nicesoftware\dcv"
+
+    # Note: Hostname is defined globally
+    $DCVHostAltname = ${hostname}.split(".")[0]
+
+    Log-Info -Message "Creating DCV Default console session"
+    New-ItemProperty -Path "${dcvPath}\session-management" -Name create-session -PropertyType DWORD -Value 1 -Force
+    New-ItemProperty -Path "${dcvPath}\session-management\automatic-console-session" -Name "owner" -Value "{{ context.get('/dcv/SessionOwner') }}" -Force
+
+    Log-Info -Message "Update DCV web-url-path"
+    New-ItemProperty -Path "${dcvPath}\connectivity" -Name "web-url-path" -PropertyType "String" -Value "/${DCVHostAltname}" -Force
+
+    Log-Info -Message "Disable DCV os-auto-lock"
+    New-ItemProperty -Path "${dcvPath}\security" -Name "os-auto-lock" -PropertyType "DWord" -Value 1 -Force
+
+    Log-Info -Message "Enable DCV disable-display-sleep"
+    New-ItemProperty -Path "${dcvPath}\security" -Name "disable-display-sleep" -PropertyType "DWord" -Value 1 -Force
+
+    Log-Info -Message "Enable Session storage"
+    $storageRootPath = "C:\{{ context.get('/system/dcv/session_storage') }}"
+    if (!(Test-Path -Path $storageRootPath)) {
+        New-Item -ItemType Directory -Path $storageRootPath
+        Log-Info -Message "Created $storageRootPath"
+    } else {
+        Log-Info -Message "Folder $storageRootPath already exist"
+    }
+    New-ItemProperty -Path "${dcvPath}\session-management\automatic-console-session" -Name "storage-root" -PropertyType "String" -Value ${storageRootPath} -Force
+
+    # Disabling external authenticator when using console session on Windows
+    #Log-Info -Message "Non-AD use Custom Authenticator for DCV session authentication via authToken"
+    #New-Item -Path "Microsoft.PowerShell.Core\Registry::\HKEY_USERS\S-1-5-18\Software\GSettings\com\nicesoftware\dcv\" -Name security -Force
+    #New-ItemProperty -Path "Microsoft.PowerShell.Core\Registry::\HKEY_USERS\S-1-5-18\Software\GSettings\com\nicesoftware\dcv\security" -Name "auth-token-verifier" -PropertyType "String" -Value "https://{{ context.get('/configuration/ControllerPrivateIP') }}:8443/api/dcv/authenticator" -Force
+    #New-ItemProperty -Path "Microsoft.PowerShell.Core\Registry::\HKEY_USERS\S-1-5-18\Software\GSettings\com\nicesoftware\dcv\security" -Name "no-tls-strict" -PropertyType "DWord" -Value 1 -Force
+    # New-ItemProperty -Path "Microsoft.PowerShell.Core\Registry::\HKEY_USERS\S-1-5-18\Software\GSettings\com\nicesoftware\dcv\security" -Name "authentication" -PropertyType "String" -Value "system" -Force
+
+    Log-Info -Message "DCV Session configured successfully"
+
+}
+
+Configure-DCVSession

@@ -16,8 +16,8 @@ function install_nvidia_grid_drivers () {
   mkdir -p "${SOCA_BOOTSTRAP_ASSETS_FOLDER}/gpu_drivers"
   pushd "${SOCA_BOOTSTRAP_ASSETS_FOLDER}/gpu_drivers"
   rm -rf NVIDIA-Linux-x86_64*.run || log_info "No previous .run file detected"
-  local DRIVER_BUCKET_REGION=$(curl -s --head "{{ context.get("/system/gpu/gpu_settings/nvidia/grid_drivers/s3_bucket_url") }}" | grep bucket-region | awk '{print $2}' | tr -d '\r\n')
-  aws_cli --region ${DRIVER_BUCKET_REGION} s3 cp --quiet --recursive "{{ context.get("/system/gpu/gpu_settings/nvidia/grid_drivers/s3_bucket_path") }}" .
+  local DRIVER_BUCKET_REGION=$(curl -s --head "{{ context.get("/system/gpu/gpu_settings/nvidia/linux/grid_drivers/s3_bucket_url") }}" | grep bucket-region | awk '{print $2}' | tr -d '\r\n')
+  aws_cli --region ${DRIVER_BUCKET_REGION} s3 cp --quiet --recursive "{{ context.get("/system/gpu/gpu_settings/nvidia/linux/grid_drivers/s3_bucket_path") }}" .
   local x_server_pid=$(cat /tmp/.X0-lock)
   if [[ ! -z "${x_server_pid}" ]]; then
     kill $x_server_pid
@@ -41,7 +41,7 @@ function install_nvidia_grid_drivers () {
 function install_nvidia_public_tesla_drivers() {
   local DRIVER_VERSION="${1}"
   local MACHINE=$(uname -m)
-  local DRIVER_URL_ENDPOINT="{{ context.get("/system/gpu/gpu_settings/nvidia/tesla_drivers/public_driver_url_endpoint") }}"
+  local DRIVER_URL_ENDPOINT="{{ context.get("/system/gpu/gpu_settings/nvidia/linux/tesla_drivers/public_driver_url_endpoint") }}"
 
   which nvidia-smi > /dev/null 2>&1
   if [[ "$?" == "0" ]]; then

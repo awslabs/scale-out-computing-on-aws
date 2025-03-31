@@ -43,8 +43,11 @@ def cast_wrapper(data: Any, cast_as: [str, list, float, int, dict]):
     if _cast_attempt.success:
         return _cast_attempt.message
     else:
-        SocaError.GENERIC_ERROR(helper=f"Unable to cast {data} as {cast_as}. {_cast_attempt}")
+        SocaError.GENERIC_ERROR(
+            helper=f"Unable to cast {data} as {cast_as}. {_cast_attempt}"
+        )
         sys.exit(1)
+
 
 def get_aws_pricing(ec2_instance_type):
     pricing = {}
@@ -65,8 +68,13 @@ def get_aws_pricing(ec2_instance_type):
                 for skus in v.keys():
                     for ratecode in v[skus]["priceDimensions"].keys():
                         instance_data = v[skus]["priceDimensions"][ratecode]
-                        if f"on demand linux {ec2_instance_type} instance hour" in instance_data["description"].lower():
-                            pricing["ondemand"] = float(instance_data["pricePerUnit"]["USD"])
+                        if (
+                            f"on demand linux {ec2_instance_type} instance hour"
+                            in instance_data["description"].lower()
+                        ):
+                            pricing["ondemand"] = float(
+                                instance_data["pricePerUnit"]["USD"]
+                            )
             else:
                 for skus in v.keys():
                     if (
@@ -95,13 +103,7 @@ def job_already_indexed(job_uuid: str) -> bool:
     json_to_push = {
         "query": {
             "bool": {
-                "must": [
-                    {
-                        "match": {
-                            "job_uuid": job_uuid
-                        }
-                    }
-                ],
+                "must": [{"match": {"job_uuid": job_uuid}}],
                 "filter": [
                     {
                         "range": {
@@ -122,13 +124,13 @@ def job_already_indexed(job_uuid: str) -> bool:
 
     _search_result = _analytics_client.search(index=_index_name, body=json_to_push)
     if _search_result.success is True:
-        if any(d.get('job_uuid') == job_uuid for d in _search_result.message) is True:
+        if any(d.get("job_uuid") == job_uuid for d in _search_result.message) is True:
             logger.debug(f"Job {job_uuid} already indexed")
             return True
         else:
             logger.info(f"Job {job_uuid} not present in index, data can be indexed")
             return False
-
+    return False
 
 
 def read_file(filename: str) -> str:
@@ -162,15 +164,23 @@ if __name__ == "__main__":
     ec2_client = get_boto(service_name="ec2").message
     pricing_client = get_boto(service_name="pricing", region_name="us-east-1").message
 
-    _cluster_id = SocaConfig(key='/configuration/ClusterId').get_value().message
-    _log_file_location = f"/apps/soca/{_cluster_id}/cluster_manager/analytics/logs/job_tracking.log"
-    logger = SocaLogger(name="analytics_job_tracking").rotating_file_handler(file_path=_log_file_location)
+    _cluster_id = SocaConfig(key="/configuration/ClusterId").get_value().message
+    _log_file_location = (
+        f"/opt/soca/{_cluster_id}/cluster_manager/analytics/logs/job_tracking.log"
+    )
+    logger = SocaLogger(name="analytics_job_tracking").rotating_file_handler(
+        file_path=_log_file_location
+    )
 
     logger.info(f"Tracking active HPC jobs . Log: {_log_file_location}")
 
     _analytics_client = SocaAnalyticsClient(
-        endpoint=SocaConfig(key="/configuration/Analytics/endpoint").get_value().get("message"),
-        engine=SocaConfig(key="/configuration/Analytics/engine").get_value().get("message")
+        endpoint=SocaConfig(key="/configuration/Analytics/endpoint")
+        .get_value()
+        .get("message"),
+        engine=SocaConfig(key="/configuration/Analytics/engine")
+        .get_value()
+        .get("message"),
     )
 
     if _analytics_client.is_enabled().success is False:
@@ -200,7 +210,9 @@ if __name__ == "__main__":
                         job_state = data[1]
                         job_id = data[2].split(".")[0]
                         job_data = data[3]
-                        logger.debug(f"Valid line detected, timestamp {timestamp}, job_state {job_state}, job_id {job_id}, job_data {job_data}")
+                        logger.debug(
+                            f"Valid line detected, timestamp {timestamp}, job_state {job_state}, job_id {job_id}, job_data {job_data}"
+                        )
 
                         if job_id in output.keys():
                             output[job_id].append(
@@ -223,17 +235,23 @@ if __name__ == "__main__":
                 except Exception as err:
                     exc_type, exc_obj, exc_tb = sys.exc_info()
                     fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
-                    SocaError.GENERIC_ERROR(helper=f"{err}, {exc_type}, {fname}, {exc_tb.tb_lineno}")
+                    SocaError.GENERIC_ERROR(
+                        helper=f"{err}, {exc_type}, {fname}, {exc_tb.tb_lineno}"
+                    )
                     sys.exit(1)
 
         except Exception as err:
             exc_type, exc_obj, exc_tb = sys.exc_info()
             fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
-            SocaError.GENERIC_ERROR(helper=f"{err}, {exc_type}, {fname}, {exc_tb.tb_lineno}")
+            SocaError.GENERIC_ERROR(
+                helper=f"{err}, {exc_type}, {fname}, {exc_tb.tb_lineno}"
+            )
             sys.exit(1)
 
     for job_id, values in output.items():
-        logger.debug(f"Checking if {job_id} can be index, ignoring all lines where job_state is not 'e'")
+        logger.debug(
+            f"Checking if {job_id} can be index, ignoring all lines where job_state is not 'e'"
+        )
         try:
             for data in values:
                 try:
@@ -241,7 +259,9 @@ if __name__ == "__main__":
                         logger.debug(f"Valid job state, processing  {data}")
                         ignore = False
                         if "Resource_List.instance_type" not in data["job_data"]:
-                            logger.info(f"No instance type found for {job_id}, ignoring ... ")
+                            logger.info(
+                                f"No instance type found for {job_id}, ignoring ... "
+                            )
                             ignore = True
                         else:
                             queue = re.search(r"queue=(\w+)", data["job_data"]).group(1)
@@ -259,25 +279,50 @@ if __name__ == "__main__":
 
                                     if resource_name == "select":
                                         # Extract meaningful info in select
-                                        job_info["nodect"] = cast_wrapper(data=resource_value.split(":")[0], cast_as=int)
+                                        job_info["nodect"] = cast_wrapper(
+                                            data=resource_value.split(":")[0],
+                                            cast_as=int,
+                                        )
 
                                         _options = {
-                                            "mpiprocs": {"regex": "mpiprocs=(\d+)", "type": int},
-                                            "ppn": {"regex": "ppn=(\d+)","type": int},
-                                            "ncpus": {"regex": "ncpus=(\d+)", "type": int}
+                                            "mpiprocs": {
+                                                "regex": "mpiprocs=(\d+)",
+                                                "type": int,
+                                            },
+                                            "ppn": {"regex": "ppn=(\d+)", "type": int},
+                                            "ncpus": {
+                                                "regex": "ncpus=(\d+)",
+                                                "type": int,
+                                            },
                                         }
 
                                         for attr_name, attr_info in _options.items():
-                                            _attr_exist = re.search(attr_info.get('regex'), resource_value)
+                                            _attr_exist = re.search(
+                                                attr_info.get("regex"), resource_value
+                                            )
                                             if _attr_exist:
-                                                job_info[attr_name] = cast_wrapper(data=_attr_exist.group(1), cast_as=attr_info.get('type'))
+                                                job_info[attr_name] = cast_wrapper(
+                                                    data=_attr_exist.group(1),
+                                                    cast_as=attr_info.get("type"),
+                                                )
 
                                         # Finally add the entire select as str
                                         job_info["select"] = str(resource_value)
 
-                                    elif resource_name in ["start", "end", "qtime", "ctime", "etime", "Exit_status", "root_size", "scratch_size"]:
+                                    elif resource_name in [
+                                        "start",
+                                        "end",
+                                        "qtime",
+                                        "ctime",
+                                        "etime",
+                                        "Exit_status",
+                                        "root_size",
+                                        "scratch_size",
+                                    ]:
                                         # Cast safe value to int
-                                        job_info[resource_name] = cast_wrapper(data=resource_value, cast_as=int)
+                                        job_info[resource_name] = cast_wrapper(
+                                            data=resource_value, cast_as=int
+                                        )
 
                                     else:
                                         # Force cast everything else as string to avoid case where you start indexing as long/integer (eg: -l select=3)
@@ -289,12 +334,20 @@ if __name__ == "__main__":
                                 job_info["simulation_time_seconds"] = (
                                     job_info["end"] - job_info["start"]
                                 )
-                                job_info["simulation_time_minutes"] = cast_wrapper(data=job_info["simulation_time_seconds"] / 60, cast_as=float)
+                                job_info["simulation_time_minutes"] = cast_wrapper(
+                                    data=job_info["simulation_time_seconds"] / 60,
+                                    cast_as=float,
+                                )
 
-                                job_info["simulation_time_hours"] = cast_wrapper(data=job_info["simulation_time_minutes"] / 60, cast_as=float)
+                                job_info["simulation_time_hours"] = cast_wrapper(
+                                    data=job_info["simulation_time_minutes"] / 60,
+                                    cast_as=float,
+                                )
 
-                                job_info["simulation_time_days"] = cast_wrapper(data=job_info["simulation_time_hours"] / 24, cast_as=float)
-
+                                job_info["simulation_time_days"] = cast_wrapper(
+                                    data=job_info["simulation_time_hours"] / 24,
+                                    cast_as=float,
+                                )
 
                                 job_info["mem_kb"] = int(
                                     job_info["mem"].replace("kb", "")
@@ -337,9 +390,9 @@ if __name__ == "__main__":
                                     job_info["simulation_time_seconds"] + EC2_BOOT_DELAY
                                 )
                                 job_info["estimated_price_storage_scratch_iops"] = 0
-                                job_info[
-                                    "estimated_price_storage_root_size"
-                                ] = 0  # alwayson
+                                job_info["estimated_price_storage_root_size"] = (
+                                    0  # alwayson
+                                )
                                 job_info["estimated_price_storage_scratch_size"] = 0
                                 job_info["estimated_price_fsx_lustre"] = 0
 
@@ -466,22 +519,30 @@ if __name__ == "__main__":
                 except Exception as err:
                     exc_type, exc_obj, exc_tb = sys.exc_info()
                     fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
-                    SocaError.GENERIC_ERROR(helper=f"Error with {data} for job id {job_id} - {err}, {exc_type}, {fname}, {exc_tb.tb_lineno}")
+                    SocaError.GENERIC_ERROR(
+                        helper=f"Error with {data} for job id {job_id} - {err}, {exc_type}, {fname}, {exc_tb.tb_lineno}"
+                    )
                     sys.exit(1)
 
         except Exception as err:
             exc_type, exc_obj, exc_tb = sys.exc_info()
             fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
-            SocaError.GENERIC_ERROR(helper=f"{err}, {exc_type}, {fname}, {exc_tb.tb_lineno}")
+            SocaError.GENERIC_ERROR(
+                helper=f"{err}, {exc_type}, {fname}, {exc_tb.tb_lineno}"
+            )
             sys.exit(1)
 
     _index_exist = _analytics_client.index_exist(index=_index_name)
     for entry in json_output:
         if _index_exist.success is False:
-            logger.info(f"Index {_index_name} does not exist, creating it automatically ")
+            logger.info(
+                f"Index {_index_name} does not exist, creating it automatically "
+            )
             _analytics_client.index(index=_index_name, body=json.dumps(entry))
         else:
-            logger.debug(f"Index {_index_name} already exist, checking if {entry['job_uuid']} is not already indexed")
+            logger.debug(
+                f"Index {_index_name} already exist, checking if {entry['job_uuid']} is not already indexed"
+            )
             if job_already_indexed(f"{entry['job_uuid']}") is False:
                 _analytics_client.index(index=_index_name, body=json.dumps(entry))
                 logger.info(f"{entry['job_uuid']} indexed successfully ")

@@ -2,7 +2,6 @@
 # SPDX-License-Identifier: Apache-2.0
 
 # Begin: EFA Installer
-{% if context.get("/configuration/BaseOS") in ("amazonlinux2", "amazonlinux2023", "centos7", "rhel7", "rhel8", "rhel9", "rocky8", "rocky9") %}
 function efa_install () {
   log_info "# Begin: EFA Installer"
   local EFA_VERSION="{{ context.get("/system/efa/version") }}"
@@ -35,5 +34,4 @@ if ! verify_package_installed efa; then
 else
   log_info "EFA is already installed on this machine. Please uninstall it first or use a different AMI"
 fi
-{% endif %}
 # End: EFA Installer

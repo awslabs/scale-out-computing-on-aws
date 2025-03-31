@@ -172,7 +172,7 @@ class Job(Resource):
             try:
                 random_id = "".join(
                     random.choice(string.ascii_letters + string.digits)
-                    for i in range(10)
+                    for _i in range(10)
                 )
                 job_submit_file = f"job_submit_{random_id}.sh"
 
@@ -187,7 +187,7 @@ class Job(Resource):
                         f"{job_output_folder}{sanitized_job_name}_{random_id}"
                     )
                     logger.debug(
-                        f"Creating job submission directoring path {job_output_folder}"
+                        f"Creating job submission directory path {job_output_folder}"
                     )
                     os.makedirs(job_output_path)
                     logger.debug("Applying 0o700 permission to the folder")

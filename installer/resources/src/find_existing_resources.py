@@ -53,7 +53,7 @@ class FindExistingResource:
 
 
     def find_vpc(self):
-        vpc_table = Table(title=f"Select the VPC # in {self.region} for SOCA deployment", show_lines=True, highlight=True)
+        vpc_table = Table(title=f"Select the VPC # in {self.region} region for SOCA deployment", show_lines=True, highlight=True)
         for _col_name in ["#", "VPC ID", "VPC Name", "VPC CIDRs", "Information"]:
             vpc_table.add_column(_col_name, justify="center")
 
@@ -90,12 +90,19 @@ class FindExistingResource:
             for resource_name in sorted(vpcs_by_name):
                 vpc = vpcs_by_name[resource_name]
 
+                _pri_ipv4_cidr: str = vpc.get("CidrBlock", "")
+                # print(f"Primary Pv4 CIDR for VPC: {_pri_ipv4_cidr}")
+
                 _cidr_for_vpc: list = []
 
                 if vpc.get('CidrBlockAssociationSet', {}):
                     for _association in vpc.get('CidrBlockAssociationSet', {}):
                         if _association.get('CidrBlockState', {}).get('State', 'unknown-state').lower() == 'associated':
-                            _cidr_for_vpc.append(_association.get('CidrBlock'))
+                            if _association.get('CidrBlock') == _pri_ipv4_cidr:
+                                _cidr_info: str = "(Primary)"
+                            else:
+                                _cidr_info: str = ""
+                            _cidr_for_vpc.append(f"{_association.get('CidrBlock')} {_cidr_info}")
 
                 if vpc.get('Ipv6CidrBlockAssociationSet', {}):
                     for _association in vpc.get('Ipv6CidrBlockAssociationSet', {}):
@@ -104,6 +111,22 @@ class FindExistingResource:
 
                 _cidr_str: str = '\n'.join(_cidr_for_vpc)
 
+                _info_txt_list: list = []
+
+                # Include some VPC information for easier ident of the VPC
+                _vpc_bpa_igw_setting_str: str = vpc.get("BlockPublicAccessStates", {}).get("InternetGatewayBlockMode", "")
+                if _vpc_bpa_igw_setting_str:
+                    _info_txt_list.append(f"[bold green]IGW-Block Mode: {_vpc_bpa_igw_setting_str}[/]")
+
+                _vpc_default_bool: bool = vpc.get("IsDefault", False)
+                if _vpc_default_bool:
+                    _info_txt_list.append(f"[bold green]Default VPC[/]")
+
+                _vpc_tenancy_setting_str: str = vpc.get("InstanceTenancy", "")
+                if _vpc_tenancy_setting_str:
+                    _info_txt_list.append(f"[bold green]Tenancy: {_vpc_tenancy_setting_str}[/]")
+
+
                 # check VPC for some required attributes
                 _vpc_allowed: bool = True
                 _vpc_attributes: dict = {
@@ -111,7 +134,6 @@ class FindExistingResource:
                     "enableDnsHostnames": False,
                 }
 
-                _info_txt_list: list = []
 
                 for _vpc_attribute in _vpc_attributes:
                     _vpc_cap = _vpc_attribute[0].upper() + _vpc_attribute[1:]  # enableDnsSupport -> EnableDnsSupport (to match JSON values)
@@ -527,11 +549,6 @@ class FindExistingResource:
 
             count = 1
 
-            # [
-            #     print("    {} > {}".format(key, value["description"]))
-            #     for key, value in filesystems.items()
-            # ]
-
             allowed_choices = list(filesystems.keys())
             choice = get_input(
                 f"Choose the filesystem to use for {environment}?",
@@ -814,38 +831,39 @@ class FindExistingResource:
                 cfn_params.get("vpc_endpoint_sg", None), None
             )
 
-            errors = {}
+            errors = {
+                "SCHEDULER_SG_IN_COMPUTE": {
+                    "status": False,
+                    "error": f"Compute Node SG must allow all TCP traffic from Scheduler SG",
+                    "resolution": f"Add new rule on {cfn_params['compute_node_sg']} that allow TCP ports '0-65535' for {cfn_params['scheduler_sg']}",
+                },
+                "COMPUTE_SG_IN_SCHEDULER": {
+                    "status": False,
+                    "error": f"Scheduler SG must allow all TCP traffic from Compute Node SG",
+                    "resolution": f"Add a new rule on {cfn_params['scheduler_sg']} that allow TCP ports '0-65535' for {cfn_params['compute_node_sg']}",
+                },
+                "CLIENT_IP_HTTPS_IN_SCHEDULER": {
+                    "status": False,
+                    "error": f"Client IP must be allowed for port 443 (80 optional) on Scheduler SG",
+                    "resolution": f"Add two rules on {cfn_params['scheduler_sg']} that allow TCP ports 80 and 443 for {self.client_ip}",
+                },
+                "CLIENT_IP_SSH_IN_SCHEDULER": {
+                    "status": False,
+                    "error": f"Client IP must be allowed for port 22 (SSH) on Scheduler SG",
+                    "resolution": f"Add one rule on {cfn_params['scheduler_sg']} that allow TCP port 22 for {self.client_ip}",
+                },
+                "SCHEDULER_SG_EQUAL_COMPUTE": {
+                    "status": False,
+                    "error": "Scheduler SG and Compute SG must be different",
+                    "resolution": "You must choose two different security groups",
+                },
+                "COMPUTE_SG_EGRESS_EFA": {
+                    "status": False,
+                    "error": "Compute SG must reference egress traffic to itself for EFA",
+                    "resolution": f"Add a new (EGRESS) rule on {cfn_params['compute_node_sg']} that allow TCP ports '0-65535' for {cfn_params['compute_node_sg']}. Make sure you configure EGRESS rule and not INGRESS",
+                }
+            }
             # status == True means that the check passed
-            errors["SCHEDULER_SG_IN_COMPUTE"] = {
-                "status": False,
-                "error": f"Compute Node SG must allow all TCP traffic from Scheduler SG",
-                "resolution": f"Add new rule on {cfn_params['compute_node_sg']} that allow TCP ports '0-65535' for {cfn_params['scheduler_sg']}",
-            }
-            errors["COMPUTE_SG_IN_SCHEDULER"] = {
-                "status": False,
-                "error": f"Scheduler SG must allow all TCP traffic from Compute Node SG",
-                "resolution": f"Add a new rule on {cfn_params['scheduler_sg']} that allow TCP ports '0-65535' for {cfn_params['compute_node_sg']}",
-            }
-            errors["CLIENT_IP_HTTPS_IN_SCHEDULER"] = {
-                "status": False,
-                "error": f"Client IP must be allowed for port 443 (80 optional) on Scheduler SG",
-                "resolution": f"Add two rules on {cfn_params['scheduler_sg']} that allow TCP ports 80 and 443 for {self.client_ip}",
-            }
-            errors["CLIENT_IP_SSH_IN_SCHEDULER"] = {
-                "status": False,
-                "error": f"Client IP must be allowed for port 22 (SSH) on Scheduler SG",
-                "resolution": f"Add one rule on {cfn_params['scheduler_sg']} that allow TCP port 22 for {self.client_ip}",
-            }
-            errors["SCHEDULER_SG_EQUAL_COMPUTE"] = {
-                "status": False,
-                "error": "Scheduler SG and Compute SG must be different",
-                "resolution": "You must choose two different security groups",
-            }
-            errors["COMPUTE_SG_EGRESS_EFA"] = {
-                "status": False,
-                "error": "Compute SG must reference egress traffic to itself for EFA",
-                "resolution": f"Add a new (EGRESS) rule on {cfn_params['compute_node_sg']} that allow TCP ports '0-65535' for {cfn_params['compute_node_sg']}. Make sure you configure EGRESS rule and not INGRESS",
-            }
             if "vpc_endpoint_sg" in cfn_params:
                 errors["COMPUTE_EGRESS_TO_VPC_ENDPOINTS"] = {
                     "status": False,
@@ -1010,7 +1028,7 @@ class FindExistingResource:
 
             return {"success": True, "message": ""}
 
-        except Exception as e:
+        except Exception as _e:
             exc_type, exc_obj, exc_tb = sys.exc_info()
             fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
             print(f"{exc_type} {fname} {exc_tb.tb_lineno}")

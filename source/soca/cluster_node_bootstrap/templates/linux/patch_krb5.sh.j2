@@ -1,0 +1,46 @@
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# Begin: Patch krb5.conf for AD
+# Some older distribution such as Ubuntu22.04 does not automatically detect the correct kerberos settings when using AD
+
+{% if context.get("/configuration/BaseOS") in ("ubuntu2204")  %}
+  log_info "Patching /etc/krb5.conf prior to joining AD realm"
+  cp /etc/krb5.conf /etc/krb5.conf.original.$(date +%s)
+
+  local KRB5_CONF="/etc/krb5.conf"
+  # Define expected values for each parameter
+  declare -A KRB5_PARAMETERS
+  KRB5_PARAMETERS=(
+      ["default_realm"]="{{ context.get("/configuration/UserDirectory/domain_name") | upper }}"
+      ["ticket_lifetime"]="24h"
+      ["rdns"]="false"
+      ["forwardable"]="true"
+      ["dns_lookup_kdc"]="true"
+      ["dns_lookup_realm"]="true"
+  )
+
+  # Loop through the parameters and check/update them
+  for PARAM in "${!KRB5_PARAMETERS[@]}"; do
+      EXPECTED_VALUE="${KRB5_PARAMETERS[$PARAM]}"
+      CURRENT_VALUE=$(awk -F= "/^\s*${PARAM}\s*=/ {gsub(/[ \t]/, \"\", \$2); print \$2}" ${KRB5_CONF})
+
+      if [[ "${CURRENT_VALUE}" != "${EXPECTED_VALUE}" ]]; then
+          log_info "${PARAM} is incorrect or missing (detected '${CURRENT_VALUE}'). Updating to '${EXPECTED_VALUE}'..."
+
+          # Remove any existing line for this parameter
+          sed -i "/^\s*${PARAM}\s*=/d" ${KRB5_CONF}
+
+          # Add the correct line under [libdefaults]
+          sed -i "/^\[libdefaults\]/a \  ${PARAM} = ${EXPECTED_VALUE}" ${KRB5_CONF}
+
+          log_info "${PARAM} updated to ${EXPECTED_VALUE} in ${KRB5_CONF}."
+      else
+          log_info "${PARAM} is already correctly set to ${EXPECTED_VALUE} in ${KRB5_CONF}."
+      fi
+  done
+
+{% else %}
+  log_info "No need to patch krb5.conf for this linux distribution"
+{% endif %}
+# END: Patch krb5.conf for AD

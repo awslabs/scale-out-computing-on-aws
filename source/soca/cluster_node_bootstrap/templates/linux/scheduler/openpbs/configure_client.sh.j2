@@ -2,14 +2,13 @@
 # SPDX-License-Identifier: Apache-2.0
 
 # Begin: OpenPBS Configure Client
-{% if context.get("/configuration/BaseOS") in ("amazonlinux2", "amazonlinux2023", "centos7", "rhel7", "rhel8", "rhel9", "rocky8", "rocky9") %}
 function openpbs_configure_client () {
     log_info "[BEGIN] openpbs_configure_client... "
     local SCHEDULER_HOSTNAME="{{ context.get("/configuration/ControllerPrivateDnsName") }}"
     # PBS_SERVER must use short name
-    local SCHEDULER_HOSTNAME_ALT=$(echo $SCHEDULER_HOSTNAME | cut -d. -f1)
+    local SCHEDULER_HOSTNAME_ALT=$(echo "${SCHEDULER_HOSTNAME}" | cut -d. -f1)
     local SERVER_HOSTNAME=$(hostname)
-    cp /etc/pbs.conf /etc/pbs.conf.original.$(date +%s)
+    cp /etc/pbs.conf /etc/pbs.conf.original."$(date +%s)"
     echo -e "PBS_SERVER=${SCHEDULER_HOSTNAME_ALT}
 PBS_START_SERVER=0
 PBS_START_SCHED=0
@@ -22,15 +21,17 @@ PBS_CORE_LIMIT=unlimited
 PBS_SCP=/usr/bin/scp
 " > /etc/pbs.conf
 
-  cp /var/spool/pbs/mom_priv/config /var/spool/pbs/mom_priv/config.original.$(date +%s)
+  cp /var/spool/pbs/mom_priv/config /var/spool/pbs/mom_priv/config.original."$(date +%s)"
   echo -e "
 \$clienthost ${SCHEDULER_HOSTNAME_ALT}
 \$usecp *:/dev/null /dev/null
 \$usecp *:/data /data
+\$usecp *:/apps /apps
+# Shared scratch directories should also be added here
+# \$usecp *:/fsx /fsx
 "  > /var/spool/pbs/mom_priv/config
   log_info "[COMPLETED] openpbs_post_install_mom_config_client... "
 }
 
 openpbs_configure_client
-{% endif %}
 # End: OpenPBS Configure Client

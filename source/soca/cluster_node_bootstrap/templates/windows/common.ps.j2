@@ -1,0 +1,17 @@
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# Disable ProgressBar for all Invoke-WebRequest
+$ProgressPreference = 'SilentlyContinue'
+
+# imds must be first, then log
+{% include "templates/windows/common/imds.ps.j2" %}
+
+{% include "templates/windows/common/log.ps.j2" %}
+
+{% include "templates/windows/common/wrapper_awscli.ps.j2" %}
+
+{% include "templates/windows/common/wrapper_install_package.ps.j2" %}
+
+# Require Reboot variable
+$requireReboot = $false

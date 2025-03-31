@@ -49,15 +49,26 @@
       fi
     fi
 
-    # nslookup install
-    if ! verify_package_installed bind-utils; then
-      packages_install bind-utils
+    {% if context.get("/configuration/BaseOS") in ("ubuntu2204", "ubuntu2404") %}
+      # Debian Based distro
+      {% set BIND_PKG = "bind9-utils" %}
+      {% set NFS_UTILS_PKG = "nfs-common" %}
+
+    {% else %}
+      # RHEL Based distro
+      {% set BIND_PKG = "bind-utils" %}
+      {% set NFS_UTILS_PKG = "nfs-utils" %}
+
+    {% endif %}
+
+    if ! verify_package_installed {{ BIND_PKG }}; then
+      log_info "Installing {{ BIND_PKG }}"
+      packages_install {{ BIND_PKG }}
     fi
 
-    # nfs-utils
-    if ! verify_package_installed nfs-utils; then
-      log_info "Installing nfs-utils"
-      packages_install nfs-utils
+    if ! verify_package_installed {{ NFS_UTILS_PKG }}; then
+      log_info "Installing {{ NFS_UTILS_PKG }}"
+      packages_install {{ NFS_UTILS_PKG }}
     fi
 
     log_info "Creating ${MOUNT_POINT} if needed"

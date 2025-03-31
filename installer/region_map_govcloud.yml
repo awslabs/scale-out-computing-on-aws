@@ -1,0 +1,28 @@
+---
+
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+RegionMap:
+  us-gov-east-1:
+    arm64:
+      amazonlinux2: ami-07788e07490c2bd26
+      amazonlinux2023: ami-061c3e32e15003ab7
+    x86_64:
+      amazonlinux2: ami-0d76ab6c1c5e43d47
+      amazonlinux2023: ami-007cb38dd73dddef0
+      rhel7: ami-0e8f1139a357687cb
+      windows2019: ami-01a7b81c400bad4cd
+      windows2022: ami-0ff9935a1b38bbdfe
+      windows2025: ami-000c963adfaefc8bf
+  us-gov-west-1:
+    arm64:
+      amazonlinux2: ami-09d0a1eab6ce6344d
+      amazonlinux2023: ami-06a2567d61821caa0
+    x86_64:
+      amazonlinux2: ami-0fd212e71ff1c1467
+      amazonlinux2023: ami-0090526e2582f8952
+      rhel7: ami-0f89fe9d39cd3e03a
+      windows2019: ami-0cbd1df5fc65791a3
+      windows2022: ami-0dc008c784a0d5a31
+      windows2025: ami-0306ba77085c7076a

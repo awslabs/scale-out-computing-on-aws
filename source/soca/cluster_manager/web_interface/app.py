@@ -11,15 +11,13 @@
 #  and limitations under the License.                                                                                #
 ######################################################################################################################
 
-import os
 import logging.config
-import sys
 
-from flask import Flask, redirect, jsonify, session
+from flask import Flask, redirect, jsonify
 from flask_restful import Api
 from flask_session import Session
-from flask_sqlalchemy import SQLAlchemy
 from werkzeug.debug import DebuggedApplication
+import validators
 
 from api.v1.scheduler.pbspro.job import Job
 from api.v1.scheduler.pbspro.jobs import Jobs
@@ -37,17 +35,22 @@ from api.v1.ldap.authenticate import Authenticate
 from api.v1.login_nodes.list import ListLoginNodes
 from api.v1.system.files import Files
 from api.v1.system.aws_price import AwsPrice
+
 from api.v1.dcv.authenticator import DcvAuthenticator
-from api.v1.dcv.list_desktops import ListDesktops
-from api.v1.dcv.create_linux_desktop import CreateLinuxDesktop
-from api.v1.dcv.create_windows_desktop import CreateWindowsDesktop
-from api.v1.dcv.delete_desktop import DeleteDesktop
-from api.v1.dcv.stop_desktop import StopDesktop
-from api.v1.dcv.restart_desktop import RestartDesktop
-from api.v1.dcv.modify_desktop import ModifyDesktop
-from api.v1.dcv.update_desktop_schedule import UpdateDesktopSchedule
-from api.v1.dcv.images import ListImages
-from api.v1.dcv.image import ManageImage
+from api.v1.dcv.create_virtual_desktop import CreateVirtualDesktop
+from api.v1.dcv.list_virtual_desktops import ListVirtualDesktops
+from api.v1.dcv.list_all_virtual_desktops import ListAllVirtualDesktops
+from api.v1.dcv.delete_virtual_desktop import DeleteVirtualDesktop
+from api.v1.dcv.stop_virtual_desktop import StopVirtualDesktop
+from api.v1.dcv.start_virtual_desktop import StartVirtualDesktop
+from api.v1.dcv.resize_virtual_desktop import ResizeVirtualDesktop
+from api.v1.dcv.update_virtual_desktop_schedule import UpdateVirtualDesktopSchedule
+from api.v1.dcv.get_virtual_desktops_session_state import GetVirtualDesktopsSessionState
+from api.v1.dcv.software_stacks import SoftwareStacksManager
+from api.v1.dcv.profiles import VirtualDesktopProfilesManager
+
+from api.v1.projects.projects import ProjectsManager
+from api.v1.projects.get_projects_for_user import ProjectsByUser
 
 from views.index import index
 from views.ssh import ssh
@@ -57,39 +60,44 @@ from views.admin.users import admin_users
 from views.admin.queues import admin_queues
 from views.admin.groups import admin_groups
 from views.admin.applications import admin_applications
-from views.admin.ami_management import admin_ami_management
+from views.admin.virtual_desktops.software_stacks import (
+    admin_virtual_desktops_software_stacks,
+)
+from views.admin.virtual_desktops.profiles import admin_virtual_desktops_profiles
+from views.admin.virtual_desktops.list_all_virtual_desktops import (
+    admin_virtual_desktops_list_all,
+)
+from views.admin.projects.projects import admin_projects
 from views.my_jobs import my_jobs
 from views.my_activity import my_activity
 from views.dashboard import dashboard
-from views.remote_desktop import remote_desktop
-from views.remote_desktop_windows import remote_desktop_windows
+from views.virtual_desktops import virtual_desktops
 from views.my_account import my_account
 from views.my_files import my_files
 from views.submit_job import submit_job
-from scheduled_tasks.clean_tmp_folders import clean_tmp_folders
-from scheduled_tasks.validate_db_permissions import validate_db_permissions
-from scheduled_tasks.manage_dcv_instances_lifecycle import (
-    auto_terminate_stopped_instance,
-    schedule_auto_start,
-    schedule_auto_stop,
-)
 from flask_wtf.csrf import CSRFProtect
 from config import app_config
 from flask_swagger import swagger
 from swagger_ui import api_doc
 import config
-if config.Config.DIRECTORY_AUTH_PROVIDER in ["aws_ds_managed_activedirectory", "aws_ds_simple_activedirectory"]:
+
+if config.Config.DIRECTORY_AUTH_PROVIDER in [
+    "aws_ds_managed_activedirectory",
+    "aws_ds_simple_activedirectory",
+]:
     from api.v1.ldap.activedirectory.reset_password import Reset
 else:
     from api.v1.ldap.reset_password import Reset
-from flask_apscheduler import APScheduler
+from apscheduler.schedulers.background import BackgroundScheduler
+from apscheduler.triggers.interval import IntervalTrigger
+from apscheduler.triggers.cron import CronTrigger
 
-# from apscheduler.schedulers.background import BackgroundScheduler
 from models import db
 import soca_samples
 import os
 import stat
 from utils.logger import SocaLogger
+import json
 
 app = Flask(__name__)
 
@@ -115,7 +123,28 @@ def folder_name_truncate(folder_name):
         return folder_name
 
 
+@app.context_processor
+def inject_global_template_variables():
+    _global_variables = {}
+    _amazon_q_business_url = config.Config.AMAZON_Q_BUSINESS_URL
+    if validators.url(_amazon_q_business_url) is True:
+        _global_variables["AMAZON_Q_BUSINESS_URL"] = _amazon_q_business_url
+    else:
+        print("AMAZON_Q_BUSINESS_URL is not a valid URL, default value to False")
+        _global_variables["AMAZON_Q_BUSINESS_URL"] = False
+
+    return _global_variables
+
+
+@app.template_filter("from_json")
+def from_json(value):
+    """Custom filter to parse JSON string into a Python dict."""
+    return json.loads(value)
+
+
+app.jinja_env.filters["from_json"] = from_json
 app.jinja_env.filters["folder_name_truncate"] = folder_name_truncate
+app.jinja_env.add_extension("jinja2.ext.do")
 
 
 @app.route("/api/doc/swagger.json")
@@ -132,46 +161,21 @@ def spec():
 
 
 @app.errorhandler(404)
-def page_not_found(e):
+def page_not_found(_e):
     return redirect("/")
 
 
-class Config(object):
-    JOBS = [
-        {
-            "id": "validate_db_permissions",
-            "func": validate_db_permissions,
-            "trigger": "interval",
-            "minutes": 60,
-        },
-        {
-            "id": "auto_terminate_stopped_instance",
-            "func": auto_terminate_stopped_instance,
-            "trigger": "interval",
-            "minutes": 30,
-        },
-        {
-            "id": "schedule_auto_start",
-            "func": schedule_auto_start,
-            "trigger": "interval",
-            "minutes": 10,
-        },
-        {
-            "id": "schedule_auto_stop",
-            "func": schedule_auto_stop,
-            "trigger": "interval",
-            "minutes": 5,
-        },
-        {
-            "id": "clean_tmp_folders",
-            "func": clean_tmp_folders,
-            "trigger": "interval",
-            "hours": 1,
-        },
-    ]
+def setup_logger(name: str, file_path: str):
+    _log_folder = os.path.dirname(file_path)
+    os.makedirs(_log_folder, exist_ok=True)
+    for dirpath, dirnames, filenames in os.walk(_log_folder):
+        os.chmod(dirpath, 0o750)
 
-    SCHEDULER_API_ENABLED = True
-    SESSION_SQLALCHEMY = SQLAlchemy(app)
+    logger = SocaLogger(name=name).timed_rotating_file_handler(
+        file_path=file_path,
+        backup_count=config.Config.LOG_DAILY_BACKUP_COUNT,
+    )
+    app.logger.addHandler(logging.getLogger(name))
 
 
 with app.app_context():
@@ -204,20 +208,26 @@ with app.app_context():
     api.add_resource(AwsPrice, "/api/system/aws_price")
     # DCV
     api.add_resource(DcvAuthenticator, "/api/dcv/authenticator")
-    api.add_resource(ListDesktops, "/api/dcv/desktops")
-    api.add_resource(CreateLinuxDesktop, "/api/dcv/desktop/<session_number>/linux")
-    api.add_resource(CreateWindowsDesktop, "/api/dcv/desktop/<session_number>/windows")
-    api.add_resource(DeleteDesktop, "/api/dcv/desktop/<session_number>/delete")
+    api.add_resource(ListVirtualDesktops, "/api/dcv/virtual_desktops/list")
+    api.add_resource(ListAllVirtualDesktops, "/api/dcv/virtual_desktops/list_all")
+    api.add_resource(CreateVirtualDesktop, "/api/dcv/virtual_desktops/create")
+    api.add_resource(DeleteVirtualDesktop, "/api/dcv/virtual_desktops/delete")
+    api.add_resource(StopVirtualDesktop, "/api/dcv/virtual_desktops/stop")
+    api.add_resource(StartVirtualDesktop, "/api/dcv/virtual_desktops/start")
+    api.add_resource(ResizeVirtualDesktop, "/api/dcv/virtual_desktops/resize")
+    api.add_resource(UpdateVirtualDesktopSchedule, "/api/dcv/virtual_desktops/schedule")
     api.add_resource(
-        StopDesktop, "/api/dcv/desktop/<session_number>/<action>"
-    )  # Action = stop or hibernate
-    api.add_resource(RestartDesktop, "/api/dcv/desktop/<session_number>/restart")
-    api.add_resource(ModifyDesktop, "/api/dcv/desktop/<session_number>/modify")
-    api.add_resource(
-        UpdateDesktopSchedule, "/api/dcv/desktop/<session_number>/schedule"
+        GetVirtualDesktopsSessionState, "/api/dcv/virtual_desktops/session_state"
     )
-    api.add_resource(ListImages, "/api/dcv/images")
-    api.add_resource(ManageImage, "/api/dcv/image")
+    api.add_resource(SoftwareStacksManager, "/api/dcv/virtual_desktops/software_stacks")
+    api.add_resource(
+        VirtualDesktopProfilesManager, "/api/dcv/virtual_desktops/profiles"
+    )
+
+    # Project
+    api.add_resource(ProjectsManager, "/api/projects")
+    api.add_resource(ProjectsByUser, "/api/projects/by_user")
+
     # Scheduler
     api.add_resource(Job, "/api/scheduler/job")
     api.add_resource(Jobs, "/api/scheduler/jobs")
@@ -235,22 +245,37 @@ with app.app_context():
     app.register_blueprint(admin_queues)
     app.register_blueprint(admin_groups)
     app.register_blueprint(admin_applications)
-    app.register_blueprint(admin_ami_management)
+    app.register_blueprint(admin_virtual_desktops_software_stacks)
+    app.register_blueprint(admin_virtual_desktops_profiles)
+    app.register_blueprint(admin_virtual_desktops_list_all)
+    app.register_blueprint(admin_projects)
     app.register_blueprint(my_files)
     app.register_blueprint(submit_job)
     app.register_blueprint(ssh)
     app.register_blueprint(sftp)
     app.register_blueprint(my_jobs)
-    app.register_blueprint(remote_desktop)
-    app.register_blueprint(remote_desktop_windows)
+    app.register_blueprint(virtual_desktops)
     app.register_blueprint(dashboard)
     app.register_blueprint(my_activity)
     # Logger
-    logger = SocaLogger(name="soca_logger").timed_rotating_file_handler(
-        file_path="logs/web_interface.log",
-        backup_count=config.Config.LOG_DAILY_BACKUP_COUNT,
+    setup_logger("soca_logger", "logs/web_interface.log")
+    setup_logger(
+        "scheduled_tasks_virtual_desktops_schedule_management",
+        "logs/scheduled_tasks/virtual_desktops/schedule_management.log",
     )
-    app.logger.addHandler(logging.getLogger("soca_logger"))
+    setup_logger(
+        "scheduled_tasks_virtual_desktops_session_state_watcher",
+        "logs/scheduled_tasks/virtual_desktops/session_state_watcher.log",
+    )
+    setup_logger(
+        "scheduled_tasks_virtual_desktops_session_error_watcher",
+        "logs/scheduled_tasks/virtual_desktops/session_error_watcher.log",
+    )
+    setup_logger(
+        "scheduled_tasks_db_backup",
+        "logs/scheduled_tasks/db_backup.log",
+    )
+
     db.app = app
     db.init_app(app)
     db.create_all()
@@ -262,19 +287,89 @@ with app.app_context():
     if config.Config.SESSION_TYPE == "sqlalchemy":
         app_session.app.session_interface.db.create_all()
 
+    # now import scheduled tasks
+    from scheduled_tasks.virtual_desktops.session_state_watcher import (
+        virtual_desktops_session_state_watcher,
+    )
+    from scheduled_tasks.virtual_desktops.session_error_watcher import (
+        virtual_desktops_session_error_watcher,
+    )
+
+    from scheduled_tasks.virtual_desktops.schedule_management import (
+        virtual_desktops_schedule_management,
+        auto_terminate_stopped_instance,
+    )
+    from scheduled_tasks.clean_tmp_folders import clean_tmp_folders
+    from scheduled_tasks.create_db_backup import backup_db
+
     # Create default content
-    soca_samples.insert_default_dcv_base_ami()
+    soca_samples.insert_default_vdi_profile()
+    soca_samples.insert_default_software_stacks()
+    soca_samples.insert_default_projects()
     soca_samples.insert_default_test_web_based_job_submission_application()
 
-    app.config.from_object(Config())
     api_doc(
         app,
         config_url=config.Config.FLASK_ENDPOINT + "/api/doc/swagger.json",
         url_prefix="/api/doc",
         title="SOCA API Documentation",
     )
-    scheduler = APScheduler()
-    scheduler.init_app(app)
+
+    # Schedule tasks using the scheduler
+    scheduler = BackgroundScheduler()
+
+    # Task: Backup DB every 12 hours
+    scheduler.add_job(
+        backup_db,
+        trigger=IntervalTrigger(hours=12),
+        id="scheduled_tasks_db_backup",
+        replace_existing=True,
+    )
+
+    # Task: Auto terminate stopped instances every 30 minutes
+    scheduler.add_job(
+        auto_terminate_stopped_instance,
+        trigger=IntervalTrigger(minutes=30),
+        id="auto_terminate_stopped_instance",
+        replace_existing=True,
+    )
+
+    # Task: Virtual desktops schedule management
+    scheduler.add_job(
+        virtual_desktops_schedule_management,
+        trigger=CronTrigger(
+            minute="0,16,32,47"
+        ),  # every hour , every 16 minutes (as users can adjust schedule every 15 mins)
+        id="virtual_desktops_schedule_management",
+        replace_existing=True,
+    )
+
+    # Task: Virtual desktops session state watcher every 1 minute
+    scheduler.add_job(
+        virtual_desktops_session_state_watcher,
+        trigger=IntervalTrigger(minutes=1),
+        id="virtual_desktops_session_state_watcher",
+        replace_existing=True,
+        max_instances=1,
+    )
+
+    # Task: Virtual desktops session error watcher every 5 minutes
+    scheduler.add_job(
+        virtual_desktops_session_error_watcher,
+        trigger=IntervalTrigger(minutes=5),
+        id="virtual_desktops_session_error_watcher",
+        replace_existing=True,
+        max_instances=1,
+    )
+
+    # Task: Clean temp folders every 1 hour
+    scheduler.add_job(
+        clean_tmp_folders,
+        trigger=IntervalTrigger(hours=1),
+        id="clean_tmp_folders",
+        replace_existing=True,
+    )
+
     scheduler.start()
 
 if __name__ == "__main__":

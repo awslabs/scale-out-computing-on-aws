@@ -66,6 +66,20 @@ def get(ctx, key, output):
     "-k",
     "--key",
     required=True,
+    help="Specify a SOCA configuration key or configuration tree",
+)
+@click.pass_context
+def key_exists(ctx, key):
+    """
+    Return True if a specified key exist
+    """
+    return SocaConfig(key=key).get_value().get("success")
+
+@config.command()
+@click.option(
+    "-k",
+    "--key",
+    required=True,
     help="Specify at least one key. Support multiple --key as needed",
 )
 @click.option(
@@ -85,7 +99,8 @@ def set(ctx, key, value, called_from=False):
         if "/configuration/FileSystems/" in key and called_from != "filesystems":
             print_output(
                 f"/configuration/FileSystems/ tree can only be managed via 'socactl filesystems'.",
-                error=True)
+                error=True,
+            )
         _update = SocaConfig(key=key).set_value(value=value)
 
         if _update.success:
@@ -126,7 +141,9 @@ def history(ctx, key, output):
         else:
             return _get_history
     else:
-        print_output(message=f"Unable to get history for {key} because of {_get_history}")
+        print_output(
+            message=f"Unable to get history for {key} because of {_get_history}"
+        )
 
 
 @config.command()

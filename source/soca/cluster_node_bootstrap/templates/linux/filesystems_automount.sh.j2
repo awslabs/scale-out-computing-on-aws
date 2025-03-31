@@ -1,30 +1,101 @@
 # Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-# Download SOCA FileSystems AutoMount from S3 and execute it
 # This script will mount all filesystems specified on SSM in /configuration/FileSystems tree
-# Note: soca_filesystems_automount.sh is generated at install time, template code is available under installer/resources/script
-# File is then uploaded to S3 during the first install
 
-if [[ -z "${S3_BUCKET_REGION}" ]]; then
-  {% if context.get("/configuration/Region") in ('us-gov-east-1', 'us-gov-west-1')  %}
-    S3_BUCKET_REGION=$(curl -s --head {{ context.get("/configuration/S3Bucket") }}.s3.{{ context.get("/configuration/Region") }}.amazonaws.com | grep bucket-region | awk '{print $2}' | tr -d '\r\n')
-  {% else %}
-    S3_BUCKET_REGION=$(curl -s --head {{ context.get("/configuration/S3Bucket") }}.s3.amazonaws.com | grep bucket-region | awk '{print $2}' | tr -d '\r\n')
-  {% endif %}
+# Do not include this template from another template in your bootstrap sequence. Instead render and save it as a file.
+
+{% include "templates/linux/common.sh.j2" %}
+
+{% include "templates/linux/shared_storage/mount_efs.sh.j2" %}
+
+{% include "templates/linux/shared_storage/mount_fsx_lustre.sh.j2" %}
+
+{% include "templates/linux/shared_storage/mount_fsx_ontap.sh.j2" %}
+
+{% include "templates/linux/shared_storage/mount_fsx_openzfs.sh.j2" %}
+
+{% include "templates/linux/shared_storage/mount_standalone_nfs.sh.j2" %}
+
+{% include "templates/linux/shared_storage/mount_s3.sh.j2" %}
+
+# Retrieve SocaConfig "/configuration/Filesystems" which contains all the FileSystem mount logic, return a dictionary of key/v
+SOCA_FILESYSTEMS_SSM_TREE=$(aws_cli ssm get-parameters-by-path --path "/soca/{{ context.get("/configuration/ClusterId") }}/configuration/FileSystems"  \
+  --recursive \
+  --with-decryption \
+  --query "Parameters" \
+  --output json)
+
+log_info "Retrieved SOCA FileSystem Tree: ${SOCA_FILESYSTEMS_SSM_TREE}"
+
+# Install jq if not already there
+if ! verify_package_installed jq; then
+  log_info "jq not found, installing it ..."
+  packages_install jq
 fi
 
-mkdir -p ${SOCA_BOOTSTRAP_ASSETS_FOLDER}/soca_filesystems_automount
-pushd ${SOCA_BOOTSTRAP_ASSETS_FOLDER}
+# Transform SSM Hierarchy into readable dictionary
+FS_MAP=$(echo "$SOCA_FILESYSTEMS_SSM_TREE" | jq -r --arg prefix "/soca/{{ context.get("/configuration/ClusterId") }}/configuration/FileSystems/" '
+  reduce map({key: .Name | sub($prefix; ""), value: .Value})[] as $item ({};
+    ($item.key | split("/")) as $keys |
+    setpath($keys; $item.value)
+  )
+')
 
-log_info "Downloading SocaFileSystemsAutomount scripts from s3"
-aws_cli s3 --region ${S3_BUCKET_REGION}  cp s3://{{ context.get("/configuration/S3Bucket") }}/{{ context.get("/configuration/ClusterId") }}/config/do_not_delete/scripts/soca_filesystems_automount.sh .
+echo "${FS_MAP}" | jq -r 'keys[]' | while read FS_NAME; do
+  # Filesystem Provider (fsx_ontap, fsx_lustre, efs ...)
+  PROVIDER=$(echo "${FS_MAP}" | jq -r ".${FS_NAME}.provider")
 
-log_info "Executing SocaFileSystemsAutoMount mount"
-if /bin/bash soca_filesystems_automount.sh >> ${SOCA_BOOTSTRAP_LOGS_FOLDER}/soca_filesystems_automount.sh.log 2>&1; then
-  log_info "SocaFileSystemsAutoMount completed successfully"
-else
-  log_error "SocaFileSystemsAutoMount failed. Check logs."
-fi
+  # Whether or not the FSx is enabled or not
+  ENABLED=$(echo "${FS_MAP}" | jq -r ".${FS_NAME}.enabled // \"true\"")
 
-popd
+  # Unix path where to mount this filesystem
+  MOUNT_PATH=$(echo "${FS_MAP}" | jq -r ".${FS_NAME}.mount_path")
+
+  # Endpoint to be mounted (volume ID, filesystem ID ...)
+  MOUNT_TARGET=$(echo "${FS_MAP}" | jq -r ".${FS_NAME}.mount_target")
+
+  # Option for the mount
+  MOUNT_OPTIONS=$(echo "$FS_MAP" | jq -r ".${FS_NAME}.mount_options")
+
+  # What to do if the mount is not successful (either ignore or exit)
+  ON_MOUNT_FAILURE=$(echo "${FS_MAP}" | jq -r ".${FS_NAME}.on_mount_failure //  \"ignore\"")
+
+  log_info "Processing ${PROVIDER}: $(echo "${FS_MAP}" | jq -r ".${FS_NAME}")"
+
+  case "${PROVIDER}" in
+  "efs")
+    MOUNT_FUNCTION="mount_efs"
+    ;;
+  "nfs")
+    MOUNT_FUNCTION="mount_nfs"
+    ;;
+  "fsx_lustre")
+    MOUNT_FUNCTION="mount_fsx_lustre"
+    ;;
+  "fsx_ontap")
+    MOUNT_FUNCTION="mount_fsx_ontap"
+    ;;
+  "fsx_openzfs")
+    MOUNT_FUNCTION="mount_openzfs"
+    ;;
+  "s3")
+    MOUNT_FUNCTION="mount_s3"
+    ;;
+  *)
+    exit_fail "Unrecognized Storage Provider ${PROVIDER} for ${FS_NAME} , must be efs / nfs / fsx_lustre / fsx_ontap / fsx_openzfs or s3"
+    ;;
+  esac
+
+  if ! eval ${MOUNT_FUNCTION} --mount-path="${MOUNT_PATH}" \
+        --mount-target="${MOUNT_TARGET}" \
+        --mount-options="${MOUNT_OPTIONS}" \
+        --on-mount-failure="${ON_MOUNT_FAILURE}" \
+        --enabled="${ENABLED}"; then
+
+      exit_fail "Error while trying to mount ${MOUNT_TARGET} via ${MOUNT_FUNCTION}, check log"
+  fi
+
+done
+
+log_info "SocaFileSystemsAutoMount Completed"

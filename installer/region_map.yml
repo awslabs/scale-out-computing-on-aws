@@ -6,487 +6,708 @@
 RegionMap:
   af-south-1:
     arm64:
-      amazonlinux2: ami-0ee1d867390968ae0
-      amazonlinux2023: ami-05674bcb203361209
+      amazonlinux2: ami-00c345b35865a00be
+      amazonlinux2023: ami-01d2b384e20bad78f
       rhel8: ami-0b92598545410e0cb
       rhel9: ami-004fa02bf75e98725
       rocky8: ami-08f4ce464b9d6a6fc
       rocky9: ami-032c3835e9832fd12
+      ubuntu2204: ami-0a99bd7aeafa462b4
+      ubuntu2404: ami-000eba71d50d84e9c
     x86_64:
-      amazonlinux2: ami-09c41999fde4f091b
-      amazonlinux2023: ami-0b47480944cce61a5
+      amazonlinux2: ami-02d303fe50d84398c
+      amazonlinux2023: ami-071ec74a9abd8fec2
       rhel7: ami-044da3d0d6afe60b8
       rhel8: ami-069db5f1c20a2686f
       rhel9: ami-0eb4ecadc6f00aa18
       rocky8: ami-0f6740cc2de201555
       rocky9: ami-065c500503ef793a8
+      ubuntu2204: ami-04ba3e5b53ead2ff1
+      ubuntu2404: ami-01791680e9558feab
+      windows2019: ami-0cd2019976176129e
+      windows2022: ami-0a1db0ab5e6a374ba
+      windows2025: ami-0fda624d45843b52d
   ap-east-1:
     arm64:
-      amazonlinux2: ami-0acd068ee23ecc08c
-      amazonlinux2023: ami-0fddd58b00ef6bd95
+      amazonlinux2: ami-0c99b94e29c2060e7
+      amazonlinux2023: ami-04c5063b66ffe6aa6
       rhel8: ami-02f28c7684cc5bcd6
       rhel9: ami-01b5b5dbe567f137f
       rocky8: ami-0678776a680899a7b
       rocky9: ami-0d964598089831220
+      ubuntu2204: ami-0c66e0dd0a366296d
+      ubuntu2404: ami-014685c0daf4c3db8
     x86_64:
-      amazonlinux2: ami-0d2a0121ab0018186
-      amazonlinux2023: ami-09dd4bb4704870090
+      amazonlinux2: ami-03f21c54cd9c5f6c6
+      amazonlinux2023: ami-0123e5d7542358c86
       rhel7: ami-001c8a3a8b61c4015
       rhel8: ami-0a96460b8523b28a6
       rhel9: ami-05f8f8ac71b41b1a0
       rocky8: ami-0c839768188cedbda
       rocky9: ami-09a6ac7a83c9b4224
+      ubuntu2204: ami-04b98cae6468c0101
+      ubuntu2404: ami-0b6909cd2d59f241e
+      windows2019: ami-03cd226f2541aad14
+      windows2022: ami-09b46d44aa5cde600
+      windows2025: ami-07829ccb7d64915a6
   ap-northeast-1:
     arm64:
-      amazonlinux2: ami-0e383b3216b52ef33
-      amazonlinux2023: ami-0ca3a75c06a0d6d14
+      amazonlinux2: ami-05a6915d79508cb98
+      amazonlinux2023: ami-0d60652e0357ad94f
       rhel8: ami-04829c4e2dbb67968
       rhel9: ami-0e5a8c3128efc21db
       rocky8: ami-038c72f93d429ad9c
       rocky9: ami-0729d609e02f3d07e
+      ubuntu2204: ami-0c38bc6270b7bcd20
+      ubuntu2404: ami-0e5d0459b92cdd6f0
     x86_64:
-      amazonlinux2: ami-0adbac418540bb63d
-      amazonlinux2023: ami-0fb04413c9de69305
+      amazonlinux2: ami-00561c77487da40c1
+      amazonlinux2023: ami-072298436ce5cb0c4
       rhel7: ami-029993f94b02017d3
       rhel8: ami-062921cd4e5cbddc1
       rhel9: ami-0f7b9942f8fafc91b
       rocky8: ami-0025f1507e375f161
       rocky9: ami-0d59d43bebb8bb880
+      ubuntu2204: ami-09cd318de07501963
+      ubuntu2404: ami-09bb6ccf33304472c
+      windows2019: ami-08b1c1fc3101f173a
+      windows2022: ami-0e2011553af2cb942
+      windows2025: ami-0b51a1c68e86976b6
   ap-northeast-2:
     arm64:
-      amazonlinux2: ami-06ca27d1d00578957
-      amazonlinux2023: ami-0d04dc13215ae8df3
+      amazonlinux2: ami-05422da99421f259e
+      amazonlinux2023: ami-0532f08d6bf660cd2
       rhel8: ami-0d9a4fbad4a21167f
       rhel9: ami-07f684f3f74f0f5a7
       rocky8: ami-02dcfe91e6aa408f7
       rocky9: ami-008cbf88be202d702
+      ubuntu2204: ami-022e9d7267d316fdd
+      ubuntu2404: ami-028ed6fa998fb986c
     x86_64:
-      amazonlinux2: ami-0b71915117f7ee44f
-      amazonlinux2023: ami-0a998385ed9f45655
+      amazonlinux2: ami-0891aeb92f786d7a2
+      amazonlinux2023: ami-075e056c0f3d02523
       rhel7: ami-00a8dd1293ad66f06
       rhel8: ami-03439f5ccc1eeb443
       rhel9: ami-037aeec34c5f1368f
       rocky8: ami-05d54bac15231e6fa
       rocky9: ami-0fc21c56f494ded92
+      ubuntu2204: ami-0acd444f65d260711
+      ubuntu2404: ami-03a6689d51468c363
+      windows2019: ami-03cdeb603e21b28ee
+      windows2022: ami-0a90c5aaeb18cb0f5
+      windows2025: ami-0970f69f25b2b2339
   ap-northeast-3:
     arm64:
-      amazonlinux2: ami-0487fcf91e20573a5
-      amazonlinux2023: ami-0bb39a54303f92e87
+      amazonlinux2: ami-02d5dce2857c6e275
+      amazonlinux2023: ami-0be01d0f9896e9858
       rhel8: ami-029fa8456f4a3f7f8
       rhel9: ami-0ad39597d7ae2a072
       rocky8: ami-051c0c81283d59235
       rocky9: ami-0c8b368521555d764
+      ubuntu2204: ami-0bec4db7dbe14f12f
+      ubuntu2404: ami-065fe4b1dcf6d3484
     x86_64:
-      amazonlinux2: ami-0637b7f228605e903
-      amazonlinux2023: ami-0447b33427d7585a6
+      amazonlinux2: ami-0316e0efae0ce53d2
+      amazonlinux2023: ami-0439cd8bc5628c9e8
       rhel7: ami-0c57ae4feba6bf2d7
       rhel8: ami-0a1b789240188786f
       rhel9: ami-024474b8479130f91
       rocky8: ami-039262f94e381ba82
       rocky9: ami-024dfb18c345c4beb
+      ubuntu2204: ami-0db763580375fc9b0
+      ubuntu2404: ami-0206765255e7da898
+      windows2019: ami-0f1a43eac57f949f1
+      windows2022: ami-06ea2fda58e0b8af1
+      windows2025: ami-00796309962a154eb
   ap-south-1:
     arm64:
-      amazonlinux2: ami-016a613a8758bdd96
-      amazonlinux2023: ami-0f6168e963366cd18
+      amazonlinux2: ami-0cfc29b64958bc112
+      amazonlinux2023: ami-05b5cad4abb7f9a27
       rhel8: ami-01bcef20fc6eb08aa
       rhel9: ami-090d7a4cfb09fc583
       rocky8: ami-081e22d3cbc2a6a6f
       rocky9: ami-02edb75e2c70658b3
+      ubuntu2204: ami-03cae1bb2387bab30
+      ubuntu2404: ami-0cb29b37e51981ef2
     x86_64:
-      amazonlinux2: ami-08c6ee7b1bc986bfb
-      amazonlinux2023: ami-0d2614eafc1b0e4d2
+      amazonlinux2: ami-0f4f6fd19fad11737
+      amazonlinux2023: ami-0d682f26195e9ec0f
       rhel7: ami-04441997c6042da85
       rhel8: ami-0619404f9180a28b3
       rhel9: ami-0182ac7811b44186e
       rocky8: ami-053ac9a936bd4459e
       rocky9: ami-0321f0c22d67f6571
+      ubuntu2204: ami-0c6088f72bda274d7
+      ubuntu2404: ami-079605091ab721dac
+      windows2019: ami-09c2be92229422665
+      windows2022: ami-0ec382d10079226f8
+      windows2025: ami-05a00967f06885a63
   ap-south-2:
     arm64:
-      amazonlinux2: ami-081a656c423fe85a9
-      amazonlinux2023: ami-0d6b31bd6b707c47a
+      amazonlinux2: ami-08611ae1b1c25bb68
+      amazonlinux2023: ami-0bfe4690b562de9f0
       rhel8: ami-07ccdeb7035403a53
       rhel9: ami-0dbda9313f1e1b55e
       rocky8: ami-0ada75ede616e61f7
       rocky9: ami-020a12fe66f5843a7
+      ubuntu2204: ami-0e552fff97b2a9cd1
+      ubuntu2404: ami-0d472787d167fb8e3
     x86_64:
-      amazonlinux2: ami-089774523364c16c7
-      amazonlinux2023: ami-00cf5c4528b1752ea
+      amazonlinux2: ami-0f6139a1490f16a43
+      amazonlinux2023: ami-09e23b3de35f110f6
       rhel7: ami-018c1d6b18badc997
       rhel8: ami-04b72ecf330628136
       rhel9: ami-09dd73be11b8d5c2e
       rocky8: ami-03e7e740ffbaecda1
       rocky9: ami-04272c48c1b4ff2b8
+      ubuntu2204: ami-0a1645106d3b974fa
+      ubuntu2404: ami-06c3412ecd313dcc5
+      windows2019: ami-057062ff4077e3094
+      windows2022: ami-055c616d45c4ae72e
+      windows2025: ami-07e9c1834c069848e
   ap-southeast-1:
     arm64:
-      amazonlinux2: ami-092fcd57f9dacf4ea
-      amazonlinux2023: ami-0797dd6d7bc9759c3
+      amazonlinux2: ami-015712baec0c110d9
+      amazonlinux2023: ami-0e060e9d48e60801d
       rhel8: ami-09fb875d515bb54a2
       rhel9: ami-00cc6098cd7e18d07
       rocky8: ami-0736cc1b89639489a
       rocky9: ami-0ba1074a8296fdcd8
+      ubuntu2204: ami-0ef3ff3188356275b
+      ubuntu2404: ami-01215544490963aae
     x86_64:
-      amazonlinux2: ami-0483d1f5cd8416626
-      amazonlinux2023: ami-0bd55ebedabddc3c0
+      amazonlinux2: ami-0301dd2fb476c9850
+      amazonlinux2023: ami-0b03299ddb99998e9
       rhel7: ami-000f0ee2950b75cd5
       rhel8: ami-06c6e7482af1d6a44
       rhel9: ami-0f787d83be0529e6b
       rocky8: ami-0506f2d559a79a962
       rocky9: ami-0eb599578e428f04a
+      ubuntu2204: ami-0370332a491a9327b
+      ubuntu2404: ami-06c992e864083cf74
+      windows2019: ami-0f6ae4e92cb38eeeb
+      windows2022: ami-0e244fe10c2ec71e2
+      windows2025: ami-01e89850bc1c7a345
   ap-southeast-2:
     arm64:
-      amazonlinux2: ami-0200ba045e81cbccc
-      amazonlinux2023: ami-09d212bde9d3778fc
+      amazonlinux2: ami-0657e75dc79d2cbec
+      amazonlinux2023: ami-0deb8c0a292c27c84
       rhel8: ami-01fad098d31ecc1b6
       rhel9: ami-075b4d9cc937b425d
       rocky8: ami-02b9a6992a20eed2b
       rocky9: ami-0298a74ae0a53e4fd
+      ubuntu2204: ami-07b4f0ccb0f6a5f0d
+      ubuntu2404: ami-0fae8bcb3f3621e32
     x86_64:
-      amazonlinux2: ami-0d19efc1a24847af4
-      amazonlinux2023: ami-0d11f9bfe33cfbe8b
+      amazonlinux2: ami-044b50caba366ec3a
+      amazonlinux2023: ami-064b71eca68aadfb8
       rhel7: ami-090e5f68ce5a80ae4
       rhel8: ami-0b09cff8760f58dd2
       rhel9: ami-0432e15c1437f2360
       rocky8: ami-0c470b32d41481ad6
       rocky9: ami-00306f671305d9f07
+      ubuntu2204: ami-0f17657737a084ef3
+      ubuntu2404: ami-021ab2dbd1bc3e8bf
+      windows2019: ami-00fdddd404584949b
+      windows2022: ami-0e63223bd1f1838f9
+      windows2025: ami-00cf40ed19c0fca69
   ap-southeast-3:
     arm64:
-      amazonlinux2: ami-0af2383f253ebec64
-      amazonlinux2023: ami-01b550c39d9979b9e
+      amazonlinux2: ami-036f5595560f4dbdf
+      amazonlinux2023: ami-06e6047d17d90f19f
       rhel8: ami-0de497766cad09308
       rhel9: ami-00289cc8ab7bd2439
       rocky8: ami-0f1fbf3a2713e29d4
       rocky9: ami-0da68f84bc59513ad
+      ubuntu2204: ami-082e443dd4acef876
+      ubuntu2404: ami-033d3a864deec5358
     x86_64:
-      amazonlinux2: ami-05edaac5e181590e4
-      amazonlinux2023: ami-0e10cc0d60b55b812
+      amazonlinux2: ami-0df508a5d2ccd7a96
+      amazonlinux2023: ami-02a732f5ab0d7b2a4
       rhel7: ami-0a847159b3ef73f07
       rhel8: ami-00b0e9829ee9c113a
       rhel9: ami-0a61e4031380b2161
       rocky8: ami-04835cbf92d9614b9
       rocky9: ami-04eb93db33f091ab1
+      ubuntu2204: ami-05f225ef07a7fc5fc
+      ubuntu2404: ami-0e75ac4c39dd5909a
+      windows2019: ami-021320aaba3713e51
+      windows2022: ami-063f657ed9a3e12d9
+      windows2025: ami-0c4ee828bf6714d0f
   ap-southeast-4:
     arm64:
-      amazonlinux2: ami-034371b1c9795e6fe
-      amazonlinux2023: ami-0811386e4620ccde4
+      amazonlinux2: ami-0113943d73c7308ca
+      amazonlinux2023: ami-0652cf3b641298878
       rhel8: ami-0b44e32559cf47c6f
       rhel9: ami-05fa044061c253b36
       rocky9: ami-0635c401709f8e448
+      ubuntu2204: ami-05ae5a2802e2eaedd
+      ubuntu2404: ami-071ed37e1aa800a4b
     x86_64:
-      amazonlinux2: ami-02c20408932544de7
-      amazonlinux2023: ami-09dbd99b4e8f6a10c
+      amazonlinux2: ami-0bf59cdbb87157bc9
+      amazonlinux2023: ami-0a9b2961cf0036d29
       rhel7: ami-0c3f628c273a69e5b
       rhel8: ami-0f3fc5dd0a38bcf89
       rhel9: ami-0071466cf05615815
       rocky9: ami-0a231072f52f72543
+      ubuntu2204: ami-0660eb62347e1ccd1
+      ubuntu2404: ami-06cef9178d74bfc8e
+      windows2019: ami-0fe9c3013736e463a
+      windows2022: ami-06c2c529cc6d1aff5
+      windows2025: ami-03a753b255c5f0035
   ap-southeast-5:
     arm64:
+      amazonlinux2: ami-0ac7d4986ac9e68e7
+      amazonlinux2023: ami-05f5a717b347b19a2
       rhel8: ami-0d60e3ec7762558ee
       rhel9: ami-0a9d10a25b6993245
+      rocky8: ami-03aa61dfdae668100
+      rocky9: ami-07a450dcb723d9536
+      ubuntu2204: ami-02c53abc7c7a02974
+      ubuntu2404: ami-0f307d44fa94aa958
     x86_64:
+      amazonlinux2: ami-0eb577ab8b918c809
+      amazonlinux2023: ami-0e5b1229fc8235ff7
       rhel7: ami-0895af19f8f08397d
       rhel8: ami-09e6a45d5b1ae32e0
       rhel9: ami-0a3e86b83dd5b1422
-  ap-southeast-7:
-    arm64:
-      rhel8: ami-02e0fddd459e36b62
-      rhel9: ami-07150dbdaa63cfa03
-    x86_64:
-      rhel7: ami-0956c0ffcdb6d0b73
-      rhel8: ami-0e34035a3af14a626
-      rhel9: ami-008fc934563f22ee7
+      rocky8: ami-0f1f48824118cfe74
+      rocky9: ami-0979ef3f15bcf80ba
+      ubuntu2204: ami-0ae17eafcd4e0ef5e
+      ubuntu2404: ami-0f8818e1469fe2aff
+      windows2019: ami-0071fc101d56c5d4e
+      windows2022: ami-0783fc2a42163d488
+      windows2025: ami-027187b08a1c915ca
   ca-central-1:
     arm64:
-      amazonlinux2: ami-0728f888106383aff
-      amazonlinux2023: ami-039ced19eeed73357
+      amazonlinux2: ami-00a382ab58c2c2dc1
+      amazonlinux2023: ami-08edacb73fcbe5950
       rhel8: ami-072ddbec425779305
       rhel9: ami-0a68e15b19da168fe
       rocky8: ami-0f5efe7bfd55c960f
       rocky9: ami-05d0b813bca2f9f14
+      ubuntu2204: ami-05189d25cece6ac8d
+      ubuntu2404: ami-0e06a3de037f4bcba
     x86_64:
-      amazonlinux2: ami-060d87aeaa9187e22
-      amazonlinux2023: ami-0956b8dc6ddc445ec
+      amazonlinux2: ami-06816da431adb7634
+      amazonlinux2023: ami-05073582a4b03d785
       rhel7: ami-02ea00fe2f0d95560
       rhel8: ami-0535511ddcedcb8e3
       rhel9: ami-0cf98c1d97b16ef87
       rocky8: ami-0829e4c2a7a2dcce1
       rocky9: ami-079168ddddf82b7e4
+      ubuntu2204: ami-036edf3ab923ea3f4
+      ubuntu2404: ami-01ce3561e069489ec
+      windows2019: ami-086b735be3516c2a9
+      windows2022: ami-0b221987f93a1dbfe
+      windows2025: ami-02bce8b27768e3fdf
   ca-west-1:
     arm64:
+      amazonlinux2: ami-0060afd13481cffa4
+      amazonlinux2023: ami-057233ad3109fae4f
       rhel8: ami-0975e28fc1c31941c
       rhel9: ami-0197f7cb463e9604d
+      rocky8: ami-00e5579c9701bba08
+      rocky9: ami-0e4723d024ea03ad0
+      ubuntu2204: ami-050a3023dc7f1ba13
+      ubuntu2404: ami-0b94358250bf8418d
     x86_64:
+      amazonlinux2: ami-0af03a84950e4499c
+      amazonlinux2023: ami-05586d5f95c77b005
       rhel7: ami-0a0cb81826a7c8356
       rhel8: ami-0f04f31c12d5a5fd6
       rhel9: ami-05ee2ae8799bda14a
+      rocky8: ami-039dafac71304f23a
+      rocky9: ami-0719cf7f9ccf6075e
+      ubuntu2204: ami-061d379ee7ed33be5
+      ubuntu2404: ami-0ebc6e79c2b3217d7
+      windows2019: ami-0980f5eea80bf2656
+      windows2022: ami-0bff1c310498d0fa4
+      windows2025: ami-0c884b9c517e21b5d
   eu-central-1:
     arm64:
-      amazonlinux2: ami-05f936f383481e9a8
-      amazonlinux2023: ami-04c372a99a14aed4e
+      amazonlinux2: ami-0e2a782feab4a4e75
+      amazonlinux2023: ami-06d99a92c80f4f5df
       rhel8: ami-024697e6d998e27a9
       rhel9: ami-0ea2a765094f230d5
       rocky8: ami-0ef838b0ab2b120cf
       rocky9: ami-074571e46551c0e25
+      ubuntu2204: ami-0e8b23fca906688cb
+      ubuntu2404: ami-0399a55d3330e4f45
     x86_64:
-      amazonlinux2: ami-0ca50f9d8d19bf076
-      amazonlinux2023: ami-0cdd6d7420844683b
+      amazonlinux2: ami-014eb100f18a84d89
+      amazonlinux2023: ami-06ee6255945a96aba
       rhel7: ami-0ad2778533baa4748
       rhel8: ami-0e69ff31742298df3
       rhel9: ami-0955dc0147853401b
       rocky8: ami-03ca52fa7cdd00b6a
       rocky9: ami-041dc33d5b0f85045
+      ubuntu2204: ami-0437e8813894fa0c5
+      ubuntu2404: ami-074d4131321dc4f06
+      windows2019: ami-09a139687b3dfa503
+      windows2022: ami-0fb94f7ede485f4fe
+      windows2025: ami-045114d716addc65d
   eu-central-2:
     arm64:
-      amazonlinux2: ami-07ca6c39939ce1b6a
-      amazonlinux2023: ami-0dd20cb9f5aff9e7c
+      amazonlinux2: ami-041cfb55dacab17e0
+      amazonlinux2023: ami-05170e018c4b9fa26
       rhel8: ami-050a27a017a682d0f
       rhel9: ami-08e5ddb1c05f81c74
       rocky8: ami-099016c45078e5e6f
       rocky9: ami-006542c437f4b33eb
+      ubuntu2204: ami-0c19e806f638d1c96
+      ubuntu2404: ami-0afb8c153bbddb7c9
     x86_64:
-      amazonlinux2: ami-06c09477215b73633
-      amazonlinux2023: ami-0297cbcee23e963b6
+      amazonlinux2: ami-076956770352032ba
+      amazonlinux2023: ami-0a0c3a3296ccc2a29
       rhel7: ami-0db9d90c0a3774ca5
       rhel8: ami-01be58e96ad925f93
       rhel9: ami-0f02fc65afb6a12f3
       rocky8: ami-0a5aa73e9c888d9d7
       rocky9: ami-012ca946ca60e62e0
+      ubuntu2204: ami-0c72c638de19246df
+      ubuntu2404: ami-021dcf3fab477767c
+      windows2019: ami-0e2a0446b71bd3a5d
+      windows2022: ami-0b012fa5fb30088bc
+      windows2025: ami-0891cf739c4ad857e
   eu-north-1:
     arm64:
-      amazonlinux2: ami-0af282ed85a28be2a
-      amazonlinux2023: ami-0b4c22dcb7ee5ee67
+      amazonlinux2: ami-08dc4dc5448731424
+      amazonlinux2023: ami-054a0f0606534475c
       rhel8: ami-0431eb8c7bc6f2251
       rhel9: ami-07cce4e99c2bfdcb5
       rocky8: ami-0658a56ca2e6da22e
       rocky9: ami-0ce2f4e34b004b2e5
+      ubuntu2204: ami-0cc1a838eb0f3a702
+      ubuntu2404: ami-09871cd28527efb09
     x86_64:
-      amazonlinux2: ami-0bbb4e33e93d7c8cd
-      amazonlinux2023: ami-09423ec3aa48e9438
+      amazonlinux2: ami-08fbe5a8c8061068f
+      amazonlinux2023: ami-016038ae9cc8d9f51
       rhel7: ami-0aea71278a41107b2
       rhel8: ami-0717dacde6ae13b14
       rhel9: ami-02722f587bb648dd8
       rocky8: ami-07337a8cbe0c562e0
       rocky9: ami-0aceb8e8ac0f3aa8b
+      ubuntu2204: ami-0e1e3f09a53becce1
+      ubuntu2404: ami-05879f3cb3e9c87a4
+      windows2019: ami-048341e56b32b6ee0
+      windows2022: ami-0d2b2043ae7ce9a16
+      windows2025: ami-0e0d6e610ffe146fe
   eu-south-1:
     arm64:
-      amazonlinux2: ami-0dc5610262557220b
-      amazonlinux2023: ami-0a441bc206217e618
+      amazonlinux2: ami-04919d210b8259c13
+      amazonlinux2023: ami-06dfd07c7caa09e8a
       rhel8: ami-0bab66ff7585d6ad9
       rhel9: ami-0d87d09da3dcee256
+      rocky8: ami-0166ff5853d217a2a
+      rocky9: ami-0793f1de745d09710
+      ubuntu2204: ami-0da083b2af9ee2803
+      ubuntu2404: ami-0c4ec874449f9626d
     x86_64:
-      amazonlinux2: ami-092f54e055f8f7f6c
-      amazonlinux2023: ami-0b4c0f6a499c4f847
+      amazonlinux2: ami-00e3619281c3422e2
+      amazonlinux2023: ami-02c8b07ea6001f11a
       rhel7: ami-02f1c81bdcdad14d9
       rhel8: ami-0e0e7abafd8de2b70
       rhel9: ami-0a2dd9baaebb20ee3
+      rocky8: ami-0112b02935b39c072
+      rocky9: ami-0efb08822e6210fe2
+      ubuntu2204: ami-0f3d43ee584067b49
+      ubuntu2404: ami-0249c29abb3d85d0f
+      windows2019: ami-0a00f92d6d705c028
+      windows2022: ami-00f9644146981ed02
+      windows2025: ami-0f093561fc13f8dbe
   eu-south-2:
     arm64:
-      amazonlinux2: ami-0bdf566dff4b26371
-      amazonlinux2023: ami-05132ad73431254e5
+      amazonlinux2: ami-0ae13a33778da27ee
+      amazonlinux2023: ami-0c469d1376d8885fc
       rhel8: ami-0470657c021b28ae5
       rhel9: ami-05ec99291c411bed0
+      rocky8: ami-02af5f859b574ef40
+      rocky9: ami-0f3e1d508ae0f398a
+      ubuntu2204: ami-0e1f2503854869d85
+      ubuntu2404: ami-02dab6df9419fa67a
     x86_64:
-      amazonlinux2: ami-03820dc512e7c6d1f
-      amazonlinux2023: ami-07d089e36f839adb0
+      amazonlinux2: ami-0d53b1ee71fa16be8
+      amazonlinux2023: ami-047456c943d393211
       rhel7: ami-08854912ab8e2d43e
       rhel8: ami-040a0a18421945f69
       rhel9: ami-018feaa58cde4abb5
+      rocky8: ami-01e854fdb97099506
+      rocky9: ami-04015f6d8ab992d64
+      ubuntu2204: ami-0fd46eeb6253519f7
+      ubuntu2404: ami-06767ab414e73fe38
+      windows2019: ami-08fa85045bf661fa8
+      windows2022: ami-06fa3281ee4d899a6
+      windows2025: ami-07adfabdeceb2cc79
   eu-west-1:
     arm64:
-      amazonlinux2: ami-09bb8eec46ceec994
-      amazonlinux2023: ami-0eddb054af3138dc5
+      amazonlinux2: ami-0cd37ce82c94d5300
+      amazonlinux2023: ami-0fc389ea796968582
       rhel8: ami-0cfe284654eda9eea
       rhel9: ami-016e6894567bb7f3e
       rocky8: ami-00df4f99525a1f494
       rocky9: ami-0aa36620eec68c35b
+      ubuntu2204: ami-0a1c23198a11ebccf
+      ubuntu2404: ami-00d141d03752ea36e
     x86_64:
-      amazonlinux2: ami-00410d8a184b40e78
-      amazonlinux2023: ami-0ef0975ebdd78b77b
+      amazonlinux2: ami-049b732d3f35a4f44
+      amazonlinux2023: ami-0a89fa9a6d8c7ad98
       rhel7: ami-00d8c24eeb5fbfd8c
       rhel8: ami-07cca573a2270b39a
       rhel9: ami-05463a02d11667441
       rocky8: ami-0c14153c77f34b870
       rocky9: ami-0f801bce6ee5c08ef
+      ubuntu2204: ami-06b4f1d1912131f1b
+      ubuntu2404: ami-015aa2dc85c210de9
+      windows2019: ami-02e2409b1e44bf25f
+      windows2022: ami-06915a401338f8462
+      windows2025: ami-0dbaa4c716f1ae55c
   eu-west-2:
     arm64:
-      amazonlinux2: ami-0a39e8ad49dec1af2
-      amazonlinux2023: ami-084a508db65ab64cd
+      amazonlinux2: ami-0da7b3d41e60f4f25
+      amazonlinux2023: ami-03c97cf0c8e01613d
       rhel8: ami-0a4e416c141e7fbbc
       rhel9: ami-08f6bf74ea1856ebb
       rocky8: ami-0b1f446eaa206a516
       rocky9: ami-0608880d1505d57e4
+      ubuntu2204: ami-078fcacbc3514020c
+      ubuntu2404: ami-0bedaec43367e6f6a
     x86_64:
-      amazonlinux2: ami-03e2e61db681f1e1e
-      amazonlinux2023: ami-084725666251e790b
+      amazonlinux2: ami-0eebf19cec0b40d10
+      amazonlinux2023: ami-00710ab5544b60cf7
       rhel7: ami-0c1e9b4f894b82051
       rhel8: ami-0f4561039a3fd82b1
       rhel9: ami-0deb5b5350843668b
       rocky8: ami-020c6cfb9f8b61b53
       rocky9: ami-082a19a0d820f7ad6
+      ubuntu2204: ami-0234b15abedcad8e6
+      ubuntu2404: ami-00152df282fc5bf76
+      windows2019: ami-04a5be552c8564a22
+      windows2022: ami-0fd24edaae77b2388
+      windows2025: ami-03dad44b0cd6f43d1
   eu-west-3:
     arm64:
-      amazonlinux2: ami-06312d7248ea992f3
-      amazonlinux2023: ami-0d9394d73f29efa99
+      amazonlinux2: ami-014ed4a068afec06d
+      amazonlinux2023: ami-03884cf3d050bc488
       rhel8: ami-037d4165bb3537742
       rhel9: ami-0d0ad9ed0040c6437
       rocky8: ami-0e9181a90bb5ae7b5
       rocky9: ami-007ef75762a1e6993
+      ubuntu2204: ami-0304cc3ca822a6399
+      ubuntu2404: ami-01d3afece616a23f5
     x86_64:
-      amazonlinux2: ami-0fcfd4fcfa7ce931f
-      amazonlinux2023: ami-0f38b927e6597da05
+      amazonlinux2: ami-004f2229fb9afa698
+      amazonlinux2023: ami-0446057e5961dfab6
       rhel7: ami-0af9a7147a096d743
       rhel8: ami-095ce16b90f2025bd
       rhel9: ami-03b52fe793d616862
       rocky8: ami-07b9b3580fd50d52d
       rocky9: ami-0d25699f4e16364b9
+      ubuntu2204: ami-03d7ea734de02d272
+      ubuntu2404: ami-03181fd7eb4a793f6
+      windows2019: ami-038fd849b204bc715
+      windows2022: ami-07293f921fd8b737d
+      windows2025: ami-0903464b35c09d0ea
   il-central-1:
     arm64:
-      amazonlinux2: ami-08a7b8c5acde15044
-      amazonlinux2023: ami-0fafa930f1390c9ce
+      amazonlinux2: ami-0ba4a2f4109bddbad
+      amazonlinux2023: ami-0b1653fd7a34be9af
       rhel8: ami-0ac3ac00e41c0d1ba
       rhel9: ami-0d8f86190f94f996f
       rocky9: ami-0fc26913fb2914dcd
+      ubuntu2204: ami-0e0522bf013587ac1
+      ubuntu2404: ami-01e7f5108a6533fbb
     x86_64:
-      amazonlinux2: ami-09c2674607ad355dd
-      amazonlinux2023: ami-02e5219f9721293f8
+      amazonlinux2: ami-0225d8c9b74dfb217
+      amazonlinux2023: ami-0632d5335bb97c65e
       rhel7: ami-069fdf7f55466be38
       rhel8: ami-00d4763fabd6fd6ce
       rhel9: ami-08b563656e23abbd1
       rocky8: ami-0377ead6e1ad34093
       rocky9: ami-0e517fa5a395bd1c1
+      ubuntu2204: ami-01f9fedd723676a23
+      ubuntu2404: ami-033c87f1059f34ac6
+      windows2019: ami-0ca5d528211d96a64
+      windows2022: ami-0c351b0f36014589e
+      windows2025: ami-0f163d4876b1c887f
   me-central-1:
     arm64:
-      amazonlinux2: ami-0715e2142913ef59a
-      amazonlinux2023: ami-037345c406be113a2
+      amazonlinux2: ami-0eb36fe6a4e3636ae
+      amazonlinux2023: ami-03dd7dedb466fda31
       rhel8: ami-0adec92bbdd168097
       rhel9: ami-079a9c7b2be6a96cc
       rocky8: ami-0fc2d19cf2e40bd59
       rocky9: ami-043590d7a6eab97db
+      ubuntu2204: ami-0f3d3cc7ff9d67e6c
+      ubuntu2404: ami-081934cab62e68301
     x86_64:
-      amazonlinux2: ami-0d384b3c1ba8bc752
-      amazonlinux2023: ami-0cd5bf18ec4ad7ac5
+      amazonlinux2: ami-0c437a9e16290f248
+      amazonlinux2023: ami-0c4117cd3d8aa9f9a
       rhel7: ami-0147553cb8dce506c
       rhel8: ami-04a8ac5b1e577d6a8
       rhel9: ami-0804fcd0c9d5602a3
       rocky8: ami-04261ed32e4298d90
       rocky9: ami-0513912a18e986c4c
+      ubuntu2204: ami-00d02a3bda488c2db
+      ubuntu2404: ami-029f7ba9cc7848a4a
+      windows2019: ami-05b914f7d3869ae35
+      windows2022: ami-0184dccb47646ad25
+      windows2025: ami-05e84ed5665613f4a
   me-south-1:
     arm64:
-      amazonlinux2: ami-0017c3488f48d65ab
-      amazonlinux2023: ami-0398ca57ab940c813
+      amazonlinux2: ami-0fd0526c58d174198
+      amazonlinux2023: ami-09e1dc28b3e0bb941
       rhel8: ami-07d2dc6177a38c4e2
       rhel9: ami-0266afcf2bfeabfb0
+      rocky8: ami-0787018a6a0ddb1b4
+      rocky9: ami-0fadb35606d8d934f
+      ubuntu2204: ami-0fa32f85d962f2a2d
+      ubuntu2404: ami-0db8982e58f2237e9
     x86_64:
-      amazonlinux2: ami-0b6e42e4818157439
-      amazonlinux2023: ami-0c8cd5790a3b6fb60
+      amazonlinux2: ami-01ab988ad98ca064a
+      amazonlinux2023: ami-0a95ef992b0368b4c
       rhel7: ami-01e82c1f2ae635a08
       rhel8: ami-0ebfa8c20abfe50d4
       rhel9: ami-05885909e5d92d1cd
+      rocky8: ami-07072a8bd6c72a066
+      rocky9: ami-0b606565db394b584
+      ubuntu2204: ami-0cd0e458edfa621d8
+      ubuntu2404: ami-0e8b09fc121e3238e
+      windows2019: ami-05432f45952623ebb
+      windows2022: ami-097aa92e7c382ca46
+      windows2025: ami-02efbff2af5060e3a
   mx-central-1:
     arm64:
-      amazonlinux2: ami-041bff7db20d216fe
-      amazonlinux2023: ami-08e47f2ae1d2dd005
+      amazonlinux2: ami-038c9cd797ddb6483
+      amazonlinux2023: ami-0bb655f440acc178a
       rhel8: ami-03920701cebcb6c2c
       rhel9: ami-0e8db23946fb70d3d
+      ubuntu2204: ami-00a363f52a7b7ca75
+      ubuntu2404: ami-02088083c8719cd45
     x86_64:
-      amazonlinux2: ami-0fda56e6a9f67fc0a
-      amazonlinux2023: ami-054805ed4dae11095
+      amazonlinux2: ami-07a40f1b0995bae03
+      amazonlinux2023: ami-0692398a0c98b312e
       rhel7: ami-0a5e97096693064cf
       rhel8: ami-064e05ebf8da52d93
       rhel9: ami-0d56cd1d5142cde18
+      ubuntu2204: ami-09530698064bc2d1d
+      ubuntu2404: ami-069dfb87bb816fa5b
+      windows2019: ami-037b71d7b4d9a3388
+      windows2022: ami-01c6ed346860994b1
+      windows2025: ami-0ea241edd04c26090
   sa-east-1:
     arm64:
-      amazonlinux2: ami-0b0ea1aefbec0c286
-      amazonlinux2023: ami-0cb42edc0dce637e9
+      amazonlinux2: ami-0481f5dbc8c608987
+      amazonlinux2023: ami-0ebd60ed5f7e6d01a
       rhel8: ami-02d8715b96a441766
       rhel9: ami-05d536bbd6689bd7f
       rocky8: ami-06d4e0be515dfc2fb
       rocky9: ami-0271cfac80b1bd6ca
+      ubuntu2204: ami-023fb20ce0de70674
+      ubuntu2404: ami-0991e2259f582e9e6
     x86_64:
-      amazonlinux2: ami-08ebf72439322b1af
-      amazonlinux2023: ami-079a9eba298521f24
+      amazonlinux2: ami-081d377a25d396ece
+      amazonlinux2023: ami-02cfee28b56653f5c
       rhel7: ami-0069c473f413a103c
       rhel8: ami-07cbf119a99868262
       rhel9: ami-05ba0c0708665878f
       rocky8: ami-0070a028fc72c8f48
       rocky9: ami-01a0c4e8f19b6f9dd
+      ubuntu2204: ami-0dc3874c9beb3d0fc
+      ubuntu2404: ami-09f499eed9cec635c
+      windows2019: ami-09de184703a47f1db
+      windows2022: ami-0bb79877fad803a52
+      windows2025: ami-092057b73a0d77066
   us-east-1:
     arm64:
-      amazonlinux2: ami-0adfc3d0b8b48113f
-      amazonlinux2023: ami-08cf815cff6ee258a
+      amazonlinux2: ami-08223dc14791687aa
+      amazonlinux2023: ami-0f37c4a1ba152af46
       rhel8: ami-0b354996440c75a09
       rhel9: ami-0677a1dd1ad031d74
       rocky8: ami-0ad512af1b9f6ef91
       rocky9: ami-0fe5c47737d880603
+      ubuntu2204: ami-010f8f76d7f4486c8
+      ubuntu2404: ami-0abe47a8515be836d
     x86_64:
-      amazonlinux2: ami-097705bd69072a34d
-      amazonlinux2023: ami-0df8c184d5f6ae949
+      amazonlinux2: ami-0ace34e9f53c91c5d
+      amazonlinux2023: ami-05b10e08d247fb927
       rhel7: ami-0c76662758dc1db64
       rhel8: ami-0140c344ea05bbd7a
       rhel9: ami-0fc8883cbe9d895c8
       rocky8: ami-011ef2017d41cb239
       rocky9: ami-0a73e96a849c232cc
+      ubuntu2204: ami-07f9449c0b700566e
+      ubuntu2404: ami-0565c7ec71d5e8b8d
+      windows2019: ami-0893df1bd754c3189
+      windows2022: ami-001adaa5c3ee02e10
+      windows2025: ami-07fa5275316057f54
   us-east-2:
     arm64:
-      amazonlinux2: ami-0124234823ac5ecb5
-      amazonlinux2023: ami-0030d50a3ce637c3a
+      amazonlinux2: ami-077017b68f8b403a0
+      amazonlinux2023: ami-0d30ab9f2d2a4a63a
       rhel8: ami-09c943cd75e225dac
       rhel9: ami-0ca193da3899e17cf
       rocky8: ami-0aa5b64f9b561d20f
       rocky9: ami-0cc73a60867904383
+      ubuntu2204: ami-0e83a8ce22df77a97
+      ubuntu2404: ami-03082e257816b2d5f
     x86_64:
-      amazonlinux2: ami-087083f4158095fd5
-      amazonlinux2023: ami-08970251d20e940b0
+      amazonlinux2: ami-0e7b3e7766d24a6ff
+      amazonlinux2023: ami-0fc82f4dabc05670b
       rhel7: ami-02827739a7f5841d3
       rhel8: ami-03b59d2a779dad4d3
       rhel9: ami-05e5be364adedee9c
       rocky8: ami-02391db2758465a87
       rocky9: ami-05150ea4d8a533099
+      ubuntu2204: ami-03fea1580c4614788
+      ubuntu2404: ami-0e42c17a7597022f4
+      windows2019: ami-0d5856887e273397a
+      windows2022: ami-0b041308c8b9767f3
+      windows2025: ami-05188fcabea1c2e9f
   us-west-1:
     arm64:
-      amazonlinux2: ami-016e2f89458df68a7
-      amazonlinux2023: ami-02f801c2c463d78f9
+      amazonlinux2: ami-06531e4e72c7bf42d
+      amazonlinux2023: ami-033ec81ee893e9f0f
       rhel8: ami-072b58b8616ffa79a
       rhel9: ami-0aab7cc073aa90e60
       rocky8: ami-0f2bb3fdc66a1ac0e
       rocky9: ami-0a847b1f5c927325b
+      ubuntu2204: ami-0389531f2df0f6ac5
+      ubuntu2404: ami-01609b7b282803eb7
     x86_64:
-      amazonlinux2: ami-0f4a2cf55f1c4b614
-      amazonlinux2023: ami-0118dc74bd8f98b13
+      amazonlinux2: ami-01891d4f3898759b2
+      amazonlinux2023: ami-094b981da55429bfc
       rhel7: ami-000f409b704b55cf4
       rhel8: ami-05d4a6f46c54dcb89
       rhel9: ami-0449c60bfdb76e0f0
       rocky8: ami-054c64de4b29296be
       rocky9: ami-05b499126863461fc
+      ubuntu2204: ami-0c64a34bf821b0cd1
+      ubuntu2404: ami-0580dfdad539867c1
+      windows2019: ami-085db4610bfc0c4e8
+      windows2022: ami-0650dc5218bb7d5e8
+      windows2025: ami-07af30cf1013f864b
   us-west-2:
     arm64:
-      amazonlinux2: ami-030d7a578309b4fc6
-      amazonlinux2023: ami-0c03b4d2e21bdc89a
+      amazonlinux2: ami-0e6f666acd96a928f
+      amazonlinux2023: ami-021c478d943abe2da
       rhel8: ami-09250b61092f883c3
       rhel9: ami-04379fa947a959c92
       rocky8: ami-06459b48b47a92d77
       rocky9: ami-0e4567b8d81c01c5f
+      ubuntu2204: ami-08e65f4539212dfd2
+      ubuntu2404: ami-07a480d38371db5f3
     x86_64:
-      amazonlinux2: ami-007d948a3621b6c3d
-      amazonlinux2023: ami-093a4ad9a8cc370f4
+      amazonlinux2: ami-04c0ab8f1251f1600
+      amazonlinux2023: ami-027951e78de46a00e
       rhel7: ami-0b43febdef0c3d1c3
       rhel8: ami-0be9dd52e05f424f3
       rhel9: ami-0c2f1f1137a85327e
       rocky8: ami-0f74cc83310468775
       rocky9: ami-08f2642bb132b988c
-  us-gov-east-1:
-    arm64:
-      amazonlinux2: ami-091e95168e02a07ad
-      amazonlinux2023: ami-0469357509c4be210
-    x86_64:
-      amazonlinux2: ami-08fcd8d2370a19ec4
-      amazonlinux2023: ami-0a0465cf2e5617b6b
-      rhel7: ami-04291455a9270b455
-  us-gov-west-1:
-    arm64:
-      amazonlinux2: ami-0acacc987af9c1ad6
-      amazonlinux2023: ami-09930e9f0b834209c
-    x86_64:
-      amazonlinux2: ami-093bd0b2efd952c55
-      amazonlinux2023: ami-027df2a503cc3237f
-      rhel7: ami-09616d1f2ecd77e9b
+      ubuntu2204: ami-01d1ba4beaae93566
+      ubuntu2404: ami-05405d1d25bf87fe6
+      windows2019: ami-051cf2e90cf9c0365
+      windows2022: ami-0a1f75c71aceb9a3f
+      windows2025: ami-0d31ac04c1d894d66
 

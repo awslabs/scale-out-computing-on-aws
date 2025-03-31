@@ -5,7 +5,7 @@ import ast
 import re
 from utils.response import SocaResponse
 from utils.error import SocaError
-from typing import Any, Optional
+from typing import Any
 from utils.aws.boto3_wrapper import get_boto
 from botocore.exceptions import ClientError
 import os
@@ -36,7 +36,7 @@ class SocaConfigKeyVerifier:
         "list_of_ec2_subnet_ids",
     ]
 
-    _KEY_CONFIG_FILE = f"/apps/soca/{os.environ.get('SOCA_CLUSTER_ID')}/cluster_manager/utils/settings/socaconfig_key_validator.yml"
+    _KEY_CONFIG_FILE = f"/opt/soca/{os.environ.get('SOCA_CLUSTER_ID')}/cluster_manager/utils/settings/socaconfig_key_validator.yml"
 
     def __init__(self, key: str):
         self.key = key
@@ -95,7 +95,9 @@ class SocaConfigKeyVerifier:
         )
         logger.debug(f"Detected Validation Test for {key} -> {_validation_test}")
         if _validation_test is None:
-            return SocaError.SOCA_CONFIG_KEY_VERIFIER(helper=f"{key} does not exist in util.config_checks")
+            return SocaError.SOCA_CONFIG_KEY_VERIFIER(
+                helper=f"{key} does not exist in util.config_checks"
+            )
         else:
             if _validation_test in SocaConfigKeyVerifier._SPECIAL_VALIDATION_TESTS:
                 if _validation_test == "list_of_string":

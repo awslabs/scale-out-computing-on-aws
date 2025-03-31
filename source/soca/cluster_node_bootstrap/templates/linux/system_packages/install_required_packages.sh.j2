@@ -3,8 +3,13 @@
 
 # Begin: Install/Update Required Linux Packages
 
-# Add EPEL
-{% include "templates/linux/epel.sh.j2" %}
+# Do not include this template from another template in your bootstrap sequence. Instead render and save it as a file.
+
+{% include "templates/linux/common.sh.j2" %}
+
+# Add EPEL & Ubuntu equivalent
+{% include "templates/linux/system_packages/epel.sh.j2" %}
+{% include "templates/linux/system_packages/universe.sh.j2" %}
 
 function system_packages_install {
   log_info "# Begin: Install/Update Required Linux Packages"
@@ -45,6 +50,12 @@ function system_packages_install {
 
     {% elif context.get("/configuration/BaseOS") == "rocky9" %}
       {% include "templates/linux/system_packages/os/rocky9.sh.j2" %}
+
+    {% elif context.get("/configuration/BaseOS") == "ubuntu2204" %}
+      {% include "templates/linux/system_packages/os/ubuntu2204.sh.j2" %}
+
+    {% elif context.get("/configuration/BaseOS") == "ubuntu2404" %}
+      {% include "templates/linux/system_packages/os/ubuntu2404.sh.j2" %}
 
     {% else %}
       exit_fail "System Packages Installer: Unrecognized base os: {{ context.get('/configuration/BaseOS') }}"

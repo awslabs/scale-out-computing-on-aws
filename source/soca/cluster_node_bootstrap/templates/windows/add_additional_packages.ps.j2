@@ -1,0 +1,18 @@
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# Begin - Add Additional Packages
+
+# Use Invoke-SOCAInstallPackage if you want to automatically install packages on your Windows VDI via Chocolatey Package Manager
+# Invoke-SOCAInstallPackage is a Cmdlet imported via `common.ps.j2`. Source is on `common\wrapper_install_package.ps.j2`.
+
+# Edit AdditionalSystemPackagesToInstall with the list of packages you want to install
+# ex: $AdditionalSystemPackagesToInstall = @('firefox', 'googlechrome')
+# You can see all supported packages on https://community.chocolatey.org/packages
+$AdditionalSystemPackagesToInstall=@()
+
+foreach ($package in $AdditionalSystemPackagesToInstall) {
+    Log-Info -Message "Extra User Package: ${package}"
+    Invoke-SOCAInstallPackage -PackageName $package
+}
+# End - Add Additional Packages

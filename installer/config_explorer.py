@@ -88,7 +88,7 @@ def get(**kwargs):
 @config.command()
 @click.option('--new_value', help='New value for configuration')
 def update(new_value):
-    click.echo("Editing configuration with new value: {}".format(new_value))
+    click.echo(f"Editing configuration with new value: {new_value}")
 
 
 if __name__ == "__main__":

@@ -7,19 +7,19 @@ source /etc/environment
 if [[ -z "${http_proxy}" ]] && [[ -z "${HTTP_PROXY}" ]]; then
    echo "#export http_proxy=" >> /etc/environment
 else
-  log_info "http_proxy is already set to ${http_proxy}"
+  log_warning "http_proxy is already set to [http_proxy: ${http_proxy}] / [HTTP_PROXY: ${HTTP_PROXY}]"
 fi
 
 if [[ -z "${https_proxy}" ]] && [[ -z "${HTTPS_PROXY}" ]]; then
    echo "#export https_proxy=" >> /etc/environment
 else
-  log_info "https_proxy is already set to ${http_proxy}"
+  log_warning "https_proxy is already set to [https_proxy: ${https_proxy}] / [HTTPS_PROXY: ${HTTPS_PROXY}]"
 fi
 
 if [[ -z "${no_proxy}" ]] && [[ -z "${NO_PROXY}" ]]; then
    echo "#export no_proxy=" >> /etc/environment
 else
-  log_info "no_proxy is already set to ${no_proxy}"
+  log_warning "no_proxy is already set to [no_proxy: ${no_proxy}] / [NO_PROXY: ${NO_PROXY}]"
 
 fi
 

@@ -93,7 +93,7 @@ def reset_key():
                 random.choice(
                     string.ascii_lowercase + string.ascii_uppercase + string.digits
                 )
-                for i in range(25)
+                for _i in range(25)
             )
             change_password = post(
                 config.Config.FLASK_ENDPOINT + "/api/user/reset_password",

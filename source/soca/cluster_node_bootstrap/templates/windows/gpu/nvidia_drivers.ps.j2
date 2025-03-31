@@ -1,0 +1,61 @@
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# Begin - Install NVIDIA Drivers
+function Install-NvidiaGpuDrivers {
+    $keyPrefix = $false
+    $operatingSystem = (Get-ComputerInfo).OsName.ToLower()
+
+    if ($operatingSystem -like "*windows server 2019*") {
+       $keyPrefix = "*_grid_*_server2019_*.exe"
+    }
+    elseif ($operatingSystem -like "*windows server 2022*") {
+       $keyPrefix = "*_grid_*_server2022_*.exe"
+    }
+    elseif ($operatingSystem -like "*windows server 2025*") {
+        Log-Warning -Message "No NVIDIA driver for Windows 2025, skipping GPU Drivers install ... "
+    }
+    else {
+        Log-Warning "BaseOS must be windows2019, windows2022 or windows2025, detected  ${operatingSystem}, skipping GPU Drivers install"
+    }
+
+    if ($keyPrefix -ne $false) {
+        $checkExistingDrivers = Get-WmiObject Win32_PnPSignedDriver | Where-Object { $_.DeviceName -like "*NVIDIA*" }
+        if ($checkExistingDrivers) {
+            Log-Info -Message "NVIDIA drivers are already installed on this machine"
+        }
+        else {
+            Log-Info -Message "About to install NVIDIA Grid drivers"
+            $bucketUrl = "{{ context.get('/system/gpu/gpu_settings/nvidia/windows/grid_drivers/s3_bucket_url') }}"
+            $bucketRegion = (Invoke-WebRequest -Method Head -Uri $bucketUrl -UseBasicParsing).Headers["x-amz-bucket-region"]
+            $installerFolderPrefix = "nvidia_grid_driver"
+            Log-Info -Message "Downloading Nvidia Drivers from S3"
+            Invoke-SOCAAwsCli s3 cp --region $bucketRegion --quiet {{ context.get("/system/gpu/gpu_settings/nvidia/windows/grid_drivers/s3_bucket_path") }} "${SOCABootstrapAssetsFolder}\${installerFolderPrefix}" --recursive --exclude "*" --include "$keyPrefix*"
+
+            Log-Info -Message "Disabling Licensing Page"
+            reg add "HKLM\SOFTWARE\NVIDIA Corporation\Global\GridLicensing" /v NvCplDisableManageLicensePage /t REG_DWORD /d 1 /f
+
+            # https://enterprise-support.nvidia.com/s/article/Silent-Install-of-GRID-VM-Driver-for-Windows
+            Log-Info -Message "Installing Nvidia Drivers"
+            $driverFileName = (Get-ChildItem -Path "${SOCABootstrapAssetsFolder}\${installerFolderPrefix}" -Filter $keyPrefix).Name
+            Set-ExecutionPolicy RemoteSigned -Scope Process
+
+            # Install 7zip if needed, use 7zip.install as it will automatically add the bin to your system PATH
+            Invoke-SOCAInstallPackage -PackageName "7zip.install"
+
+            # Extract Driver Content from the self-extractubg executable
+            7z x "${SOCABootstrapAssetsFolder}\${installerFolderPrefix}\$keyPrefix" -o"${SOCABootstrapAssetsFolder}\${installerFolderPrefix}" -y
+
+            # Install Driver
+            Log-Info "About to execute ${SOCABootstrapAssetsFolder}\${installerFolderPrefix}\setup.exe with Arguments -n -s"
+            $installDriver = Start-Process -FilePath "${SOCABootstrapAssetsFolder}\${installerFolderPrefix}\setup.exe" -ArgumentList "-n", "-s" -Wait -PassThru
+            $exitCode = $installDriver.ExitCode
+            Log-Info -Message "Exit Code ${exitCode}"
+
+            Log-Info -Message "NVIDIA Grid driver installed, reboot will be done at the end of the bootstrap sequence"
+            $requireReboot=$true
+        }
+    }
+}
+Install-NvidiaGpuDrivers
+# End - Install NVIDIA Drivers

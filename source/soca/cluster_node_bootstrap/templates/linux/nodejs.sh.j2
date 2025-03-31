@@ -3,7 +3,6 @@
 
 # Begin: Install NodeJS
 
-{% if context.get("/configuration/BaseOS") in ("amazonlinux2", "amazonlinux2023", "centos7", "rhel7", "rhel8", "rhel9", "rocky8", "rocky9") %}
 # Usage: Ensure NVM_DIR environment variable is added to /etc/environment when nodejs is installed.
 function install_nodejs () {
   pushd "${SOCA_BOOTSTRAP_ASSETS_FOLDER}"
@@ -34,5 +33,4 @@ function install_nodejs () {
 }
 
 install_nodejs
-{% endif %}
 # End: Install NodeJS

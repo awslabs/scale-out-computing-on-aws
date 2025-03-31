@@ -23,7 +23,7 @@ from botocore.exceptions import ClientError
 from botocore import exceptions
 
 sys.path.append(
-    f"/apps/soca/{os.environ.get('SOCA_CLUSTER_ID', 'SOCA_CONFIGURATION_NOT_FOUND')}/cluster_manager"
+    f"/opt/soca/{os.environ.get('SOCA_CLUSTER_ID', 'SOCA_CONFIGURATION_NOT_FOUND')}/cluster_manager"
 )
 import cloudformation_builder
 from utils.aws.ssm_parameter_store import SocaConfig
@@ -141,7 +141,7 @@ def verify_ri_saving_availabilities(instance_type, instance_type_info):
                             instance_type_info[instance_type][
                                 "current_instance_in_use"
                             ] += 1
-                    except Exception as e:
+                    except Exception as _e:
                         exc_type, exc_obj, exc_tb = sys.exc_info()
                         fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
                         print(exc_type, fname, exc_tb.tb_lineno)
@@ -840,6 +840,8 @@ def check_config(**kwargs):
                     "rocky9",
                     "amazonlinux2",
                     "amazonlinux2023",
+                    "ubuntu2204",
+                    "ubuntu2404",
                 ]
                 if kwargs["base_os"] not in base_os_allowed:
                     error.append(
@@ -996,10 +998,7 @@ def main(**kwargs):
         if params["keep_forever"] is True:
             cfn_stack_name = (
                 SocaConfig(key="/configuration/ClusterId").get_value().get("message")
-                + "-keepforever-"
-                + params["queue"]
-                + "-"
-                + params["stack_uuid"]
+                + f"-keepforever-{params['queue']}-{params['stack_uuid']}"
             )
             tags["soca:KeepForever"] = "true"
         else:
@@ -1416,7 +1415,7 @@ if __name__ == "__main__":
     arg = parser.parse_args()
     launch = main(**dict(arg._get_kwargs()))
     if launch["success"] is True:
-        if (arg.keep_forever).lower() == "true":
+        if arg.keep_forever.lower() == "true":
             print(
                 """
             IMPORTANT:

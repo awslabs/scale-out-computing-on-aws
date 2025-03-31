@@ -1,0 +1,31 @@
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# Begin: Configure default DCV Permissions
+function Configure-DCVPermissions {
+  Log-Info -Message "Setting up DCV permissions"
+  $timestamp = Get-Date -UFormat %s
+  Rename-Item -Path "C:\Program Files\NICE\DCV\Server\conf\default.perm" -NewName "default.perm.original.${timestamp}"
+  # Add any additional permissions as needed:
+  # https://docs.aws.amazon.com/dcv/latest/adminguide/security-authorization-file-create-permission.html
+  @'
+[groups]
+; Example:
+; group:testgroup = actor1, actor2, actor3
+
+[aliases]
+; Example:
+; testalias = display, clipboard-copy, clipboard-paste, file-download, file-upload, mouse, keyboard, audio-in, audio-out, printer, usb, smartcard
+
+[permissions]
+; Example:
+; %owner% allow builtin
+; %any% deny clipboard-copy clipboard-paste smartcard
+; actor allow display
+; group:testgroup disallow testalias
+'@ | Set-Content -Path "C:\Program Files\NICE\DCV\Server\conf\default.perm"
+    Log-Info -Message "C:\Program Files\NICE\DCV\Server\conf\default.perm updated"
+
+}
+Configure-DCVPermissions
+# End: Configure default DCV Permissions

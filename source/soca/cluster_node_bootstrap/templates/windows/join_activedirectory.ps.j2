@@ -3,6 +3,7 @@
 
 # Begin - Join Windows host to Active Directory
 function Join-ActiveDirectory {
+    Log-Info -Message "Joining Active Directory"
     $secret = Get-Secret -SecretId "{{ context.get('/configuration/UserDirectory/service_account_secret_arn') }}"
     if ($secret)
     {
@@ -17,16 +18,16 @@ function Join-ActiveDirectory {
     $ServerInAD = (Get-WmiObject -Class Win32_ComputerSystem).PartOfDomain
     if ($ServerInAD)
     {
-        Write-ToLog -Message "Host already part of AD domain"
+        Log-Info -Message "Host already part of AD domain"
     }
     else
     {
-        Write-ToLog -Message "Joining Computer to AD domain"
+        Log-Info -Message "Joining Computer to AD domain"
         $JoinPassword = ConvertTo-SecureString "$serviceAccountPassword" -AsPlainText -Force
         $JoinCredentials = New-Object System.Management.Automation.PSCredential -ArgumentList "{{ context.get('/configuration/UserDirectory/short_name') }}\$serviceAccountUsername",$JoinPassword
         Add-Computer -ComputerName $env:COMPUTERNAME -DomainName "{{ context.get('/configuration/UserDirectory/domain_name') }}" -Credential $JoinCredentials
-        & C:\ProgramData\Amazon\EC2-Windows\Launch\Scripts\InitializeInstance.ps1 -Schedule
-        Restart-Computer -Force
+        Log-Info -Message "Domain Join completed, setting up requireReboot to true"
+        $requireReboot=$true
     }
 }
 Join-ActiveDirectory

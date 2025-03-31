@@ -1,0 +1,58 @@
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# Begin: Restrict SSH access of Controller host to SOCA SUDOERS group
+# We do not override existing AllowUsers / AllowGroups, we simply extend them.
+# To disable this, remove the include on installer/resources/user_data/controller/03_setup.sh.j2
+
+function restrict_ssh () {
+  local SOCA_DIRECTORY_ADMINS_SEARCH_BASE="{{ context.get("/configuration/UserDirectory/admins_search_base") | lower }}"
+  local SOCA_DIRECTORY_ADMIN_GROUP_NAME=$(echo ${SOCA_DIRECTORY_ADMINS_SEARCH_BASE} | awk -F'[,=]' '{print $2}')
+  local LOCAL_GROUPS=$(awk -F: '$3 >= 1000 {print $1}' /etc/group)
+
+  # Combine into a single array
+  local COMBINED_GROUPS=("${LOCAL_GROUPS[@]}" "$SOCA_DIRECTORY_ADMIN_GROUP_NAME")
+  COMBINED_GROUPS=($(printf "%s\n" "${COMBINED_GROUPS[@]}" | sort -u)) # Remove duplicates (optional, if you expect overlap)
+
+
+  log_info "Restricting SSH access on Controller host to user that belongs to ${SOCA_DIRECTORY_ADMIN_GROUP_NAME} and local users"
+  # The allow/deny directives are processed in the following order: DenyUsers, AllowUsers, DenyGroups, and finally AllowGroups.
+  # We don't configure AllowGroups if AllowUsers is already set in the AMI
+
+  cp /etc/ssh/sshd_config /etc/ssh/sshd_config.original.$(date +%s)
+
+  # Check if AllowUsers does not exists.
+  if ! grep -qE "^AllowUsers" "/etc/ssh/sshd_config"; then
+    # Check if AllowGroups exists, if yes add the SOCA Admin Groups if not there, otherwise create the new rule
+    if grep -qE "^AllowGroups" "/etc/ssh/sshd_config"; then
+        # Update AllowGroups
+        for GROUP in "${COMBINED_GROUPS[@]}"; do
+              if ! grep -E "^AllowGroups" "/etc/ssh/sshd_config" | grep -qw "${GROUP}"; then
+                sed -i "/^AllowGroups/ s/$/ ${GROUP}/" "/etc/ssh/sshd_config"
+                log_info "Added ${GROUP} to existing AllowGroups entry."
+              else
+                log_info "${GROUP} is already in AllowGroups."
+              fi
+        done
+    else
+        # Add AllowGroups with all the required groups
+        echo "AllowGroups ${COMBINED_GROUPS[*]}" >> "/etc/ssh/sshd_config"
+        log_info "Created AllowGroups entry with ${COMBINED_GROUPS[*]}."
+    fi
+  else
+      # Add AllowUsers with all local users
+      log_info "AllowUsers already set in this AMI, skipping AllowGroups creation as AllowUsers has higher priority"
+  fi
+
+  # Setup a banner if not already set.
+  if ! grep -qE "^Banner" "/etc/ssh/sshd_config"; then
+    echo "/!\ SSH access to {{ context.get('/configuration/ClusterId') }} Controller Node is limited to local users and members of ${SOCA_DIRECTORY_ADMIN_GROUP_NAME}" > /etc/ssh/ssh_banner_soca
+    echo "Banner /etc/ssh/ssh_banner_soca" >> "/etc/ssh/sshd_config"
+  fi
+
+  # Restart SSH service to apply changes
+  systemctl restart sshd
+  log_info "SSHD service restarted and SSH access restricted to ${SOCA_DIRECTORY_ADMIN_GROUP_NAME} + local/system users."
+}
+restrict_ssh
+# End: Restrict SSH access

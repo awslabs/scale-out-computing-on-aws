@@ -2,7 +2,6 @@
 # SPDX-License-Identifier: Apache-2.0
 
 # Begin: Configure OpenMPI
-{% if context.get("/configuration/BaseOS") in ("amazonlinux2", "amazonlinux2023", "centos7", "rhel7", "rhel8", "rhel9", "rocky8", "rocky9") %}
 function install_openmpi () {
   log_info "Begin: Configure OpenMPI"
   # Compile OpenMPI under /root/openmpi/openmpi_version
@@ -19,7 +18,7 @@ function install_openmpi () {
     file_download --download-url="${OPENMPI_URL}" --save-as="openmpi_installer_${OPENMPI_VERSION}.tgz" --sha256-checksum="${OPENMPI_SHA256}"
     tar xzf "openmpi_installer_${OPENMPI_VERSION}.tgz" --strip-components=1 -C .
     ./configure --prefix="/apps/openmpi/${OPENMPI_VERSION}"
-    make -j "${NCPU}"
+    make -j $(nproc)
     make install
     popd
   else
@@ -27,5 +26,4 @@ function install_openmpi () {
   fi
 }
 install_openmpi
-{% endif %}
 # End: Configure OpenMPI

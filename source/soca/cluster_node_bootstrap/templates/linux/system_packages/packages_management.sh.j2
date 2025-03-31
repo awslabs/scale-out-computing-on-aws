@@ -14,7 +14,8 @@ function packages_remove () {
     packages_exec_command yum remove -y "${@}"
   {% elif context.get("/configuration/BaseOS") in ("rhel8", "rhel9", "rocky8", "rocky9") %}
     packages_exec_command dnf remove -y "${@}"
-  {% elif context.get("/configuration/BaseOS") == "ubuntu2204" %}
+  {% elif context.get("/configuration/BaseOS") in ("ubuntu2204","ubuntu2404") %}
+    export DEBIAN_FRONTEND=noninteractive
     packages_exec_command apt-get remove -y "${@}"
   {% endif %}
 }
@@ -29,7 +30,8 @@ function packages_install () {
     packages_exec_command yum install -y "${@}"
   {% elif context.get("/configuration/BaseOS") in ("rhel8", "rhel9", "rocky8", "rocky9") %}
     packages_exec_command dnf install -y "${@}"
-  {% elif context.get("/configuration/BaseOS") == "ubuntu2204" %}
+  {% elif context.get("/configuration/BaseOS") in ("ubuntu2204","ubuntu2404") %}
+    export DEBIAN_FRONTEND=noninteractive
     packages_exec_command apt-get install -y "${@}"
   {% endif %}
 }
@@ -41,7 +43,9 @@ function verify_package_installed () {
   fi
 
   {% if context.get("/configuration/BaseOS") in ("amazonlinux2", "amazonlinux2023", "centos7", "rhel7", "rhel8", "rhel9", "rocky8", "rocky9") %}
-    rpm -q ${1} &> /dev/null &&  return 0 || return 1
+    rpm -q ${1} &> /dev/null && return 0 || return 1
+  {% elif context.get("/configuration/BaseOS") in ("ubuntu2204","ubuntu2404") %}
+    dpkg -s ${1} &>/dev/null && return 0 || return 1
   {% endif %}
 }
 
@@ -51,7 +55,8 @@ function packages_clean () {
     packages_exec_command yum clean all
   {% elif context.get("/configuration/BaseOS") in ("rhel8", "rhel9", "rocky8", "rocky9") %}
     packages_exec_command dnf clean all
-  {% elif context.get("/configuration/BaseOS") == "ubuntu2204" %}
+  {% elif context.get("/configuration/BaseOS") in ("ubuntu2204","ubuntu2404") %}
+    export DEBIAN_FRONTEND=noninteractive
     packages_exec_command apt-get clean
   {% endif %}
 }
@@ -62,7 +67,8 @@ function packages_generic_command() {
     packages_exec_command yum "${@}"
   {% elif context.get("/configuration/BaseOS") in ("rhel8", "rhel9", "rocky8", "rocky9") %}
     packages_exec_command dnf "${@}"
-  {% elif context.get("/configuration/BaseOS") == "ubuntu2204" %}
+  {% elif context.get("/configuration/BaseOS") in ("ubuntu2204","ubuntu2404") %}
+    export DEBIAN_FRONTEND=noninteractive
     packages_exec_command apt-get "${@}"
   {% endif %}
 }

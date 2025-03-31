@@ -3,7 +3,7 @@
 
 # Begin - Disable UAC
 function Disable-UAC {
-    Write-ToLog -Message "Disable User Access Control (UAC)"
+    Log-Info -Message "Disable User Access Control (UAC)"
     Set-ItemProperty "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System" -Name "ConsentPromptBehaviorAdmin" -Value 00000000 -Force
 }
 Disable-UAC

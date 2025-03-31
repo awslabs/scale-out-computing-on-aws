@@ -2,7 +2,6 @@
 # SPDX-License-Identifier: Apache-2.0
 
 # Begin: OpenPBS Configure Server
-{% if context.get("/configuration/BaseOS") in ("amazonlinux2", "amazonlinux2023", "centos7", "rhel7", "rhel8", "rhel9", "rocky8", "rocky9") %}
 function openpbs_configure_server () {
     log_info "[BEGIN] openpbs_configure_server .. "
     local SCHEDULER_HOSTNAME="{{ context.get("/configuration/ControllerPrivateDnsName") }}"
@@ -10,7 +9,7 @@ function openpbs_configure_server () {
     local SOCA_BASE_OS="{{ context.get("/configuration/BaseOS") }}"
     local SOCA_INSTALL_AMI="{{ context.get("/configuration/CustomAmi") }}"
 
-    cp /etc/pbs.conf /etc/pbs.conf.original.$(date +%s)
+    cp /etc/pbs.conf /etc/pbs.conf.original."$(date +%s)"
     echo "PBS_SERVER=${SCHEDULER_HOSTNAME}
 PBS_START_SERVER=1
 PBS_START_SCHED=1
@@ -21,7 +20,7 @@ PBS_HOME=/var/spool/pbs
 PBS_CORE_LIMIT=unlimited
 PBS_SCP=/usr/bin/scp
 " > /etc/pbs.conf
-    echo "$clienthost ${SCHEDULER_HOSTNAME}" > /var/spool/pbs/mom_priv/config
+    echo "\$clienthost ${SCHEDULER_HOSTNAME}" > /var/spool/pbs/mom_priv/config
 
     # Default AWS Resources
     cat <<EOF >>/var/spool/pbs/server_priv/resourcedef
@@ -60,72 +59,63 @@ EOF
     systemctl start pbs
     sleep 30
 
-    ## Update PBS Hooks with the current script location
-    sed -i "s/%SOCA_CLUSTER_ID/${SOCA_CLUSTER_ID}/g" /apps/soca/${SOCA_CLUSTER_ID}/cluster_hooks/queuejob/check_queue_acls.py
-    sed -i "s/%SOCA_CLUSTER_ID/${SOCA_CLUSTER_ID}/g" /apps/soca/${SOCA_CLUSTER_ID}/cluster_hooks/queuejob/check_queue_instance_types.py
-    sed -i "s/%SOCA_CLUSTER_ID/${SOCA_CLUSTER_ID}/g" /apps/soca/${SOCA_CLUSTER_ID}/cluster_hooks/queuejob/check_queue_custom_sgs_roles.py
-    sed -i "s/%SOCA_CLUSTER_ID/${SOCA_CLUSTER_ID}/g" /apps/soca/${SOCA_CLUSTER_ID}/cluster_hooks/queuejob/check_queue_restricted_parameters.py
-    sed -i "s/%SOCA_CLUSTER_ID/${SOCA_CLUSTER_ID}/g" /apps/soca/${SOCA_CLUSTER_ID}/cluster_hooks/queuejob/check_licenses_mapping.py
-    sed -i "s/%SOCA_CLUSTER_ID/${SOCA_CLUSTER_ID}/g" /apps/soca/${SOCA_CLUSTER_ID}/cluster_hooks/queuejob/check_project_budget.py
-    sed -i "s/%SOCA_CLUSTER_ID/${SOCA_CLUSTER_ID}/g" /apps/soca/${SOCA_CLUSTER_ID}/cluster_hooks/job_notifications.py
-
     # Create Default PBS hooks
-    /opt/pbs/bin/qmgr -c "create hook check_queue_acls event=queuejob"
-    /opt/pbs/bin/qmgr -c "import hook check_queue_acls application/x-python default /apps/soca/${SOCA_CLUSTER_ID}/cluster_hooks/queuejob/check_queue_acls.py"
-    /opt/pbs/bin/qmgr -c "create hook check_queue_instance_types event=queuejob"
-    /opt/pbs/bin/qmgr -c "import hook check_queue_instance_types application/x-python default /apps/soca/${SOCA_CLUSTER_ID}/cluster_hooks/queuejob/check_queue_instance_types.py"
-    /opt/pbs/bin/qmgr -c "create hook check_queue_restricted_parameters event=queuejob"
-    /opt/pbs/bin/qmgr -c "import hook check_queue_restricted_parameters application/x-python default /apps/soca/${SOCA_CLUSTER_ID}/cluster_hooks/queuejob/check_queue_restricted_parameters.py"
-    /opt/pbs/bin/qmgr -c "create hook check_queue_custom_sgs_roles event=queuejob"
-    /opt/pbs/bin/qmgr -c "import hook check_queue_custom_sgs_roles application/x-python default /apps/soca/${SOCA_CLUSTER_ID}/cluster_hooks/queuejob/check_queue_custom_sgs_roles.py"
-    /opt/pbs/bin/qmgr -c "create hook check_licenses_mapping event=queuejob"
-    /opt/pbs/bin/qmgr -c "import hook check_licenses_mapping application/x-python default /apps/soca/${SOCA_CLUSTER_ID}/cluster_hooks/queuejob/check_licenses_mapping.py"
+    for queue_hook_file in /opt/soca/"${SOCA_CLUSTER_ID}"/cluster_hooks/queuejob/*.py;
+    do
+      hook_name=$(basename "${queue_hook_file}" | cut -f1 -d.)
+      if [ "${hook_name}" == "check_project_budget" ]; then
+        log_info "Skipping ${hook_name} from auto-creation. Manually configure and load the hook if needed"
+        continue
+      fi
+      log_info "Creating hook ${hook_name} from ${queue_hook_file}"
+      # FIXME / TODO - This needs to be fixed. Users should be able to validate checksums on files, and this breaks that
+      # Hooks need to be converted to be smarter about where they are and the directory locations
+      sed -i "s/%SOCA_CLUSTER_ID/${SOCA_CLUSTER_ID}/g" "${queue_hook_file}"
+      /opt/pbs/bin/qmgr -c "create hook ${hook_name} event=queuejob"
+      /opt/pbs/bin/qmgr -c "import hook ${hook_name} application/x-python default ${queue_hook_file}"
+    done
 
-    # Default Server config
+    # Scheduler node creation
     /opt/pbs/bin/qmgr -c "create node ${SCHEDULER_HOSTNAME}"
     /opt/pbs/bin/qmgr -c "set node ${SCHEDULER_HOSTNAME} queue = workq"
-    /opt/pbs/bin/qmgr -c "set server flatuid=true"
-    /opt/pbs/bin/qmgr -c "set server job_history_enable=1"
-    /opt/pbs/bin/qmgr -c "set server job_history_duration = 72:00:00"
-    /opt/pbs/bin/qmgr -c "set server scheduler_iteration = 30"
-    /opt/pbs/bin/qmgr -c "set server max_concurrent_provision = 5000"
 
-    # Default Queue Config
-    /opt/pbs/bin/qmgr -c "create queue low"
-    /opt/pbs/bin/qmgr -c "set queue low queue_type = Execution"
-    /opt/pbs/bin/qmgr -c "set queue low started = True"
-    /opt/pbs/bin/qmgr -c "set queue low enabled = True"
-    /opt/pbs/bin/qmgr -c "set queue low default_chunk.compute_node=tbd"
-    /opt/pbs/bin/qmgr -c "create queue normal"
-    /opt/pbs/bin/qmgr -c "set queue normal queue_type = Execution"
-    /opt/pbs/bin/qmgr -c "set queue normal started = True"
-    /opt/pbs/bin/qmgr -c "set queue normal enabled = True"
-    /opt/pbs/bin/qmgr -c "set queue normal default_chunk.compute_node=tbd"
-    /opt/pbs/bin/qmgr -c "create queue high"
-    /opt/pbs/bin/qmgr -c "set queue high queue_type = Execution"
-    /opt/pbs/bin/qmgr -c "set queue high started = True"
-    /opt/pbs/bin/qmgr -c "set queue high enabled = True"
-    /opt/pbs/bin/qmgr -c "set queue high default_chunk.compute_node=tbd"
-    /opt/pbs/bin/qmgr -c "create queue job-shared"
-    /opt/pbs/bin/qmgr -c "set queue job-shared queue_type = Execution"
-    /opt/pbs/bin/qmgr -c "set queue job-shared started = True"
-    /opt/pbs/bin/qmgr -c "set queue job-shared enabled = True"
-    /opt/pbs/bin/qmgr -c "set queue job-shared default_chunk.compute_node=tbd"
-    /opt/pbs/bin/qmgr -c "create queue test"
-    /opt/pbs/bin/qmgr -c "set queue test queue_type = Execution"
-    /opt/pbs/bin/qmgr -c "set queue test started = True"
-    /opt/pbs/bin/qmgr -c "set queue test enabled = True"
-    /opt/pbs/bin/qmgr -c "set queue test default_chunk.compute_node=tbd"
-    /opt/pbs/bin/qmgr -c "create queue alwayson"
-    /opt/pbs/bin/qmgr -c "set queue alwayson queue_type = Execution"
-    /opt/pbs/bin/qmgr -c "set queue alwayson started = True"
-    /opt/pbs/bin/qmgr -c "set queue alwayson enabled = True"
+    # Default Server config settings
+    # Should probably find a better place for these
+    declare -A qmgr_configs
+    qmgr_configs["flatuid"]="true"
+    qmgr_configs["job_history_enable"]="1"
+    qmgr_configs["job_history_duration"]="72:00:00"
+    qmgr_configs["scheduler_iteration"]="30"
+    qmgr_configs["max_concurrent_provision"]="5000"
+    qmgr_configs["python_restart_max_hooks"]="9999999"
+
+    for config_key in "${!qmgr_configs[@]}"
+    do
+        log_info "Setting Qmgr configuration key (${config_key}) => (${qmgr_configs[${config_key}]})"
+        /opt/pbs/bin/qmgr -c "set server ${config_key}=${qmgr_configs[${config_key}]}"
+    done
+
+    # Default Queue Configs
+    for queue_name in low normal high job-shared test alwayson;
+    do
+      log_info "Creating queue ${queue_name}"
+      /opt/pbs/bin/qmgr -c "create queue ${queue_name}"
+      /opt/pbs/bin/qmgr -c "set queue ${queue_name} queue_type = Execution"
+      /opt/pbs/bin/qmgr -c "set queue ${queue_name} started = True"
+      /opt/pbs/bin/qmgr -c "set queue ${queue_name} enabled = True"
+      # Alwayson special case - no compute_node=tbd setting needed
+      if [ "${queue_name}" != "alwayson" ]; then
+        /opt/pbs/bin/qmgr -c "set queue ${queue_name} default_chunk.compute_node=tbd"
+      fi
+    done
+
+    #
     /opt/pbs/bin/qmgr -c "set server default_queue = normal"
 
     # Add compute_node to list of required resource
     sed -i 's/resources: "ncpus, mem, arch, host, vnode, aoe, eoe"/resources: "ncpus, mem, arch, host, vnode, aoe, eoe, compute_node"/g' /var/spool/pbs/sched_priv/sched_config
 
-    cat <<EOT >> /apps/soca/${SOCA_CLUSTER_ID}/cluster_manager/orchestrator/settings/queue_mapping.yml
+    cat <<EOT >> /opt/soca/"${SOCA_CLUSTER_ID}"/cluster_manager/orchestrator/settings/queue_mapping.yml
 # This manage automatic provisioning for your queues
 # These are default values. Users can override them at job submission
 # https://awslabs.github.io/scale-out-computing-on-aws-documentation/tutorials/create-your-own-queue/
@@ -220,5 +210,4 @@ EOT
 }
 
 openpbs_configure_server
-{% endif %}
 # End: OpenPBS Configure Server

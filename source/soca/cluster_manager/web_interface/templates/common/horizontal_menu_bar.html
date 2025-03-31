@@ -1,11 +1,25 @@
 <div class="d-sm-flex align-items-center justify-content-between mb-4">
-    <h1 class="h3 mb-0 text-gray-800">__SOCA_CLUSTER__NAME__ <small>(SOCA version 25.1.0)</small></h1>
+    <h1 class="h3 mb-0 text-gray-800">__SOCA_CLUSTER__NAME__ <small>(SOCA version 25.3.0)</small></h1>
     <div>
-         <a href="https://github.com/awslabs/scale-out-computing-on-aws"  target="_blank" rel="noopener,noreferrer" class="d-none d-sm-inline-block btn btn-sm btn-primary shadow-sm"><i class="fab fa-github"></i> Source Code</a>
-            <a href="https://github.com/awslabs/scale-out-computing-on-aws/issues/new" target="_blank" rel="noopener,noreferrer" class="d-none d-sm-inline-block btn btn-sm btn-primary shadow-sm"><i class="fas fa-question-circle"></i> Help and Support</a>
+        {% if AMAZON_Q_BUSINESS_URL %}
+           <img style="height: 50px; width: 50px; cursor: pointer;"
+                src="{{ url_for('static', filename='img/amazonq-logo.svg') }}"
+                onclick="window.open('{{AMAZON_Q_BUSINESS_URL}}', '_blank', 'top=100,right=100,menubar=no,toolbar=no,resizable=yes,scrollbars=yes,width=860,height=900');"
+                alt="SOCA CAE Assistant"
+           >
+        {% endif %}
 
-    <a href="https://awslabs.github.io/scale-out-computing-on-aws-documentation/" target="_blank" rel="noopener,noreferrer" class="d-none d-sm-inline-block btn btn-sm btn-primary shadow-sm"><i class="fas fa-book"></i> Documentation</a>
-        <a href="/logout" class="d-none d-sm-inline-block btn btn-sm btn-danger shadow-sm"><i class="fas fa-sign-out-alt"></i> Logout</a>
+        <a href="https://github.com/awslabs/scale-out-computing-on-aws" target="_blank" rel="noopener,noreferrer"
+           class="d-none d-sm-inline-block btn btn-sm btn-primary shadow-sm"><i class="fab fa-github"></i> Source
+            Code</a>
+        <a href="https://github.com/awslabs/scale-out-computing-on-aws/issues/new" target="_blank"
+           rel="noopener,noreferrer" class="d-none d-sm-inline-block btn btn-sm btn-primary shadow-sm"><i
+                class="fas fa-question-circle"></i> Help and Support</a>
+
+        <a href="https://awslabs.github.io/scale-out-computing-on-aws-documentation/" target="_blank"
+           rel="noopener,noreferrer" class="d-none d-sm-inline-block btn btn-sm btn-primary shadow-sm"><i
+                class="fas fa-book"></i> Documentation</a>
+        <a href="/logout" class="d-none d-sm-inline-block btn btn-sm btn-danger shadow-sm"><i
+                class="fas fa-sign-out-alt"></i> Logout</a>
     </div>
-
 </div>

@@ -1,0 +1,26 @@
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# Begin: Enable extra repo for Ubuntu https://help.ubuntu.com/community/Repositories/Ubuntu
+{% if context.get("/configuration/BaseOS") in ("ubuntu2204", "ubuntu2404")  %}
+  log_info "Ubuntu detected, enabling universe and multiverse repository"
+  # Check if 'universe' is already enabled
+  if ! grep -qE "^[^#]*universe" /etc/apt/sources.list; then
+      log_info "Adding universe repository..."
+      add-apt-repository universe -y
+  else
+      log_info "Universe repository is already enabled."
+  fi
+
+  # Check if 'multiverse' is already enabled
+  if ! grep -qE "^[^#]*multiverse" /etc/apt/sources.list; then
+      log_info "Adding multiverse repository..."
+      add-apt-repository multiverse -y
+  else
+      log_info "Multiverse repository is already enabled."
+  fi
+
+  # Update package lists
+  apt update
+{% endif %}
+# End: Enable extra repo for Ubuntu

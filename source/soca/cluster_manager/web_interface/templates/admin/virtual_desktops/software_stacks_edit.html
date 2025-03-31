@@ -1,0 +1,169 @@
+<!--
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: Apache-2.0
+-->
+
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    {% include 'common/header.html' %}
+</head>
+<body id="page-top">
+<div id="wrapper">
+    {% include 'common/vertical_menu_bar.html' %}
+    <div id="content-wrapper" class="d-flex flex-column">
+        <div id="content">
+            <br>
+            <div class="container-fluid">
+                {% include 'common/horizontal_menu_bar.html' %}
+                {% include 'common/flashed_messages.html' %}
+
+                <div class="col-md-10">
+                    <div class="alert alert-warning">
+                        Make sure your Amazon Machine Images (AMI) are available in your current region:
+                        <strong>{{ region_name }}</strong> <br>
+                        <a target="_blank" rel="noopener,noreferrer"
+                           href="https://awslabs.github.io/scale-out-computing-on-aws-documentation/tutorials/reduce-compute-node-launch-time-with-custom-ami/">Click
+                            here to learn how to create custom images</a>
+                    </div>
+                            <div class="card shadow mb-4">
+                                <div class="card-header py-3">
+                                    <h6 class="m-0 font-weight-bold text-primary">Edit Software Stack</h6>
+                                </div>
+                                    <div class="card-body">
+                                        <form action="/admin/virtual_desktops/software_stacks/edit/update" method="post" enctype="multipart/form-data">
+                                            <div class="form-group">
+                                                <label for="ami_id" data-toggle="tooltip" data-placement="top"
+                                                       title="Unique ID of your Amazon image. Must be a valid image, start with ami- and between 8 to 21 chars">AMI
+                                                    ID</label>
+                                                <input id="ami_id" placeholder="Image ID (start with ami-xxx)"
+                                                       class="form-control"
+                                                       type="text"
+                                                       value="{{ software_stack_info.ami_id }}"
+                                                       required name="ami_id" minlength="8" maxlength="21">
+                                            </div>
+
+                                            <div class="form-group">
+                                                <label for="stack_name" data-toggle="tooltip" data-placement="top"
+                                                       title="Choose a friendly name for your AMI.">Software Stack Name
+                                                </label>
+                                                <input id="stack_name" placeholder="Enter friendly AMI Name"
+                                                       class="form-control" type="text"
+                                                       disabled
+                                                       value="{{ software_stack_info.stack_name }}">
+                                            </div>
+
+                                            <div class="form-group">
+                                                <label for="description" data-toggle="tooltip" data-placement="top"
+                                                       title="Description of your Software Stack">Software Stack Description
+                                                </label>
+                                                <textarea id="description" placeholder="(Optional) Description for your software stack, maximum 500 characters."
+                                                          class="form-control" rows="3"  name="description">{{ software_stack_info.description }}</textarea>
+                                            </div>
+
+                                            <div class="form-group">
+                                                <label for="base_os" data-toggle="tooltip" data-placement="top"
+                                                       title="Select image baseOS">Operating System</label>
+                                                <select class="form-control" id="base_os" name="base_os">
+                                                    {% for base_os in supported_base_os %}
+                                                            <option value="{{base_os}}" {% if base_os == software_stack_info.ami_base_os %} selected {% endif %}>{{base_os}}</option>
+                                                    {% endfor %}
+                                                </select>
+                                            </div>
+
+                                            <div class="form-group">
+                                                <label data-toggle="tooltip" data-placement="top"
+                                                       title="The minimum size (in GB) of the root disk for this image. Provisioning an instance with a lower EBS size will throw an error"
+                                                       for="root_size">Root Disk Size (in GB)</label>
+                                                <input type="number" min=0 value={{ software_stack_info.ami_root_disk_size }} id="root_size" class="form-control"
+                                                       required name="root_size">
+                                            </div>
+
+                                             <div class="form-group">
+                                                <label data-toggle="tooltip" data-placement="top"
+                                                       title="List of allowed instance type/family"
+                                                       for="virtual_desktop_profile_id">Profile associated to this stack</label>
+                                                <select class="form-control" required id="virtual_desktop_profile_id" name="virtual_desktop_profile_id">
+                                                   {% for profile_id, profile_info in profiles.items() %}
+                                                    <option value="{{profile_id}}" {% if profile_id == software_stack_info.virtual_desktop_profile_id %} selected {% endif %}> {{ profile_info.profile_name }}</option>
+                                                 {% endfor %}
+                                                </select>
+                                             </div>
+
+                                            <div class="form-group">
+                                                <label for="launch_tenancy" data-toggle="tooltip" data-placement="top"
+                                                       title="Choose AMI launch tenancy setting">Launch Tenancy</label>
+                                                <select class="form-control" name='launch_tenancy' id="launch_tenancy">
+                                                    <option value="default" {% if 'default' == software_stack_info.launch_tenancy %} selected {% endif %}>Default Tenancy (default)</option>
+                                                    <option value="dedicated" {% if 'dedicated' == software_stack_info.launch_tenancy %} selected {% endif %}>Dedicated Instance Tenancy (instance)</option>
+                                                    <option value="host" {% if 'host' == software_stack_info.launch_tenancy %} selected {% endif %}>Dedicated Host Tenancy (host)</option>
+                                                </select>
+                                            </div>
+
+                                            <div class="form-group">
+                                                <label for="launch_host" data-toggle="tooltip" data-placement="top"
+                                                       title="Launch Host if using Dedicated Host Tenancy">Launch Host
+                                                    ID</label>
+                                                {% if software_stack_info.launch_host == 0 %}
+                                                    <input id="launch_host" placeholder="(Optional if not using Host Tenancy) Launch Host ID (h-xxx)"
+                                                           class="form-control" type="text"
+                                                           name="launch_host">
+                                                {% else %}
+                                                 <input id="launch_host" placeholder="(Optional if not using Host Tenancy) Launch Host ID (h-xxx)"
+                                                           class="form-control" type="text"
+                                                           name="launch_host" value="{{software_stack_info.launch_host}}">
+                                                {% endif %}
+
+                                            </div>
+
+                                            <div class="form-group">
+                                                 <label data-toggle="tooltip" data-placement="top"
+                                                       title="Thumbnail to use (150px * 150px)">Thumbnail (150px * 150px)
+                                                    </label>
+                                                <div class="custom-file">
+                                                    <input type="file" class="custom-file-input" id="thumbnail" name="thumbnail" accept="image/png, image/jpeg, image/jpg">
+                                                    <label class="custom-file-label">Select an
+                                                        image (jpg or png) to use as thumbnail. Leave blank to
+                                                        use the existing thumbnail</label>
+                                                </div>
+                                                <script>
+                                                    $(".custom-file-input").on("change", function () {
+                                                        let fileName = $(this).val().split("\\").pop();
+                                                        $(this).siblings(".custom-file-label").addClass("selected").html(fileName);
+                                                    });
+                                                </script>
+                                            </div>
+
+                                            <div>
+                                                <input type="hidden" name="csrf_token"
+                                                       value="{{ csrf_token() }}">
+                                                <input type="hidden" name="software_stack_id" value="{{ software_stack_info.id }}">
+                                                <button type="submit" class="btn btn-primary btn-lg">Update Software Stack
+                                                </button>
+                                            </div>
+                                        </form>
+                                    </div>
+                                </div>
+
+
+                    <a class="scroll-to-top rounded" href="#page-top">
+                        <i class="fas fa-angle-up"></i>
+                    </a>
+
+                {% include 'common/footer.html' %}
+                <script>
+                    $(document).ready(function () {
+                        // enable tooltip
+                        $(function () {
+                            $('[data-toggle="tooltip"]').tooltip()
+                        })
+                    })
+                </script>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+</body>
+</html>

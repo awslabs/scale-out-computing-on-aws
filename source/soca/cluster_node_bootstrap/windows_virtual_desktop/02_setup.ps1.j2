@@ -1,0 +1,92 @@
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+{% include "templates/windows/common.ps.j2" %}
+
+{% include "templates/windows/common/wrapper_secretsmanager.ps.j2" %}
+
+$currentUser = [System.Security.Principal.WindowsIdentity]::GetCurrent().Name
+Log-Info -Message "Script executed via ${currentUser}"
+
+$SOCABootstrapAssetsFolder = $env:SOCABootstrapAssetsFolder
+
+# CD into boostrap location
+Set-Location -Path $SOCABootstrapAssetsFolder
+
+# Install Chocolatey package manager
+{% include "templates/windows/chocolatey.ps.j2" %}
+
+{% if  context.get('/configuration/UserDirectory/provider') in ("aws_ds_managed_activedirectory", "aws_ds_simple_activedirectory", "existing_active_directory") %}
+    Log-Info -Message "Using Active Directory"
+    # DOMAIN\<SOCA_user>
+    $SOCAUser = "{{ context.get('/configuration/UserDirectory/short_name') }}\{{ context.get('/dcv/SessionOwner') }}"
+    {% include "templates/windows/join_activedirectory.ps.j2" %}
+
+{% else %}
+    Log-Info -Message "Using OpenLDAP. Creating a local SOCA user"
+    # Change password for the Administrator account to match the password generated for this session
+    $password = ConvertTo-SecureString -String "{{ context.get('/dcv/LocalAdminPassword') }}" -AsPlainText -Force
+    $userAccount = Get-LocalUser -Name "Administrator"
+    $userAccount | Set-LocalUser -Password $password
+
+    # Create a new local user for the current SOCA User
+    $SOCAUser = "{{ context.get('/dcv/SessionOwner') }}"
+    if (Get-LocalUser $SOCAUser) {
+        Log-Info -Message "Local user already exist. Resetting password"
+        Set-LocalUser $SOCAUser -Password $password
+    }
+    else {
+        New-LocalUser $SOCAUser -Password $password -PasswordNeverExpires -AccountNeverExpires
+    }
+
+{% endif %}
+
+# Add user to local Admin group to make sure he has all permissions on his/her own machine
+Add-LocalGroupMember -Group "Administrators" -Member "$SOCAUser"
+
+$instanceInfo = Invoke-SOCAAwsCli ec2 describe-instance-types --instance-types $InstanceType --output json | ConvertFrom-Json
+if ($instanceInfo.InstanceTypes.GpuInfo) {
+    $gpu = $instanceInfo.InstanceTypes.GpuInfo.Gpus | ForEach-Object { $_.Manufacturer }
+    if ($gpu -eq "NVIDIA") {
+        Log-Info -Message "Detected NVIDIA GPU"
+        {% include  "templates/windows/gpu/nvidia_drivers.ps.j2" %}
+    } elseif ($gpu -eq "AMD")
+    {
+        Log-Info -Message "Detected AMD GPU"
+        {% include  "templates/windows/gpu/amd_drivers.ps.j2" %}
+    }
+    else
+    {
+        Log-Warning "GPU detected but manufacturer is not NVIDIA or AMD, detected ${gpu}, skipping .."
+    }
+} else {
+    Log-Info -Message "No GPU detected on this machine"
+}
+
+# Install and configure DCV
+{% include "templates/windows/dcv/dcv_server.ps.j2" %}
+
+{% include "templates/windows/dcv/dcv_session_setup.ps.j2" %}
+
+{% include "templates/windows/dcv/default_permissions.ps.j2" %}
+
+Log-Info -Message "Reboot required?: $requireReboot"
+
+if ($requireReboot)
+{
+    Log-Info -Message "Reboot required, creating Scheduler tasks"
+    $taskName = $env:SOCABootstrapPostRebootTaskName
+    $scriptPath = "${SOCABootstrapAssetsFolder}\03_setup_post_reboot.ps1"
+    $action = New-ScheduledTaskAction -Execute "powershell.exe" -Argument "-ExecutionPolicy Bypass -File $scriptPath  *> ${SOCABootstrapAssetsFolder}\03_setup_post_reboot.ps1.log"
+    $trigger = New-ScheduledTaskTrigger -AtStartup
+    $settings = New-ScheduledTaskSettingsSet -StartWhenAvailable
+    Register-ScheduledTask -Action $action -Trigger $trigger -Settings $settings -TaskName $taskName -Description "SOCA Final Setup post-reboot"
+    Log-Info "ScheduledTask configured, boostrap will continue after the reboot"
+
+    Log-Info -Message "Restart Computer to validate all Windows changes. Use -Force to force reboot even if users are logged in (in case of custom AMI)"
+    Restart-Computer -Force
+} else {
+    Log-Info -Message "No reboot needed, continuing bootstrap sequence"
+    & "${SOCABootstrapAssetsFolder}\03_setup_post_reboot.ps1" *> "${SOCABootstrapAssetsFolder}\03_setup_post_reboot.ps1.log"
+
+}

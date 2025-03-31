@@ -37,11 +37,12 @@ DIRS_TO_SYNC=(
   "/var/spool/pbs/server_logs/"
   "/var/spool/pbs/sched_logs/"
   "/var/spool/pbs/server_priv/accounting/"
-  "/apps/soca/${SOCA_CLUSTER_ID}/cluster_node_bootstrap/logs/dcv_node/"
-  "/apps/soca/${SOCA_CLUSTER_ID}/cluster_node_bootstrap/logs/compute_node/"
-  "/apps/soca/${SOCA_CLUSTER_ID}/cluster_node_bootstrap/logs/login_node/"
-  "/apps/soca/${SOCA_CLUSTER_ID}/cluster_manager/orchestrator/logs/"
-  "/apps/soca/${SOCA_CLUSTER_ID}/cluster_manager/analytics/logs/"
+  "/opt/soca/${SOCA_CLUSTER_ID}/cluster_node_bootstrap/logs/dcv_node/"
+  "/opt/soca/${SOCA_CLUSTER_ID}/cluster_node_bootstrap/logs/compute_node/"
+  "/opt/soca/${SOCA_CLUSTER_ID}/cluster_node_bootstrap/logs/login_node/"
+  "/opt/soca/${SOCA_CLUSTER_ID}/cluster_manager/orchestrator/logs/"
+  "/opt/soca/${SOCA_CLUSTER_ID}/cluster_manager/analytics/logs/"
+  "/opt/soca/${SOCA_CLUSTER_ID}/cluster_manager/web_interface/logs/"
 )
 
 for DIR in "${DIRS_TO_SYNC[@]}"
@@ -51,7 +52,7 @@ do
     ${AWSCLI} s3 sync "${DIR}" "${BACKUP_S3_PREFIX_LOCATION}/${DIR}" --region ${S3_BUCKET_REGION} --quiet
 
     # Delete file/directory if needed
-    if [[ ${DIR} =~ "/apps/soca/${SOCA_CLUSTER_ID}/cluster_node_bootstrap/logs/compute_node/" ]] || [[ ${DIR} =~ "/apps/soca/${SOCA_CLUSTER_ID}/cluster_node_bootstrap/logs/dcv_node/" ]]; then
+    if [[ ${DIR} =~ "/opt/soca/${SOCA_CLUSTER_ID}/cluster_node_bootstrap/logs/compute_node/" ]] || [[ ${DIR} =~ "/opt/soca/${SOCA_CLUSTER_ID}/cluster_node_bootstrap/logs/dcv_node/" ]]; then
       # Find all directory and delete them if older than data retention
       # These directory contains log file specific to ephemeral hosts (DCV/HPC nodes)
       find "${DIR}" -mindepth 1 -maxdepth 1 -type d -mtime +${DATA_RETENTION_IN_DAYS} -print0 | while IFS= read -r -d '' dir; do

@@ -6,10 +6,10 @@
 
 {% if context.get("/configuration/Cache/enabled") %}
 
-  # First, install Cache CLI if needed (only on controller/dcv_node/login_node).
+  # Install Cache CLI if needed (only on controller).
   # You can add compute_node as well, however please note CLI install will take a couple of minutes.
   # Create SOCA Optimized AMI to avoid this time penalty for ephemeral nodes  https://awslabs.github.io/scale-out-computing-on-aws-documentation/tutorials/reduce-compute-node-launch-time-with-custom-ami/
-  {% if context.get("/job/NodeType") in ("controller", "dcv_node", "login_node") %}
+  {% if context.get("/job/NodeType") in ("controller") %}
     function install_cache_cli() {
       log_info "Installing Cache CLI client"
       mkdir -p "${SOCA_BOOTSTRAP_ASSETS_FOLDER}/cache"
@@ -43,89 +43,93 @@
       {% endif %}
       popd
     }
-install_cache_cli
-  {% endif %}
+    install_cache_cli
 
-  # WRAPPER FUNCTIONS BELOW
-  function get_cache_credentials() {
-    local CREDENTIAL_KEY="${1}"
-    local CACHE_USERNAME_PATH="${SOCA_BOOTSTRAP_ASSETS_FOLDER}/.cache_user_username_{{ context.get('/configuration/ClusterId') }}.cache"
-    local CACHE_PASSWORD_PATH="${SOCA_BOOTSTRAP_ASSETS_FOLDER}/.cache_user_password_{{ context.get('/configuration/ClusterId') }}.cache"
-    local CACHE_USER_CREDENTIALS_SECRETMANAGER_ID
-    local CACHE_USERNAME
-    local CACHE_PASSWORD
-    if [[ ! -f ${CACHE_USERNAME_PATH} ]] || [[ ! -f ${CACHE_PASSWORD_PATH} ]]; then
-      log_info "${CACHE_USERNAME_PATH} or ${CACHE_PASSWORD_PATH} does not exist, querying SecretsManager API to retrieve Cache user"
+    # WRAPPER FUNCTIONS BELOW
+    function get_cache_credentials() {
+      local CREDENTIAL_KEY="${1}"
+      local CACHE_USERNAME_PATH="${SOCA_BOOTSTRAP_ASSETS_FOLDER}/.cache_user_username_{{ context.get('/configuration/ClusterId') }}.cache"
+      local CACHE_PASSWORD_PATH="${SOCA_BOOTSTRAP_ASSETS_FOLDER}/.cache_user_password_{{ context.get('/configuration/ClusterId') }}.cache"
+      local CACHE_USER_CREDENTIALS_SECRETMANAGER_ID
+      local CACHE_USERNAME
+      local CACHE_PASSWORD
+      if [[ ! -f ${CACHE_USERNAME_PATH} ]] || [[ ! -f ${CACHE_PASSWORD_PATH} ]]; then
+        log_info "${CACHE_USERNAME_PATH} or ${CACHE_PASSWORD_PATH} does not exist, querying SecretsManager API to retrieve Cache user"
 
-      {% if context.get("/job/NodeType") == "controller" %}
-        # Controller Host is the only host that can query Cache Admin User
-        CACHE_USER_CREDENTIALS_SECRETMANAGER_ID=$(get_secret "/soca/{{ context.get("/configuration/ClusterId") }}/CacheAdminUser")
-      {% else %}
-        # Retrieve ReadOnly user for non-controller machines (dcv_node / login_node / compute_node ...)
-        CACHE_USER_CREDENTIALS_SECRETMANAGER_ID=$(get_secret "/soca/{{ context.get("/configuration/ClusterId") }}/CacheReadOnlyUser")
+        {% if context.get("/job/NodeType") == "controller" %}
+          # Controller Host is the only host that can query Cache Admin User
+          CACHE_USER_CREDENTIALS_SECRETMANAGER_ID=$(get_secret "/soca/{{ context.get("/configuration/ClusterId") }}/CacheAdminUser")
+        {% else %}
+          # Retrieve ReadOnly user for non-controller machines (dcv_node / login_node / compute_node ...)
+          CACHE_USER_CREDENTIALS_SECRETMANAGER_ID=$(get_secret "/soca/{{ context.get("/configuration/ClusterId") }}/CacheReadOnlyUser")
+        {% endif %}
+
+        CACHE_USERNAME=$(echo ${CACHE_USER_CREDENTIALS_SECRETMANAGER_ID} | jq -r ". | fromjson.username")
+        CACHE_PASSWORD=$(echo ${CACHE_USER_CREDENTIALS_SECRETMANAGER_ID} | jq -r ". | fromjson.password")
+        echo -n "${CACHE_USERNAME}" > "${CACHE_USERNAME_PATH}"
+        echo -n "${CACHE_PASSWORD}" > "${CACHE_PASSWORD_PATH}"
+        log_info "Cache user credentials temporarily cached on the system"
+      else
+        log_info "${CREDENTIALS_CACHE_PATH} and ${CACHE_PASSWORD_PATH} exists, retrieving cache user on filesystem"
+      fi
+
+      if [[ ${CREDENTIAL_KEY} == "username" ]]; then
+        echo -n $(cat "${CACHE_USERNAME_PATH}")
+      elif [[ ${CREDENTIAL_KEY} == "password" ]]; then
+        echo -n $(cat "${CACHE_PASSWORD_PATH}")
+      else
+        exit_fail "First argument for get_cache_credentials via wrapper_cache.sh.j2 must be username or password"
+      fi
+    }
+
+    function cache_get_key () {
+      local CACHE_KEY="${1}"
+      local CACHE_RESULT_FORMAT="${2}"
+      local CACHE_VALUE
+      local CACHE_GET_COMMAND
+      local CACHE_CMD
+      local CACHE_USERNAME
+      local CACHE_PASSWORD
+      local CACHE_ENDPOINT
+      local CACHE_PORT
+      CACHE_USERNAME=$(get_cache_credentials "username")
+      CACHE_PASSWORD=$(get_cache_credentials "password")
+      CACHE_ENDPOINT="{{ context.get("/configuration/Cache/endpoint") }}"
+      CACHE_PORT="{{ context.get("/configuration/Cache/port") }}"
+
+      # Cache client is installed via cache_client_install.sh.h2
+      {% if context.get("/configuration/Cache/engine") == "valkey" %}
+        CACHE_CMD="/usr/local/bin/valkey-cli"
+      {% elif context.get("/configuration/Cache/engine") == "redis" %}
+        CACHE_CMD="/usr/local/bin/redis-cli"
       {% endif %}
 
-      CACHE_USERNAME=$(echo ${CACHE_USER_CREDENTIALS_SECRETMANAGER_ID} | jq -r ". | fromjson.username")
-      CACHE_PASSWORD=$(echo ${CACHE_USER_CREDENTIALS_SECRETMANAGER_ID} | jq -r ". | fromjson.password")
-      echo -n "${CACHE_USERNAME}" > "${CACHE_USERNAME_PATH}"
-      echo -n "${CACHE_PASSWORD}" > "${CACHE_PASSWORD_PATH}"
-      log_info "Cache user credentials temporarily cached on the system"
-    else
-      log_info "${CREDENTIALS_CACHE_PATH} and ${CACHE_PASSWORD_PATH} exists, retrieving cache user on filesystem"
-    fi
+      if [[ ${CACHE_RESULT_FORMAT} == "json" ]]; then
+        CACHE_GET_COMMAND="JSON.GET"
+      else
+        CACHE_GET_COMMAND="GET"
+      fi
 
-    if [[ ${CREDENTIAL_KEY} == "username" ]]; then
-      echo -n $(cat "${CACHE_USERNAME_PATH}")
-    elif [[ ${CREDENTIAL_KEY} == "password" ]]; then
-      echo -n $(cat "${CACHE_PASSWORD_PATH}")
-    else
-      exit_fail "First argument for get_cache_credentials via wrapper_cache.sh.j2 must be username or password"
-    fi
-  }
-
-  function cache_get_key () {
-    local CACHE_KEY="${1}"
-    local CACHE_RESULT_FORMAT="${2}"
-    local CACHE_VALUE
-    local CACHE_GET_COMMAND
-    local CACHE_CMD
-    local CACHE_USERNAME
-    local CACHE_PASSWORD
-    local CACHE_ENDPOINT
-    local CACHE_PORT
-    CACHE_USERNAME=$(get_cache_credentials "username")
-    CACHE_PASSWORD=$(get_cache_credentials "password")
-    CACHE_ENDPOINT="{{ context.get("/configuration/Cache/endpoint") }}"
-    CACHE_PORT="{{ context.get("/configuration/Cache/port") }}"
-
-    # Cache client is installed via cache_client_install.sh.h2
-    {% if context.get("/configuration/Cache/engine") == "valkey" %}
-      CACHE_CMD="/usr/local/bin/valkey-cli"
-    {% elif context.get("/configuration/Cache/engine") == "redis" %}
-      CACHE_CMD="/usr/local/bin/redis-cli"
-    {% endif %}
-
-    if [[ ${CACHE_RESULT_FORMAT} == "json" ]]; then
-      CACHE_GET_COMMAND="JSON.GET"
-    else
-      CACHE_GET_COMMAND="GET"
-    fi
-
-    # Redirect stderr to /dev/null to hide warning due to --pass (see below) otherwise CACHE_VALUE will also contains this message
-    # Warning: Using a password with '-a' or '-u' option on the command line interface may not be safe.
-    # Another option is to remove --pass and leverage env variable, but need to review if/when Valkey will stop relying on REDIS_PASSWORD
-    CACHE_VALUE=$(${CACHE_CMD} --tls -h ${CACHE_ENDPOINT} -p ${CACHE_PORT} --user ${CACHE_USERNAME} --pass ${CACHE_PASSWORD} ${CACHE_GET_COMMAND} "${CACHE_KEY}" 2>/dev/null)
-    if [[ -z ${CACHE_VALUE+x} ]] || [[ ${CACHE_VALUE} == "(nil)" ]] || [[ -z ${CACHE_VALUE} ]]; then
+      # Redirect stderr to /dev/null to hide warning due to --pass (see below) otherwise CACHE_VALUE will also contains this message
+      # Warning: Using a password with '-a' or '-u' option on the command line interface may not be safe.
+      # Another option is to remove --pass and leverage env variable, but need to review if/when Valkey will stop relying on REDIS_PASSWORD
+      CACHE_VALUE=$(${CACHE_CMD} --tls -h ${CACHE_ENDPOINT} -p ${CACHE_PORT} --user ${CACHE_USERNAME} --pass ${CACHE_PASSWORD} ${CACHE_GET_COMMAND} "${CACHE_KEY}" 2>/dev/null)
+      if [[ -z ${CACHE_VALUE+x} ]] || [[ ${CACHE_VALUE} == "(nil)" ]] || [[ -z ${CACHE_VALUE} ]]; then
+        echo -n "CACHE_MISS"
+      else
+        echo -n "${CACHE_VALUE}"
+      fi
+    }
+  {% else %}
+    # Cache not deployed on this machine
+    function cache_get_key () {
       echo -n "CACHE_MISS"
-    else
-      echo -n "${CACHE_VALUE}"
-    fi
-  }
+    }
+  {% endif %}
 
 {% else %}
+  # Cache not enabled, always return CACHE_MISS.
   function cache_get_key () {
-    # Cache not enabled, always return CACHE_MISS.
-    # IMPORTANT: function must exist even if the cache is not enabled
     echo -n "CACHE_MISS"
   }
 {% endif %}

@@ -1,0 +1,25 @@
+
+
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# Begin - Invoke-SocaInstallPackage
+
+function Invoke-SOCAInstallPackage {
+    param(
+        [Parameter(Mandatory = $true, Position = 0, ValueFromRemainingArguments = $true)]
+        [String[]]$PackageName
+    )
+    # Ensure TLS 1.2 is enabled for secure connections
+    [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+
+    # Install Module if neededed
+    if (-not (Get-Module -ListAvailable -Name $PackageName)) {
+        Log-Info -Message "$PackageName is not installed. Installing now..."
+        choco.exe install $PackageName -y --no-progress
+        Log-Info -Message "$PackageName has been installed successfully."
+    } else {
+        Log-Info -Message "$PackageName is already installed."
+    }
+}
+# End - Invoke-SocaInstallPackage

@@ -20,6 +20,7 @@ def create_security_groups(
     construct_id: str,
     vpc: str,
     allow_all_outbound: bool = False,
+    allow_all_ipv6_outbound: bool = False,
     description: str = "",
 ) -> ec2.SecurityGroup:
     return ec2.SecurityGroup(
@@ -27,6 +28,7 @@ def create_security_groups(
         id=construct_id,
         vpc=vpc,
         allow_all_outbound=allow_all_outbound,
+        allow_all_ipv6_outbound=allow_all_ipv6_outbound,
         description=description,
     )
 

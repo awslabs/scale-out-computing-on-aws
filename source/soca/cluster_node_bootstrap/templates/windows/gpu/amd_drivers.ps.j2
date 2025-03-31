@@ -1,0 +1,44 @@
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# Begin - Install AMD Drivers
+function Install-AMDGpuDrivers {
+    $keyPrefix = $false
+    $operatingSystem = (Get-ComputerInfo).OsName.ToLower()
+
+    if ($operatingSystem -like "*windows server 2019*") {
+       $keyPrefix = "AMD_GPU_WINDOWS_2K19"
+    }
+    elseif ($operatingSystem -like "*windows server 2022*") {
+       $keyPrefix = "AMD_GPU_WINDOWS_2K22"
+    }
+    elseif ($operatingSystem -like "*windows server 2025*") {
+        Log-Warning -Message "No AMD driver for Windows 2025, skipping GPU Drivers install ... "
+    }
+    else {
+        Log-Warning "BaseOS must be windows2019, windows2022 or windows2025, detected  ${operatingSystem}, skipping GPU Drivers install"
+    }
+
+    if ($keyPrefix -ne $false) {
+        $checkExistingDrivers = Get-PnpDevice -Class "Display"  | Where-Object { $_.FriendlyName -like "*AMD*" }
+        if ($checkExistingDrivers) {
+            Log-Info -Message "AMD drivers are already installed on this machine"
+        }
+        else {
+            Log-Info -Message "About to install AMD drivers"
+            $bucketUrl = "{{ context.get('/system/gpu/gpu_settings/amd/windows/s3_bucket_url') }}"
+            $bucketRegion = (Invoke-WebRequest -Method Head -Uri $bucketUrl -UseBasicParsing).Headers["x-amz-bucket-region"]
+            $installerFolderPrefix = "amd_driver"
+            Log-Info -Message "Downloading AMD Drivers"
+            Invoke-SOCAAwsCli s3 cp --region $bucketRegion --quiet {{ context.get("/system/gpu/gpu_settings/amd/windows/s3_bucket_path") }} "${SOCABootstrapAssetsFolder}\" --recursive --exclude "*" --include "$keyPrefix*"
+            $localFile = (Get-ChildItem "${SOCABootstrapAssetsFolder}\$keyPrefix*").Name
+            Log-Info -Message "Extracting AMD drivers"
+            Expand-Archive "${SOCABootstrapAssetsFolder}\${localFile}" -DestinationPath "${SOCABootstrapAssetsFolder}\${installerFolderPrefix}\$keyPrefix" -Verbose
+            pnputil /add-driver ${SOCABootstrapAssetsFolder}\${installerFolderPrefix}\*.inf /install /subdirs
+            Log-Info -Message "AMD Grid driver installed, reboot will be done at the end of the bootstrap sequence"
+            $requireReboot=$true
+        }
+    }
+}
+Install-AMDGpuDrivers
+# End - Install AMD Drivers

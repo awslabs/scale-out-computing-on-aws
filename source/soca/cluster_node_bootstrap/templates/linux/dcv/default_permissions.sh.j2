@@ -1,0 +1,28 @@
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# Begin: Configure default DCV Permissions -
+log_info "Setting up DCV permissions"
+mv /etc/dcv/default.perm /etc/dcv/default.perm.original.$(date +%s)
+
+# Add any additional permissions as needed:
+# https://docs.aws.amazon.com/dcv/latest/adminguide/security-authorization-file-create-permission.html
+
+echo -e "
+[groups]
+; Example:
+; group:testgroup = actor1, actor2, actor3
+
+[aliases]
+; Example:
+; testalias = display, clipboard-copy, clipboard-paste, file-download, file-upload, mouse, keyboard, audio-in, audio-out, printer, usb, smartcard
+
+[permissions]
+; Example:
+; %owner% allow builtin
+; %any% deny clipboard-copy clipboard-paste smartcard
+; actor allow display
+; group:testgroup disallow testalias" > /etc/dcv/default.perm
+
+log_info "/etc/dcv/default.perm updated"
+# End: Configure default DCV Permissions

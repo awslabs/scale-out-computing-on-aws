@@ -46,16 +46,16 @@ from troposphere.ec2 import (
 from troposphere.fsx import FileSystem, LustreConfiguration
 import troposphere.ec2 as ec2
 
-from jinja2 import Environment, select_autoescape, FileSystemLoader
-
 import pathlib
 
 from utils.aws.ssm_parameter_store import SocaConfig
+from utils.jinjanizer import SocaJinja2Generator
 
 import logging
 import boto3
-from types import SimpleNamespace
+import uuid
 
+from utils.response import SocaResponse
 
 # FIXME TODO - ExtraConfig / API / versioning?
 ec2_client = boto3.client("ec2")
@@ -158,23 +158,11 @@ def is_ebs_optimized(instance_type: str) -> bool:
 
 def main(**params):
     try:
-        jinja2_env = Environment(
-            loader=FileSystemLoader(
-                f"/apps/soca/{os.environ.get('SOCA_CLUSTER_ID')}/cluster_node_bootstrap/"
-            ),
-            extensions=["jinja2.ext.do"],
-            autoescape=select_autoescape(
-                enabled_extensions=("j2", "jinja2"),
-                default_for_string=True,
-                default=True,
-            ),
-        )
-
         # Metadata
         t = Template()
         t.set_version("2010-09-09")
         t.set_description(
-            "(SOCA) - Base template to deploy compute nodes. Version 25.1.0"
+            "(SOCA) - Base template to deploy compute nodes. Version 25.3.0"
         )
 
         _cluster_id: str = params.get("ClusterId", "unknown-cluster")
@@ -206,9 +194,15 @@ def main(**params):
         for k, v in params.items():
             soca_parameters[f"/job/{k}"] = v
 
+        # Create bootstrap UUID for this job
+        _bootstrap_uuid = str(uuid.uuid4())
+
+        # Location of Boostrap scripts on S3
+        _bootstrap_s3_location_folder = f"{soca_parameters.get('/configuration/ClusterId')}/config/do_not_delete/bootstrap/compute_node/{_bootstrap_uuid}"
+
         # Add custom bootstrap path specific to current job id
         soca_parameters["/job/BootstrapPath"] = (
-            f"/apps/soca/{soca_parameters.get('/configuration/ClusterId')}/cluster_node_bootstrap/logs/compute_node/{soca_parameters.get('/job/JobId')}"
+            f"/apps/soca/{soca_parameters.get('/configuration/ClusterId')}/shared/logs/bootstrap/compute_node/{soca_parameters.get('/job/JobId')}/{_bootstrap_uuid}"
         )
 
         # add custom NodeType
@@ -217,17 +211,32 @@ def main(**params):
         # Replace default SOCA wide BaseOs value with job specific OS
         soca_parameters["/configuration/BaseOS"] = params.get("BaseOS")
 
-        # Create User Data
-        _user_data = clean_user_data(
-            text_to_remove=[
-                "# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.",
-                "# SPDX-License-Identifier: Apache-2.0",
-            ],
-            data=jinja2_env.get_template("compute_node/01_user_data.sh.j2").render(
-                context=soca_parameters,
-                ns=SimpleNamespace(template_already_included=[]),
-            ),
+        soca_parameters["/job/BootstrapScriptsS3Location"] = (
+            f"s3://{soca_parameters.get('/configuration/S3Bucket')}/{_bootstrap_s3_location_folder}/"
         )
+
+        # Create User Data
+        _render_user_data = SocaJinja2Generator(
+            get_template=f"compute_node/01_user_data.sh.j2",
+            template_dirs=[
+                f"/opt/soca/{os.environ.get('SOCA_CLUSTER_ID')}/cluster_node_bootstrap/"
+            ],
+            variables=soca_parameters,
+        ).to_stdout(autocast_values=True)
+
+        if _render_user_data.get("success") is False:
+            return SocaResponse(
+                success=False,
+                message=f"Unable to generate compute_node/01_user_data.sh.j2 Jinja2 template because of {_render_user_data.get('message')}",
+            )
+        else:
+            _user_data = clean_user_data(
+                text_to_remove=[
+                    "# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.",
+                    "# SPDX-License-Identifier: Apache-2.0",
+                ],
+                data=_render_user_data.get("message"),
+            )
 
         # Create bootstrap setup invoked by user data
         # Create directory structure
@@ -235,22 +244,34 @@ def main(**params):
             parents=True, exist_ok=True
         )
 
-        # Bootstrap Sequence:
-        _bootstrap_sequence = ["02_setup", "03_setup_post_reboot"]
-        for _t in _bootstrap_sequence:
+        # Bootstrap Sequence: Generate template and upload them to S3
+        _templates_to_render = [
+            "templates/linux/system_packages/install_required_packages",
+            "templates/linux/filesystems_automount",
+            "compute_node/02_setup",
+            "compute_node/03_setup_post_reboot",
+            "compute_node/04_setup_user_customization",
+        ]
+
+        for _t in _templates_to_render:
             # Render Template
-            _bootstrap_setup_template = jinja2_env.get_template(
-                f"compute_node/{_t}.sh.j2"
-            ).render(
-                context=soca_parameters,
-                ns=SimpleNamespace(template_already_included=[]),
+            _render_bootstrap_setup_template = SocaJinja2Generator(
+                get_template=f"{_t}.sh.j2",
+                template_dirs=[
+                    f"/opt/soca/{os.environ.get('SOCA_CLUSTER_ID')}/cluster_node_bootstrap/"
+                ],
+                variables=soca_parameters,
+            ).to_s3(
+                bucket_name=soca_parameters.get("/configuration/S3Bucket"),
+                key=f"{_bootstrap_s3_location_folder}/{_t.split('/')[-1]}.sh",
+                autocast_values=True,
             )
 
-            # Write rendered template
-            with open(
-                f"{soca_parameters.get('/job/BootstrapPath')}/{_t}.sh", "w"
-            ) as output_file:
-                output_file.write(_bootstrap_setup_template)
+            if _render_bootstrap_setup_template.get("success") is False:
+                return SocaResponse(
+                    success=False,
+                    message=f"Unable to generate {_t}.sh.j2 Jinja2 template because of {_render_bootstrap_setup_template.get('message')}",
+                )
 
         # Specify the security groups to assign to the compute nodes. Max 5 per instance
         # TODO - the length vs. maxlength should be checked

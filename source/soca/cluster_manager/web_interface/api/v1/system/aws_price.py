@@ -86,7 +86,8 @@ def get_compute_pricing(instance_type: str) -> dict:
 
 
 class AwsPrice(Resource):
-    def get(self):
+    @staticmethod
+    def get():
         """
         Return RI/OD price based on compute/storage inputs
         ---

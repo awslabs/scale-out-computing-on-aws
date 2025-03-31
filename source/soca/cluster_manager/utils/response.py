@@ -4,6 +4,7 @@
 from typing import Any, Optional
 import logging
 from flask import has_app_context, has_request_context
+import datetime
 
 logger = logging.getLogger("soca_logger")
 
@@ -107,18 +108,33 @@ class SocaResponse:
         if not isinstance(keys, list):
             raise TypeError("keys must be a list")
 
+        def _convert_value(value):
+            """Recursively convert datetime to string inside dicts/lists."""
+            if isinstance(value, datetime.datetime):
+                return value.isoformat()  # Convert datetime to string
+            elif isinstance(value, dict):
+                return {
+                    k: _convert_value(v) for k, v in value.items()
+                }  # Convert dict values
+            elif isinstance(value, list):
+                return [_convert_value(v) for v in value]  # Convert list elements
+            return value
+
         _result = []
         for item in keys:
             if isinstance(item, set):
                 # Handle the dictionary case (set)
-                _result.append({key: getattr(self, key) for key in item})
+                _result.append(
+                    {key: _convert_value(getattr(self, key)) for key in item}
+                )
             else:
-                _result.append(getattr(self, item))
+                _result.append(_convert_value(getattr(self, item)))
+
         return tuple(_result)
 
     def as_dict(self, keys: Optional[list] = None) -> dict:
         """
-        Return a dict based on the the keys format:
+        Return a dict based on the keys format:
 
         attr_list = ["message", "success", "status_code"]
         -> {

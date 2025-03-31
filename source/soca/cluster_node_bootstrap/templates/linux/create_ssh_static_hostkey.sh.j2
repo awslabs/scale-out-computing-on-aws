@@ -2,7 +2,6 @@
 # SPDX-License-Identifier: Apache-2.0
 
 # Begin - Create Static HostKey
-{% if context.get("/configuration/BaseOS") in ("amazonlinux2", "amazonlinux2023", "centos7", "rhel7", "rhel8", "rhel9", "rocky8", "rocky9") %}
 function create_static_hostkey {
   log_info "[BEGIN] system_sshd_create_static_HostKey"
   # Create static SSH HostKey for login nodes as these hosts can be recycled behind the ALB
@@ -11,7 +10,7 @@ function create_static_hostkey {
   log_info "Commenting existing HostKey sections"
   cp /etc/ssh/sshd_config /etc/ssh/sshd_config.original.$(date +%s)
   sed -i '/^HostKey/ s/^/#/' /etc/ssh/sshd_config
-  local STATIC_KEY_FOLDER="/apps/soca/{{  context.get("/configuration/ClusterId") }}/cluster_node_bootstrap/custom_automation/static_ssh_keys"
+  local STATIC_KEY_FOLDER="/opt/soca/{{  context.get("/configuration/ClusterId") }}/cluster_node_bootstrap/custom_automation/static_ssh_keys"
   local RSA_KEY_NAME="soca_ssh_host_rsa_key"
   local ED25519_KEY_NAME="soca_ssh_host_ed25519_key"
   local ECDSA_KEY_NAME="soca_ssh_host_ecdsa_key"
@@ -44,5 +43,4 @@ function create_static_hostkey {
   log_info "[COMPLETED] system_sshd_create_static_hostkey"
 }
 create_static_hostkey
-{% endif %}
 # End - Create Static HostKey

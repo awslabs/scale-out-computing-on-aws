@@ -15,25 +15,24 @@
 This hook reject the job if the user does not have a valid budget associated
 Doc: https://awslabs.github.io/scale-out-computing-on-aws/analytics/set-up-budget-project/
 create hook check_project_budget event=queuejob
-import hook check_project_budget application/x-python default /apps/soca/%SOCA_CLUSTER_ID/cluster_hooks/queuejob/check_project_budget.py
+import hook check_project_budget application/x-python default /opt/soca/%SOCA_CLUSTER_ID/cluster_hooks/queuejob/check_project_budget.py
 
 Note: If you make any change to this file, you MUST re-execute the import command
 """
 
-
 import sys
+import sysconfig
+
+# Automatically add SOCA_PYTHON/site-packages to sys.path to allow OpenPBS Hooks to load any custom library installed via SOCA_PYTHON (boto3 ...)
+site_packages = sysconfig.get_paths()["purelib"]
+if site_packages not in sys.path:
+    sys.path.append(site_packages)
+
 import pbs
 from configparser import (
     SafeConfigParser,
 )
 
-if (
-    "/apps/soca/%SOCA_CLUSTER_ID/python/latest/lib/python3.9/site-packages"
-    not in sys.path
-):
-    sys.path.append(
-        "/apps/soca/%SOCA_CLUSTER_ID/python/latest/lib/python3.9/site-packages"
-    )
 import boto3
 
 
@@ -64,7 +63,7 @@ job_project = (
 
 # User Variables
 aws_account_id = "<YOUR_AWS_ACCOUNT_ID>"
-budget_config_file = "/apps/soca/%SOCA_CLUSTER_ID/cluster_manager/orchestrator/settings/project_cost_manager.txt"  # Link to example
+budget_config_file = "/opt/soca/%SOCA_CLUSTER_ID/cluster_manager/orchestrator/settings/project_cost_manager.txt"  # Link to example
 user_must_belong_to_project = (
     True  # Change if you don't want to restrict project to a list of users
 )

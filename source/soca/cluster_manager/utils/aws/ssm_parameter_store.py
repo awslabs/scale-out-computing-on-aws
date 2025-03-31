@@ -21,7 +21,7 @@ class SocaConfig:
         parameter_name_prefix: Optional[
             str
         ] = f"/soca/{os.environ.get('SOCA_CLUSTER_ID')}",
-        cache_admin: bool = True
+        cache_admin: bool = True,
     ):
         self._parameter_name_prefix = parameter_name_prefix
         # Enforce "/" at the beginning of the parameter key name
@@ -116,18 +116,27 @@ class SocaConfig:
 
                     for _entry in parameters:
                         if cache_result is True:
-                            if self.cache_admin is True:
+                            if (
+                                self.cache_admin is True
+                                and _cache_enabled.success is True
+                            ):
                                 logger.debug(f"Caching {_entry['Name']} ...  ")
                                 self._cache_client.set(
                                     key=_entry["Name"], value=_entry["Value"]
                                 )
                             else:
-                                logger.warning("cache_result is True but cache_admin is False, data won't be cached")
+                                logger.debug(
+                                    "cache_result is True but cache_admin is False or cache is not enabled, data won't be cached"
+                                )
 
                         _output[
-                            _entry["Name"]
-                            if full_key_name
-                            else _entry["Name"].split(self._parameter_name_prefix)[-1]
+                            (
+                                _entry["Name"]
+                                if full_key_name
+                                else _entry["Name"].split(self._parameter_name_prefix)[
+                                    -1
+                                ]
+                            )
                         ] = _entry["Value"]
 
                 return SocaResponse(success=True, message=_output)
@@ -138,14 +147,16 @@ class SocaConfig:
                 _key_name = _response.get("Parameter").get("Name")
                 _key_value = _response.get("Parameter").get("Value")
                 if cache_result is True:
-                    if self.cache_admin is True:
+                    if self.cache_admin is True and _cache_enabled.success is True:
                         logger.debug(f"Caching {_key_name} ...  ")
                         self._cache_client.set(
                             key=_key_name,
                             value=_key_value,
                         )
                     else:
-                        logger.warning("cache_result is True but cache_admin is False, data won't be cached")
+                        logger.debug(
+                            "cache_result is True but cache_admin is False or cache is not enabled, data won't be cached"
+                        )
 
                 _result = SocaCastEngine(_key_value).cast_as(expected_type=return_as)
                 if not _result.success:
@@ -161,7 +172,7 @@ class SocaConfig:
             else:
                 return SocaError.AWS_API_ERROR(
                     service_name="ssm_parameterstore",
-                    helper=f"{self._full_parameter_name} not found. Add '/' at the end if this key is a hierarchy tree"
+                    helper=f"{self._full_parameter_name} not found. Add '/' at the end if this key is a hierarchy tree",
                 )
 
         except Exception as e:
@@ -170,7 +181,7 @@ class SocaConfig:
             else:
                 return SocaError.AWS_API_ERROR(
                     service_name="ssm_parameterstore",
-                    helper=f"Unknown error while trying to retrieve parameter {self._full_parameter_name} due to {e}"
+                    helper=f"Unknown error while trying to retrieve parameter {self._full_parameter_name} due to {e}",
                 )
 
     def get_value_history(self, sort: Optional[str] = "desc") -> dict:
@@ -211,7 +222,7 @@ class SocaConfig:
                 else:
                     return SocaError.AWS_API_ERROR(
                         service_name="ssm_parameterstore",
-                        helper=f"Unknown error while trying to retrieve parameter {self._full_parameter_name} due to {_get_parameter_history}"
+                        helper=f"Unknown error while trying to retrieve parameter {self._full_parameter_name} due to {_get_parameter_history}",
                     )
             else:
                 return SocaResponse(
@@ -221,7 +232,7 @@ class SocaConfig:
         except Exception as e:
             return SocaError.AWS_API_ERROR(
                 service_name="ssm_parameterstore",
-                helper=f"Unknown error while trying to retrieve parameter {self._full_parameter_name} due to {e}"
+                helper=f"Unknown error while trying to retrieve parameter {self._full_parameter_name} due to {e}",
             )
 
     def set_value(self, value: str) -> [str, bool]:
@@ -249,7 +260,7 @@ class SocaConfig:
                 else:
                     return SocaError.AWS_API_ERROR(
                         service_name="ssm_parameterstore",
-                        helper=f"Unknown error while trying to update parameter {_update_key}"
+                        helper=f"Unknown error while trying to update parameter {_update_key}",
                     )
 
         except Exception as e:
@@ -258,6 +269,5 @@ class SocaConfig:
             )
             return SocaError.AWS_API_ERROR(
                 service_name="ssm_parameterstore",
-                helper=f"Unknown error while trying to retrieve parameter {self._full_parameter_name} due to {e}"
+                helper=f"Unknown error while trying to retrieve parameter {self._full_parameter_name} due to {e}",
             )
-           

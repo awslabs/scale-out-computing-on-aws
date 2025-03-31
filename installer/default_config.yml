@@ -4,7 +4,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 Config:
-  version: "25.1.0"  # version automatically populated as part of RELEASE-PIPELINE.sh (see github_release.py)
+  version: "25.3.0"  # version automatically populated as part of RELEASE-PIPELINE.sh (see github_release.py)
   termination_protection: true  # Enable (recommended) or Disable Cloudformation Stack termination protection
   entry_points_subnets: "Public"  # Public (recommended) or Private. In public mode the scheduler and ELB are deployed on PublicSubnets and assigned Public IPS. In Private mode scheduler and ELB are deployed in private subnets. In both case compute nodes and OpenSearch/EFS/FSxL are deployed in private subnets. Public does not means your cluster will be accessible to everyone by default, access to your cluster is still protected by security groups
   skip_quotas: false  # Enable (True) or Disable (False) AWS Service quotas check. It's recommended to disable this setting only when the AWS Service Quotas API is not accessible (e.g: isolated subnets)
@@ -40,7 +40,7 @@ Config:
         long: 86400
 
     # Beta Build Only
-    #aws_pcs:
+    # aws_pcs:
     #  enabled: false # Enable (true) or Disable (false) the AWS Parallel Computing Service integration. For more information on AWS Parallel Computing Service - https://aws.amazon.com/pcs/
     #  controller_size: "SMALL" #  https://docs.aws.amazon.com/pcs/latest/userguide/working-with_clusters_size.html
     #  scheduler: "slurm"
@@ -53,6 +53,7 @@ Config:
 
   # Configure your Network parameters below (CIDR range is configured interactively --vpc-cidr
   network:
+    alb_tls_policy: "ELBSecurityPolicy-TLS13-1-2-2021-06"  # See https://docs.aws.amazon.com/elasticloadbalancing/latest/application/describe-ssl-policies.html
     nat_gateways: 1  # Number of NAT gateways to create. Must be equal or lower to the numbers of public subnets
     max_azs: 3  # Number of AZs to use. We will deploy the same number of private and public subnets. Must be greater than 2
     cross_zone_enabled: true  # Enable NLB cross-zone access
@@ -74,9 +75,33 @@ Config:
       - sns
       - ssm
       - ssmmessages
-  # FIPS endpoints are available for specific services. Enabled as required by policy.
-  #  - elasticfilesystem-fips
-  #  - fsx-fips
+    # FIPS endpoints are available for specific services. Enabled as required by policy.
+    #  - elasticfilesystem-fips
+    #  - fsx-fips
+
+    #
+    # AWS Global Accelerator (AGA) settings
+    #
+    aws_aga:
+      # Enable AGA true/false
+      # Only applies in public-facing deployments
+      enabled: false
+      address_type: "IPV4"  # "IPV4" or "DUAL_STACK"
+      # What areas of SOCA are subject to AGA acceleration?
+      acceleration:
+        #
+        # Login Node / SSH is disabled by default to prevent global/public SSH
+        #
+        login_node:
+          enabled: false
+          client_affinity: "SOURCE_IP"
+        webui:
+          enabled: true
+          client_affinity: "SOURCE_IP"
+        vdi:
+          # VDI Acceleration
+          enabled: true
+          client_affinity: "SOURCE_IP"
 
 
   # Configure your Storage options below
@@ -93,15 +118,15 @@ Config:
         performance_mode: "generalPurpose"  # https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-efs-filesystem.html#cfn-efs-filesystem-performancemode
         deletion_policy: "NO_RETAIN"  # RETAIN will preserve the EFS even if you delete the stack. Any other value will delete EFS if you delete the CFN stack
       fsx_ontap:
-         deployment_type: "MULTI_AZ_2"
-         automatic_backup_retention_days: 7
-         daily_automatic_backup_start_time: "03:00"
-         throughput_capacity: 384
-         storage_capacity: 1024
-         junction_path: "/apps"
-         netbios_name: "SOCAAPPSSVM" # 15 Chars Max, must be unique to your AD
-         file_system_administrators_group: ~ # Leave default if using AWS DS (will use AWS Delegated FSx Administrators)
-         organizational_unit_distinguished_name: ~ # Leave default if using AWS DS (OU=Computers, <BASE_DOMAIN>)
+        deployment_type: "MULTI_AZ_2"
+        automatic_backup_retention_days: 7
+        daily_automatic_backup_start_time: "03:00"
+        throughput_capacity: 384
+        storage_capacity: 1024
+        junction_path: "/apps"
+        netbios_name: "SOCAAPPSSVM"  # 15 Chars Max, must be unique to your AD
+        file_system_administrators_group: ~  # Leave default if using AWS DS (will use AWS Delegated FSx Administrators)
+        organizational_unit_distinguished_name: ~  # Leave default if using AWS DS (OU=Computers, <BASE_DOMAIN>)
       fsx_lustre:
         deployment_type: "PERSISTENT_2"  # Allowed values: PERSISTENT_1 | PERSISTENT_2 | SCRATCH_1 | SCRATCH_2. Region availability information  https://docs.aws.amazon.com/fsx/latest/LustreGuide/using-fsx-lustre.html
         drive_cache_type: "READ"  # Allowed values: NONE | READ. Required when storage_type is HDD. https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-fsx-filesystem-lustreconfiguration.html#cfn-fsx-filesystem-lustreconfiguration-drivecachetype
@@ -124,9 +149,9 @@ Config:
         throughput_capacity: 384
         storage_capacity: 1024
         junction_path: "/data"
-        netbios_name: "SOCADATASVM" # 15 Chars Max, must be unique to your AD.
-        file_system_administrators_group: ~ # Leave default if using AWS DS (will use AWS Delegated FSx Administrators)
-        organizational_unit_distinguished_name: ~ # Leave default if using AWS DS (OU=Computers, <BASE_DOMAIN>)
+        netbios_name: "SOCADATASVM"  # 15 Chars Max, must be unique to your AD.
+        file_system_administrators_group: ~  # Leave default if using AWS DS (will use AWS Delegated FSx Administrators)
+        organizational_unit_distinguished_name: ~  # Leave default if using AWS DS (OU=Computers, <BASE_DOMAIN>)
       fsx_lustre:
         deployment_type: "PERSISTENT_2"  # Allowed values: PERSISTENT_1 | PERSISTENT_2 | SCRATCH_1 | SCRATCH_2. Region availability information  https://docs.aws.amazon.com/fsx/latest/LustreGuide/using-fsx-lustre.html
         drive_cache_type: "READ"  # Allowed values: NONE | READ. Required when storage_type is HDD. https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-fsx-filesystem-lustreconfiguration.html#cfn-fsx-filesystem-lustreconfiguration-drivecachetype
@@ -146,7 +171,7 @@ Config:
     volume_kms_key_id: "alias/aws/ebs"  # Specify your own CMK to encrypt EBS volume.
     # Security group settings for login nodes on the public
     security:
-      ssh_frontend_port: 22 # By default, the SSH port That the NLB listens on to forward to the LoginNode instances
+      ssh_frontend_port: 22  # By default, the SSH port That the NLB listens on to forward to the LoginNode instances
       ssh_backend_port: 22  # By default, the SSH port that the LoginNode listens on the instance
 #      additional_ports:
 #        tcp: [222] # List of TCP ports to allow from the client_ip and prefix-lists. These will be used for security group configurations
@@ -164,7 +189,7 @@ Config:
   # Configure your EC2 instance used as controller host below
   controller:
     instance_type: ["m7i-flex.large", "m7i.large", "m6a.large", "m6i.large", "m5.large"]  # Type of EC2 machine to deploy for controller
-    volume_size: 200  # Size of the EBS root disk in GB
+    volume_size: 300  # Size of the EBS root disk in GB
     volume_type: "gp3"  #  'gp2' may be needed for AWS Outposts installations
     volume_throughput: 150  #  For Provisioned IOPS SSD (io1) volumes
     volume_iops: 8200  #  For Provisioned IOPS SSD (io1) volumes
@@ -200,7 +225,7 @@ Config:
     #   - "arn:aws:backup:us-east-1:123456789012:backup-vault:backupvaultname"
 
   dcv:
-    allowed_instances: ["m7i-flex.*", "m7i.*", "c6i.*", "c7g.*", "m5.*", "g6.*", "gr6.*", "g5.*", "g5g.*", "g4dn.*"]  # Which instances should be displayed for the user?
+    allowed_instances: ["m7i-flex.*", "m7i.*", "c6i.*", "c7g.*", "m5.*", "g6.*", "gr6.*", "g5.*", "g5g.*", "g4dn.*", "g4ad.*"]  # Which instances should be displayed for the user?
     allow_metal_instances: true  # Should the user be presented with metal instances?
     version: "2023.1.16388"
     high_scale: false  # Should DCV be configured to support HA and high scale?
@@ -254,13 +279,13 @@ Config:
       admins_search_base: "cn=socasudoadminsgroup"  # Any users created in this group will have Linux SUDO & SOCA Admin permissions
 
     openldap:
-      people_search_base: "ou=People" # Users will be created or authenticated in this OrganizationAL Unit (OU) - (base_dn is automatically added as suffix if not present)
-      group_search_base: "ou=Group" # Groups in this OU will be usable in SOCA - (base_dn is automatically added as suffix if not present)
+      people_search_base: "ou=People"  # Users will be created or authenticated in this OrganizationAL Unit (OU) - (base_dn is automatically added as suffix if not present)
+      group_search_base: "ou=Group"  # Groups in this OU will be usable in SOCA - (base_dn is automatically added as suffix if not present)
       admins_search_base: "ou=Sudoers"  # Any users created in this OU  will have Linux SUDO & SOCA Admin permissions https://www.sudo.ws/docs/man/sudoers.ldap.man/ (base_dn is automatically added as suffix if not present)
 
     existing_openldap:
-      people_search_base: ~ # Users will be created or authenticated in this OrganizationAL Unit (OU) - (base_dn is automatically added as suffix if not present)
-      group_search_base: ~ # Groups in this OU will be usable in SOCA - (base_dn is automatically added as suffix if not present)
+      people_search_base: ~  # Users will be created or authenticated in this OrganizationAL Unit (OU) - (base_dn is automatically added as suffix if not present)
+      group_search_base: ~  # Groups in this OU will be usable in SOCA - (base_dn is automatically added as suffix if not present)
       admins_search_base: ~  # Any users created in this Group will have Linux SUDO & SOCA Admin permissions (base_dn is automatically added as suffix if not present)
 
       #  If you change this value, SOCA will !!!NOT!!! create an OpenLDAP and will connect to the one you have specified.
@@ -268,7 +293,7 @@ Config:
       #  2. Verify the different Search Base above and ensure they match your environment
       #  3. You MUST set existing_directory_service_account_secret_name below
       #  4. Verify the provider (above) is the correct one based on your Directory platform
-      endpoint: ~ # ex: ldaps://10.5.5.10, ldap://myad.mycompany.com ... must start with ldap:// or ldaps://
+      endpoint: ~  # ex: ldaps://10.5.5.10, ldap://myad.mycompany.com ... must start with ldap:// or ldaps://
 
       # A service account with enough privileges to join other objects into the directory.
       # Left blank if you are not using an existing Directory, SOCA will automatically create a secure secret on SecretManager for you
@@ -295,7 +320,7 @@ Config:
       #  2. Verify the different Search Base above and ensure they match your environment
       #  3. You MUST set existing_directory_service_account_secret_name below
       #  4. Verify the provider (above) is the correct one based on your Directory platform
-      endpoint: ~ # ex: ldaps://10.5.5.10, ldap://myad.mycompany.com ... must start with ldap:// or ldaps://
+      endpoint: ~  # ex: ldaps://10.5.5.10, ldap://myad.mycompany.com ... must start with ldap:// or ldaps://
 
       #  List Domain Controller IPs, only needed if you are planning to use FSx for NetApp ONTAP
       # dc_ips:
@@ -323,6 +348,26 @@ Config:
 # ex: /soca/soca-mycluster/system/awscliv2/x86_64
 Parameters:
   system:
+    base_os:
+      supported:
+        - "amazonlinux2"
+        - "amazonlinux2023"
+        - "rhel8"
+        - "rhel9"
+        - "rocky8"
+        - "rocky9"
+        - "ubuntu2204"
+        - "ubuntu2404"
+        - "windows2019"
+        - "windows2022"
+        - "windows2025"
+
+
+      # OS supported on previous SOCA versions but removed as they reached End-Of-Life and no further support is provided
+      # Historical code may continue to work.
+      eol:
+        - "centos7"
+        - "rhel7"
 
     aws_pcs:
       slurm_version: "23.11"
@@ -350,18 +395,18 @@ Parameters:
 
     scheduler:
       openpbs:
-        tgz: # Download OpenPBS tgz from the URL listed below
+        tgz:  # Download OpenPBS tgz from the URL listed below
           version: "23.06.06"
           url: "https://github.com/openpbs/openpbs/archive/v23.06.06.tar.gz"
           sha256: "689df6caa101422237118d81f9cfb0e6cad432209c77a6b3b8021cf984a91a90"
-        git: # Install OpenPBS from Source.
-          version: "23.06.06" # Version to install (this can be anything, it's just used to avoid re-installation if the same version is already detected)
-          repo: "https://github.com/openpbs/openpbs.git" # Repo to clone from, e.g https://github.com/openpbs/openpbs.git
-          branch: "master" # (Optional: Specify the branch if you do not want to use the default)
-          commit_id: "494e0f0186dd7d51ae5a8005f21438d900c0a842" # (Optional: Specify the commit id if you do not want to use the default)
+        git:  # Install OpenPBS from Source.
+          version: "23.06.06"  # Version to install (this can be anything, it's just used to avoid re-installation if the same version is already detected)
+          repo: "https://github.com/openpbs/openpbs.git"  # Repo to clone from, e.g https://github.com/openpbs/openpbs.git
+          branch: "master"  # (Optional: Specify the branch if you do not want to use the default)
+          commit_id: "494e0f0186dd7d51ae5a8005f21438d900c0a842"  # (Optional: Specify the commit id if you do not want to use the default)
         s3_tgz:
-          version: ~ # Version to install (this can be anything, it's just used to avoid re-installation if the same version is already detected)
-          s3_uri: ~ # Full name of your file archive on S3 (e.g: s3://mcrozes-soca-test-bucket/tarball/openpbs-23.06.06.tar.gz)
+          version: ~  # Version to install (this can be anything, it's just used to avoid re-installation if the same version is already detected)
+          s3_uri: ~  # Full name of your file archive on S3 (e.g: s3://mcrozes-soca-test-bucket/tarball/openpbs-23.06.06.tar.gz)
 
     cache_client:
       valkey:
@@ -408,30 +453,44 @@ Parameters:
       el9:
         url: "https://dl.fedoraproject.org/pub/epel/epel-release-latest-9.noarch.rpm"
 
+    chocolatey:
+      url: "https://community.chocolatey.org/install.ps1"
+
     gpu:
       gpu_settings:
         nvidia:
-          #  https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/install-nvidia-driver.html#nvidia-driver-instance-type
-          # If EC2 Instance Family only supports Tesla, SOCA will install Tesla Drivers
-          # If EC2 Instance family supports both Tesla and Grid, SOCA will only install Grid Driver if it's a DCV (Virtual Desktop) machine
-          # Edit templates/linux/gpu/install_drivers.j2 to change the behavior if needed.
-          tesla_drivers_only: "(p3|p4d|p4de|p5|p5e|g5g)"
-          tesla_drivers_ltsb_only: "(p2|g2)" # (Experimental) For Older GPU generation
-          grid_drivers:
-            s3_bucket_url: "https://ec2-linux-nvidia-drivers.s3.amazonaws.com"
-            s3_bucket_path: "s3://ec2-linux-nvidia-drivers/latest/"
-          tesla_drivers:
-            public_driver_version: "535.104.05"
-            public_driver_version_ltsb: "470.199.02"  # (Experimental)  Long Term Servicing Branch, for older instance type
-            public_driver_url_endpoint: "https://us.download.nvidia.com/tesla/${DRIVER_VERSION}/NVIDIA-Linux-${MACHINE}-${DRIVER_VERSION}.run"
-        amd:
-          s3_bucket_url: "https://ec2-amd-linux-drivers.s3.amazonaws.com"
-          s3_bucket_path: "s3://ec2-amd-linux-drivers/latest/"
+          linux:
+            #  https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/install-nvidia-driver.html#nvidia-driver-instance-type
+            # If EC2 Instance Family only supports Tesla, SOCA will install Tesla Drivers
+            # If EC2 Instance family supports both Tesla and Grid, SOCA will only install Grid Driver if it's a DCV (Virtual Desktop) machine
+            # Edit templates/linux/gpu/install_drivers.j2 to change the behavior if needed.
+            tesla_drivers_only: "(p3|p4d|p4de|p5|p5e|g5g)"
+            tesla_drivers_ltsb_only: "(p2|g2)"  # (Experimental) For Older GPU generation
+            grid_drivers:
+              s3_bucket_url: "https://ec2-linux-nvidia-drivers.s3.amazonaws.com"
+              s3_bucket_path: "s3://ec2-linux-nvidia-drivers/latest/"
+            tesla_drivers:
+              public_driver_version: "535.104.05"
+              public_driver_version_ltsb: "470.199.02"  # (Experimental)  Long Term Servicing Branch, for older instance type
+              public_driver_url_endpoint: "https://us.download.nvidia.com/tesla/${DRIVER_VERSION}/NVIDIA-Linux-${MACHINE}-${DRIVER_VERSION}.run"
+          windows:
+            # Windows is only for VDI instance, so we install only Grid Drivers.
+            # User can replace with TESLA post-VDI deployment if needed.
+            grid_drivers:
+              s3_bucket_url: "https://ec2-windows-nvidia-drivers.s3.amazonaws.com"
+              s3_bucket_path: "s3://ec2-windows-nvidia-drivers/latest/"
 
+        amd:
+          linux:
+            s3_bucket_url: "https://ec2-amd-linux-drivers.s3.amazonaws.com"
+            s3_bucket_path: "s3://ec2-amd-linux-drivers/latest/"
+          windows:
+            s3_bucket_url: "https://ec2-amd-windows-drivers.s3.amazonaws.com"
+            s3_bucket_path: "s3://ec2-amd-windows-drivers/latest/"
     dcv:
       session_storage: "dcv_session_storage"  # $HOME will be appended as prefix https://docs.aws.amazon.com/dcv/latest/adminguide/manage-storage.html
       idle_timeout: 1440  # in minutes. Disconnect DCV (but not terminate the session) after 1 day if not active
-      al2: # Amazon Linux 2
+      al2:  # Amazon Linux 2
         x86_64:
           version: "2024.0-17979-el7-only-al2-x86_64"
           url: "https://d1uj6qtbmh3dt5.cloudfront.net/2024.0/Servers/nice-dcv-2024.0-17979-el7-only-al2-x86_64.tgz"
@@ -470,3 +529,28 @@ Parameters:
           version: "2024.0-17979-el9-aarch64"
           url: "https://d1uj6qtbmh3dt5.cloudfront.net/2024.0/Servers/nice-dcv-2024.0-17979-el9-aarch64.tgz"
           sha256: "cf1f4453f5a82b57a73845f0173de3dc2d1f58cd269ffb2635b36a68d1108ce6"
+
+      ubuntu2204:  # Ubuntu 22.04
+        x86_64:
+          version: "nice-dcv-2024.0-18131-ubuntu2204-x86_64"
+          url: "https://d1uj6qtbmh3dt5.cloudfront.net/2024.0/Servers/nice-dcv-2024.0-18131-ubuntu2204-x86_64.tgz"
+          sha256: "b30a57f5029b9d8acb59db9fc72f1dbc7c6a33d76dbbfe02017cec553c5b86f9"
+        aarch64:
+          version: "nice-dcv-2024.0-18131-ubuntu2204-aarch64"
+          url: "https://d1uj6qtbmh3dt5.cloudfront.net/2024.0/Servers/nice-dcv-2024.0-18131-ubuntu2204-aarch64.tgz"
+          sha256: "48bb605dbb5f28af79b94de9239a8c3e7811e9e47078d8985d036915f2a34217"
+
+      ubuntu2404:  # Ubuntu 24.04
+        x86_64:
+          version: "nice-dcv-2024.0-18131-ubuntu2404-x86_64"
+          url: "https://d1uj6qtbmh3dt5.cloudfront.net/2024.0/Servers/nice-dcv-2024.0-18131-ubuntu2404-x86_64.tgz"
+          sha256: "2cebf01c1fb5389d349ba22fdd8a85dec179bbf24c86f252535e8da43fb4c705"
+        aarch64:
+          version: "nice-dcv-2024.0-18131-ubuntu2404-aarch64"
+          url: "https://d1uj6qtbmh3dt5.cloudfront.net/2024.0/Servers/nice-dcv-2024.0-18131-ubuntu2404-aarch64.tgz"
+          sha256: "95e4a364a78de6febbdeb877febd998099f59fbb4c4226fe6dd27fa4b5afc809"
+
+      windows:
+        version: "2024.0-18131"
+        url: "https://d1uj6qtbmh3dt5.cloudfront.net/2024.0/Servers/nice-dcv-server-x64-Release-2024.0-18131.msi"
+        sha256: "f3049b2affdfa331ea3205cc5b3ae6106822e9d727fb4e84e470c2e0b10c6296"

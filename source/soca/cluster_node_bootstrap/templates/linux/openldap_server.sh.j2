@@ -2,14 +2,28 @@
 # SPDX-License-Identifier: Apache-2.0
 
 # Begin: OpenLDAP Server Template
-{% if context.get("/configuration/BaseOS") in ("amazonlinux2", "amazonlinux2023", "centos7", "rhel7", "rhel8", "rhel9", "rocky8", "rocky9") %}
 function openldap_server_install () {
   log_info "Configuring OpenLDAP Server"
   pushd ${SOCA_BOOTSTRAP_ASSETS_FOLDER}
 
-  if ! verify_package_installed openldap-servers; then
-    packages_install openldap-servers
-  fi
+  {% if context.get("/configuration/BaseOS") in ("ubuntu2204", "ubuntu2404") %}
+    # Debian Based Distro
+    if ! verify_package_installed slapd; then
+      log_info "slapd not installed, installing it "
+      packages_install slapd
+    fi
+
+     if ! verify_package_installed ldap-utils; then
+      log_info "slapd not installed, installing it "
+      packages_install ldap-utils
+    fi
+  {% else %}
+    # RedHat based Distro (up to RHEL8)
+      if ! verify_package_installed openldap-servers; then
+        packages_install openldap-servers
+      fi
+  {% endif %}
+
 
   systemctl enable slapd
   systemctl start slapd
@@ -210,6 +224,7 @@ homedir_substring = /data/home
   cp /etc/openldap/ldap.conf /etc/openldap/ldap.conf.soca.backup
   echo "TLS_REQCERT never" >> /etc/openldap/ldap.conf
 
+  log_info "Enabling and Restarting sssd/slapd"
   systemctl enable sssd
   systemctl enable slapd
   sleep 5
@@ -218,5 +233,4 @@ homedir_substring = /data/home
   popd
 }
 openldap_server_install
-{% endif %}
 # End: OpenLDAP Server Template

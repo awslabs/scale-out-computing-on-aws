@@ -1,0 +1,31 @@
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# Begin - Install Chocolatey (Windows Package Manager: https://chocolatey.org/)
+# This template is loaded automatically via common/wrapper_install_module.ps.j2
+# Note: Chocolatey is only installed if you invoke Invoke-SOCAInstallPackage
+
+function Install-Chocolatey
+{
+    # Check if Chocolatey is installed by checking if choco.exe exists in the PATH
+    if (-not (Get-Command choco -ErrorAction SilentlyContinue))
+    {
+        Log-Info -Message "Chocolatey is not installed. Installing Chocolatey..."
+
+        Log-Info -Message "Enforcing TLS 1.2 for secure connection"
+        [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+
+        # Install Chocolatey https://chocolatey.org/install
+        Set-ExecutionPolicy Bypass -Scope Process -Force
+        [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072
+        iex ((New-Object System.Net.WebClient).DownloadString("{{ context.get("/system/chocolatey/url") }}"))
+
+        Log-Info -Message "Chocolatey installation completed."
+    }
+    else
+    {
+        Log-Info -Message "Chocolatey is already installed. Version: $( choco --version )"
+    }
+}
+Install-Chocolatey
+# End - Install Chocolatey (Windows Package Manager: https://chocolatey.org/)

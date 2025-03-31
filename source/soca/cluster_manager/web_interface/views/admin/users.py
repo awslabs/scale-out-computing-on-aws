@@ -40,7 +40,7 @@ def index():
         all_shells = get_all_shells.decode("utf-8").split("\n")[
             :-1
         ]  # remove last empty
-    except Exception as err:
+    except Exception as _err:
         logger.error("Unable to retrieve shells installed on the system")
         all_shells = ["/bin/bash"]
     return render_template(

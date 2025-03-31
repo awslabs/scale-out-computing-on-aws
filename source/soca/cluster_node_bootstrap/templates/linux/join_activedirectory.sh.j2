@@ -16,6 +16,8 @@ function join_ad {
     packages_install realmd
   fi
 
+  {% include "templates/linux/patch_krb5.sh.j2" %}
+
   local DS_DOMAIN_NAME="{{ context.get("/configuration/UserDirectory/domain_name") }}"
   local UPPER_DS_DOMAIN_NAME="{{ context.get("/configuration/UserDirectory/domain_name") | upper }}"
   local SOCA_DIRECTORY_ADMINS_SEARCH_BASE="{{ context.get("/configuration/UserDirectory/admins_search_base") | lower }}"
@@ -41,26 +43,51 @@ function join_ad {
   log_info "${DS_DOMAIN_NAME} is reachable"
 
   # Create cached location if needed. This location is restricted to admin user only
-  local AD_AUTOMATION_CACHED_LOCATION="/apps/soca/{{ context.get("/configuration/ClusterId") }}/cluster_node_bootstrap/custom_automation/ad_automation"
+  local AD_AUTOMATION_CACHED_LOCATION="/apps/soca/{{ context.get("/configuration/ClusterId") }}/shared/custom_automation/ad_automation"
+  local AD_AUTOMATION_CACHED_USERNAME_LOCATION="${AD_AUTOMATION_CACHED_LOCATION}/join_domain_user.cache"
+  local AD_AUTOMATION_CACHED_PASSWORD_LOCATION="${AD_AUTOMATION_CACHED_LOCATION}/join_domain.cache"
   log_info "AD Cached Location is ${AD_AUTOMATION_CACHED_LOCATION}"
-  mkdir -p "${AD_AUTOMATION_CACHED_LOCATION}"
-
   # Retrieve account with join permission if available, otherwise query SecretManager
-  if [[ ! -f "${AD_AUTOMATION_CACHED_LOCATION}/join_domain_user.cache" ]] || [[ ! -f "${AD_AUTOMATION_CACHED_LOCATION}/join_domain.cache" ]]; then
-    log_info "${AD_AUTOMATION_CACHED_LOCATION}/join_domain_user.cache or join_domain.cache does not exist, querying SecretsManager API to retrieve AD Domain User"
+  # to migrate to AD OTP
+  {% if context.get("/job/NodeType") == "controller" %}
+    mkdir -p ${AD_AUTOMATION_CACHED_LOCATION}
+    chmod 600 ${AD_AUTOMATION_CACHED_LOCATION}
+    log_info "Querying SecretsManager API to retrieve AD Service Account"
     local DS_DOMAIN_ADMIN_CREDENTIALS=$(get_secret "{{ context.get("/configuration/UserDirectory/service_account_secret_arn") }}")
+    if [[ -z ${DS_DOMAIN_ADMIN_CREDENTIALS} ]]; then
+      exit_fail "DS_DOMAIN_ADMIN_CREDENTIALS is empty, unable to get secret info from {{ context.get("/configuration/UserDirectory/service_account_secret_arn") }}"
+    fi
     local DS_DOMAIN_ADMIN_USERNAME=$(echo ${DS_DOMAIN_ADMIN_CREDENTIALS} | jq -r ". | fromjson.username")
     local DS_DOMAIN_ADMIN_PASSWORD=$(echo ${DS_DOMAIN_ADMIN_CREDENTIALS} | jq -r ". | fromjson.password")
-    echo -n "${DS_DOMAIN_ADMIN_USERNAME}" > "${AD_AUTOMATION_CACHED_LOCATION}/join_domain_user.cache"
-    echo -n "${DS_DOMAIN_ADMIN_PASSWORD}" > "${AD_AUTOMATION_CACHED_LOCATION}/join_domain.cache"
-    chown 600 "${AD_AUTOMATION_CACHED_LOCATION}/join_domain_user.cache"
-    chown 600 "${AD_AUTOMATION_CACHED_LOCATION}/join_domain.cache"
-    log_info "AD Domain User cached on filesystem"
-  else
-    log_info "${AD_AUTOMATION_CACHED_LOCATION}/join_domain_user and join_domain exists in Cache, retrieving AD Domain User from filesystem"
-    DS_DOMAIN_ADMIN_USERNAME=$(cat "${AD_AUTOMATION_CACHED_LOCATION}/join_domain_user.cache")
-    DS_DOMAIN_ADMIN_PASSWORD=$(cat "${AD_AUTOMATION_CACHED_LOCATION}/join_domain.cache")
-  fi
+    echo -n "${DS_DOMAIN_ADMIN_USERNAME}" > ${AD_AUTOMATION_CACHED_USERNAME_LOCATION}
+    echo -n "${DS_DOMAIN_ADMIN_PASSWORD}" > ${AD_AUTOMATION_CACHED_PASSWORD_LOCATION}
+    chmod 600 ${AD_AUTOMATION_CACHED_USERNAME_LOCATION}
+    chmod 600 ${AD_AUTOMATION_CACHED_PASSWORD_LOCATION}
+    log_info "AD Domain User cached on filesystem via ${AD_AUTOMATION_CACHED_LOCATION}"
+  {% else %}
+    log_info "Non SOCA controller host, fetching AD Service Account via ${AD_AUTOMATION_CACHED_LOCATION}"
+    {% if context.get("/job/NodeType") == "login_node" %}
+    # first login node is deployed at the same time of the controller, so to avoid race conditions, we add some sleep to ensure the controller has finalized the AD setup
+    # as it's the only machine with an IAM role which allow querying Secrets Manager
+    local RETRY_COUNT=0
+    while [[ ! -f "${AD_AUTOMATION_CACHED_USERNAME_LOCATION}" ]] || [[ ! -f "${AD_AUTOMATION_CACHED_PASSWORD_LOCATION}" ]]; do
+      if [[ ${RETRY_COUNT} -ge 30 ]]; then
+          exit_fail "AD Service Account did not appear after 15 minutes. Verify SOCA Controller."
+      fi
+      log_info "${AD_AUTOMATION_CACHED_USERNAME_LOCATION} or ${AD_AUTOMATION_CACHED_PASSWORD_LOCATION} don't exist, waiting for SOCA controller, trying again in 30 seconds"
+      sleep 60
+      ((RETRY_COUNT++))
+    done
+    {% else %}
+    # compute node - we expect the cache info to be already there.
+    if [[ ! -f "${AD_AUTOMATION_CACHED_USERNAME_LOCATION}" ]] || [[ ! -f "${AD_AUTOMATION_CACHED_PASSWORD_LOCATION}" ]]; then
+      exit_fail "${AD_AUTOMATION_CACHED_USERNAME_LOCATION} or ${AD_AUTOMATION_CACHED_PASSWORD_LOCATION} don't exist"
+    fi
+    {% endif %}
+
+    DS_DOMAIN_ADMIN_USERNAME=$(cat "${AD_AUTOMATION_CACHED_USERNAME_LOCATION}")
+    DS_DOMAIN_ADMIN_PASSWORD=$(cat "${AD_AUTOMATION_CACHED_PASSWORD_LOCATION}")
+  {% endif %}
 
   # Handle AD case where Service Account is <User>@<Domain>, realm command prefer that we only specify the <User> as the domain is passed as arg
   DS_DOMAIN_ADMIN_USERNAME=$(echo "${DS_DOMAIN_ADMIN_USERNAME}" | awk -F '@' '{print $1}')
@@ -138,6 +165,7 @@ ldap_sudo_search_base = ${SOCA_DIRECTORY_ADMINS_SEARCH_BASE}
 ldap_tls_reqcert = never
 realmd_tags = manages-system joined-with-adcli
 use_fully_qualified_names = False
+{% if context.get('/job/NodeType') == "dcv_node" %}ad_gpo_map_interactive = +dcv{% endif %}
 
 [nss]
 homedir_substring = /data/home

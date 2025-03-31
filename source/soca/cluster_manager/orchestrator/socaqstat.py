@@ -11,7 +11,6 @@
 #  and limitations under the License.                                                                                #
 ######################################################################################################################
 
-import subprocess
 import argparse
 import getpass
 import json
@@ -33,7 +32,7 @@ def run_command(cmd):
         )
         stdout, stderr = command.communicate()
         return literal_eval(stdout.decode("utf-8"))  # clear possible escape char
-    except subprocess.CalledProcessError as e:
+    except subprocess.CalledProcessError as _e:
         exit(1)
 
 
@@ -70,7 +69,7 @@ if __name__ == "__main__":
 
     # Retrieve Default Queue parameters
     queue_settings_file = (
-        "/apps/soca/"
+        "/opt/soca/"
         + os.environ["SOCA_CLUSTER_ID"]
         + "/cluster_manager/orchestrator/settings/queue_mapping.yml"
     )
@@ -80,13 +79,13 @@ if __name__ == "__main__":
         docs = yaml.safe_load_all(stream_resource_mapping)
         for doc in docs:
             for items in doc.values():
-                for type, info in items.items():
+                for _type, info in items.items():
                     if arg.queue in info["queues"]:
                         for parameter_key, parameter_value in info.items():
                             queue_parameter_values[parameter_key] = parameter_value
             stream_resource_mapping.close()
     except Exception as err:
-        print("Unable to read {} with error: {}".format(queue_settings_file, err))
+        print(f"Unable to read {queue_settings_file} with error: {err}")
         sys.exit(1)
 
     if "scaling_mode" in queue_parameter_values.keys():
@@ -191,11 +190,11 @@ if __name__ == "__main__":
                     ignore = True
 
             if arg.state is not None:
-                if (arg.state).lower() != job_state.lower():
+                if arg.state.lower() != job_state.lower():
                     ignore = True
 
             if arg.job is not None:
-                if (arg.job) != job_id:
+                if arg.job != job_id:
                     ignore = True
 
             if "exec_vnode" in job_data.keys():
@@ -297,42 +296,42 @@ if __name__ == "__main__":
         else:
             if scaling_mode == "multiple_jobs":
                 for job_hash in dict_output.keys():
-                    for id in dict_output[job_hash]:
+                    for _id in dict_output[job_hash]:
                         table_output.add_row(
                             [
-                                dict_output[job_hash][id]["get_job_id"],
-                                dict_output[job_hash][id]["get_job_instance_type"],
-                                dict_output[job_hash][id]["get_job_ht_support"],
-                                dict_output[job_hash][id]["get_job_spot_price"],
-                                dict_output[job_hash][id]["get_job_queue_name"],
-                                dict_output[job_hash][id]["get_job_owner"],
-                                dict_output[job_hash][id]["get_job_state"],
-                                dict_output[job_hash][id]["get_execution_hosts"],
-                                dict_output[job_hash][id]["get_job_name"],
-                                dict_output[job_hash][id]["get_job_nodect"],
-                                dict_output[job_hash][id]["get_job_ncpus"],
-                                dict_output[job_hash][id]["get_job_start_time"],
-                                dict_output[job_hash][id]["get_job_queue_time"],
-                                dict_output[job_hash][id]["get_job_id_hash"],
-                                dict_output[job_hash][id][
+                                dict_output[job_hash][_id]["get_job_id"],
+                                dict_output[job_hash][_id]["get_job_instance_type"],
+                                dict_output[job_hash][_id]["get_job_ht_support"],
+                                dict_output[job_hash][_id]["get_job_spot_price"],
+                                dict_output[job_hash][_id]["get_job_queue_name"],
+                                dict_output[job_hash][_id]["get_job_owner"],
+                                dict_output[job_hash][_id]["get_job_state"],
+                                dict_output[job_hash][_id]["get_execution_hosts"],
+                                dict_output[job_hash][_id]["get_job_name"],
+                                dict_output[job_hash][_id]["get_job_nodect"],
+                                dict_output[job_hash][_id]["get_job_ncpus"],
+                                dict_output[job_hash][_id]["get_job_start_time"],
+                                dict_output[job_hash][_id]["get_job_queue_time"],
+                                dict_output[job_hash][_id]["get_job_id_hash"],
+                                dict_output[job_hash][_id][
                                     "get_job_terminate_when_idle"
                                 ],
                             ]
                         )
             else:
-                for id in job_id_order:
+                for _id in job_id_order:
                     table_output.add_row(
                         [
-                            dict_output[id]["get_job_id"],
-                            dict_output[id]["get_job_queue_name"],
-                            dict_output[id]["get_job_owner"],
-                            dict_output[id]["get_job_state"],
-                            dict_output[id]["get_execution_hosts"],
-                            dict_output[id]["get_job_name"],
-                            dict_output[id]["get_job_nodect"],
-                            dict_output[id]["get_job_ncpus"],
-                            dict_output[id]["get_job_start_time"],
-                            dict_output[id]["get_job_queue_time"],
+                            dict_output[_id]["get_job_id"],
+                            dict_output[_id]["get_job_queue_name"],
+                            dict_output[_id]["get_job_owner"],
+                            dict_output[_id]["get_job_state"],
+                            dict_output[_id]["get_execution_hosts"],
+                            dict_output[_id]["get_job_name"],
+                            dict_output[_id]["get_job_nodect"],
+                            dict_output[_id]["get_job_ncpus"],
+                            dict_output[_id]["get_job_start_time"],
+                            dict_output[_id]["get_job_queue_time"],
                         ]
                     )
             print(table_output)

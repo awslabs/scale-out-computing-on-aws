@@ -1,0 +1,8 @@
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+{% if context.get("/configuration/BaseOS") in ("ubuntu2204", "ubuntu2404") %}
+  # fix for Sorry, home directories outside of /home needs configuration.
+  # See https://forum.snapcraft.io/t/11209 for details.
+  sudo snap set system homedirs=/data/home
+{% endif %}

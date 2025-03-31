@@ -2,7 +2,6 @@
 # SPDX-License-Identifier: Apache-2.0
 
 # Begin: Configure chronyd
-{% if context.get("/configuration/BaseOS") in ("amazonlinux2", "amazonlinux2023", "centos7", "rhel7", "rhel8", "rhel9", "rocky8", "rocky9") %}
 function configure_chronyd () {
   log_info "Begin: Configure chronyd"
 
@@ -47,5 +46,4 @@ dumpdir /var/run/chrony
    log_info "End: Configure chronyd"
 }
 configure_chronyd
-{% endif %}
 # End: Configure chronyd

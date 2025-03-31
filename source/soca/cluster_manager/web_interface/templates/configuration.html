@@ -55,10 +55,10 @@
 
                           <div class="alert alert-primary" >
                           You are editing: <strong>{{ file_to_edit }}</strong>.<br>
-                          SOCA keeps an backup of each file on the filesystem (same directory) in case you need to rollback to a previous version.
+                          SOCA keeps a backup of each file on the filesystem (same directory) in case you need to roll back to a previous version.
                           </div>
 
-                      <div id="update-div" name="update-div"></div>
+                      <div id="update-div"></div>
 
 
 
@@ -71,9 +71,9 @@
 
 
                       <div class="col-md-12" style="margin-top: 15px">
-                          <div align="center">
+                          <div>
                               <input type="checkbox"  onchange="document.getElementById('save').disabled = !this.checked;" /> I am sure I want to <strong>EDIT</strong> {{ file_to_edit }} and I understand changing configuration file may cause outage if done incorrectly. <br><br>
-                              <button disabled id="save" name=" save"onclick="saveData()" class="btn btn-primary btn-lg">Save changes</button>
+                              <button disabled id="save" name=" save" onclick="saveData()" class="btn btn-primary btn-lg">Save changes</button>
                           </div>
                       </div>
 
@@ -111,9 +111,9 @@
 
     function saveData()
     {
-        getVal = btoa(window.fileeditor.getValue());
-        fileToEdit = btoa("{{file_to_edit}}");
-        var xhr = new XMLHttpRequest();
+        let getVal = btoa(window.fileeditor.getValue());
+        let fileToEdit = btoa("{{file_to_edit}}");
+        const xhr = new XMLHttpRequest();
         xhr.onreadystatechange = function() {
             if (this.readyState == 4 && this.status == 200) {
                  $('#update-div').html('<div class="alert alert-success">File updated correctly</div>');

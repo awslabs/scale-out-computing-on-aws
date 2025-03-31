@@ -1,8 +1,14 @@
 # Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-{% if context.get("/configuration/BaseOS") in ("amazonlinux2", "amazonlinux2023", "rhel7", "rhel8", "rhel9") %}
-    echo "alias qsub='echo -e \" !!!! Do not submit job with system account. \n\n Please use LDAP account instead. !!!! \"'" >> /home/ec2-user/.bash_profile
+{% if context.get("/configuration/BaseOS") in ("amazonlinux2", "amazonlinux2023", "rhel7", "rhel8", "rhel9", "rocky8", "rocky9") %}
+  DEFAULT_LOCAL_USER_PROFILE="ec2-user"
 {% elif context.get("/configuration/BaseOS") == "centos7" %}
-    echo "alias qsub='echo -e \" !!!! Do not submit job with system account. \n\n Please use LDAP account instead. !!!! \"'" >> /home/centos/.bash_profile
+  DEFAULT_LOCAL_USER_PROFILE="centos"
+{% elif context.get("/configuration/BaseOS") in ("ubuntu2204", "ubuntu2404") %}
+  DEFAULT_LOCAL_USER_PROFILE="ubuntu"
+{% else %}
+  exit_fail "scheduler.openpbs.disable_local_account_job_submission. Specified Base OS is unknown."
 {% endif %}
+
+echo "alias qsub='echo -e \" !!!! Do not submit job with system account. \n\n Please use a Directory Service account instead. !!!! \"'" >> /home/${DEFAULT_LOCAL_USER_PROFILE}/.bash_profile

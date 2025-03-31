@@ -5,7 +5,7 @@
 function set_environment_variable () {
   local VARIABLE_NAME=${1}
   local VARIABLE_VALUE=${2}
-  local SOCA_LINE_SUFFIX_IDENTIFIER="# SOCA Environment Variable, [SOCA_DO_NOT_DELETE]" # added to each entry
+  local SOCA_IDENTIFIER="# SOCA Environment Variable, [SOCA_DO_NOT_DELETE]" # added to each entry
 
   if [[ -z ${VARIABLE_NAME} ]]; then
     exit_fail "set_environment_variable. VARIABLE_NAME (first argument) not found"
@@ -23,10 +23,10 @@ function set_environment_variable () {
       fi
       log_info "Adding ${VARIABLE_NAME}=${VARIABLE_VALUE} to /etc/environment"
       {
-        echo export "${VARIABLE_NAME}=\"${VARIABLE_VALUE}\"" ${SOCA_LINE_SUFFIX_IDENTIFIER}
+        printf "${SOCA_IDENTIFIER}\nexport ${VARIABLE_NAME}=${VARIABLE_VALUE}\n"
       } >> /etc/environment
-      # Export for current shell
-      export "${VARIABLE_NAME}=${VARIABLE_VALUE}"
   fi
+  # Reload your env
+  source /etc/environment
 }
 # End - Setup /etc/environment

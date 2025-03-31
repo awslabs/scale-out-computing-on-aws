@@ -102,7 +102,7 @@ def encrypt(file_path, file_size):
         }
         encrypted_text = cipher_suite.encrypt(json.dumps(payload).encode("utf-8"))
         return {"success": True, "message": encrypted_text.decode()}
-    except Exception as err:
+    except Exception as _err:
         return {"success": False, "message": "UNABLE_TO_GENERATE_TOKEN"}
 
 
@@ -116,8 +116,8 @@ def decrypt(encrypted_text):
         return {"success": False, "message": "Invalid Token"}
     except InvalidSignature:
         return {"success": False, "message": "Invalid Signature"}
-    except Exception as err:
-        return {"success": False, "message": str(err)}
+    except Exception as _err:
+        return {"success": False, "message": str(_err)}
 
 
 def demote(user_uid, user_gid):
@@ -128,7 +128,9 @@ def demote(user_uid, user_gid):
     return set_ids
 
 
-def user_has_permission(path: str, permission_required: str, permission_type: str) -> bool:
+def user_has_permission(
+    path: str, permission_required: str, permission_type: str
+) -> bool:
     _start_time = time.perf_counter_ns()
 
     logger.info(f"Checking {permission_required} for {path} ({permission_type})")
@@ -197,9 +199,10 @@ def user_has_permission(path: str, permission_required: str, permission_type: st
             if folder != "":
                 folder_path = "/".join(folder_hierarchy[:folder_level])
                 if CACHE_FOLDER_PERMISSION_PREFIX + folder_path not in cache.keys():
-                    check_folder = {}
-                    check_folder["folder_owner"] = os.stat(folder_path).st_uid
-                    check_folder["folder_group_id"] = os.stat(folder_path).st_gid
+                    check_folder = {
+                        "folder_owner": os.stat(folder_path).st_uid,
+                        "folder_group_id": os.stat(folder_path).st_gid
+                    }
                     logger.debug(
                         f"Folder ({folder_path}) owner ({check_folder['folder_owner']}) Group ({check_folder['folder_group_id']})"
                     )
@@ -353,7 +356,6 @@ def index():
         filesystem = {}
         breadcrumb = {}
 
-
         # Clean Path
         if path != "/":
             if path.endswith("/"):
@@ -361,7 +363,12 @@ def index():
         if ".." in path:
             return redirect("/my_files")
 
-        if user_has_permission(path=path, permission_required="read", permission_type="folder") is False:
+        if (
+            user_has_permission(
+                path=path, permission_required="read", permission_type="folder"
+            )
+            is False
+        ):
             if path == config.Config.USER_HOME + "/" + session["user"]:
                 flash(
                     "SOCA cannot access your home directory. Please ask an admin to set your folder ACLs to 750"
@@ -541,7 +548,7 @@ def download():
             return redirect("/my_files")
 
         ts = datetime.now(timezone.utc).strftime("%s")
-        archive_name = f"/apps/soca/{SocaConfig(key='/configuration/ClusterId').get_value().get('message')}/cluster_manager/web_interface/tmp/zip_downloads/SOCA_Download_{session['user']}_{ts}.zip"
+        archive_name = f"/opt/soca/{SocaConfig(key='/configuration/ClusterId').get_value().get('message')}/cluster_manager/web_interface/tmp/zip_downloads/SOCA_Download_{session['user']}_{ts}.zip"
 
         zipf = zipfile.ZipFile(archive_name, "w", zipfile.ZIP_DEFLATED)
         logger.info(
@@ -646,7 +653,7 @@ def download_all():
         return redirect("/my_files")
 
     ts = datetime.now(timezone.utc).strftime("%s")
-    archive_name = f"/apps/soca/{SocaConfig(key='/configuration/ClusterId').get_value().get('message')}/cluster_manager/web_interface/tmp/zip_downloads/SOCA_Download_{session['user']}_{ts}.zip"
+    archive_name = f"/opt/soca/{SocaConfig(key='/configuration/ClusterId').get_value().get('message')}/cluster_manager/web_interface/tmp/zip_downloads/SOCA_Download_{session['user']}_{ts}.zip"
     zipf = zipfile.ZipFile(archive_name, "w", zipfile.ZIP_DEFLATED)
     logger.info(
         "About to create archive: "
@@ -815,7 +822,10 @@ def delete():
                             "error",
                         )
                 else:
-                    flash(f"The folder {file_info['file_path']} is not empty and cannot be removed.", "error")
+                    flash(
+                        f"The folder {file_info['file_path']} is not empty and cannot be removed.",
+                        "error",
+                    )
             else:
                 pass
 

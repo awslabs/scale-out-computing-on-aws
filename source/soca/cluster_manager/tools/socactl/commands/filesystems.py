@@ -2,15 +2,19 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import click
+from click.testing import CliRunner
+
 import re
 from commands.common import print_output, is_controller_instance
 from commands.config import set as config_set
 from commands.config import get as config_get
+from commands.config import key_exists as config_key_exists
 
 
 @click.group()
 def filesystems():
     pass
+
 
 @filesystems.command()
 @click.option(
@@ -50,7 +54,7 @@ def get(ctx, key, output, flatten):
     else:
         _fs_data = {}
         for key, value in _get_key.items():
-            parts = key.replace('/configuration/FileSystems/', '').split('/')
+            parts = key.replace("/configuration/FileSystems/", "").split("/")
             current_dict = _fs_data
             for part in parts[:-1]:
                 if part not in current_dict:
@@ -59,6 +63,7 @@ def get(ctx, key, output, flatten):
 
             current_dict[parts[-1]] = value
         print_output(message=_fs_data, output=output)
+
 
 @filesystems.command()
 @click.option(
@@ -126,52 +131,55 @@ def get(ctx, key, output, flatten):
     help="Force create, ignore confirmation message",
 )
 @click.pass_context
-def set(ctx,
-        filesystem_name,
-        provider,
-        mount_path,
-        mount_target,
-        mount_options,
-        on_mount_failure,
-        enabled,
-        force):
+def set(
+    ctx,
+    filesystem_name,
+    provider,
+    mount_path,
+    mount_target,
+    mount_options,
+    on_mount_failure,
+    enabled,
+    force,
+):
 
     _providers = {
         "efs": {
             "target_regex": r"fs-[0-9a-z]{8,40}",
             "help_message": "Expected mount_target is a valid EFS Filesystem ID (e.g fs-abcde123)",
-            "default_mount_options": "nfsvers=4.1,rsize=1048576,wsize=1048576,hard,timeo=600,retrans=2,noresvport"
+            "default_mount_options": "nfsvers=4.1,rsize=1048576,wsize=1048576,hard,timeo=600,retrans=2,noresvport",
         },
         "nfs": {
-            "target_regex": r'^((?:(?:[a-zA-Z0-9-]+\.)+[a-zA-Z]{2, }|(?:\d{1, 3}\.){3}\d{1, 3}))(?::\d+)?(?:\/[\w\-/]*)?$',
+            "target_regex": r"^((?:(?:[a-zA-Z0-9-]+\.)+[a-zA-Z]{2, }|(?:\d{1, 3}\.){3}\d{1, 3}))(?::\d+)?(?:\/[\w\-/]*)?$",
             "help_message": "Expected mount_target is a valid IP or DNS name with optional :/path ",
-            "default_mount_options": "nfsvers=4.1,rsize=1048576,wsize=1048576,hard,timeo=600,retrans=2,noresvport"
-
-    },
+            "default_mount_options": "nfsvers=4.1,rsize=1048576,wsize=1048576,hard,timeo=600,retrans=2,noresvport",
+        },
         "fsx_lustre": {
             "target_regex": r"fs-[0-9a-z]{8,40}",
             "help_message": "Expected mount_target is a valid FSx Lustre Filesystem ID (e.g fs-abcde123)",
-            "default_mount_options": "defaults,noatime,flock,_netdev"
+            "default_mount_options": "defaults,noatime,flock,_netdev",
         },
         "fsx_ontap": {
             "target_regex": r"^fsvol-\w{8,}$",
             "help_message": "Expected mount_target is a valid FSx for NetApp Ontap Volume ID (e.g fsvol-abcde123)",
-            "default_mount_options": "defaults,noatime,_netdev"
+            "default_mount_options": "defaults,noatime,_netdev",
         },
         "fsx_openzfs": {
             "target_regex": r"fs-[0-9a-z]{8,40}",
             "help_message": "Expected mount_target is a valid Fsx for OpenZFS Filesystem ID (e.g fs-abcde123)",
-            "default_mount_options": "nfsvers=4.1,rsize=1048576,wsize=1048576,hard,timeo=600,retrans=2,noresvport"
+            "default_mount_options": "nfsvers=4.1,rsize=1048576,wsize=1048576,hard,timeo=600,retrans=2,noresvport",
         },
         "s3": {
             "target_regex": r"(?!(^(xn--|sthree-|sthree-configurator)|.+(-s3alias|--ol-s3)$))^[a-z0-9][a-z0-9-]{1,61}[a-z0-9]$",
             "help_message": "Expected mount_target is a valid S3 bucket name",
-            "default_mount_options": "--read-only"
-        }
+            "default_mount_options": "--read-only",
+        },
     }
 
     if provider not in _providers.keys():
-        print_output(message=f"Provider selected is not part of {_providers.keys()}", error=True)
+        print_output(
+            message=f"Provider selected is not part of {_providers.keys()}", error=True
+        )
 
     if not mount_path.startswith("/"):
         print_output(message=f"Mount path must start with /", error=True)
@@ -182,24 +190,40 @@ def set(ctx,
 
     if mount_options is None:
         mount_options = _providers[provider]["default_mount_options"]
-        print_output(message=f"Mount options not specified. Using default: {mount_options}")
+        print_output(
+            message=f"Mount options not specified. Using default: {mount_options}"
+        )
 
     if not re.match(_providers[provider]["target_regex"], mount_target):
-        print_output(message=f"Selected mount_target {mount_target} is not valid for provider {provider}. {_providers[provider]['help_message']}. Expected Regex: {_providers[provider]['target_regex']}", error=True)
+        print_output(
+            message=f"Selected mount_target {mount_target} is not valid for provider {provider}. {_providers[provider]['help_message']}. Expected Regex: {_providers[provider]['target_regex']}",
+            error=True,
+        )
 
     # Reminder: All SSM keys are stored as str
     _ssm_keys = {
         f"/configuration/FileSystems/{filesystem_name}/provider": str(provider),
         f"/configuration/FileSystems/{filesystem_name}/mount_path": str(mount_path),
-        f"/configuration/FileSystems/{filesystem_name}/mount_target": str( mount_target),
+        f"/configuration/FileSystems/{filesystem_name}/mount_target": str(mount_target),
         f"/configuration/FileSystems/{filesystem_name}/enabled": str(enabled).lower(),
-        f"/configuration/FileSystems/{filesystem_name}/on_mount_failure": str(on_mount_failure),
-        f"/configuration/FileSystems/{filesystem_name}/mount_options": str(mount_options)
+        f"/configuration/FileSystems/{filesystem_name}/on_mount_failure": str(
+            on_mount_failure
+        ),
+        f"/configuration/FileSystems/{filesystem_name}/mount_options": str(
+            mount_options
+        ),
     }
     if force is False:
         print_output(_ssm_keys, output="json")
-        while input("Do you want to create this new filesystem (add --force to skip this confirmation)? (yes/no)") not in ["yes", "no"]:
-            if input("Do you want to create this new filesystem (add --force to skip this confirmation? (yes/no)") == "no":
+        while input(
+            "Do you want to create this new filesystem (add --force to skip this confirmation)? (yes/no)"
+        ) not in ["yes", "no"]:
+            if (
+                input(
+                    "Do you want to create this new filesystem (add --force to skip this confirmation? (yes/no)"
+                )
+                == "no"
+            ):
                 print_output(message="Exiting", error=True)
             else:
                 break
@@ -223,14 +247,9 @@ def set(ctx,
     "--key",
     type=click.Choice(["mount_options", "enabled", "mount_path"]),
     help="You can only update mount_options, enabled or mount_path key for an existing filesystem.",
-    required=True
+    required=True,
 )
-@click.option(
-    "-v",
-    "--value",
-    help="New value",
-    required=True
-)
+@click.option("-v", "--value", help="New value", required=True)
 @click.pass_context
 def update(ctx, filesystem_name, key, value):
     if filesystem_name in ["apps", "data"]:
@@ -239,13 +258,16 @@ def update(ctx, filesystem_name, key, value):
     if key == "mount_path" and not value.startswith("/"):
         print_output(message="Mount path must start with /", error=True)
 
-    if key == "enabled" and value not in ["true", "false"]:
+    if key == "enabled" and value.lower() not in ["true", "false"]:
         print_output(message="Enabled must be true or false", error=True)
 
-    if not ctx.invoke(get, key=f"/configuration/FileSystems/{filesystem_name}/"):
+    if ctx.invoke(get, key=f"/configuration/FileSystems/{filesystem_name}/") is False:
         print_output(message=f"Filesystem {filesystem_name} does not exist", error=True)
     else:
         ctx.meta["echo"] = True
-        ctx.invoke(config_set, key=f"/configuration/FileSystems/{filesystem_name}/{key}", value=value, called_from="filesystems")
-
-
+        ctx.invoke(
+            config_set,
+            key=f"/configuration/FileSystems/{filesystem_name}/{key}",
+            value=value,
+            called_from="filesystems",
+        )

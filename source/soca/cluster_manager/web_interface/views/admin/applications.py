@@ -118,7 +118,7 @@ def create_application():
                 encoded_image = request.form["thumbnail_b64"]
 
             new_app_profile = ApplicationProfiles(
-                creator=session["user"],
+                created_by=session["user"],
                 profile_name=request.form["profile_name"],
                 profile_form=request.form["submit_job_form"],
                 profile_job=request.form["submit_job_script"],
@@ -232,7 +232,7 @@ def import_application():
 
         try:
             new_app_profile = ApplicationProfiles(
-                creator=session["user"],
+                created_by=session["user"],
                 profile_name=request.form["name"],
                 profile_form=sanitize_input["profile_form"],
                 profile_job=sanitize_input["profile_job"],

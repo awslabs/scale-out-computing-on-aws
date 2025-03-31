@@ -4,6 +4,45 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+
+## [25.3.0] - 2025-03-31
+
+### Features
+
+- New Base OSes supported:
+  - `Windows Server 2022` and `Windows Server 2025` for Windows VDI
+  - Ubuntu `22.04 LTS` and Ubuntu `24.04 LTS` for Linux VDI and HPC compute nodes
+- The SOCA ALB TLS policy can now be controlled in the configuration file (`default_config.yaml`) via `Config.network.alb_tls_policy`.
+  - The policy defaults to `ELBSecurityPolicy-TLS13-1-2-2021-06` if not specified in the configuration. This allows for `TLS 1.3` and `TLS 1.2` *ONLY*.
+  - If you have clients connecting with older versions of TLS / SSL, you will need to update this parameter_
+  - For a full list of TLS policy names and associated security protocols/ciphers allowed please consult the AWS Application Load Balancer [documentation](https://docs.aws.amazon.com/elasticloadbalancing/latest/application/describe-ssl-policies.html)
+- [AWS Global Accelerator](https://aws.amazon.com/global-accelerator/) is now supported for public-facing deployments
+  - AWS Global Accelerator is disabled by default and can be enabled in the `default_config.yaml` by setting `Config.network.aws_aga.enabled` to `true`.
+
+- SOCA Controller logic has been moved to a local partition `/opt/soca` for better performance and security. Boostrap logs are still available on `/apps/soca/`
+- SSH access to the Controller host is now limited to SOCA admins
+- Virtual Desktop interface has been revamped:
+  - Introducing a brand-new web interface 
+  - Linux and Windows desktops can now be deployed in the same page
+  - You can now edit a software stack
+  - Introducing Virtual Desktop Profiles, giving you ability to limit the type of instance, storage, and subnets that can be used for your software stacks
+  - SOCA admins can list all active virtual desktops
+- Introducing SOCA Projects: a new way to control ACLs for Virtual Desktops
+- Added integration to your [Amazon Q Business](https://aws.amazon.com/q/business/) application if specified
+
+### Changed
+- Misc HTML cleanups in the SOCA WebUI
+- The Amazon Route 53 Resolver Endpoints for the directory service now make use of their own discrete Security Group. This security group allows for the SOCA cluster to interact with the Resolver as well as the VPC IP CIDR Range.
+
+### Fixes
+- A jsii Runtime error would be generated if the configuration for login nodes had a `desired_count` that was lower or higher than the `min_count`/`max_count`. This has been corrected.
+- A jsii Runtime error would be generated if ElastiCache was disabled due to missing `node.add_dependency()`
+- A jsii Runtime error would be generated if Analytics was disabled due to empty Parameter Store value
+- The logged in username was missing from the analytics dashboard page. This has been fixed.
+- Under certain circumstances the internal Python interpreter for the OpenPBS scheduler can fail to process hooks after an internal restart. This would cause any future hooks to fail until the service was restarted. The default restart interval for the internal Python interpreter has been updated to `9,999,999` jobs to fix this.
+- Using the `Private` subnet entry mode during installation would generate an error and cause the installation to fail. This has been fixed. (Introduced in `24.10.0`)
+
+
 ## [25.1.0] - 2025-01-28
 
 ### Features
@@ -48,7 +87,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Known Issues
 
-- Some BaseOS combinations may not work in all situations (Controller BaseOS, Compute Node, VDI, etc) or features due to the age of the BaseOS. BaseOSes that are past their End of Life (EOL) support dates from the supplier may be removed in a future SOCA version.
+- Some BaseOS combinations may not work in all situations (Controller BaseOS, Compute Node, VDI, etc.) or features due to the age of the BaseOS. BaseOSes that are past their End of Life (EOL) support dates from the supplier may be removed in a future SOCA version.
 - If you select differing architectures (e.g. `x86_64` and `arm64` for the instance_types in the cluster - the cluster will fail). This will be addressed in a future release.
 - Linux VDI/DCV instances default to `Amazon Linux 2` - not the installed BaseOS of the cluster.
 - Creating a VDI session with an unsupported name will filter-out the unsupported characters - potentially causing conflict with the CloudFormation stackname.
@@ -168,7 +207,7 @@ And now - back to your normal ChangeLog :)
 
 ### Known Issues
 
-- Some BaseOS combinations may not work in all situations (Controller BaseOS, Compute Node, VDI, etc) or features due to the age of the BaseOS. BaseOSes that are past their End of Life (EOL) support dates from the supplier may be removed in a future SOCA version.
+- Some BaseOS combinations may not work in all situations (Controller BaseOS, Compute Node, VDI, etc.) or features due to the age of the BaseOS. BaseOSes that are past their End of Life (EOL) support dates from the supplier may be removed in a future SOCA version.
 - If you select differing architectures (e.g. `x86_64` and `arm64` for the instance_types in the cluster - the cluster will fail). This will be addressed in a future release.
 - Linux VDI/DCV instances default to `Amazon Linux 2` - not the installed BaseOS of the cluster.
 - Creating a VDI session with an unsupported name will filter-out the unsupported characters - potentially causing conflict with the CloudFormation stackname.
@@ -470,7 +509,7 @@ And now - back to your normal ChangeLog :)
 - Scheduler Network Interface is now tagged with cluster ID
 - Scheduler and Compute hosts are now sync with Chrony (Amazon Time Sync)
 - Support for FSx for Lustre new Scratch2/Scratch1 and Persistent mode
-- Added Compute nodes logs on EFS (/apps/soca/<cluster_id>/cluster_node_bootstrap/logs/<job_id>/<host>/*.log) for easy debugging
+- Added Compute nodes logs on EFS (/opt/soca/<cluster_id>/cluster_node_bootstrap/logs/<job_id>/<host>/*.log) for easy debugging
 
 ### Changed
 
@@ -484,7 +523,7 @@ And now - back to your normal ChangeLog :)
 - Ulimit is now disabled by default on all compute nodes
 - Dispatcher automatically append "s3://" if not present when using FSx For Lustre
 - Updated default OpenSearch (formerly Elasticsearch) instance to m5.large to support encryption at rest
-- SOCA libraries are now installed under /apps/soca/<CLUSTER_ID> location to support multi SOCA environments
+- SOCA libraries are now installed under /opt/soca/<CLUSTER_ID> location to support multi SOCA environments
 - Web UI now display the reason when a DCV job can't be submitted
 - Customers can now provision large number of EC2 hosts across multiple subnets using a single API call
 - Smart detection of Placement Group requirement when using more than 1 subnet

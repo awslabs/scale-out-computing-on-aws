@@ -2,12 +2,10 @@
 # SPDX-License-Identifier: Apache-2.0
 
 # Begin: Disable StrictHostKeyChecking
-{% if context.get("/configuration/BaseOS") in ("amazonlinux2", "amazonlinux2023", "centos7", "rhel7", "rhel8", "rhel9", "rocky8", "rocky9") %}
 function disable_ssh_stricthostkeychecking () {
   log_info "Disabling StrictHostKeyChecking"
   echo "StrictHostKeyChecking no" >> /etc/ssh/ssh_config
   echo "UserKnownHostsFile /dev/null" >> /etc/ssh/ssh_config
 }
 disable_ssh_stricthostkeychecking
-{% endif %}
 # End: Disable StrictHostKeyChecking

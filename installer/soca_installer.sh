@@ -153,7 +153,7 @@ if [[ -z "$SOCA_PYTHON" ]]; then
     log_error "Python is not installed. Please download and install it from https://www.python.org/downloads/release/python-3119/"
     exit 1
 else
-    PYTHON_VERSION=$($SOCA_PYTHON -c "import sys;print(f'{sys.version_info.major}.{sys.version_info.minor}')")
+    PYTHON_VERSION=$($SOCA_PYTHON -c "import sys;print(f'{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}')")
     # Check if current python shell is using the required version
     if [[ "$PYTHON_VERSION" != "$SOCA_PYTHON_VERSION" ]]; then
       log_warning "Your version of Python ($PYTHON_VERSION) does not match the supported version ($SOCA_PYTHON_VERSION)"

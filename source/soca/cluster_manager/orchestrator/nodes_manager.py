@@ -18,7 +18,7 @@ import sys
 import logging
 
 sys.path.append(
-    f"/apps/soca/{os.environ.get('SOCA_CLUSTER_ID', 'SOCA_CONFIGURATION_NOT_FOUND')}/cluster_manager"
+    f"/opt/soca/{os.environ.get('SOCA_CLUSTER_ID', 'SOCA_CONFIGURATION_NOT_FOUND')}/cluster_manager"
 )
 
 from datetime import datetime, timezone, timedelta
@@ -43,7 +43,7 @@ def run_command(cmd: list, cmd_type: str):
             logger.error("subprocess command not defined, must be check_output or call")
             exit(1)
 
-    except subprocess.CalledProcessError as e:
+    except subprocess.CalledProcessError as _e:
         return ""
 
 
@@ -73,10 +73,14 @@ def get_all_compute_instances(cluster_id: str):
                     instance_id = instance.get("InstanceId")
                     instance_type = instance.get("InstanceType")
                     subnet_id = instance.get("SubnetId")
-                    availability_zone = instance.get("Placement", {}).get("AvailabilityZone")
+                    availability_zone = instance.get("Placement", {}).get(
+                        "AvailabilityZone"
+                    )
 
                     job_id = [
-                        x.get("Value") for x in instance.get("Tags") if x.get("Key") == "soca:JobId"
+                        x.get("Value")
+                        for x in instance.get("Tags")
+                        if x.get("Key") == "soca:JobId"
                     ]
 
                     job_queue = [
@@ -145,7 +149,7 @@ def get_all_compute_instances(cluster_id: str):
                             "job_queue": job_queue,
                             "job_id": job_id,
                         }
-                except Exception as e:
+                except Exception as _e:
                     exc_type, exc_obj, exc_tb = sys.exc_info()
                     fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
                     logger.error(
@@ -162,8 +166,7 @@ def get_scheduler_jobs_in_queue() -> list:
     qstat_args = " -f -F json"
 
     check_current_jobs = run_command(
-        cmd=(sbins["qstat"] + qstat_args).split(),
-        cmd_type="check_output"
+        cmd=(sbins["qstat"] + qstat_args).split(), cmd_type="check_output"
     )
 
     logger.debug(f"Got back current jobs: {check_current_jobs=}")
@@ -184,8 +187,7 @@ def get_scheduler_all_nodes() -> dict:
 
     try:
         pbsnodes_output = run_command(
-            cmd=(sbins["pbsnodes"] + pbsnodes_args).split(),
-            cmd_type="check_output"
+            cmd=(sbins["pbsnodes"] + pbsnodes_args).split(), cmd_type="check_output"
         )
         logger.debug(f"Got back nodes: {pbsnodes_output=}")
         if "nodes" in pbsnodes_output.keys():
@@ -212,11 +214,11 @@ def get_scheduler_all_nodes() -> dict:
                         pbs_hosts_offline.append(hostname)
 
                 pbs_hosts.append(hostname)
-    except AttributeError as e:
+    except AttributeError as _e:
         # Case when scheduler does not have any valid host
         pass
-    except Exception as e:
-        logger.error(f"Unable to get_scheduler_all_nodes because of {e}")
+    except Exception as _e:
+        logger.error(f"Unable to get_scheduler_all_nodes because of {_e}")
 
     return {
         "pbs_hosts": pbs_hosts,
@@ -275,7 +277,7 @@ def add_hosts(hosts, compute_instances):
                         + f",resources_available.asg_spotfleet_id={host_asg_spotfleet_id}"
                         + f",resources_available.instance_type={host_instance_type}"
                         + f",resources_available.availability_zone={host_az}"
-                        + f",resources_available.subnet_id={host_subnet_id}"
+                        + f",resources_available.subnet_id={host_subnet_id}",
                     ],
                 ]
                 for cmd in cmds:
@@ -399,12 +401,14 @@ def remove_offline_nodes_spotfleet(spotfleets):
             delete_hosts(hosts_to_delete)
             logger.info(f"Terminating instances {','.join(instances_to_delete)}")
             resp = ec2_client.terminate_instances(InstanceIds=instances_to_delete)
+            logger.debug(f"Termination response: {resp}")
             logger.info(
                 f"Updating TargetCapacity for SpotFleet {spotfleet} to {new_target_capacity}"
             )
             resp = ec2_client.modify_spot_fleet_request(
                 SpotFleetRequestId=spotfleet, TargetCapacity=new_target_capacity
             )
+            logger.debug(f"Modify response: {resp}")
 
 
 def remove_offline_nodes_asg(asgs):
@@ -480,11 +484,15 @@ def remove_offline_nodes_asg(asgs):
                 MaxSize=new_target_capacity,
                 DesiredCapacity=new_target_capacity,
             )
+
+            logger.debug(f"Update response: {resp}")
+
             resp = autoscaling_client.detach_instances(
                 AutoScalingGroupName=asg,
                 InstanceIds=instances_to_delete,
                 ShouldDecrementDesiredCapacity=False,
             )
+            logger.debug(f"Detach response: {resp}")
             delete_hosts(hosts=hosts_to_delete)
 
             logger.info(f"Terminating instances {', '.join(instances_to_delete)}")
@@ -492,9 +500,7 @@ def remove_offline_nodes_asg(asgs):
             # The suggestion is to chunk at a smaller number
 
             resp = ec2_client.terminate_instances(InstanceIds=instances_to_delete)
-            logger.debug(
-                f"Terminating hosts response: {resp=}"
-            )
+            logger.debug(f"Terminating hosts response: {resp=}")
 
 
 def remove_offline_nodes(hosts):
@@ -507,7 +513,7 @@ def remove_offline_nodes(hosts):
                 "qmgr -c 'print node "
                 + str(host)
                 + "' | grep asg_spotfleet_id | awk '{print $NF}'",
-                shell=True, # nosec
+                shell=True,  # nosec
             )
             .decode("utf-8")
             .strip()
@@ -517,7 +523,7 @@ def remove_offline_nodes(hosts):
                 "qmgr -c 'print node "
                 + str(host)
                 + "' | grep instance_id | awk '{print $NF}'",
-                shell=True, # nosec
+                shell=True,  # nosec
             )
             .decode("utf-8")
             .strip()
@@ -624,7 +630,9 @@ if __name__ == "__main__":
                         > pbs_nodes_free[host]
                         + int(stack_data.get("terminate_when_idle", 0)) * 60
                     ):
-                        compute_nodes_to_set_offline[host] = stack_data.get("terminate_when_idle")
+                        compute_nodes_to_set_offline[host] = stack_data.get(
+                            "terminate_when_idle"
+                        )
                         pbs_nodes_offline.append(host)
 
                         # If the ASG/SpotFleet has a single host, then delete the cloudformation stack
@@ -634,16 +642,27 @@ if __name__ == "__main__":
                                 MaxResults=1000,
                             )
                             if len(response.get("ActiveInstances")) == 1:
-                                cloudformation_stacks_to_delete.append(stack_data.get("stack_name"))
+                                cloudformation_stacks_to_delete.append(
+                                    stack_data.get("stack_name")
+                                )
                                 compute_hosts_to_delete.append(host)
 
                         elif stack_data.get("asg_spotfleet_id", "").startswith("soca-"):
                             response = autoscaling_client.describe_auto_scaling_groups(
-                                AutoScalingGroupNames=[stack_data.get("asg_spotfleet_id")],
+                                AutoScalingGroupNames=[
+                                    stack_data.get("asg_spotfleet_id")
+                                ],
                                 MaxRecords=100,
                             )
-                            if response.get("AutoScalingGroups", [])[0].get("DesiredCapacity", 0) == 1:
-                                cloudformation_stacks_to_delete.append(stack_data.get("stack_name"))
+                            if (
+                                response.get("AutoScalingGroups", [])[0].get(
+                                    "DesiredCapacity", 0
+                                )
+                                == 1
+                            ):
+                                cloudformation_stacks_to_delete.append(
+                                    stack_data.get("stack_name")
+                                )
                                 compute_hosts_to_delete.append(host)
 
     # TODO - Check that we had the command return the same number of times?

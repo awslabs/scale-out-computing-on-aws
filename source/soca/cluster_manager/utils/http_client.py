@@ -1,12 +1,12 @@
 # Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-from typing import Optional, Any
+from typing import Optional
 import logging
 import config
 from requests import get, post, put, delete
 from utils.response import SocaResponse
-
+from requests.exceptions import Timeout
 
 logger = logging.getLogger("soca_logger")
 
@@ -15,6 +15,7 @@ class SocaHttpClient:
     def __init__(
         self,
         endpoint: str,
+        timeout: int = 10,
         headers: Optional[dict] = None,
         verify: Optional[
             bool
@@ -22,36 +23,51 @@ class SocaHttpClient:
         expected_return_codes: Optional[
             list
         ] = None,  # list of status code to consider the request as successful
+        allow_redirects: Optional[bool] = True,
     ):
         if expected_return_codes is None:
             expected_return_codes = [200]
 
+        self._timeout = timeout
         self._verify = verify
         if not endpoint.startswith(config.Config.FLASK_ENDPOINT):
-            if endpoint.startswith("/"):
-                self._url_endpoint = f"{config.Config.FLASK_ENDPOINT}{endpoint}"
+            if endpoint.startswith("http://") or endpoint.startswith(
+                "https://"
+            ):  # external URL
+                self._url_endpoint = endpoint
             else:
-                self._url_endpoint = f"{config.Config.FLASK_ENDPOINT}/{endpoint}"
+                if endpoint.startswith("/"):
+                    self._url_endpoint = f"{config.Config.FLASK_ENDPOINT}{endpoint}"
+                else:
+                    self._url_endpoint = f"{config.Config.FLASK_ENDPOINT}/{endpoint}"
         else:
             self._url_endpoint = endpoint
         self._expected_return_codes = expected_return_codes
         self._headers = headers
+        self._allow_redirects = allow_redirects
 
     def get(self, params: dict = None):
         return self.return_request("get", params=params)
 
-    def post(self, data: dict = None):
-        return self.return_request("post", params=data)
+    def post(self, data: dict = None, files: dict = None):
+        return self.return_request("post", params=data, files=files)
 
-    def put(self, data: dict = None):
-        return self.return_request(method="put", params=data)
+    def put(self, data: dict = None, files: dict = None):
+        return self.return_request(method="put", params=data, files=files)
 
     def delete(self, data: dict = None):
         return self.return_request(method="delete", params=data)
 
-    def return_request(self, method, params):
+    def return_request(self, method: str, params: dict, files: dict = None):
         # Remove X-SOCA-TOKEN, password etc from log
-        _sanitize_log = ["X-SOCA-TOKEN", "password", "passwd", "token", "auth", "csrf_token"]
+        _sanitize_log = [
+            "X-SOCA-TOKEN",
+            "password",
+            "passwd",
+            "token",
+            "auth",
+            "csrf_token",
+        ]
         _req_header_to_log = {}
         _req_data_to_log = {}
         if self._headers is not None:
@@ -68,32 +84,71 @@ class SocaHttpClient:
         )
 
         if method == "get":
-            _req = get(
-                self._url_endpoint,
-                headers=self._headers,
-                params=params,
-                verify=self._verify,
-            )
+            try:
+                _req = get(
+                    self._url_endpoint,
+                    headers=self._headers,
+                    params=params,
+                    verify=self._verify,
+                    allow_redirects=self._allow_redirects,
+                    timeout=self._timeout,
+                )
+            except Timeout:
+                return SocaResponse(
+                    success=False, message="TIMEOUT", status_code=None, request=None
+                )
+
         elif method == "post":
-            _req = post(
-                self._url_endpoint,
-                headers=self._headers,
-                data=params,
-                verify=self._verify,
-            )
+            try:
+                _req = post(
+                    self._url_endpoint,
+                    headers=self._headers,
+                    data=params,
+                    verify=self._verify,
+                    allow_redirects=self._allow_redirects,
+                    files=files,
+                    timeout=self._timeout,
+                )
+            except Timeout:
+                return SocaResponse(
+                    success=False, message="TIMEOUT", status_code=None, request=None
+                )
+
         elif method == "put":
-            _req = put(
-                self._url_endpoint,
-                headers=self._headers,
-                data=params,
-                verify=self._verify,
-            )
+            try:
+                _req = put(
+                    self._url_endpoint,
+                    headers=self._headers,
+                    data=params,
+                    verify=self._verify,
+                    allow_redirects=self._allow_redirects,
+                    files=files,
+                    timeout=self._timeout,
+                )
+            except Timeout:
+                return SocaResponse(
+                    success=False, message="TIMEOUT", status_code=None, request=None
+                )
         elif method == "delete":
-            _req = delete(
-                self._url_endpoint,
-                headers=self._headers,
-                data=params,
-                verify=self._verify,
+            try:
+                _req = delete(
+                    self._url_endpoint,
+                    headers=self._headers,
+                    data=params,
+                    verify=self._verify,
+                    allow_redirects=self._allow_redirects,
+                    timeout=self._timeout,
+                )
+            except Timeout:
+                return SocaResponse(
+                    success=False, message="TIMEOUT", status_code=None, request=None
+                )
+        else:
+            return SocaResponse(
+                success=False,
+                message=f"Unknown {method=}, must be get/post/put/delete",
+                status_code=None,
+                request=None,
             )
 
         if _req.status_code in self._expected_return_codes:

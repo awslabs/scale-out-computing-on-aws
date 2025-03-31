@@ -4,31 +4,24 @@
 # SPDX-License-Identifier: Apache-2.0
 
 ############
-# setup_post_reboot.sh is generated via /apps/soca/{{ context.get("/configuration/ClusterId") }}/cluster_node_bootstrap/compute_node/setup_post_reboot.sh.j2 template
+# setup_post_reboot.sh is generated via /opt/soca/{{ context.get("/configuration/ClusterId") }}/cluster_node_bootstrap/compute_node/setup_post_reboot.sh.j2 template
 ############
-# Log Path: /apps/soca/{{ context.get("/configuration/ClusterId") }}/cluster_node_bootstrap/logs/compute_node/{{ context.get("/job/JobId") }}/<HOST_IP>/setup_post_reboot.log
+# Log Path: /opt/soca/{{ context.get("/configuration/ClusterId") }}/cluster_node_bootstrap/logs/compute_node/{{ context.get("/job/JobId") }}/<HOST_IP>/setup_post_reboot.log
 ############
 
 # Load common functions
 {% include "templates/linux/common.sh.j2" %}
 
-log_info "Setup Post Reboot Start Date: $(date)"
-
-# Add cache client functions (Cache CLI is automatically installed if needed)
-{% include "templates/linux/cache_client.sh.j2" %}
-
-log_info "Starting Post Reboot bootstrap sequence"
-
 log_info "Stopping OpenPBS services"
 systemctl stop pbs
+
+log_info "Setup Post Reboot Start Date: $(date)"
 
 log_info "Removing previous reboot_required"
 unset_reboot_required
 
 log_info "Remove this script from the crontab table to avoid being executed twice"
 crontab -l | grep -v $(readlink -f "$0") | crontab -
-
-log_info "Starting Post-Reboot bootstrap sequence"
 
 # Detect if GPU is available
 GPU_DETECTED=$(ec2_describe_instance_types "GpuInfo.Gpus[].Manufacturer")
@@ -89,6 +82,11 @@ fi
 # Disable HyperThreading
 {% if not context.get("/job/ThreadsPerCore", False) %}
   {% include "templates/linux/disable_hyperthreading.sh.j2" %}
+{% endif %}
+
+{% if context.get("/configuration/BaseOS") in ("ubuntu2204", "ubuntu2404") %}
+  # Fix for Ubuntu - https://forum.snapcraft.io/t/11209
+  {% include "templates/linux/snap_fix_homedirectory.sh.j2" %}
 {% endif %}
 
 # Check if machine is a virtual desktop, if yes install additional packages such as Gnome, DCV

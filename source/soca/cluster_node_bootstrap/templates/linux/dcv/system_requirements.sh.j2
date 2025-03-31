@@ -20,6 +20,8 @@ function install_dcv_prerequisites () {
        xorg-x11-server-Xorg \
        xorg-x11-server-utils \
        xorg-x11-utils
+       # xorg-x11-fonts-Type1 \
+       # xorg-x11-drivers \
 
     {% elif context.get("/configuration/BaseOS") == "rhel7" %}
       packages_generic_command groups mark convert
@@ -46,6 +48,15 @@ ResultActive=no" > /etc/polkit-1/localauthority/50-local.d/repos.pkla
       # see details in https://access.redhat.com/solutions/6976776
       sed -i 's,Exec=/usr/libexec/gsd-subman,#Exec=/usr/libexec/gsd-subman,' /etc/xdg/autostart/org.gnome.SettingsDaemon.Subscription.desktop
       packages_remove subscription-manager-cockpit
+
+    {% elif context.get("/configuration/BaseOS") in ("ubuntu2204", "ubuntu2404") %}
+       packages_install ubuntu-desktop gdm3 mesa-utils
+       if ! grep -q "^/usr/sbin/gdm3$" /etc/X11/default-display-manager; then
+         dpkg-reconfigure gdm3
+       fi
+       sed -i 's/#WaylandEnable=false/WaylandEnable=false/' /etc/gdm3/custom.conf
+       systemctl restart gdm3
+
     {% else %}
       log_info "No additional customization needed for this OS"
     {% endif %}

@@ -31,3 +31,4 @@ def get_filesystem_dns(storage_construct: Construct, storage_provider: str, endp
         else:
             return f"{storage_construct.attr_storage_virtual_machine_id}.{storage_construct.file_system_id}.{endpoints_suffix[storage_provider]}:{fsx_ontap_junction_path}"
 
+    return ""

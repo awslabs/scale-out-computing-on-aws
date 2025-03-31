@@ -24,14 +24,20 @@ from utils.logger import SocaLogger
 if __name__ == "__main__":
     _index_name = "soca_nodes"
 
-    _log_file_location = f"/apps/soca/{SocaConfig(key='/configuration/ClusterId').get_value().message}/cluster_manager/analytics/logs/cluster_nodes_tracking.log"
-    logger = SocaLogger(name="analytics_cluster_nodes_tracking").rotating_file_handler(file_path=_log_file_location)
+    _log_file_location = f"/opt/soca/{SocaConfig(key='/configuration/ClusterId').get_value().message}/cluster_manager/analytics/logs/cluster_nodes_tracking.log"
+    logger = SocaLogger(name="analytics_cluster_nodes_tracking").rotating_file_handler(
+        file_path=_log_file_location
+    )
 
     logger.info(f"Tracking active SOCA HPC compute nodes. Log: {_log_file_location}")
 
     _analytics_client = SocaAnalyticsClient(
-        endpoint=SocaConfig(key="/configuration/Analytics/endpoint").get_value().get("message"),
-        engine=SocaConfig(key="/configuration/Analytics/engine").get_value().get("message")
+        endpoint=SocaConfig(key="/configuration/Analytics/endpoint")
+        .get_value()
+        .get("message"),
+        engine=SocaConfig(key="/configuration/Analytics/engine")
+        .get_value()
+        .get("message"),
     )
 
     if _analytics_client.is_enabled().success is False:
@@ -47,9 +53,7 @@ if __name__ == "__main__":
     # nodes come and go - and there may be times when there are simply no nodes yet.
     _command = SocaSubprocessClient(
         run_command="/opt/pbs/bin/pbsnodes -a -F json",
-    ).run(
-        non_fatal_rcs=[1]
-    )
+    ).run(non_fatal_rcs=[1])
     if _command.success is False:
         # _message = ast.literal_eval(_command.message)
         _message = _command.message
@@ -68,9 +72,13 @@ if __name__ == "__main__":
         for hostname, data in pbsnodes_output["nodes"].items():
 
             try:
-                data["timestamp"] = datetime.datetime.fromtimestamp(pbsnodes_output["timestamp"]).isoformat()
+                data["timestamp"] = datetime.datetime.fromtimestamp(
+                    pbsnodes_output["timestamp"]
+                ).isoformat()
             except Exception as err:
-                logger.error(f"Unable to process record: {hostname=} / {data=} / {pbsnodes_output=}")
+                logger.error(
+                    f"Unable to process record: {hostname=} / {data=} / {pbsnodes_output=}"
+                )
 
             _index_data = _analytics_client.index(index=_index_name, body=data)
             if _index_data.success:

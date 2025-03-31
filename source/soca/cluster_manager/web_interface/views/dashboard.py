@@ -14,7 +14,7 @@
 import logging
 import config
 from decorators import login_required
-from flask import Blueprint, render_template
+from flask import Blueprint, render_template, session
 from utils.aws.ssm_parameter_store import SocaConfig
 
 logger = logging.getLogger("soca_logger")
@@ -27,5 +27,7 @@ def index():
     loadbalancer_dns_name = (
         SocaConfig(key="/configuration/LoadBalancerDNSName").get_value().get("message")
     )
+    _user = session.get("user", "unknown-user")
+
     kibana_url = "https://" + loadbalancer_dns_name + "/_dashboards/"
-    return render_template("dashboard.html", kibana_url=kibana_url)
+    return render_template("dashboard.html", kibana_url=kibana_url, user=_user)

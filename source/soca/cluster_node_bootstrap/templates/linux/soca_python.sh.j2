@@ -1,11 +1,6 @@
 # Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-# Begin: Install Python on the Controller Host
-# This function install SOCA python. It's only executing by the Controller Host during the first boot.
-# SOCA python is the backbone of SOCA, responsible to run all scripts under cluster_manager, cluster_analytics, cluster_web_ui etc ...
-# It's not recommended to change this template
-{% if context.get("/configuration/BaseOS") in ("amazonlinux2", "amazonlinux2023", "centos7", "rhel7", "rhel8", "rhel9", "rocky8", "rocky9") %}
 function install_soca_python () {
   log_info "Installing SOCA Python"
   mkdir -p "${SOCA_BOOTSTRAP_ASSETS_FOLDER}/soca_python"
@@ -13,22 +8,46 @@ function install_soca_python () {
   local PYTHON_VERSION="{{ context.get("/system/python/version") }}"
   local PYTHON_URL="{{ context.get("/system/python/url") }}"
   local PYTHON_SHA256="{{ context.get("/system/python/sha256") }}"
-  local PYTHON_INSTALLED_VERS=$(/apps/soca/"{{ context.get("/configuration/ClusterId") }}"/python/latest/bin/python3 --version | awk {'print $NF'})
+  local SOCA_PYTHON_LOCAL_INSTALL_PREFIX="/opt/soca/{{ context.get("/configuration/ClusterId") }}/python/${PYTHON_VERSION}/$(uname -m)/{{ context.get('/configuration/BaseOS') }}"
+  local SOCA_PYTHON_VENV="${SOCA_PYTHON_LOCAL_INSTALL_PREFIX}/soca-python-virtual-env"
+  local SOCA_PYTHON_SITE_PACKAGES
 
-  if [[ "${PYTHON_INSTALLED_VERS}" != "${PYTHON_VERSION}" ]]; then
-    log_info "SOCA Python not detected, installing"
+  if [[ $(${SOCA_PYTHON_LOCAL_INSTALL_PREFIX}/bin/python3 --version | awk {'print $NF'}) == "${PYTHON_VERSION}" ]]; then
+    log_info "Local SOCA_PYTHON ${SOCA_PYTHON_LOCAL_INSTALL_PREFIX} found and at correct version, skipping SOCA_PYTHON Install"
+
+  else
+    log_info "Local SOCA_PYTHON ${SOCA_PYTHON_LOCAL_INSTALL_PREFIX} not found, installing it"
+    mkdir -p ${SOCA_PYTHON_LOCAL_INSTALL_PREFIX}
+    log_info "${SOCA_PYTHON_LOCAL_INSTALL_PREFIX}/bin/python3 not detected or at wrong version, installing Python ${PYTHON_VERSION}"
     mkdir -p "{{ context.get("/configuration/ClusterId") }}"/python/installer
     pushd "{{ context.get("/configuration/ClusterId") }}"/python/installer
     file_download --download-url="${PYTHON_URL}" --save-as="python3_soca_installer.tgz" --sha256-checksum="${PYTHON_SHA256}"
     tar xvf "python3_soca_installer.tgz" --strip-components=1 -C .
-    if ! ./configure CXX="g++" \
-      LDFLAGS="-L/usr/lib64/openssl" \
-      CPPFLAGS="-I/usr/include/openssl" \
-      -enable-loadable-sqlite-extensions \
-      --prefix="/apps/soca/{{ context.get("/configuration/ClusterId") }}/python/${PYTHON_VERSION}" \
-      --enable-optimizations; then
+
+    {% if context.get("/job/NodeType") == "controller" %}
+      # Add additional compilation flags for Controller as Python will be used for web interface & other tasks
+      if ! ./configure CXX="g++" \
+        LDFLAGS="-L/usr/lib64/openssl" \
+        CPPFLAGS="-I/usr/include/openssl" \
+        CLAGS="fPIC" \
+        --enable-loadable-sqlite-extensions \
+        --prefix=${SOCA_PYTHON_LOCAL_INSTALL_PREFIX} \
+        --enable-optimizations \
+        --enable-shared \
+        --with-ensurepip=install; then
         exit_fail "Unable to run './configure' for SOCA_PYTHON. Check bootstrap logs."
-    fi
+      fi
+    {% else %}
+      # Minimal Python3 environment to build OpenPBS
+      if ! ./configure CXX="g++" \
+        LDFLAGS="-L/usr/lib64/openssl" \
+        CPPFLAGS="-I/usr/include/openssl" \
+        CLAGS="fPIC" \
+        --prefix=${SOCA_PYTHON_LOCAL_INSTALL_PREFIX} \
+        --enable-shared; then
+        exit_fail "Unable to run './configure' for SOCA_PYTHON. Check bootstrap logs."
+      fi
+    {% endif %}
 
     if ! make -j$(nproc); then
       exit_fail "Unable to run 'make' for SOCA_PYTHON. Check bootstrap logs."
@@ -38,23 +57,44 @@ function install_soca_python () {
        exit_fail "Unable to run 'make install' for SOCA_PYTHON. Check bootstrap logs."
     fi
 
+    log_info "Creating symlink /opt/soca/{{ context.get("/configuration/ClusterId") }}/python/latest pointing to ${SOCA_PYTHON_LOCAL_INSTALL_PREFIX}"
+    ln -sf ${SOCA_PYTHON_LOCAL_INSTALL_PREFIX} "/opt/soca/{{ context.get("/configuration/ClusterId") }}/python/latest"
     popd
-    popd
-    ln -sf "/apps/soca/{{ context.get("/configuration/ClusterId") }}/python/${PYTHON_VERSION}" "/apps/soca/{{ context.get("/configuration/ClusterId") }}/python/latest"
-  else
-    log_info "Python already installed and at correct version (${PYTHON_VERSION})."
+
+    log_info "SOCA_PYTHON installed successfully, updating dynamic linker cache"
+    # ensure 99- is there to avoid version conflict if /lib64 system python3 is already at the same version
+    echo "/lib64" > /etc/ld.so.conf.d/00-system-python.conf # ensure system python is always loaded first
+    echo "/opt/soca/{{ context.get('/configuration/ClusterId') }}/python/latest/lib" > /etc/ld.so.conf.d/99-python-{{ context.get('/configuration/ClusterId') }}.conf
+    if ! ldconfig; then
+      exit_fail "SOCA_PYTHON installed but unable to update ldconfig. Check bootstrap logs"
+    fi
+
+    # Install Python required libraries
+    {% if context.get("/job/NodeType") == "controller" %}
+      echo "{%- include "templates/linux/soca_python_controller_requirements.txt.j2" -%}" > requirements.txt
+    {% else %}
+      echo "{%- include "templates/linux/soca_python_compute_node_requirements.txt.j2" -%}" > requirements.txt
+    {% endif %}
+
+    log_info "Creating ${SOCA_PYTHON_LOCAL_INSTALL_PREFIX}/soca_python.env"
+    echo "
+export PYTHONPATH=/opt/soca/{{ context.get("/configuration/ClusterId") }}/cluster_manager/
+export PYTHONUSERBASE=${SOCA_PYTHON_LOCAL_INSTALL_PREFIX}
+export PYTHONEXECUTABLE=${SOCA_PYTHON_LOCAL_INSTALL_PREFIX}/bin/python3
+" > ${SOCA_PYTHON_LOCAL_INSTALL_PREFIX}/soca_python.env
+
+    # Source SOCA_PYTHON Environment.
+    # This command is also applied to all other scripts via common.sh.j2
+    source ${SOCA_PYTHON_LOCAL_INSTALL_PREFIX}/soca_python.env
+
+    # --user to make sure python libs are installed in the SOCA_PYTHON path only (we don't touch system python)
+    if ! ${SOCA_PYTHON_LOCAL_INSTALL_PREFIX}/bin/pip3 install --user -r requirements.txt; then
+        exit_fail "Unable to install SOCA Python requirements (see templates/linux/soca_python_requirements.txt.j2)"
+    fi
+
   fi
-
-  # Install Python required libraries
-  echo "{%- include "templates/linux/soca_python_requirements.txt.j2" -%}" > requirements.txt
-
-  if ! /apps/soca/{{ context.get("/configuration/ClusterId") }}/python/${PYTHON_VERSION}/bin/pip3 install -r requirements.txt; then
-    exit_fail "Unable to install SOCA Python requirements (see templates/linux/soca_python_requirements.txt.j2)"
-  fi
-
   popd
   log_info "Python and relevant dependency installed"
 }
 install_soca_python
-{% endif %}
 # End: : Install Python on the Controller Host

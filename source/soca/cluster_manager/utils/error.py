@@ -6,7 +6,7 @@ import importlib
 import inspect
 import sys
 import uuid
-from typing import Optional, Union
+from typing import Optional
 import logging
 from flask import Flask, jsonify, request, flash, redirect, has_request_context
 from utils.response import SocaResponse

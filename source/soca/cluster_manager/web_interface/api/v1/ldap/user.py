@@ -33,6 +33,7 @@ from utils.error import SocaError
 from utils.response import SocaResponse
 import grp
 import ldap
+
 logger = logging.getLogger("soca_logger")
 import time
 
@@ -47,6 +48,10 @@ def populate_ssh_keys(username: str, user_path: str) -> bool:
         logger.error("populate_ssh_keys Missing username")
         return False
 
+    if not user_path:
+        logger.error("populate_ssh_keys Missing user_path")
+        return False
+
     # Create the .ssh directory for the user
     _ssh_path_str: str = f"{user_path}/.ssh"
 
@@ -54,11 +59,13 @@ def populate_ssh_keys(username: str, user_path: str) -> bool:
     # This is done as a dict so you can modify the per-key args if desired
     _ssh_key_dict: dict = {
         # Adjust the generated key types for your specific environment based on the security threats and policy
-        "rsa":  {
-            "command": f"su {username} -c 'ssh-keygen -t rsa -b 4096 -f {_ssh_path_str}/id_rsa -N \"""\" '",
+        "rsa": {
+            "command": f"su {username} -c 'ssh-keygen -t rsa -b 4096 -f {_ssh_path_str}/id_rsa -N \""
+            "\" '",
         },
         "ed25519": {
-            "command": f"su {username} -c 'ssh-keygen -t ed25519 -f {_ssh_path_str}/id_ed25519 -N \"""\" '",
+            "command": f"su {username} -c 'ssh-keygen -t ed25519 -f {_ssh_path_str}/id_ed25519 -N \""
+            "\" '",
         },
         # "dsa":  {
         #     "command": f"su {username} -c 'ssh-keygen -t dsa -f {_ssh_path_str}/id_dsa -N \"""\" '",
@@ -83,25 +90,36 @@ def populate_ssh_keys(username: str, user_path: str) -> bool:
         try:
             _ssh_key_result = SocaSubprocessClient(run_command=_cmd).run()
             if _ssh_key_result.get("message") is False:
-                logger.error(f"Unable to generate {_ssh_key_type} - {_ssh_key_result=} because of  {_ssh_key_result.get('message')}")
+                logger.error(
+                    f"Unable to generate {_ssh_key_type} - {_ssh_key_result=} because of  {_ssh_key_result.get('message')}"
+                )
                 continue
             else:
-                logger.debug(f"ssh_key_result for type {_ssh_key_type} - {_ssh_key_result=}")
+                logger.debug(
+                    f"ssh_key_result for type {_ssh_key_type} - {_ssh_key_result=}"
+                )
                 _ssh_keys_generated += 1
 
         except Exception as e:
-            logger.error(f"Unable to generate SSH keypair for keytype {_ssh_key_type} - {e}")
+            logger.error(
+                f"Unable to generate SSH keypair for keytype {_ssh_key_type} - {e}"
+            )
             continue
         finally:
-            logger.debug(f"ssh_key_result for type {_ssh_key_type} - {_ssh_key_result=}")
+            logger.debug(
+                f"ssh_key_result for type {_ssh_key_type}"
+            )
 
     # Did we generate all the desired keypair types?
     if _ssh_keys_generated == len(_ssh_key_dict):
         logger.info(f"Done generating all ({_ssh_keys_generated}) keypairs for user")
     else:
-        logger.warning(f"Unable to generate all SSH keypairs - Generated {_ssh_keys_generated} of {len(_ssh_key_dict)} keypairs. Check log for errors")
+        logger.warning(
+            f"Unable to generate all SSH keypairs - Generated {_ssh_keys_generated} of {len(_ssh_key_dict)} keypairs. Check log for errors"
+        )
 
     return True
+
 
 def create_home(username: str, group: str):
     try:
@@ -120,7 +138,13 @@ def create_home(username: str, group: str):
                 _permissions = stat.S_IRUSR | stat.S_IWUSR | stat.S_IXUSR
             else:
                 # Home dir by default allows the user group to have access
-                _permissions = stat.S_IRUSR | stat.S_IWUSR | stat.S_IXUSR | stat.S_IRGRP | stat.S_IXGRP
+                _permissions = (
+                    stat.S_IRUSR
+                    | stat.S_IWUSR
+                    | stat.S_IXUSR
+                    | stat.S_IRGRP
+                    | stat.S_IXGRP
+                )
 
             os.makedirs(
                 name=_create_dir,
@@ -128,24 +152,30 @@ def create_home(username: str, group: str):
                 exist_ok=True,
             )
             # Just to make sure
-            os.chmod(
-                path=_create_dir,
-                mode=_permissions
-            )
+            os.chmod(path=_create_dir, mode=_permissions)
 
         # Copy default .bash profile
-        shutil.copy(src="/etc/skel/.bashrc", dst=user_path)
-        shutil.copy(src="/etc/skel/.bash_profile", dst=user_path)
-        shutil.copy(src="/etc/skel/.bash_logout", dst=user_path)
+        _default_skel = [
+            "/etc/skel/.bashrc",
+            "/etc/skel/.bash_profile",
+            "/etc/skel/.bash_logout",
+        ]
+        for _skel in _default_skel:
+            if os.path.exists(_skel):
+                shutil.copy(src=_skel, dst=user_path)
+            else:
+                logger.warning(
+                    f"Unable to copy {_skel}, file does not exist, ignoring ... "
+                )
 
         # Adjust file/folder ownership
         try:
             group = grp.getgrnam(group).gr_name
         except KeyError:
             # Handle case where group does not exist, e.g when using an external directory
+            logger.warning(f"Unable to determine gr_name for {group}")
             group = None
 
-        logger.info(f"About to chown {user_home=} hierarchy with {username=} and {group=}")
         for _path in [
             f"{user_path}",
             f"{user_path}/.ssh",
@@ -153,25 +183,33 @@ def create_home(username: str, group: str):
             f"{user_path}/.bash_profile",
             f"{user_path}/.bash_logout",
         ]:
-            shutil.chown(path=_path, user=username, group=group)
+            logger.info(
+                f"About to chown {_path=} hierarchy with {username=} and {group=}"
+            )
+            if os.path.exists(_path):
+                shutil.chown(path=_path, user=username, group=group)
+            else:
+                logger.warning(f"Unable to chown {_path}, path does not exist")
 
         logger.info(f"Create SSH keypairs for {username}")
         if populate_ssh_keys(username=username, user_path=user_path) is False:
-            logger.error(f"Unable to generate SSH keypairs for user {username}" )
+            logger.error(f"Unable to generate SSH keypairs for user {username}")
             return False
 
         logger.info("Configuring authorized_keys based on ssh keypairs created")
         _authorized_keys_file = f"{user_path}/.ssh/authorized_keys"
         os.makedirs(os.path.dirname(_authorized_keys_file), exist_ok=True)
-        with open(_authorized_keys_file, 'a') as authorized_keys_file:
+        with open(_authorized_keys_file, "a") as authorized_keys_file:
             for filename in os.listdir(f"{user_path}/.ssh"):
                 if filename.endswith(".pub"):
                     pub_key_path = os.path.join(f"{user_path}/.ssh", filename)
-                    with open(pub_key_path, 'r') as pub_key_file:
+                    with open(pub_key_path, "r") as pub_key_file:
                         pub_key_content = pub_key_file.read()
-                        authorized_keys_file.write(pub_key_content + '\n')
+                        authorized_keys_file.write(pub_key_content + "\n")
 
-        logger.info("Enforcing right permissions for all files within .ssh folder post keypair creation")
+        logger.info(
+            "Enforcing right permissions for all files within .ssh folder post keypair creation"
+        )
         for root, dirs, files in os.walk(f"{user_path}/.ssh"):
             for _file in files:
                 _file_path = os.path.join(root, _file)
@@ -181,8 +219,7 @@ def create_home(username: str, group: str):
 
         return True
 
-
-    except Exception as e:
+    except Exception as _e:
         exc_type, exc_obj, exc_tb = sys.exc_info()
         fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
         logger.error(exc_type, fname, exc_tb.tb_lineno)
@@ -225,7 +262,10 @@ class User(Resource):
 
         try:
 
-            if config.Config.DIRECTORY_AUTH_PROVIDER in ["openldap", "existing_openldap"]:
+            if config.Config.DIRECTORY_AUTH_PROVIDER in [
+                "openldap",
+                "existing_openldap",
+            ]:
                 _filter = f"(&(objectClass=person)(uid={user}))"
                 _attrs = ["uid"]
             else:
@@ -242,17 +282,24 @@ class User(Resource):
             _search_user = _soca_identity_client.search(
                 base=config.Config.DIRECTORY_PEOPLE_SEARCH_BASE,
                 filter=_filter,
-                attr_list=_attrs)
+                attr_list=_attrs,
+            )
 
             if _search_user.success:
-                return SocaResponse(success=True, message=_search_user.message).as_flask()
+                return SocaResponse(
+                    success=True, message=_search_user.message
+                ).as_flask()
             else:
-                return SocaError.IDENTITY_PROVIDER_ERROR(helper=f"Unable to find user because of {_search_user.message}").as_flask()
+                return SocaError.IDENTITY_PROVIDER_ERROR(
+                    helper=f"Unable to find user because of {_search_user.message}"
+                ).as_flask()
 
         except Exception as err:
             exc_type, exc_obj, exc_tb = sys.exc_info()
             fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
-            return SocaError.GENERIC_ERROR(helper=f"{err}, {exc_type}, {fname}, {exc_tb.tb_lineno}").as_flask()
+            return SocaError.GENERIC_ERROR(
+                helper=f"{err}, {exc_type}, {fname}, {exc_tb.tb_lineno}"
+            ).as_flask()
 
     @admin_api
     def post(self):
@@ -313,11 +360,13 @@ class User(Resource):
             "gid", type=int, location="form"
         )  # 0 = no value specified, use default one
         args = parser.parse_args()
-        _user_regex_pattern = r'^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,31}$'
+        _user_regex_pattern = r"^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,31}$"
         if re.match(_user_regex_pattern, args["user"]):
             user = args["user"].lower()
         else:
-            return SocaError.IDENTITY_PROVIDER_ERROR(helper=f"User {args['user']} is not valid, must match {_user_regex_pattern} (contains -and start with- only alpha-numerical characters plus _ . - and must be 31 chars max").as_flask()
+            return SocaError.IDENTITY_PROVIDER_ERROR(
+                helper=f"User {args['user']} is not valid, must match {_user_regex_pattern} (contains -and start with- only alpha-numerical characters plus _ . - and must be 31 chars max"
+            ).as_flask()
 
         password = args["password"]
         sudoers = args["sudoers"]
@@ -330,7 +379,9 @@ class User(Resource):
         people_search_base = config.Config.DIRECTORY_PEOPLE_SEARCH_BASE
 
         if shell is None:
-            logger.warning(f"shell not specified for new user creation, default to /bin/bash")
+            logger.warning(
+                f"shell not specified for new user creation, default to /bin/bash"
+            )
             shell = "/bin/bash"
 
         if user is None:
@@ -345,44 +396,65 @@ class User(Resource):
         if email is None:
             return SocaError.CLIENT_MISSING_PARAMETER(parameter="email").as_flask()
 
-        _get_id = SocaHttpClient(endpoint="/api/ldap/ids", headers={"X-SOCA-TOKEN": config.Config.API_ROOT_KEY}).get()
+        _get_id = SocaHttpClient(
+            endpoint="/api/ldap/ids",
+            headers={"X-SOCA-TOKEN": config.Config.API_ROOT_KEY},
+        ).get()
         if _get_id.success:
             current_ldap_ids = _get_id.message
         else:
-            return SocaError.IDENTITY_PROVIDER_ERROR(helper=f"/api/ldap/ids returned error: {_get_id.message}").as_flask()
+            return SocaError.IDENTITY_PROVIDER_ERROR(
+                helper=f"/api/ldap/ids returned error: {_get_id.message}"
+            ).as_flask()
 
         if uid == 0:
             uid = current_ldap_ids["proposed_uid"]
         else:
             if uid in current_ldap_ids["uid_in_use"]:
-                return SocaError.IDENTITY_PROVIDER_ERROR(helper=f"Unable to create user {user}, UID {uid} already in use").as_flask()
+                return SocaError.IDENTITY_PROVIDER_ERROR(
+                    helper=f"Unable to create user {user}, UID {uid} already in use"
+                ).as_flask()
 
         if gid == 0:
             gid = current_ldap_ids["proposed_gid"]
         else:
             if gid in current_ldap_ids["gid_in_use"]:
-                return SocaError.IDENTITY_PROVIDER_ERROR(helper=f"Unable to create user {user}, GID {gid} already in use").as_flask()
+                return SocaError.IDENTITY_PROVIDER_ERROR(
+                    helper=f"Unable to create user {user}, GID {gid} already in use"
+                ).as_flask()
 
         # Note: parseaddr adheres to rfc5322 , which means user@domain is a correct address.
         # You do not necessarily need to add a tld at the end
         if "@" not in parseaddr(email)[1]:
-            return SocaError.IDENTITY_PROVIDER_ERROR(helper=f"Unable to create user {user}, Invalid email address").as_flask()
+            return SocaError.IDENTITY_PROVIDER_ERROR(
+                helper=f"Unable to create user {user}, Invalid email address"
+            ).as_flask()
 
         try:
             _soca_identity_client = SocaIdentityProviderClient()
             _soca_identity_client.initialize()
             _soca_identity_client.bind_as_service_account()
 
-            _is_user_exist = SocaHttpClient(endpoint="/api/ldap/user", headers={"X-SOCA-TOKEN": config.Config.API_ROOT_KEY}).get(params={"user": user})
+            _is_user_exist = SocaHttpClient(
+                endpoint="/api/ldap/user",
+                headers={"X-SOCA-TOKEN": config.Config.API_ROOT_KEY},
+            ).get(params={"user": user})
             if _is_user_exist.success:
                 if len(_is_user_exist.message) == 0:
                     pass
                 else:
-                    return SocaError.IDENTITY_PROVIDER_ERROR(helper=f"Unable to create user, {user} already exist").as_flask()
+                    return SocaError.IDENTITY_PROVIDER_ERROR(
+                        helper=f"Unable to create user, {user} already exist"
+                    ).as_flask()
             else:
-                return SocaError.IDENTITY_PROVIDER_ERROR(helper=f"Unable to check if user {user} already exist, {_is_user_exist.message}").as_flask()
+                return SocaError.IDENTITY_PROVIDER_ERROR(
+                    helper=f"Unable to check if user {user} already exist, {_is_user_exist.message}"
+                ).as_flask()
 
-            if config.Config.DIRECTORY_AUTH_PROVIDER in ["openldap", "existing_openldap"]:
+            if config.Config.DIRECTORY_AUTH_PROVIDER in [
+                "openldap",
+                "existing_openldap",
+            ]:
                 _dn_user = f"uid={user},{people_search_base}"
                 enc_passwd = bytes(password, "utf-8")
                 salt = os.urandom(16)
@@ -435,46 +507,79 @@ class User(Resource):
                     ("sAMAccountName", [str(user).encode("utf-8")]),
                     (
                         "userPrincipalName",
-                        [str(user + "@" + config.Config.DIRECTORY_DOMAIN_NAME).encode("utf-8")],
+                        [
+                            str(
+                                user + "@" + config.Config.DIRECTORY_DOMAIN_NAME
+                            ).encode("utf-8")
+                        ],
                     ),
                     ("cn", [str(user).encode("utf-8")]),
                     ("uidNumber", [str(uid).encode("utf-8")]),
                     ("uid", [str(uid).encode("utf-8")]),
                     ("gidNumber", [str(gid).encode("utf-8")]),
-
                     ("loginShell", [shell.encode("utf-8")]),
-                    ("homeDirectory", (str(config.Config.USER_HOME) + "/" + str(user)).encode("utf-8")),
+                    (
+                        "homeDirectory",
+                        (str(config.Config.USER_HOME) + "/" + str(user)).encode(
+                            "utf-8"
+                        ),
+                    ),
                 ]
 
             logger.info(f"About to create new account {user}")
             logger.info("Create group first to prevent GID issue")
-            _create_user_group = SocaHttpClient(endpoint="/api/ldap/group", headers={"X-SOCA-TOKEN": config.Config.API_ROOT_KEY}).post(
-                data={"group": f"{group}", "gid": gid}
-            )
+            _create_user_group = SocaHttpClient(
+                endpoint="/api/ldap/group",
+                headers={"X-SOCA-TOKEN": config.Config.API_ROOT_KEY},
+            ).post(data={"group": f"{group}", "gid": gid})
             if not _create_user_group.success:
                 return SocaError.IDENTITY_PROVIDER_ERROR(
-                    helper=f"Unable to create user {user}, unable to create group {group} because of {_create_user_group.message}").as_flask()
+                    helper=f"Unable to create user {user}, unable to create group {group} because of {_create_user_group.message}"
+                ).as_flask()
             logger.info(f"Group {group} created successfully")
 
             logger.info(f"About to create actual user")
             _user_create = _soca_identity_client.add(dn=_dn_user, mod_list=_attrs)
             if not _user_create.success:
-                logger.info(f"Unable to create user {_dn_user}, deleting associated group {group}")
-                SocaHttpClient(endpoint="/api/ldap/group", headers={"X-SOCA-TOKEN": config.Config.API_ROOT_KEY}).delete(data={"group": f"{group}"})
+                logger.info(
+                    f"Unable to create user {_dn_user}, deleting associated group {group}"
+                )
+                SocaHttpClient(
+                    endpoint="/api/ldap/group",
+                    headers={"X-SOCA-TOKEN": config.Config.API_ROOT_KEY},
+                ).delete(data={"group": f"{group}"})
                 return SocaError.IDENTITY_PROVIDER_ERROR(
-                    helper=f"Unable to create user {user}, Unable to create {_dn_user} because of {_user_create.message}").as_flask()
+                    helper=f"Unable to create user {user}, Unable to create {_dn_user} because of {_user_create.message}"
+                ).as_flask()
 
             _password_reset_request = 0
-            if config.Config.DIRECTORY_AUTH_PROVIDER in ["aws_ds_managed_activedirectory", "aws_ds_simple_activedirectory"]:
-                logger.info("Set up Password reset for AWS Directory Service AD provider")
-                _pw_reset_request = SocaHttpClient(endpoint="/api/user/reset_password", headers={"X-SOCA-TOKEN": config.Config.API_ROOT_KEY}).post( data={"user": user, "password": password, "directory_id": config.Config.DIRECTORY_SERVICE_ID})
+            if config.Config.DIRECTORY_AUTH_PROVIDER in [
+                "aws_ds_managed_activedirectory",
+                "aws_ds_simple_activedirectory",
+            ]:
+                logger.info(
+                    "Set up Password reset for AWS Directory Service AD provider"
+                )
+                _pw_reset_request = SocaHttpClient(
+                    endpoint="/api/user/reset_password",
+                    headers={"X-SOCA-TOKEN": config.Config.API_ROOT_KEY},
+                ).post(
+                    data={
+                        "user": user,
+                        "password": password,
+                        "directory_id": config.Config.DIRECTORY_SERVICE_ID,
+                    }
+                )
                 while not _pw_reset_request.success:
-                    return SocaError.IDENTITY_PROVIDER_ERROR(helper=f"{_pw_reset_request.message}").as_flask()
+                    return SocaError.IDENTITY_PROVIDER_ERROR(
+                        helper=f"{_pw_reset_request.message}"
+                    ).as_flask()
 
             logger.info("Creating Home Directory for user")
             if create_home(user, group) is False:
                 return SocaError.IDENTITY_PROVIDER_ERROR(
-                    helper=f"User created but could not create {user} home directory.").as_flask()
+                    helper=f"User created but could not create {user} home directory."
+                ).as_flask()
             logger.info("Home Directory created successfully")
 
             logger.info("Creating API key for user")
@@ -484,7 +589,9 @@ class User(Resource):
                     headers={"X-SOCA-TOKEN": config.Config.API_ROOT_KEY},
                 ).get(params={"user": user})
             except Exception as err:
-                logger.error(f"User created but unable to create API key. SOCA will try to generate it when user log in for the first time {err}")
+                logger.error(
+                    f"User created but unable to create API key. SOCA will try to generate it when user log in for the first time {err}"
+                )
 
             if sudoers == 1:
                 logger.info(f"Granting Sudo permission to {user}")
@@ -495,54 +602,74 @@ class User(Resource):
 
                 if not _grant_sudo.success:
                     return SocaError.IDENTITY_PROVIDER_ERROR(
-                        helper=f"User created but unable to give admin permissions.").as_flask()
+                        helper=f"User created but unable to give admin permissions."
+                    ).as_flask()
                 else:
                     logger.info("SUDO Permission granted successfully")
             else:
                 logger.info("No SUDO permissions requested for this user")
 
             logger.info(f"Adding user {user} to group {group}")
-            _update_group = SocaHttpClient(endpoint="/api/ldap/group",
-                                           headers={"X-SOCA-TOKEN": config.Config.API_ROOT_KEY}).put(
-                data={"group": f"{group}", "user": user, "action": "add"})
+            _update_group = SocaHttpClient(
+                endpoint="/api/ldap/group",
+                headers={"X-SOCA-TOKEN": config.Config.API_ROOT_KEY},
+            ).put(data={"group": f"{group}", "user": user, "action": "add"})
 
             if not _update_group.success:
                 return SocaError.IDENTITY_PROVIDER_ERROR(
-                    helper=f"{user} & group {group} created but could not add user to his group.").as_flask()
+                    helper=f"{user} & group {group} created but could not add user to his group."
+                ).as_flask()
             else:
-                if config.Config.DIRECTORY_AUTH_PROVIDER in ["aws_ds_simple_activedirectory",
-                                                             "aws_ds_managed_activedirectory"]:
+                if config.Config.DIRECTORY_AUTH_PROVIDER in [
+                    "aws_ds_simple_activedirectory",
+                    "aws_ds_managed_activedirectory",
+                ]:
                     # Default GroupID point to "Domain Users". We update this to match the group we just have created for the user
                     # Any file created by the user will be owned by <user> : <user_group>
-                    _find_group_sid = _soca_identity_client.search(base=config.Config.DIRECTORY_GROUP_SEARCH_BASE,
-                                                                   filter=f"(&(objectClass=group)(cn={group}))",
-                                                                   attr_list=["objectSid"])
+                    _find_group_sid = _soca_identity_client.search(
+                        base=config.Config.DIRECTORY_GROUP_SEARCH_BASE,
+                        filter=f"(&(objectClass=group)(cn={group}))",
+                        attr_list=["objectSid"],
+                    )
                     if _find_group_sid.get("success"):
-                        _group_sid = _find_group_sid.get("message")[0][1].get("objectSid")[0]
+                        _group_sid = _find_group_sid.get("message")[0][1].get(
+                            "objectSid"
+                        )[0]
                         # Extract the RID from the group SID
                         # The RID is stored in the last 4 bytes of the SID
-                        _group_rid = struct.unpack('I', _group_sid[-4:])[0]
+                        _group_rid = struct.unpack("I", _group_sid[-4:])[0]
 
                         # Add new primaryGroupID attr for user creation
                         # _attrs.append(("primaryGroupID", [str(_group_rid).encode("utf-8")]))
-                        _replace_primary_group_id = _soca_identity_client.modify(_dn_user, [
-                            (ldap.MOD_REPLACE, "primaryGroupID", [str(_group_rid).encode("utf-8")])])
+                        _replace_primary_group_id = _soca_identity_client.modify(
+                            _dn_user,
+                            [
+                                (
+                                    ldap.MOD_REPLACE,
+                                    "primaryGroupID",
+                                    [str(_group_rid).encode("utf-8")],
+                                )
+                            ],
+                        )
                         if _replace_primary_group_id.get("success") is False:
                             return SocaError.IDENTITY_PROVIDER_ERROR(
-                                helper=f"Unable to set primaryGroupID for user {_dn_user} because of {_replace_primary_group_id.get('message')}").as_flask()
+                                helper=f"Unable to set primaryGroupID for user {_dn_user} because of {_replace_primary_group_id.get('message')}"
+                            ).as_flask()
                     else:
                         return SocaError.IDENTITY_PROVIDER_ERROR(
-                            helper=f"Unable to find objectSid for {group} because of {_find_group_sid}").as_flask()
+                            helper=f"Unable to find objectSid for {group} because of {_find_group_sid}"
+                        ).as_flask()
 
             logger.info(f"{user} has been added to {group} successfully")
 
             return SocaResponse(success=True, message="User created").as_flask()
 
-
         except Exception as err:
             exc_type, exc_obj, exc_tb = sys.exc_info()
             fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
-            return SocaError.GENERIC_ERROR(helper=f"{err}, {exc_type}, {fname}, {exc_tb.tb_lineno}").as_flask()
+            return SocaError.GENERIC_ERROR(
+                helper=f"{err}, {exc_type}, {fname}, {exc_tb.tb_lineno}"
+            ).as_flask()
 
     @admin_api
     def delete(self):
@@ -584,25 +711,34 @@ class User(Resource):
             return SocaError.CLIENT_MISSING_HEADER(header="X-SOCA-USER").as_flask()
 
         if request_user == user:
-            return SocaError.GENERIC_ERROR(helper="You cannot request to delete your own account").as_flask()
+            return SocaError.GENERIC_ERROR(
+                helper="You cannot request to delete your own account"
+            ).as_flask()
 
-        _is_user_exist = SocaHttpClient(endpoint="/api/ldap/user",
-                                        headers={"X-SOCA-TOKEN": config.Config.API_ROOT_KEY}).get(params={"user": user})
+        _is_user_exist = SocaHttpClient(
+            endpoint="/api/ldap/user",
+            headers={"X-SOCA-TOKEN": config.Config.API_ROOT_KEY},
+        ).get(params={"user": user})
 
         if _is_user_exist.success:
             if len(_is_user_exist.message) != 1:
                 return SocaError.IDENTITY_PROVIDER_ERROR(
-                    helper=f"Unable to delete user, {user} does not seems to exist").as_flask()
+                    helper=f"Unable to delete user, {user} does not seems to exist"
+                ).as_flask()
         else:
             return SocaError.IDENTITY_PROVIDER_ERROR(
-                helper=f"Unable to check if user {user} already exist, {_is_user_exist.message}").as_flask()
+                helper=f"Unable to check if user {user} already exist, {_is_user_exist.message}"
+            ).as_flask()
 
         try:
             _soca_identity_client = SocaIdentityProviderClient()
             _soca_identity_client.initialize()
             _soca_identity_client.bind_as_service_account()
 
-            if config.Config.DIRECTORY_AUTH_PROVIDER in ["openldap", "existing_openldap"]:
+            if config.Config.DIRECTORY_AUTH_PROVIDER in [
+                "openldap",
+                "existing_openldap",
+            ]:
                 group = f"{args['user']}{config.Config.DIRECTORY_GROUP_NAME_SUFFIX}"
                 entries_to_delete = [
                     f"uid={user},{config.Config.DIRECTORY_PEOPLE_SEARCH_BASE}",
@@ -624,23 +760,33 @@ class User(Resource):
                 shutil.move(user_home, backup_folder)
                 os.chmod(backup_folder, 0o700)
             except Exception as err:
-                return SocaError.IDENTITY_PROVIDER_ERROR(helper=f"Unable to create backup home folder for {user} due to {err}. Verify if {user_home} exists. Backup folrder to be created: {backup_folder}").as_flask()
+                return SocaError.IDENTITY_PROVIDER_ERROR(
+                    helper=f"Unable to create backup home folder for {user} due to {err}. Verify if {user_home} exists. Backup folrder to be created: {backup_folder}"
+                ).as_flask()
 
             for entry in entries_to_delete:
-                 _delete_attempt = _soca_identity_client.delete(dn=entry)
-                 # note: ldap.NO_SUCH_OBJECT will always return success=True.
-                 # success=False only if the DELETE command was not able to delete an existing object for whatever reasons
-                 if not _delete_attempt.success:
-                     return SocaError.IDENTITY_PROVIDER_ERROR(
-                         helper=f"Unable to delete {entry} because of {_delete_attempt.message}").as_flask()
+                _delete_attempt = _soca_identity_client.delete(dn=entry)
+                # note: ldap.NO_SUCH_OBJECT will always return success=True.
+                # success=False only if the DELETE command was not able to delete an existing object for whatever reasons
+                if not _delete_attempt.success:
+                    return SocaError.IDENTITY_PROVIDER_ERROR(
+                        helper=f"Unable to delete {entry} because of {_delete_attempt.message}"
+                    ).as_flask()
 
-            _invalidate_api_key = SocaHttpClient(endpoint="/api/user/api_key", headers={"X-SOCA-TOKEN": config.Config.API_ROOT_KEY}).delete(data={"user": user})
+            _invalidate_api_key = SocaHttpClient(
+                endpoint="/api/user/api_key",
+                headers={"X-SOCA-TOKEN": config.Config.API_ROOT_KEY},
+            ).delete(data={"user": user})
             if not _invalidate_api_key.success:
-                return SocaError.IDENTITY_PROVIDER_ERROR(helper=f"{user} deleted but unable to invalidate API key because of {_invalidate_api_key.message}.").as_flask()
+                return SocaError.IDENTITY_PROVIDER_ERROR(
+                    helper=f"{user} deleted but unable to invalidate API key because of {_invalidate_api_key.message}."
+                ).as_flask()
 
             return SocaResponse(success=True, message="Deleted user").as_flask()
 
         except Exception as err:
             exc_type, exc_obj, exc_tb = sys.exc_info()
             fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
-            return SocaError.GENERIC_ERROR(helper=f"{err}, {exc_type}, {fname}, {exc_tb.tb_lineno}").as_flask()
+            return SocaError.GENERIC_ERROR(
+                helper=f"{err}, {exc_type}, {fname}, {exc_tb.tb_lineno}"
+            ).as_flask()

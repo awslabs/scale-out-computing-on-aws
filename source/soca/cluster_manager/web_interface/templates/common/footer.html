@@ -1,22 +1,25 @@
+<!-- Core plugin JavaScript-->
+<script src="{{ url_for('static', filename='vendor/jquery-easing/jquery.easing.min.js') }}"></script>
+<script src="{{ url_for('static', filename='js/prism.js') }}"></script>
 
+<!-- Custom scripts for all pages-->
+<script src="{{ url_for('static', filename='js/app.min.js') }}"></script>
+<script src="{{ url_for('static', filename='vendor/js/bootstrap.bundle.min.js') }}"></script>
 
+{% if page == 'admin_virtual_desktop_list_all' %}
+    <script src="{{ url_for('static', filename='vendor/datatables-bs/datatables.min.js') }}"></script>
 
-  <!-- Core plugin JavaScript-->
-  <script src="{{ url_for('static', filename='vendor/jquery-easing/jquery.easing.min.js') }}"></script>
-  <script src="{{ url_for('static', filename='js/prism.js') }}"></script>
+{% elif page in ["admin_profiles", "admin_projects"] %}
+    <script src="{{ url_for('static', filename='vendor/use-bootstrap-tag/use-bootstrap-tag.js') }}"></script>
+{% endif %}
 
-  <!-- Custom scripts for all pages-->
-  <script src="{{ url_for('static', filename='js/app.min.js') }}"></script>
-
-
-  <!-- hide left sidebar when using soca desktop app -->
-  <script>
-      var ua = navigator.userAgent;
-       if (/Soca-Desktop-App/i.test(ua)) {
-           document.getElementById("accordionSidebar").style.display = "none"
-        }
-
-  </script>
+<!-- hide left sidebar when using soca desktop app -->
+<script>
+    const ua = navigator.userAgent;
+    if (/Soca-Desktop-App/i.test(ua)) {
+        document.getElementById("accordionSidebar").style.display = "none"
+    }
+</script>
 
 
 

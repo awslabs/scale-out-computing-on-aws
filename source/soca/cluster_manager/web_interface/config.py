@@ -16,6 +16,7 @@ from datetime import timedelta
 import utils.cache as utils_cache
 from utils.aws.secrets_manager import SocaSecret
 from utils.aws.ssm_parameter_store import SocaConfig
+from utils.cast import SocaCastEngine
 import sys
 
 basedir = os.path.abspath(os.path.dirname(__file__))
@@ -27,9 +28,12 @@ class Config(object):
     DEBUG = False
     USE_PERMANENT_SESSION = True
     PERMANENT_SESSION_LIFETIME = timedelta(days=1)
-    SQLALCHEMY_TRACK_MODIFICATIONS = False
     SQLALCHEMY_DATABASE_URI = "sqlite:///" + os.path.join(basedir, "db.sqlite")
-    if cache_config.get("cache_info").get("enabled"):
+    _cache_enabled = SocaCastEngine(
+        data=cache_config.get("cache_info").get("enabled")
+    ).cast_as(bool)
+    # Validate if cache_info.enabled is a valid bool and if the value is also True
+    if _cache_enabled.get("success") is True and _cache_enabled.get("message") is True:
         SESSION_TYPE = "redis"
         SESSION_REDIS = cache_config.get("cache_client")
     else:
@@ -91,71 +95,140 @@ class Config(object):
     COGNITO_ROOT_URL = "<YOUR_WEB_URL>"
     COGNITO_CALLBACK_URL = "<YOUR_CALLBACK_URL>"
 
-    # DCV General
-    DCV_AUTH_DIR = "/var/run/dcvsimpleextauth"
-    DCV_SIMPLE_AUTH = "/usr/libexec/dcvsimpleextauth.py"
-    DCV_SESSION_LOCATION = "tmp/dcv_sessions"
-    DCV_FORCE_INSTANCE_HIBERNATE_SUPPORT = (
-        False  # If True, users can only provision instances that support hibernation
-    )
-    DCV_TOKEN_SYMMETRIC_KEY = os.environ[
-        "SOCA_DCV_TOKEN_SYMMETRIC_KEY"
-    ]  # used to encrypt/decrypt and validate DCV session auth
-    DCV_RESTRICTED_INSTANCE_TYPE = [
-        "metal",
-        "nano",
-        "micro",
-        "p3",
-        "p2",
-        "p3dn",
-        "g2",
-    ]  # This instance type won't be visible on the dropdown menu
-    DCV_IDLE_CPU_THRESHOLD = 15  # SOCA will NOT hibernate/stop an instance if current CPU usage % is over this value
-
     # DCV Linux
     DCV_LINUX_SESSION_COUNT = 4
     DCV_LINUX_ALLOW_INSTANCE_CHANGE = (
         True  # Allow user to change their instance type if their DCV session is stopped
     )
-    DCV_LINUX_HIBERNATE_IDLE_SESSION = 1  # In hours. Linux DCV sessions will be hibernated to save cost if there is no active connection within the time specified. 0 to disable
-    DCV_LINUX_STOP_IDLE_SESSION = 1  # In hours. Linux DCV sessions will be stopped to save cost if there is no active connection within the time specified. 0 to disable
-    DCV_LINUX_TERMINATE_STOPPED_SESSION = 0  # In hours. Stopped Linux DCV will be permanently terminated if user won't restart it within the time specified. 0 to disable
-    DCV_LINUX_DEFAULT_SCHEDULE = {
-        "weekdays": {
-            "start": 480,  # Default Schedule - Start 8 AM (8*60) mon-fri
-            "stop": 1140,  # Default Schedule - Stop if idle after 7 PM (19*60) mon-fri
-        },
-        "weekend": {
-            "start": 0,  # Default Schedule - Stopped by default sat-sun
-            "stop": 0,  # Default Schedule - Stopped by default sat-sun
-        },
-    }
+    DCV_LINUX_STOP_IDLE_SESSION = 2  # In hours. Linux DCV sessions will be stopped/hibernated to save cost if there is no active connection within the time specified. 0 to disable
+    DCV_LINUX_TERMINATE_STOPPED_SESSION = 0  # In hours. Stopped Linux DCV will be permanently terminated if user/schedule won't restart it within the time specified. 0 to disable
 
     # DCV Windows
     DCV_WINDOWS_SESSION_COUNT = 4
     DCV_WINDOWS_ALLOW_INSTANCE_CHANGE = (
         True  # Allow user to change their instance type if their DCV session is stopped
     )
-    DCV_WINDOWS_HIBERNATE_IDLE_SESSION = 1  # In hours. Windows DCV sessions will be hibernated to save cost if there is no active connection within the time specified. 0 to disable
-    DCV_WINDOWS_STOP_IDLE_SESSION = 1  # In hours. Windows DCV sessions will be stopped to save cost if there is no active connection within the time specified. 0 to disable
-    DCV_WINDOWS_TERMINATE_STOPPED_SESSION = 0  # In hours. Stopped Windows DCV will be permanently terminated if user won't restart it within the time specified. 0 to disable
+    DCV_WINDOWS_STOP_IDLE_SESSION = 2  # In hours. Windows DCV sessions will be stopped/Hibernated to save cost if there is no active connection within the time specified. 0 to disable
+    DCV_WINDOWS_TERMINATE_STOPPED_SESSION = 0  # In hours. Stopped Windows DCV will be permanently terminated if user/schedule won't restart it within the time specified. 0 to disable
+
     DCV_WINDOWS_AUTOLOGON = True  # enable or disable autologon. If disabled user will have to manually input Windows password
-    DCV_WINDOWS_DEFAULT_SCHEDULE = {
-        "weekdays": {
-            "start": 480,  # Default Schedule - Start 8 AM (8*60) mon-fri
-            "stop": 1140,  # Default Schedule - Stop if idle after 7 PM (19*60) mon-fri
+
+    # Grace Period
+    # - Will not stop a desktop if it was started within the grace period
+    # - Will not start a desktop if it was stopped within  the grace period
+    # In other word, even if your schedule is stopped all day, but you manually start your desktop, it will stays up and running for X hours)
+    DCV_SCHEDULE_GRACE_PERIOD_IN_HOURS = 2
+
+    DCV_FORCE_INSTANCE_HIBERNATE_SUPPORT = (
+        False  # If True, users can only provision instances that support hibernation
+    )
+    DCV_TOKEN_SYMMETRIC_KEY = os.environ[
+        "SOCA_DCV_TOKEN_SYMMETRIC_KEY"
+    ]  # used to encrypt/decrypt and validate DCV session auth
+
+    DCV_IDLE_CPU_THRESHOLD = 15  # SOCA will NOT hibernate/stop an instance if current CPU usage % is over this value
+
+    DCV_VERIFY_SESSION_HEALTH = True  # if set to True, scheduled_tasks/virtual_desktops/session_state_watcher will try to validate if the DCV Session is correctly running
+
+    DCV_ALLOW_DEFAULT_SCHEDULE_UPDATE = (
+        True  # Whether users can override the defualt schedule
+    )
+
+    DCV_DEFAULT_SCHEDULE = {
+        "monday": {
+            "start": 480,  # Default Schedule - Start 8 AM (8*60)
+            "stop": 1140,  # Default Schedule - Stop if idle after 7 PM (19*60)
         },
-        "weekend": {
-            "start": 0,  # Default Schedule - Stopped by default sat-sun
-            "stop": 0,  # Default Schedule - Stopped by default sat-sun
+        "tuesday": {
+            "start": 480,  # Default Schedule - Start 8 AM (8*60)
+            "stop": 1140,  # Default Schedule - Stop if idle after 7 PM (19*60)
+        },
+        "wednesday": {
+            "start": 480,  # Default Schedule - Start 8 AM (8*60)
+            "stop": 1140,  # Default Schedule - Stop if idle after 7 PM (19*60)
+        },
+        "thursday": {
+            "start": 480,  # Default Schedule - Start 8 AM (8*60)
+            "stop": 1140,  # Default Schedule - Stop if idle after 7 PM (19*60)
+        },
+        "friday": {
+            "start": 480,  # Default Schedule - Start 8 AM (8*60)
+            "stop": 1140,  # Default Schedule - Stop if idle after 7 PM (19*60)
+        },
+        "saturday": {
+            "start": 0,  # Default Schedule - Stopped all day
+            "stop": 0,  # Default Schedule - Stopped all day
+        },
+        "sunday": {
+            "start": 0,  # Default Schedule - Stopped all day
+            "stop": 0,  # Default Schedule - Stopped all day
         },
     }
-    #
-    # DCV server version to use for eVDI as fallback
-    # NOTE: While the download page version syntax is yyyy.a-b , this format must be yyyy.a.b to match how the
-    # the AMI strings are stored / searched. So '2023.1-16388' becomes '2023.1.16388' (dash turned to a dot)
-    DCV_AMI_VERSION = (
-        SocaConfig(key="/configuration/DCVDefaultVersion").get_value().get("message")
+
+    DCV_BASE_OS = {
+        "ubuntu2404": {
+            "family": "linux",
+            "friendly_name": "Ubuntu 24.04",
+            "visible": True,
+        },
+        "ubuntu2204": {
+            "family": "linux",
+            "friendly_name": "Ubuntu 22.04",
+            "visible": True,
+        },
+        "amazonlinux2": {
+            "family": "linux",
+            "friendly_name": "Amazon Linux 2",
+            "visible": True,
+        },
+        "rocky9": {
+            "family": "linux",
+            "friendly_name": "Rocky Linux 9",
+            "visible": True,
+        },
+        "rocky8": {
+            "family": "linux",
+            "friendly_name": "Rocky Linux 8",
+            "visible": True,
+        },
+        "rhel9": {
+            "family": "linux",
+            "friendly_name": "Red Hat Enterprise Linux 9",
+            "visible": True,
+        },
+        "rhel8": {
+            "family": "linux",
+            "friendly_name": "Red Hat Enterprise Linux 8",
+            "visible": True,
+        },
+        "rhel7": {
+            "family": "linux",
+            "friendly_name": "Red Hat Enterprise Linux 7",
+            "visible": False,
+        },
+        "centos7": {"family": "linux", "friendly_name": "CentOS 7", "visible": False},
+        "windows2019": {
+            "family": "windows",
+            "friendly_name": "Windows Server 2019",
+            "visible": True,
+        },
+        "windows2022": {
+            "family": "windows",
+            "friendly_name": "Windows Server 2022",
+            "visible": True,
+        },
+        "windows2025": {
+            "family": "windows",
+            "friendly_name": "Windows Server 2025",
+            "visible": True,
+        },
+    }
+
+    # Default Instance Type for each AMI
+    DCV_DEFAULT_AMI_INSTANCE_TYPES = (
+        SocaConfig(key="/configuration/DCVAllowedInstances")
+        .get_value(return_as=list)
+        .get("message")
     )
 
     # User Directory
@@ -204,6 +277,7 @@ class Config(object):
         .get_value()
         .get("message")
     )
+
     # To identify group/user, group associated to "user" will be named "user<GROUP_NAME_SUFFIX>"
     DIRECTORY_GROUP_NAME_SUFFIX = "socagroup"
     # Fetch Directory service account
@@ -227,6 +301,10 @@ class Config(object):
 
     # SSH
     SSH_PRIVATE_KEY_LOCATION = "tmp/ssh"
+
+    # Amazon Q for Business
+    # Add your Amazon Q for Business URL (ex: https://t5i9puav.chat.qbusiness.us-west-2.on.aws/) to display Amazon Q logo in the horizontal bar
+    AMAZON_Q_BUSINESS_URL = False
 
 
 app_config = Config()

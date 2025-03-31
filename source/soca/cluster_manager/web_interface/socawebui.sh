@@ -19,14 +19,15 @@
 ##
 
 source /etc/environment
-UWSGI_BIN="/apps/soca/${SOCA_CLUSTER_ID}/python/latest/bin/uwsgi"
+source /opt/soca/${SOCA_CLUSTER_ID}/python/latest/soca_python.env
+UWSGI_BIN="/opt/soca/${SOCA_CLUSTER_ID}/python/latest/bin/uwsgi"
 UWSGI_BIND='0.0.0.0:8443'
 
 UWSGI_PROCESSES=5
 UWSGI_THREADS=$(nproc)
 UWSGI_FILE='wsgi.py'
 BUFFER_SIZE=32768
-export PYTHONPATH=/apps/soca/${SOCA_CLUSTER_ID}/cluster_manager/
+export PYTHONPATH=/opt/soca/${SOCA_CLUSTER_ID}/cluster_manager/
 #
 # Select UWSGI options to build the command-line
 #
@@ -115,7 +116,7 @@ case "$1" in
         export SOCA_FLASK_API_ROOT_KEY=$(cat keys/admin_api_key.txt)
 
         # Launching process
-        $UWSGI_BIN --master --https $UWSGI_BIND,cert.crt,cert.key --wsgi-file $UWSGI_FILE --processes $UWSGI_PROCESSES --threads $UWSGI_THREADS --daemonize logs/uwsgi.log --enable-threads --buffer-size $BUFFER_SIZE --check-static /apps/soca/${SOCA_CLUSTER_ID}/cluster_manager/web_interface/static ${UWSGI_OPTIONS}
+        $UWSGI_BIN --master --https $UWSGI_BIND,cert.crt,cert.key --wsgi-file $UWSGI_FILE --processes $UWSGI_PROCESSES --log-maxsize 104857600 --threads $UWSGI_THREADS --daemonize logs/uwsgi.log --enable-threads --buffer-size $BUFFER_SIZE --check-static /opt/soca/${SOCA_CLUSTER_ID}/cluster_manager/web_interface/static  --check-static /opt/soca/${SOCA_CLUSTER_ID}/cluster_manager/web_interface/templates ${UWSGI_OPTIONS}
 
     else
        echo 'SOCA is already running with PIDs: ' $status_check_process

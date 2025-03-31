@@ -9,13 +9,30 @@
 
 log_info "Setup Start Date: $(date)"
 
+# Install Required System library/packages
+{% include "templates/linux/system_packages/install_required_packages.sh.j2" %}
+
+# Create /opt/soca/{{ context.get('/configuration/ClusterId') }}/ if needed
+mkdir -p /opt/soca/{{ context.get('/configuration/ClusterId') }}/
+
+{% if context.get("/configuration/BaseOS") in ("ubuntu2204", "ubuntu2404") %}
+  log_info "Disabling auto-update on Ubuntu"
+  sed -ie 's/"1"/"0"/g' /etc/apt/apt.conf.d/20auto-upgrades
+{% endif %}
+
 # Add cache client functions (Cache CLI is automatically installed if needed)
 {% include "templates/linux/cache_client.sh.j2" %}
 
 # Adding additional SOCA Environment Variables
+set_environment_variable "AWS_DEFAULT_REGION" "{{ context.get("/configuration/Region") }}"
+set_environment_variable "SOCA_BOOTSTRAP_ASSETS_FOLDER" "/root/soca_bootstrap_$(instance_id)"
+set_environment_variable "SOCA_BOOTSTRAP_LOGS_FOLDER" "{{ context.get("/job/BootstrapPath") }}/$(hostname -s)"
 set_environment_variable "SOCA_NODE_TYPE" "{{ context.get("/job/NodeType") }}"
 set_environment_variable "SOCA_VERSION" "{{ context.get("/configuration/Version") }}"
 set_environment_variable "SOCA_INSTALL_BUCKET" "{{ context.get("/configuration/S3Bucket") }}"
+set_environment_variable "SOCA_CONTROLLER_IP" "{{ context.get("/configuration/ControllerPrivateIP") }}"
+set_environment_variable "SOCA_HOME" "/opt/soca/{{ context.get("/configuration/ClusterId") }}"
+set_environment_variable "SOCA_BOOTSTRAP_LOGS" "/apps/soca/{{ context.get("/configuration/ClusterId") }}/shared/logs/bootstrap/"
 
 {% if context.get("/job/NodeType") == "compute_node" %}
   # Added via cluster_manager/orchestrator/cloudformation_builder.py
@@ -27,6 +44,7 @@ set_environment_variable "SOCA_INSTALL_BUCKET" "{{ context.get("/configuration/S
 {% elif context.get("/job/NodeType") == "dcv_node" %}
   # Added via cluster_manager/web_interface/api/v1/dcv/create_linux_desktop.py
   set_environment_variable "SOCA_DCV_SESSION_OWNER" "{{ context.get("/dcv/SessionOwner") }}"
+  # Set the SOCA_DCV_SESSION_ID (same name on Windows). This is used by the scheduled task to retrieve the DCV Session ID
   set_environment_variable "SOCA_DCV_SESSION_ID" "{{ context.get("/dcv/SessionId") }}"
   set_environment_variable "SOCA_DCV_SESSION_NAME" "{{ context.get("/dcv/SessionName") }}"
 {% elif context.get("/job/NodeType") == "login_node" %}
@@ -39,16 +57,7 @@ systemctl stop pbs || echo "PBS service not found yet, ignoring"
 # Install jq
 {% include "templates/linux/jq.sh.j2" %}
 
-{% set PATH = '/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin:/opt/pbs/bin:/opt/pbs/sbin:/opt/pbs/bin:/apps/soca/' ~ context.get("/configuration/ClusterId") %}
-
-# Install awscliv2
-{% include "templates/linux/awscli.sh.j2" %}
-
-# Install AWS SSM Agent
-{% include "templates/linux/aws_ssm_agent.sh.j2" %}
-
-# Install Required System library/packages
-{% include "templates/linux/system_packages/install_required_packages.sh.j2" %}
+{% set PATH = '/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin:/opt/pbs/bin:/opt/pbs/sbin:/opt/pbs/bin:/opt/soca/' ~ context.get("/configuration/ClusterId") %}
 
 if [[ $(rpm -qa kernel | wc -l) -gt 1 ]]; then
     set_reboot_required "Kernel was updated during package install"
@@ -65,6 +74,9 @@ fi
 
 # Configure /etc/hosts
 {% include "templates/linux/configure_hosts.sh.j2" %}
+
+# Install/Load SOCA Python
+{% include "templates/linux/soca_python.sh.j2" %}
 
 # Install OpenPBS if needed
 {% include "templates/linux/scheduler/openpbs/install.sh.j2" %}
@@ -110,19 +122,18 @@ log_info "Setup End Date: $(date)"
 REBOOT_REQUIRED=$(get_reboot_required)
 {% if context.get("/job/NodeType") in ("dcv_node", "compute_node") %}
 if [[ "${REBOOT_REQUIRED}" == "yes" ]]; then
-  echo "@reboot /bin/bash "{{ context.get('/job/BootstrapPath') }}/03_setup_post_reboot.sh" >> ${SOCA_BOOTSTRAP_LOGS_FOLDER}/03_setup_post_reboot.log 2>&1" | crontab -
+  echo "@reboot /bin/bash ${SOCA_BOOTSTRAP_ASSETS_FOLDER}/03_setup_post_reboot.sh >> ${SOCA_BOOTSTRAP_LOGS_FOLDER}/03_setup_post_reboot.log 2>&1" | crontab -
   log_info "Final bootstrap sequence will be executed post reboot, verifying crontab"
   crontab -l
   log_info "Rebooting the machine"
   reboot
 else
   log_info "No reboot needed, continuing bootstrap sequence"
-  /bin/bash "{{ context.get('/job/BootstrapPath') }}/03_setup_post_reboot.sh" >> ${SOCA_BOOTSTRAP_LOGS_FOLDER}/03_setup_post_reboot.log 2>&1
+  /bin/bash "${SOCA_BOOTSTRAP_ASSETS_FOLDER}/03_setup_post_reboot.sh" >> ${SOCA_BOOTSTRAP_LOGS_FOLDER}/03_setup_post_reboot.log 2>&1
 fi
+
 {% else %}
  log_info "No post_reboot customizations for login_nodes or controller host"
-
- {% include "compute_node/04_setup_user_customization.sh.j2" %}
  {% include "templates/linux/motd.sh.j2" %}
  if [[ "${REBOOT_REQUIRED}" == "yes" ]]; then
    log_info "Rebooting the machine"

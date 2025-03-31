@@ -88,13 +88,13 @@ class SocaCastEngine:
                         # As a safety measure we use ast.literal_eval() as fail over
                         try:
                             return SocaResponse(success=True, message=dict(self._data))
-                        except Exception as e:
+                        except Exception as _e:
                             _dict_cast = ast.literal_eval(self._data)
                             if isinstance(_dict_cast, dict):
                                 return SocaResponse(success=True, message=_dict_cast)
                             else:
                                 return SocaError.CAST_ERROR(
-                                    helper=f"Unable to cast {self._data} as dict because of e"
+                                    helper=f"Unable to cast {self._data} as dict because of {_e}"
                                 )
                     elif expected_type == list:
                         _list_cast = ast.literal_eval(self._data)

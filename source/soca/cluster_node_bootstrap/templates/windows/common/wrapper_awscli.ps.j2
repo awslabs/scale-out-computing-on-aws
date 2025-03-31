@@ -1,0 +1,30 @@
+
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# Begin - Invoke AwsCLI
+function Invoke-SOCAAwsCli {
+    param(
+        [Parameter(Mandatory = $true, Position = 0, ValueFromRemainingArguments = $true)]
+        [String[]]$Args
+    )
+
+    $aws = Get-Command aws -ErrorAction SilentlyContinue
+
+    if (-not $aws) {
+        Exit-Fail -Message "AWS CLI not found. Please install AWS CLI."
+    }
+
+    $region = "{{ context.get('/configuration/Region') }}"
+
+   # Check if --region is in the arguments
+    if ($Args -contains '--region') {
+        $awsCommand = $Args
+    } else {
+        $awsCommand = $Args + @('--region', $region)
+    }
+
+    # Execute the command using the call operator and splatting
+    & "$($aws.Path)" @awsCommand
+}
+# End - Invoke AwsCLI

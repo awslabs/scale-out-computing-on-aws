@@ -1,0 +1,42 @@
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# Begin - Install DCV Server
+function Install-DCVServer {
+
+    if (-not (Get-Service -Name "dcvserver" -ErrorAction SilentlyContinue)) {
+        Log-Info -Message "Installing DCVServer from {{ context.get("/system/dcv/windows/url") }}"
+
+        # Check and install Visual C++ prerequisite
+        $InstalledSoftware = (Get-ItemProperty -Path HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*) | Where-Object {$_.DisplayName -like "Microsoft Visual C++ 2022*"}
+        if($InstalledSoftware.count -eq 0) {
+            Log-Info -Message "Microsoft Visual C++ 2022 not found, installing it ..."
+            Invoke-WebRequest -uri https://aka.ms/vs/17/release/vc_redist.x64.exe -OutFile "$SOCABootstrapAssetsFolder\vc_redist_64.exe"
+            & "$SOCABootstrapAssetsFolder\vc_redist_64.exe" /install /passive /norestart
+        }
+
+        # Download Package(s)
+        Invoke-WebRequest -uri "{{ context.get("/system/dcv/windows/url") }}" -OutFile "$SOCABootstrapAssetsFolder\DCVServer.msi"
+        $checksum = Get-FileHash -Path "$SOCABootstrapAssetsFolder\DCVServer.msi" -Algorithm SHA256
+
+        # Validate DCV hash
+        if (! $checksum.Hash -eq "{{ context.get("/system/dcv/windows/sha256") | upper }}" ) {
+            Exit-Fail "DCV SHA256 hash ${checksum} does NOT match the expected value of {{ context.get("/system/dcv/windows/sha256") }}."
+        }
+
+        # Install DCV with all packages
+        Start-Process "msiexec.exe" -ArgumentList "/i $SOCABootstrapAssetsFolder\DCVServer.msi ADDLOCAL=ALL /qn /norestart /l*v dcv_install_msi.log" -Wait
+
+        while (-not(Get-Service dcvserver -ErrorAction SilentlyContinue)) { Start-Sleep -Milliseconds 250 }
+
+        # dcvserver will be automatically started after reboot
+        Set-Service -Name "dcvserver" -StartupType Automatic
+        Log-Info -Message "DCV installed successfully"
+
+    } else {
+        Log-Info -Message "DCV is already installed on this machine, skipping DCV install ..."
+    }
+
+
+}
+Install-DCVServer

@@ -14,32 +14,20 @@
 import time
 import logging
 from utils.aws.ssm_parameter_store import SocaConfig
-from dateutil.parser import parse
-from datetime import datetime
 import utils.aws.boto3_wrapper as utils_boto3
 from utils.cache import SocaCacheClient
-from models import AmiList
+from models import SoftwareStacks, VirtualDesktopSessions
 import random
 from botocore.exceptions import ClientError
 from utils.error import SocaError
-from requests import get
+import boto3
 import config
-from flask import request
+import botocore
+import fnmatch
+from utils.response import SocaResponse
 
 client_ec2 = utils_boto3.get_boto(service_name="ec2").message
 logger = logging.getLogger("soca_logger")
-
-
-def validate_ec2_dcv_image(os: str, image_id: str) -> bool:
-    image_exist = (
-        AmiList.query.filter(AmiList.is_active == True, AmiList.ami_id == image_id)
-        .filter(AmiList.ami_type == os)
-        .first()
-    )
-    if image_exist:
-        return True
-    else:
-        return False
 
 
 def can_launch_instance(launch_parameters: dict) -> dict:
@@ -84,33 +72,35 @@ def can_launch_instance(launch_parameters: dict) -> dict:
             return {"success": True, "message": None}
         else:
             return SocaError.AWS_API_ERROR(
-                service_name="cloudformation",
-                helper=f"Dry run failed. Unable to launch capacity due to: {err}",
+                service_name="ec2",
+                helper=f"Unable to launch capacity: {err.response['Error']}",
             )
 
 
-def session_already_exist(session_number: int, os: str) -> bool:
-    user_sessions = {}
-    get_desktops = get(
-        config.Config.FLASK_ENDPOINT + "/api/dcv/desktops",
-        headers={
-            "X-SOCA-USER": request.headers.get("X-SOCA-USER"),
-            "X-SOCA-TOKEN": request.headers.get("X-SOCA-TOKEN"),
-        },
-        params={
-            "os": os,
-            "is_active": "true",
-            "session_number": str(session_number),
-        },
-        verify=False,  # nosec
-    )
-    if get_desktops.status_code == 200:
-        user_sessions = get_desktops.json()["message"]
-        user_sessions = {
-            int(k): v for k, v in user_sessions.items()
-        }  # convert all keys (session number) back to integer
+def max_concurrent_desktop_limit_reached(os_family: str, session_owner: str) -> bool:
+    """
+    Return True if the user can launch a virtual desktop, assuming user has not already reached the max number of VDI associated to his/her profile
+    """
 
-    if int(session_number) in user_sessions.keys():
+    logger.debug(
+        f"Validating if {session_owner} has not reached the number of max session"
+    )
+
+    _max_dcv_session_count = (
+        config.Config.DCV_LINUX_SESSION_COUNT
+        if os_family == "linux"
+        else config.Config.DCV_WINDOWS_SESSION_COUNT
+    )
+    logger.debug(f"Max DCV Session Count: {_max_dcv_session_count} for {os_family}")
+
+    _find_live_session = VirtualDesktopSessions.query.filter(
+        VirtualDesktopSessions.is_active == True,
+        VirtualDesktopSessions.os_family == os_family,
+    ).count()
+
+    logger.debug(f"Found {_find_live_session} active session(s) for {os_family}")
+
+    if _find_live_session >= _max_dcv_session_count:
         return True
     else:
         return False
@@ -235,138 +225,56 @@ def _generate_allowed_instances_list_aws_api() -> list:
     return sorted(_allowed_list)
 
 
-def generate_default_ami_linux() -> dict:
-    logger.debug(f"Generating _generate_default_ami_linux list")
-    _unsupported_os = ["rhel7", "centos7"]  # eol
+def generate_default_dcv_amis() -> dict:
+    logger.debug(f"Generating generate_default_dcv_amis list")
+
     # Retrieve CustomAMIMap
     _get_all_soca_base_os = (
         SocaConfig(key="/configuration/CustomAMIMap")
         .get_value(return_as=dict)
         .get("message")
     )
-    # Remove references to unsupported/EOL OS
-    for arch in _get_all_soca_base_os:
-        for _os in _unsupported_os:
-            if _os in _get_all_soca_base_os[arch].keys():
-                del _get_all_soca_base_os[arch][_os]
+    # Remove Empty
+    _get_non_empty_soca_base_os = {
+        arch: {k: v for k, v in ami_dict.items() if v}
+        for arch, ami_dict in _get_all_soca_base_os.items()
+    }
 
-    return _get_all_soca_base_os
+    _supported_dcv_base_os = config.Config.DCV_BASE_OS.keys()
+    for arch in _get_non_empty_soca_base_os:
+        distros_to_remove = []
+
+        for _distro in _get_non_empty_soca_base_os[arch].keys():
+            if _distro not in _supported_dcv_base_os:
+                logger.debug(
+                    f"Removing {_distro} from the list of default DCV AMIs as it is not supported"
+                )
+                distros_to_remove.append(_distro)
+
+        # Remove after iteration
+        for _distro in distros_to_remove:
+            del _get_non_empty_soca_base_os[arch][_distro]
+
+    return _get_non_empty_soca_base_os
 
 
-def resolve_windows_dcv_ami_id(
-    region: str, owners: list[str], instance_type: str, version: str
-) -> str:
+def get_arch_for_instance_type(instancetype: str) -> str:
     """
-    Determine the best Windows DCV AMI ID to use based on the instance type and DCV version
-    :param region: Region to use
-    :param owners: A list of strings of the allowed AWS Account IDs / owners for the returned image (e.g. vendor supplied)
-    :param instance_type: Instance type to use
-    :param version: DCV version to use in AMI dotted format (e.g. 2023.1.1234)
-    :return: DCV AMI ID to use for the specified instance type and DCV version. Returns an empty string if no AMI is found.
+    Return the architecture of the given instance type
     """
-    logger.debug(
-        f"Trying to resolve the best Windows DCV AMI in region {region} for DCV version {version} running on instance {instance_type} owned by account {owners}"
-    )
-    _found_ami_id: str = ""
+    logger.debug(f"Retrieving architecture for instance type: {instancetype}")
+    _found_arch = None
+    _resp = client_ec2.describe_instance_types(InstanceTypes=[instancetype])
+    _instance_info = _resp.get("InstanceTypes", {})
+    for _i in _instance_info:
+        _instance_name = _i.get("InstanceType", None)
+        # This shouldn't happen with an exact-match search
+        if _instance_name != instancetype:
+            continue
 
-    if len(owners) == 0:
-        logger.warning(
-            f"No owners specified for DCV AMI search. Reverting to defaults of [877902723034]"
-        )
-        # TODO - This should also include the local account number?  Move this magic number someplace else
-        owners = ["877902723034"]
+        _proc_info = _i.get("ProcessorInfo", {})
+        if _proc_info:
+            _arch = sorted(_proc_info.get("SupportedArchitectures", []))
+            _found_arch = _arch[0]
 
-    # Build up a search string
-    _search_string: str = f"DCV-Windows-{version}"
-
-    # Within each version there are specific AMIs depending on the underlying GPU hardware
-    # TODO - This should eventually make use of proper InstanceType attributes when they are cached and available
-    # TODO - For now - we will simply look at the name
-    if instance_type.startswith("g") or instance_type.startswith("p"):
-        _instance_family: str = instance_type.split(".")[0]
-        if "a" in _instance_family:
-            # AMD GPU
-            logger.debug(f"AMD GPU detected by instance name")
-            _search_string += "-AMD"
-        else:
-            # NVIDIA GPU
-            logger.debug(f"NVIDIA GPU detected by instance name")
-            _search_string += (
-                "-NVIDIA"  # TODO - Avoid the 'NVIDIA-gaming-<version>' AMI
-            )
-    else:
-        # Non-GPU
-        logger.debug(f"No Hardware GPU detected by instance name")
-        _search_string += "-DOD"
-
-    _search_string += "*"
-    if logger.isEnabledFor(logging.DEBUG):
-        logger.debug(f"Using a final AMI search string of {_search_string}")
-
-    # Since we may still get multiple responses - order them by the CreationDate for the most recent one
-    try:
-        ec2_paginator = client_ec2.get_paginator("describe_images")
-        ec2_iterator = ec2_paginator.paginate(
-            ExecutableUsers=["all"],
-            Owners=owners,
-            Filters=[
-                {"Name": "name", "Values": [_search_string]},
-                {
-                    "Name": "architecture",
-                    "Values": [
-                        "x86_64"
-                    ],  # For the moment Windows only support x86_64 arch
-                },
-            ],
-        )
-
-        _best_ami_id: str = ""
-        _best_ami_date: datetime = datetime.min
-
-        for _page in ec2_iterator:
-            for _image in _page.get("Images", []):
-                if logger.isEnabledFor(logging.DEBUG):
-                    logger.debug(f"Found potential AMI entry: {_image}")
-
-                _image_id: str = _image.get("ImageId", "")
-                _image_name: str = _image.get("Name", "")
-                _image_date: datetime = parse(_image.get("CreationDate"))
-
-                if _image_id == "":
-                    logger.error(f"Invalid AMI entry: {_image}")
-                    continue
-
-                # TODO - Configurable?
-                if "gaming" in _image_name.lower():
-                    logger.debug(
-                        f"Skipping NVIDIA gaming AMI: {_image_id}, Image Name: {_image_name}"
-                    )
-                    continue
-
-                if _best_ami_id == "":
-                    logger.debug(f"First AMI {_image_id} ({_image_date})")
-                    _best_ami_id = _image_id
-                    _best_ami_date = _image_date
-                    continue
-
-                # logger.debug(f"Comparing entry for Existing: {existing_ami_date} - New {ami_date}")
-                if _image_date > _best_ami_date:
-                    logger.debug(
-                        f"Replacement AMI entry due to CreationDate: {_image_id} ({_image_date})  - Old: {_best_ami_id} ({_best_ami_date})"
-                    )
-                    _best_ami_id = _image_id
-                    _best_ami_date = _image_date
-                else:
-                    # Our existing entry is better
-                    pass
-
-    except Exception as _e:
-        logger.error(
-            f"Error obtaining Windows DCV AMI for region {region} - Version {version} . Search_String: {_search_string} - Error: {_e}"
-        )
-        return ""
-
-    logger.info(
-        f"Returning best Windows DCV AMI ID for region: {region}, Version: {version}, Search_String: {_search_string} - AMI: {_best_ami_id} ({_best_ami_date})"
-    )
-    return _best_ami_id
+    return _found_arch

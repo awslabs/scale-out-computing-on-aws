@@ -2,17 +2,25 @@
 # SPDX-License-Identifier: Apache-2.0
 
 # Begin: Disable SE Linux
-{% if context.get("/configuration/BaseOS") in ("amazonlinux2", "amazonlinux2023", "centos7", "rhel7", "rhel8", "rhel9", "rocky8", "rocky9") %}
 function disable_selinux () {
-  log_info "Disable SELinux"
-  if ! sestatus | grep -q "disabled"; then
-    # disables selinux for current session
-    sestatus 0
-    # reboot is required to apply this change permanently. ensure reboot is the last line called from userdata.
-    sed -i 's/SELINUX=enforcing/SELINUX=disabled/g' /etc/selinux/config
-    set_reboot_required "Disable SE Linux"
-  fi
+  {% if context.get("/configuration/BaseOS") in ("ubuntu2204", "ubuntu2404") %}
+    # Ubuntu uses AppArmor and not SELinux
+    log_info "Disable AppArmor on Ubuntu"
+    if systemctl is-active --quiet apparmor; then
+      systemctl stop apparmor
+      systemctl disable apparmor
+    fi
+
+  {% else %}
+    log_info "Disable SELinux RedHat based distributions"
+    if ! sestatus | grep -q "disabled"; then
+      # disables selinux for current session
+      sestatus 0
+      # reboot is required to apply this change permanently. ensure reboot is the last line called from userdata.
+      sed -i 's/SELINUX=enforcing/SELINUX=disabled/g' /etc/selinux/config
+      set_reboot_required "Disable SE Linux"
+    fi
+  {% endif %}
 }
 disable_selinux
-{% endif %}
 # End: Disable SE Linux

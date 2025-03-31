@@ -14,6 +14,10 @@
                 "arn:%%AWS_PARTITION%%:s3:::nvidia-gaming-drivers",
                 "arn:%%AWS_PARTITION%%:s3:::ec2-amd-linux-drivers/*",
                 "arn:%%AWS_PARTITION%%:s3:::ec2-amd-linux-drivers",
+                "arn:%%AWS_PARTITION%%:s3:::ec2-amd-windows-drivers",
+                "arn:%%AWS_PARTITION%%:s3:::ec2-amd-windows-drivers/*",
+                "arn:%%AWS_PARTITION%%:s3:::ec2-windows-nvidia-drivers",
+                "arn:%%AWS_PARTITION%%:s3:::ec2-windows-nvidia-drivers/*",
                 "arn:%%AWS_PARTITION%%:s3:::%%BUCKET%%/*",
                 "arn:%%AWS_PARTITION%%:s3:::%%BUCKET%%"
             ],
@@ -43,6 +47,7 @@
                 "ec2:DescribeVolumes",
                 "ec2:DescribeNetworkInterfaces",
                 "ec2:DescribeInstanceTypes",
+                "ec2:DescribeInstances",
                 "fsx:CreateDataRepositoryTask",
                 "fsx:DescribeFileSystems",
                 "fsx:DescribeVolumes",

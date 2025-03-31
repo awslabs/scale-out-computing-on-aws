@@ -7,6 +7,7 @@ from utils.aws.secrets_manager import SocaSecret
 import utils.aws.boto3_wrapper as utils_boto3
 from utils.error import SocaError
 from utils.response import SocaResponse
+from utils.cast import SocaCastEngine
 from typing import Optional
 import os
 from cachetools import TTLCache, cached
@@ -17,9 +18,7 @@ logger = logging.getLogger("soca_logger")
 class SocaCacheClient:
     def __init__(
         self,
-        cache_key_prefix: Optional[
-            str
-        ] = f"/soca/{os.environ.get('SOCA_CLUSTER_ID')}/",
+        cache_key_prefix: Optional[str] = f"/soca/{os.environ.get('SOCA_CLUSTER_ID')}/",
         is_admin: Optional[bool] = False,
     ):
         self.cache_key_prefix = cache_key_prefix
@@ -27,7 +26,9 @@ class SocaCacheClient:
         logger.debug(f"Building CacheClient for: {self.cache_config}")
         self.cache_client = self.cache_config.get("cache_client")
         self.cache_info = self.cache_config.get("cache_info")
-        self.redis = True if self.cache_info.get("engine") in {"valkey", "redis"} else False
+        self.redis = (
+            True if self.cache_info.get("engine") in {"valkey", "redis"} else False
+        )
         self.ttl_long = self.cache_info.get("ttl/long")
         self.ttl_short = self.cache_info.get("ttl/short")
 
@@ -48,7 +49,9 @@ class SocaCacheClient:
 
     def is_enabled(self):
         logger.debug("Checking if cache is enabled")
-        if self.cache_info.get("enabled"):
+        _is_enabled = SocaCastEngine(data=self.cache_info.get("enabled")).cast_as(bool)
+        # Validate cache_info.enabled is a valid bool and its value is True
+        if _is_enabled.get("success") is True and _is_enabled.get("message") is True:
             return SocaResponse(success=True, message="Cache is enabled")
         else:
             return SocaResponse(
@@ -221,7 +224,10 @@ def get_cache_config(is_admin: bool = False) -> dict:
         for _p in _page.get("Parameters", []):
             _cache_info[_p.get("Name").replace(_ssm_key_path, "")] = _p.get("Value")
 
-    if _cache_info.get("enabled"):
+    if (
+        SocaCastEngine(data=_cache_info.get("enabled")).cast_as(bool).get("message")
+        is True
+    ):
         _get_credentials = (
             SocaSecret(secret_id="CacheAdminUser" if is_admin else "CacheReadOnlyUser")
             .get_secret()

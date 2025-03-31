@@ -19,8 +19,15 @@
 
 {% include "templates/linux/common/setup_environment_file.sh.j2" %}
 
-{% set PATH = '/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin:/opt/pbs/bin:/opt/pbs/sbin:/apps/soca/' ~ context.get("/configuration/ClusterId") %}
+{% set PATH = '/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin:/opt/pbs/bin:/opt/pbs/sbin:/opt/soca/' ~ context.get("/configuration/ClusterId") %}
 export PATH={{ PATH }}:${PATH}
 
 # Source environment
 source /etc/environment
+
+# Source SOCA_PYTHON if exist
+SOCA_PYTHON_ENV_PATH="/opt/soca/{{ context.get("/configuration/ClusterId") }}/python/latest/soca_python.env"
+
+if [[ -f "${SOCA_PYTHON_ENV_PATH}" ]]; then
+    source "${SOCA_PYTHON_ENV_PATH}"
+fi

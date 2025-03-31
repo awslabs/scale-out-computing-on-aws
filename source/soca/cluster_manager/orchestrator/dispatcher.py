@@ -31,7 +31,7 @@ import yaml
 from botocore.exceptions import ClientError
 
 sys.path.append(
-    f"/apps/soca/{os.environ.get('SOCA_CLUSTER_ID', 'SOCA_CONFIGURATION_NOT_FOUND')}/cluster_manager"
+    f"/opt/soca/{os.environ.get('SOCA_CLUSTER_ID', 'SOCA_CONFIGURATION_NOT_FOUND')}/cluster_manager"
 )
 from utils.aws.boto3_wrapper import get_boto
 import add_nodes
@@ -47,7 +47,7 @@ def run_command(cmd, cmd_type: str):
             print("Command not Defined")
             exit(1)
         return command
-    except subprocess.CalledProcessError as e:
+    except subprocess.CalledProcessError as _e:
         return ""
 
 
@@ -168,9 +168,9 @@ def fair_share_score(queued_jobs, running_jobs, queue):
             # job_bonus_score = required_resource * (c1 * ((int(now) - int(timestamp_submission))/3600/24) ** c2)
 
             # Linear
-            c1 = 1
-            c2 = 0
-            job_bonus_score = 1
+            c1: float = 1
+            c2: float = 0
+            job_bonus_score: float = 1
 
             logpush(
                 "Job "
@@ -233,7 +233,7 @@ def get_jobs_infos(queue):
             )
 
         return json.loads(sanitize_input)
-    except Exception as e:
+    except Exception as _e:
         # no job
         return {}
 
@@ -266,10 +266,8 @@ def check_available_licenses(commands, license_to_check):
                 output[pbs_resource] = int(available_licenses.rstrip())
             except subprocess.CalledProcessError as e:
                 logpush(
-                    "command '{}' return with error (code {}): {}".format(
-                        e.cmd, e.returncode, e.output
-                    ),
-                    "error",
+                    message=f"command '{e.cmd}' return with error (code {e.returncode}): {e.output}",
+                    status="error",
                 )
                 exit(1)
 
@@ -441,7 +439,7 @@ def capacity_being_provisioned(stack_id, job_id, job_select_resource, scaling_mo
         else:
             pass
 
-    except Exception as err:
+    except Exception as _err:
         exc_type, exc_obj, exc_tb = sys.exc_info()
         fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
         # Stack does not exist (job could not start for whatever reason but compute has been provisioned
@@ -551,9 +549,7 @@ if __name__ == "__main__":
         sys.exit(1)
 
     if "SOCA_CLUSTER_ID" not in os.environ:
-        print(
-            "SOCA_CLUSTER_ID not found, make sure to source /etc/environment first"
-        )
+        print("SOCA_CLUSTER_ID not found, make sure to source /etc/environment first")
         sys.exit(1)
 
     # Begin Pre-requisite
@@ -563,14 +559,13 @@ if __name__ == "__main__":
         "qalter": "/opt/pbs/bin/qalter",
         "qdel": "/opt/pbs/bin/qdel",
         "pbsnodes": "/opt/pbs/bin/pbsnodes",
-        "socaqstat": "/apps/soca/"
+        "socaqstat": "/opt/soca/"
         + os.environ["SOCA_CLUSTER_ID"]
         + "/cluster_manager/orchestrator/socaqstat.py",
-        "python": "/apps/soca/"
+        "python": "/opt/soca/"
         + os.environ["SOCA_CLUSTER_ID"]
         + "/python/latest/bin/python3",
     }
-
     # AWS Clients
     ses = get_boto(service_name="ses").message
     ec2 = get_boto(service_name="ec2").message
@@ -608,7 +603,7 @@ if __name__ == "__main__":
 
     # Retrieve Default Queue parameters
     queue_settings_file = (
-        "/apps/soca/"
+        "/opt/soca/"
         + os.environ["SOCA_CLUSTER_ID"]
         + "/cluster_manager/orchestrator/settings/queue_mapping.yml"
     )
@@ -617,8 +612,8 @@ if __name__ == "__main__":
         docs = yaml.safe_load_all(stream_resource_mapping)
         for doc in docs:
             for items in doc.values():
-                for type, info in items.items():
-                    if type == queue_type:
+                for _type, info in items.items():
+                    if _type == queue_type:
                         queues = info["queues"]
                         for parameter_key, parameter_value in info.items():
                             if parameter_key in queues_only_parameters:
@@ -635,7 +630,7 @@ if __name__ == "__main__":
 
     # Generate FlexLM mapping
     license_mapping_file = (
-        "/apps/soca/"
+        "/opt/soca/"
         + os.environ["SOCA_CLUSTER_ID"]
         + "/cluster_manager/orchestrator/settings/licenses_mapping.yml"
     )
@@ -659,7 +654,7 @@ if __name__ == "__main__":
 
     for queue_name in queues:
         log_file = logging.FileHandler(
-            "/apps/soca/"
+            "/opt/soca/"
             + os.environ["SOCA_CLUSTER_ID"]
             + "/cluster_manager/orchestrator/logs/"
             + queue_name
@@ -855,9 +850,9 @@ if __name__ == "__main__":
                                 job_data["get_job_resource_list"]["select"],
                             )
                             if check_compute_unit:
-                                job_data["get_job_resource_list"][
-                                    "compute_node"
-                                ] = check_compute_unit.group(1)
+                                job_data["get_job_resource_list"]["compute_node"] = (
+                                    check_compute_unit.group(1)
+                                )
                                 try:
                                     if (
                                         capacity_being_provisioned(
@@ -897,9 +892,9 @@ if __name__ == "__main__":
                             # Add queue parameters to the job parameters
                             for queue_param in queue_parameter_values.keys():
                                 if queue_param not in job_parameter_values.keys():
-                                    job_parameter_values[
-                                        queue_param
-                                    ] = queue_parameter_values[queue_param]
+                                    job_parameter_values[queue_param] = (
+                                        queue_parameter_values[queue_param]
+                                    )
 
                             for res in job_required_resource:
                                 if res == "ncpus":
@@ -1092,9 +1087,9 @@ if __name__ == "__main__":
                                                 )
                                                 job_required_resource[res] = 0
 
-                                        job_parameter_values[
-                                            res
-                                        ] = job_required_resource[res]
+                                        job_parameter_values[res] = (
+                                            job_required_resource[res]
+                                        )
 
                                     else:
                                         logpush(
@@ -1103,18 +1098,16 @@ if __name__ == "__main__":
                                             + ". Creating new entry with value: "
                                             + str(job_required_resource[res])
                                         )
-                                        job_parameter_values[
-                                            res
-                                        ] = job_required_resource[res]
+                                        job_parameter_values[res] = (
+                                            job_required_resource[res]
+                                        )
 
                                 hash_cpu_ct += int(job_data["get_job_ncpus"]) * int(
                                     job_data["get_job_nodect"]
                                 )
                                 compute_unit = "job" + job_hash
                                 stack_id = (
-                                    os.environ["SOCA_CLUSTER_ID"]
-                                    + "-job-"
-                                    + job_hash
+                                    os.environ["SOCA_CLUSTER_ID"] + "-job-" + job_hash
                                 )
                                 # logpush(str(job_id) + " : compute_node=" + str(compute_unit) + " | stack_id=" +str(stack_id))
                                 select = (
@@ -1395,9 +1388,9 @@ if __name__ == "__main__":
                                     )
 
                                     # Adding extra parameters to job_parameter_values
-                                    job_parameter_values[
-                                        "desired_capacity"
-                                    ] = hash_cpu_ct
+                                    job_parameter_values["desired_capacity"] = (
+                                        hash_cpu_ct
+                                    )
                                     job_parameter_values["queue"] = queue_name
                                     job_parameter_values["job_id"] = job_hash
                                     job_parameter_values["job_name"] = job_data[
@@ -1410,19 +1403,19 @@ if __name__ == "__main__":
                                         "get_job_project"
                                     ]  # May not be true for all jobs in the hash to have the same project
                                     job_parameter_values["keep_forever"] = False
-                                    job_parameter_values[
-                                        "terminate_when_idle"
-                                    ] = job_data["get_job_terminate_when_idle"]
+                                    job_parameter_values["terminate_when_idle"] = (
+                                        job_data["get_job_terminate_when_idle"]
+                                    )
                                     job_parameter_values["instance_type"] = "+".join(
                                         instance_types
                                     )
                                     job_parameter_values["ht_support"] = job_data[
                                         "get_job_ht_support"
                                     ]
-                                    job_parameter_values[
-                                        "weighted_capacity"
-                                    ] = "+".join(
-                                        str(item) for item in weighted_capacity
+                                    job_parameter_values["weighted_capacity"] = (
+                                        "+".join(
+                                            str(item) for item in weighted_capacity
+                                        )
                                     )
 
                                     # create capacity
@@ -1518,9 +1511,9 @@ if __name__ == "__main__":
                         job_data["get_job_resource_list"]["select"],
                     )
                     if check_compute_unit:
-                        job_data["get_job_resource_list"][
-                            "compute_node"
-                        ] = check_compute_unit.group(1)
+                        job_data["get_job_resource_list"]["compute_node"] = (
+                            check_compute_unit.group(1)
+                        )
                         try:
                             if (
                                 capacity_being_provisioned(
@@ -1987,9 +1980,9 @@ if __name__ == "__main__":
                         if can_run is True:
                             for queue_param in queue_parameter_values.keys():
                                 if queue_param not in job_parameter_values.keys():
-                                    job_parameter_values[
-                                        queue_param
-                                    ] = queue_parameter_values[queue_param]
+                                    job_parameter_values[queue_param] = (
+                                        queue_parameter_values[queue_param]
+                                    )
 
                             # Checking for required parameters
                             if "instance_type" not in job_parameter_values.keys():
@@ -2058,9 +2051,9 @@ if __name__ == "__main__":
                             )
                             try:
                                 # Adding extra parameters to job_parameter_values
-                                job_parameter_values[
-                                    "desired_capacity"
-                                ] = desired_capacity
+                                job_parameter_values["desired_capacity"] = (
+                                    desired_capacity
+                                )
                                 job_parameter_values["queue"] = queue_name
                                 job_parameter_values["job_id"] = job_id
                                 job_parameter_values["job_name"] = job["get_job_name"]

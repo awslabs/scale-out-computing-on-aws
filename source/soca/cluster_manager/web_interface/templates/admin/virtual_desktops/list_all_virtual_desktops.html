@@ -1,0 +1,95 @@
+<!--
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: Apache-2.0
+-->
+
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    {% include 'common/header.html' %}
+</head>
+<body id="page-top">
+<div id="wrapper">
+    {% include 'common/vertical_menu_bar.html' %}
+    <div id="content-wrapper" class="d-flex flex-column">
+        <div id="content">
+            <br>
+            <div class="container-fluid">
+                {% include 'common/horizontal_menu_bar.html' %}
+                {% include 'common/flashed_messages.html' %}
+
+                <div class="col-md-12">
+                    <div class="card shadow mb-4">
+                        <div class="card-header py-3">
+                            <h6 class="m-0 font-weight-bold text-primary">List all active Virtual Desktops</h6>
+                        </div>
+                        <div class="card-body">
+                            <table id="allVirtualDesktopSessions" class="display" style="width:100%">
+                                <thead>
+                                    <tr>
+                                        <th>Owner</th>
+                                        <th>Session Name</th>
+                                        <th>Status</th>
+                                        <th>Operating System</th>
+                                        <th>Instance Type</th>
+                                        <th>Host</th>
+                                        <th>AMI ID</th>
+                                        <th>Software Stack</th>
+                                        <th>VDI Profile</th>
+                                        <th>Created On</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                {% for session_uuid, session_info in virtual_desktops.items() %}
+                                 <tr>
+                                    <td>{{session_info.session_owner}}</td>
+                                    <td>{{session_info.session_name}}</td>
+                                    <td> {% if session_info.session_state == "stopped" %}
+                                        <span class="badge rounded-pill bg-warning" style="color: black">stopped</span>
+                                        {% elif session_info.session_state == "pending" %}
+                                        <span class="badge rounded-pill bg-primary" style="color: white">pending</span>
+                                        {% elif session_info.session_state == "running" %}
+                                        <span class="badge rounded-pill bg-success" style="color: white">running</span>
+                                        {% elif session_info.session_state == "error" %}
+                                        <span class="badge rounded-pill bg-danger" style="color: white">error</span>
+                                        {%else %}
+                                        <span class="badge rounded-pill bg-secondary">{{session_info.session_state}}</span>
+                                        {% endif %}
+                                    </td>
+                                     <td>{{session_info.instance_base_os}}</td>
+                                      <td>{{session_info.instance_type}}</td>
+                                      <td>{{session_info.instance_private_ip}}</td>
+                                      <td>{{session_info.ami_id }}</td>
+                                      <td>{{session_info.software_stack }}</td>
+                                      <td>{{session_info.vdi_profile }}</td>
+                                      <td>{{session_info.created_on}}</td>
+                                 </tr>
+                                {% endfor %}
+
+                                </tbody>
+                            </table>
+
+                            <script>
+                                document.addEventListener("DOMContentLoaded", function() {
+                                    new DataTable("#allVirtualDesktopSessions");
+                                });
+                            </script>
+
+                        </div>
+                    </div>
+
+
+                    <a class="scroll-to-top rounded" href="#page-top">
+                        <i class="fas fa-angle-up"></i>
+                    </a>
+
+                {% include 'common/footer.html' %}
+
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+</body>
+</html>

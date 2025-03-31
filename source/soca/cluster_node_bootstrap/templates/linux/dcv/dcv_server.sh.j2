@@ -2,6 +2,8 @@
 # SPDX-License-Identifier: Apache-2.0
 
 # Begin: Install & Configure DCV Server
+# If GPU -> use console session
+# If no GPU -> use virtual session when possible, otherwise fallback to console session
 
 function install_dcv_server () {
 
@@ -12,7 +14,8 @@ function install_dcv_server () {
   local MACHINE=$(uname -m)
   local SERVER_HOSTNAME=$(hostname)
   local SERVER_HOSTNAME_ALT=$(echo $SERVER_HOSTNAME | cut -d. -f1)
-
+  local DCV_SESSION_TYPE
+  local DCV_START_COMMAND
 
   {% if context.get("/configuration/BaseOS") in ("amazonlinux2") %}
     {% set DCV_VERSION_FAMILY = "al2" %}
@@ -22,6 +25,10 @@ function install_dcv_server () {
     {% set DCV_VERSION_FAMILY = "el8" %}
   {% elif context.get("/configuration/BaseOS") in ("rhel9", "rocky9") %}
     {% set DCV_VERSION_FAMILY = "el9" %}
+  {% elif context.get("/configuration/BaseOS") == "ubuntu2204" %}
+    {% set DCV_VERSION_FAMILY = "ubuntu2204" %}
+  {% elif context.get("/configuration/BaseOS") == "ubuntu2404" %}
+    {% set DCV_VERSION_FAMILY = "ubuntu2404" %}
   {% else %}
     exit_fail "Unrecognized Base OS for DCV Server"
   {% endif %}
@@ -46,6 +53,22 @@ function install_dcv_server () {
   mkdir -p "${SOCA_BOOTSTRAP_ASSETS_FOLDER}/dcvserver"
   pushd "${SOCA_BOOTSTRAP_ASSETS_FOLDER}/dcvserver"
 
+  if [[ -n ${GPU_DETECTED} ]]; then
+    log_info "GPU Detected on this machine, skipping XDummy Driver and forcing DCV session type to console"
+    # Use Console on GPU instance for better performance
+    DCV_SESSION_TYPE="console"
+  else
+    log_info "No GPU detected on this machine"
+    {% if context.get("/configuration/BaseOS") in ("ubuntu2204", "ubuntu2404") %}
+      # Getting some weird Gnome incompatibility when using virtual session on Ubuntu
+      log_info "Ubuntu detected, using DCV session type: console"
+      DCV_SESSION_TYPE="console"
+    {% else %}
+      log_info "RHEL based instance detected, using DCV session type: virtual"
+      DCV_SESSION_TYPE="virtual"
+    {% endif %}
+  fi
+
   # Download and Install DCV (if not already there)
   if ! verify_package_installed "nice-dcv-server" && ! verify_package_installed "amazon-dcv-server"; then
     log_info "DCV Not found, Downloading + Installing DCV ..."
@@ -55,26 +78,58 @@ function install_dcv_server () {
     tar zxvf "dcv_installer_${DCV_VERSION}.tgz" --strip-components=1 -C .
 
     log_info "Installing DCV ..."
+    {% if context.get("/configuration/BaseOS") in ("centos7", "rhel7", "rhel8", "rhel9", "rocky8", "rocky9", "amazonlinux2")  %}
 
-    rpm -ivh nice-xdcv-*.${MACHINE}.rpm --nodeps
-    rpm -ivh nice-dcv-server-*.${MACHINE}.rpm --nodeps
-    rpm -ivh nice-dcv-web-viewer-*.${MACHINE}.rpm --nodeps
+      if [[ ${DCV_SESSION_TYPE} == "virtual" ]]; then
+        # not needed with console
+        packages_install ./nice-xdcv-*.${MACHINE}.rpm
+      fi
+
+      packages_install ./nice-dcv-server-*.${MACHINE}.rpm
+      packages_install ./nice-dcv-web-viewer-*.${MACHINE}.rpm
+
+      # Enable GPU Sharing support
+      if [[ -n ${GPU_DETECTED} ]]; then
+        log_info "Detected GPU instance, adding support for nice-dcv-gl"
+        rpm -ivh nice-dcv-gl*.rpm
+      fi
+
+    {% elif context.get("/configuration/BaseOS") in ("ubuntu2204", "ubuntu2404")  %}
+
+      if [[ ${DCV_SESSION_TYPE} == "virtual" ]]; then
+        # not needed with console
+        packages_install ./nice-xdcv_*.deb
+      fi
+
+      packages_install ./nice-dcv-server_*.deb
+      packages_install ./nice-dcv-web-viewer_*.deb
+
+      # Enable GPU Sharing support
+      if [[ -n ${GPU_DETECTED} ]]; then
+        log_info "Detected GPU instance, adding support for nice-dcv-gl"
+        packages_install ./nice-dcv-gl_*.deb
+      fi
+
+    {% else %}
+      exit_fail "{{ context.get("/configuration/BaseOS") }} not supported for DCV Server on SOCA"
+    {% endif %}
 
     log_info "Enable DCV support for USB remotization .. "
     packages_install dkms
     DCVUSBDRIVERINSTALLER=$(which dcvusbdriverinstaller)
     $DCVUSBDRIVERINSTALLER --quiet
 
-    # Enable GPU support
-    if [[ -n ${GPU_DETECTED} ]]; then
-      log_info "Detected GPU instance, adding support for nice-dcv-gl"
-      rpm -ivh nice-dcv-gl*.rpm --nodeps
-    fi
   else
     log_info "DCV already up and running on this machine, skipping DCV install"
   fi
 
   # Configure DCV
+
+  if [[ -z ${GPU_DETECTED} && ${DCV_SESSION_TYPE} == "console" ]]; then
+    log_info "Non-GPU instance detected and DCV session type is 'console'. Adding XDummy Driver"
+    {% include "templates/linux/dcv/x_dummy_driver.sh.j2" %}
+  fi
+
   local IDLE_TIMEOUT={{ context.get("/system/dcv/idle_timeout") }}
   local USER_HOME=$(eval echo ~${DCV_SESSION_OWNER})
   local DCV_STORAGE_ROOT="$USER_HOME/{{ context.get("/system/dcv/session_storage") }}" # Create the storage root location if needed
@@ -92,17 +147,21 @@ virtual-session-xdcv-args=\"-listen tcp\"
 [session-management/defaults]
 [session-management/automatic-console-session]
 storage-root=\"${DCV_STORAGE_ROOT}\"
+owner=\"${DCV_SESSION_OWNER}\"
 [display]
 # add more if using an instance with more GPU
 cuda-devices=[\"0\"]
 [connectivity]
 web-url-path=\"/${SERVER_HOSTNAME_ALT}\"
-idle-timeout=${IDLE_TIMEOUT}
+idle-timeout=${IDLE_TIMEOUT}""" > /etc/dcv/dcv.conf
+
+  if [[  ${DCV_SESSION_TYPE} == "virtual" ]]; then
+    echo -e """
 [security]
 auth-token-verifier=\"${DCV_AUTH_TOKEN_VERIFIER}\"
 no-tls-strict=true
-os-auto-lock=false
-""" > /etc/dcv/dcv.conf
+os-auto-lock=false""" >> /etc/dcv/dcv.conf
+  fi
 
   log_info "Disabling X11 DPMS"
   cp /etc/X11/xorg.conf.d/99-disable-dpms.conf /etc/X11/xorg.conf.d/99-disable-dpms.conf.original.$(date +%s) || echo "/etc/X11/xorg.conf.d/99-disable-dpms.conf not found, file will be created"
@@ -120,6 +179,8 @@ EndSection""" > /etc/X11/xorg.conf.d/99-disable-dpms.conf
   systemctl isolate multi-user.target
   systemctl isolate graphical.target
 
+  {% include "templates/linux/dcv/default_permissions.sh.j2" %}
+
   log_info "Creating SOCA DCV Service to start/stop DCV session via socadcv"
 
   if [[ -f "/etc/systemd/system/socadcv.service" ]]; then
@@ -131,6 +192,14 @@ EndSection""" > /etc/X11/xorg.conf.d/99-disable-dpms.conf
     systemctl reset-failed socadcv.service || echo "reset-failed socadcv.service not needed"
   fi
 
+  if [[ ${DCV_SESSION_TYPE} == "console" ]]; then
+    DCV_START_COMMAND="/usr/bin/dcv create-session --owner ${DCV_SESSION_OWNER} --type console --storage-root \"${DCV_STORAGE_ROOT}\" ${DCV_SESSION_ID}"
+  else
+    DCV_START_COMMAND="/usr/bin/dcv create-session --user ${DCV_SESSION_OWNER} --owner ${DCV_SESSION_OWNER} --type virtual --storage-root \"${DCV_STORAGE_ROOT}\" ${DCV_SESSION_ID}"
+  fi
+
+  log_info "Launching DCV session type ${DCV_SESSION_TYPE}: ${DCV_START_COMMAND}"
+
   echo -e "
 [Unit]
 Description=SOCA DCV Setup Service
@@ -139,17 +208,17 @@ Description=SOCA DCV Setup Service
 User=root
 Type=oneshot
 ExecStart=/bin/bash -c 'if systemctl is-active --quiet gdm; then systemctl stop gdm; fi; systemctl start gdm; for i in {1..10}; do if [[ -e /tmp/.X11-unix/X0 ]]; then break; else sleep 1; fi; done; if systemctl is-active --quietdcvserver; then systemctl stop dcvserver; fi; systemctl start dcvserver;'
-ExecStartPost=/usr/bin/su - ${DCV_SESSION_OWNER} -c '/usr/bin/dcv create-session --owner ${DCV_SESSION_OWNER} --storage-root \"/data/home/socaadmin/dcv_session_storage\" ${DCV_SESSION_ID}'
+ExecStartPost=${DCV_START_COMMAND}
 ExecStop=/bin/bash -c '/usr/bin/dcv close-session ${DCV_SESSION_ID}'
 
 RemainAfterExit=yes
 
 [Install]
 WantedBy=multi-user.target" > /etc/systemd/system/socadcv.service
+
   log_info "Enabling & start SOCA DCV Service as reboot"
   systemctl enable socadcv
 
-  log_info "Launching DCV session dcv create-session --user ${DCV_SESSION_OWNER} --owner ${DCV_SESSION_OWNER} --type virtual --storage-root ${DCV_STORAGE_ROOT} ${DCV_SESSION_ID}"
   systemctl start socadcv
 
   log_info "Stopping Firewall if needed"

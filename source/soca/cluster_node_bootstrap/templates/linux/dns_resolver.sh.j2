@@ -1,0 +1,14 @@
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+{% if context.get("/configuration/BaseOS") in ("ubuntu2204", "ubuntu2404") %}
+# Begin: DNS Resolver patch
+function patch_dns_resolver () {
+  log_info "Patch DNS resolver for Ubuntu, pointing /etc/resolv to /run/systemd/resolve/resolv.conf and not ../run/systemd/resolve/stub-resolv.conf. See  https://bugs.launchpad.net/ubuntu/+source/systemd/+bug/1624320"
+  ln -sf /run/systemd/resolve/resolv.conf /etc/resolv.conf
+}
+patch_dns_resolver
+# End: DNS Resolver patch
+{% else %}
+  log_info "No DNS resolv patch needed for this OS distribution"
+{% endif %}

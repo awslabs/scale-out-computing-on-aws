@@ -21,7 +21,7 @@ If you trigger ./install_soca.py directly, make sure to have all the Python and 
 """
 
 import sys
-import re
+# import re
 import boto3
 from collections import defaultdict
 import botocore.exceptions
@@ -58,7 +58,8 @@ import argparse
 from shutil import make_archive
 import logging
 from rich.logging import RichHandler
-
+import subprocess
+import shlex
 
 class CustomFormatter(logging.Formatter):
     def format(self, record):
@@ -149,11 +150,11 @@ def kms_prepare_account_aliases() -> int:
                     _aliases_existing += 1
                 continue
 
-    except ClientError as err:
-        logger.error(f"Unable to create KMS service alias: {err}")
+    except ClientError as _err:
+        logger.error(f"Unable to create KMS service alias: {_err}")
         return -1
-    except Exception as err:
-        logger.error(f"Unable to create KMS service alias: {err}")
+    except Exception as _err:
+        logger.error(f"Unable to create KMS service alias: {_err}")
         return -1
 
     # For the list of services that do not appear in the list_aliases until they are created
@@ -200,14 +201,14 @@ def format_byte_size(num, suffix="B"):
     return f"{num:.1f}Yi{suffix}"
 
 
-def get_install_properties(pathname: str):
+def get_install_properties(pathname: str) -> dict:
     # Retrieve SOCA configuration properties
     logger.debug(f"Configuration file path: {pathname}")
     try:
         with open(pathname, "r") as config_file:
             config_parameters = yaml.safe_load(config_file)
-    except ScannerError as err:
-        logger.error(f"{pathname} is not a valid YAML file. Verify syntax, {err}")
+    except ScannerError as _err:
+        logger.error(f"{pathname} is not a valid YAML file. Verify syntax, {_err}")
         sys.exit(1)
     except FileNotFoundError:
         logger.error(
@@ -218,36 +219,42 @@ def get_install_properties(pathname: str):
     if config_parameters:
         return config_parameters
     else:
-        sys.exit("No parameters were specified.")
+        return {}
+        # sys.exit("No parameters were found in configuration file.")
 
 
-def detect_customer_ip():
-    # Try to determine the IP of the customer.
-    # If IP cannot be determined we will prompt the user to enter the value manually
+def detect_customer_ip() -> str:
+    """
+    Try to determine the customer IP address by using the checkip.amazonaws.com service.
+    """
+
     check_url = "https://checkip.amazonaws.com/"
+
     logger.info(
-        f"\n====== Trying to detect your IPv4 address via {check_url} . Use --client-ip to specify it manually instead ======\n"
+        f"\n====== Trying to detect your IPv4 address via {check_url} . Use --client-ip to specify it manually if needed ======\n"
     )
-    client_ip = False
+
+    client_ip: str = ""
     try:
-        get_client_ip = get(check_url, timeout=15)
+        get_client_ip = get(url=check_url, timeout=15)
         if get_client_ip.status_code == 200:
+            # Should return a clean string. May still need sanity check
             client_ip = f"{str(get_client_ip.text).strip()}/32"
 
         else:
             logger.warning(
                 f"Unable to automatically determine client IP via {check_url} . Error: {get_client_ip}"
             )
-            client_ip = False
-    except RequestException as e:
+
+    except RequestException as _e:
         logger.warning(
-            f"Unable to automatically determine client IP via {check_url} . Error: {e}"
+            f"Unable to automatically determine client IP via {check_url} . Error: {_e}"
         )
-        client_ip = False
+
     return client_ip
 
 
-def build_lambda_dependency(install_directory):
+def build_lambda_dependency(install_directory: str):
     logger.info("Building Lambda dependency")
     lambda_functions_folders = f"{install_directory}/../functions/"
     for _dir in os.scandir(lambda_functions_folders):
@@ -256,17 +263,21 @@ def build_lambda_dependency(install_directory):
         for filename in os.listdir(_dir):
             if filename == "requirements.txt":
                 logger.info(f"Installing Python dependencies for {_dir.path}")
-                if (
-                    os.system(
-                        f"pip3 install --python-version 3.12 -r {_dir.path}/requirements.txt --platform manylinux2014_x86_64 --target={_dir.path} --implementation cp --only-binary=:all: --upgrade"  # nosec
-                    )
-                    != 0
-                ):
+                _cmd = [
+                    "pip3", "install", "--python-version", "3.12",
+                    "-r", f"{_dir.path}/requirements.txt",
+                    "--platform", "manylinux2014_x86_64",
+                    "--target", f"{_dir.path}",
+                    "--implementation", "cp",
+                    "--only-binary=:all:", "--upgrade"
+                ]
+                result = subprocess.run(_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                if result.returncode != 0:
                     logger.error(f"Error during Lambda Dependency")
                     sys.exit(1)
 
 
-def upload_objects(install_directory, bucket, cluster_id):
+def upload_objects(install_directory: str, bucket: str, cluster_id: str):
     # Upload required assets to customer S3 bucket
     logger.info(f"\n====== Uploading install files to {bucket}/{cluster_id} ======\n")
     dist_directory = f"{install_directory}/../../dist/{cluster_id}/"
@@ -293,7 +304,11 @@ def upload_objects(install_directory, bucket, cluster_id):
         else:
             shutil.move(s, d)
 
-    shutil.rmtree(f"{install_directory}/../upload_to_s3/")
+    try:
+        shutil.rmtree(f"{install_directory}/../upload_to_s3/")
+    except Exception as _e:
+        print(f"Unable to delete {install_directory}/../upload_to_s3/ because of {_e}")
+        sys.exit(1)
 
     try:
         install_bucket = s3.Bucket(bucket)
@@ -337,9 +352,9 @@ def accepted_aws_resources(region: str) -> dict:
                 f"No SSH Key Pairs found in region {region}. Please create one first and re-run the installer."
             )
             sys.exit(1)
-    except ClientError as err:
+    except ClientError as _err:
         logger.warning(
-            f"Unable to list SSH keys, you will need to enter it manually or give ec2:Describe* IAM permission. {err} "
+            f"Unable to list SSH keys, you will need to enter it manually or give ec2:Describe* IAM permission. {_err} "
         )
         accepted_values["accepted_keypairs"] = {}
 
@@ -367,16 +382,16 @@ def check_bucket_name_and_permission(bucket: str) -> bool:
     try:
         s3.meta.client.head_bucket(Bucket=bucket)
         return True
-    except ClientError as e:
+    except ClientError as _e:
         logger.error(
-            f"The S3 bucket ({bucket}) does not exist or you have do not have permissions: {e}"
+            f"The S3 bucket ({bucket}) does not exist or you have do not have permissions: {_e}"
         )
         return False
-    except botocore.exceptions.ParamValidationError as e:
-        logger.error(f"The S3 bucket ({bucket}) is invalid: {e}")
+    except botocore.exceptions.ParamValidationError as _e:
+        logger.error(f"The S3 bucket ({bucket}) is invalid: {_e}")
         return False
-    except Exception as e:
-        logger.error(f"Error during bucket permission check: {e}")
+    except Exception as _e:
+        logger.error(f"Error during bucket permission check: {_e}")
         return False
 
 
@@ -414,8 +429,8 @@ def _get_aws_pcs_by_region_vpc(
         _pcs_paginator = pcs.get_paginator("list_clusters")
         _pcs_iterator = _pcs_paginator.paginate()
 
-        for _page in _pcs_iterator:
-            for _cluster in _page.get("clusters", []):
+        for _pcs_page in _pcs_iterator:
+            for _cluster in _pcs_page.get("clusters", []):
                 # Make sure the cluster belongs to our VPC
 
                 # Make sure the cluster is in ACTIVE state
@@ -583,7 +598,7 @@ def _get_aws_pcs_by_region_vpc(
 
 
 def _get_filesystems_by_vpc(region: str, vpc_id: str) -> dict:
-    console = Console(record=True)
+    # console = Console(record=True)
 
     with Progress(
         SpinnerColumn(),
@@ -703,7 +718,7 @@ def _get_filesystems_by_vpc(region: str, vpc_id: str) -> dict:
                         }
                         count += 1
 
-        efs_count = count - 1
+        # efs_count = count - 1
 
         progress.console.log(
             f"[bold green]Retrieving FSx Filesystems from {region}/{vpc_id} ...[/bold green]"
@@ -983,7 +998,7 @@ def _get_filesystems_by_vpc(region: str, vpc_id: str) -> dict:
                                     continue
 
                                 # We _should_ only see the ones we got from the API call of the interesting SVMs
-                                # but we check here just in case.
+                                # , but we check here just in case.
                                 if _svm_fsid not in _ontap_fsids:
                                     logger.debug(
                                         f"SVM {_svm_name} has no matching FSID - skipping"
@@ -1046,7 +1061,7 @@ def _get_filesystems_by_vpc(region: str, vpc_id: str) -> dict:
                                 f"Final pass - All FSx/ONTAP volumes: {_ontap_volumes}"
                             )
 
-                            # Do an initial copy of our previous / FSx-wide features (deployment type, etc)
+                            # Do an initial copy of our previous / FSx-wide features (deployment type, etc.)
 
                             for _ontap_vol_i in _ontap_volumes:
                                 # Make sure to copy the items - not point to the parent list!
@@ -1178,9 +1193,9 @@ def get_install_parameters():
     sanitized_cluster_id = re.sub(r"\W+", "-", install_parameters["cluster_name"])
     sanitized_cluster_id = re.sub(
         r"soca-", "", sanitized_cluster_id
-    )  # remove soca- if specified by the user
+    )  # remove "soca-" if specified by the user
     install_parameters["cluster_id"] = (
-        f"soca-{sanitized_cluster_id.lower()}"  # do not remove soca- prefix or DCV IAM permission will not be working.
+        f"soca-{sanitized_cluster_id.lower()}"  # do not remove "soca-" prefix or DCV IAM permission will not be working.
     )
 
     install_parameters["bucket"] = get_input(
@@ -1210,15 +1225,15 @@ def get_install_parameters():
             "default": True,
             "visible": True,
         },
-        # EOL
         "centos7": {"visible": False},
         "centos8": {"visible": False},
-        # EOL
         "rhel7": {"visible": False},
         "rhel8": {"visible": True},
         "rhel9": {"visible": True},
         "rocky8": {"visible": True},
         "rocky9": {"visible": True},
+        "ubuntu2204": {"visible": True},
+        "ubuntu2404": {"visible": True},
     }
 
     # Generate our BaseOS prompt listing
@@ -1226,7 +1241,7 @@ def get_install_parameters():
     for _potential_baseos, _options in _base_os_available.items():
         _is_baseos_visible: bool = _options.get("visible", False)
         logger.debug(
-            f"DEBUG - Potential BaseOS: {_potential_baseos} - Visible: {_is_baseos_visible}"
+            f"Potential BaseOS: {_potential_baseos} - Visible: {_is_baseos_visible}"
         )
         if _is_baseos_visible:
             _baseos_visible_list.append(_potential_baseos)
@@ -1235,7 +1250,7 @@ def get_install_parameters():
     _base_os_prompt_str: str = "/".join(_baseos_visible_list)
 
     logger.debug(
-        f"DEBUG - Final BaseOS prompt info: {_base_os_prompt_str}   List: {_baseos_visible_list}"
+        f"Final BaseOS prompt info: {_base_os_prompt_str}   List: {_baseos_visible_list}"
     )
 
     install_parameters["base_os"] = get_input(
@@ -1328,12 +1343,12 @@ def get_install_parameters():
         _keypair_selection = get_input(
             prompt=f"{install_phases.get('key_pair', 'unk-prompt')}",
             specified_value=None,
-            expected_answers=[str(_i) for _i in range(1, _kp_n)],
+            expected_answers=[str(_kp) for _kp in range(1, _kp_n)],
             expected_type=int,
             show_expected_answers=False,
             show_default_answer=True,
         )
-        logger.debug(f"DEBUG: Keypair selection: {_keypair_selection}")
+        logger.debug(f"Keypair selection: {_keypair_selection}")
         _spec_value_str = next(
             (
                 v.get("KeyName")
@@ -1343,7 +1358,7 @@ def get_install_parameters():
             "",
         )
         logger.debug(
-            f"DEBUG: Keypair selection _spec_value_str:  {_spec_value_str} - KeyMap: {_kp_map}"
+            f"Keypair selection _spec_value_str:  {_spec_value_str} - KeyMap: {_kp_map}"
         )
 
     _selected_key_name = _spec_value_str
@@ -1363,9 +1378,9 @@ def get_install_parameters():
                 )
             else:
                 install_parameters["prefix_list_id"] = args.prefix_list_id
-        except Exception as e:
+        except Exception as _e:
             logger.error(
-                f"{args.prefix_list_id} not found. Check that it exists and starts with pl-.\nException:\n{e} "
+                f"{args.prefix_list_id} not found. Check that it exists and starts with pl-.\nException:\n{_e} "
             )
             sys.exit(1)
 
@@ -1536,30 +1551,30 @@ def get_install_parameters():
                 sys.exit(1)
 
             if install_props.Config.network.vpc_interface_endpoints:
-                vpc_endpoint_sg = FindExistingResource(
+                _vpc_endpoint_sg = FindExistingResource(
                     install_parameters["region"], install_parameters["client_ip"]
                 ).get_security_groups(
                     install_parameters["vpc_id"],
                     "vpc endpoints",
                     install_parameters["controller_sg"],
                 )
-                if vpc_endpoint_sg["success"] is True:
-                    install_parameters["vpc_endpoint_sg"] = vpc_endpoint_sg["message"]
+                if _vpc_endpoint_sg["success"] is True:
+                    install_parameters["vpc_endpoint_sg"] = _vpc_endpoint_sg["message"]
                 else:
-                    logger.error(f"{vpc_endpoint_sg['message']} ")
+                    logger.error(f"{_vpc_endpoint_sg['message']} ")
                     sys.exit(1)
             else:
-                vpc_endpoint_sg = None
+                _vpc_endpoint_sg = None
 
     # AWS PCS (only possible if a user installs to an existing VPC / cluster)
     if install_parameters.get("vpc_id", ""):
         _aws_pcs_enabled: bool = False
         try:
             _aws_pcs_enabled: bool = install_props.Config.services.aws_pcs.enabled
-        except Exception as e:
+        except Exception as _e:
             # Make sure this stays as .debug
             # otherwise it can appear to the screen for the user
-            logger.debug(f"Unable to parse config for AWS PCS enablement: {e}")
+            logger.debug(f"Unable to parse config for AWS PCS enablement: {_e}")
             _aws_pcs_enabled = False
 
         if not _aws_pcs_enabled:
@@ -1706,36 +1721,38 @@ def get_install_parameters():
                     check_fs=True if install_parameters["fs_apps"] else False,
                 )
         else:
-            # prompt for new fs creation
-            install_parameters["fs_apps_provider"] = get_input(
-                prompt=f"{install_phases.get('apps_storage_provider', 'unk-prompt')}",
-                specified_value=args.fs_apps_provider,
-                expected_answers=["efs", "fsx_ontap", "fsx_lustre"],
-                expected_type=str,
-            )
-
-            install_parameters["fs_data_provider"] = get_input(
-                prompt=f"{install_phases.get('data_storage_provider', 'unk-prompt')}",
-                specified_value=args.fs_data_provider,
-                expected_answers=["fsx_ontap", "efs", "fsx_lustre"],
-                expected_type=str,
-            )
+            # Using an existing VPC, but creating new filesystems
+            # FIXME TODO - duplicated with the next chunk of code
+            for _fs_obj in ("apps", "data"):
+                install_parameters[f"fs_{_fs_obj}_provider"] = get_input(
+                    prompt=f"{install_phases.get(f'{_fs_obj}_storage_provider', 'unk-prompt')}",
+                    specified_value=(
+                        args.fs_apps_provider
+                        if _fs_obj == "apps"
+                        else args.fs_data_provider
+                    ),
+                    expected_answers=["efs", "fsx_ontap", "fsx_lustre"],
+                    expected_type=str,
+                    show_default_answer=True,
+                    show_expected_answers=True,
+                )
 
     else:
-        # Not using existing filesystem, prompt for new fs creation
-        install_parameters["fs_apps_provider"] = get_input(
-            prompt=f"{install_phases.get('apps_storage_provider', 'unk-prompt')}",
-            specified_value=args.fs_apps_provider,
-            expected_answers=["efs", "fsx_ontap", "fsx_lustre"],
-            expected_type=str,
-        )
+        # Not using existing VPC or filesystem, prompt for new fs creation provider
+        for _fs_obj in ("apps", "data"):
+            install_parameters[f"fs_{_fs_obj}_provider"] = get_input(
+                prompt=f"{install_phases.get(f'{_fs_obj}_storage_provider', 'unk-prompt')}",
+                specified_value=(
+                    args.fs_apps_provider
+                    if _fs_obj == "apps"
+                    else args.fs_data_provider
+                ),
+                expected_answers=["efs", "fsx_ontap", "fsx_lustre"],
+                expected_type=str,
+                show_default_answer=True,
+                show_expected_answers=True,
+            )
 
-        install_parameters["fs_data_provider"] = get_input(
-            prompt=f"{install_phases.get('data_storage_provider', 'unk-prompt')}",
-            specified_value=args.fs_data_provider,
-            expected_answers=["fsx_ontap", "efs", "fsx_lustre"],
-            expected_type=str,
-        )
     # AWS Directory Service Managed Active Directory configuration (only possible when using existing VPC)
     if install_props.Config.directoryservice.provider == "activedirectory":
         if install_parameters["vpc_id"]:
@@ -1785,11 +1802,11 @@ def get_install_parameters():
         choice_es = get_input(
             prompt=f"{install_phases.get('analytics', 'unk-prompt')}",
             specified_value=None,
-            expected_answers=["new", "existing"],
+            expected_answers=["no", "yes"],
             expected_type=str,
         )
 
-        if choice_es == "existing":
+        if choice_es == "yes":
             elasticsearch_cluster = FindExistingResource(
                 install_parameters["region"], install_parameters["client_ip"]
             ).find_elasticsearch(install_parameters["vpc_id"])
@@ -2130,8 +2147,13 @@ if __name__ == "__main__":
     parser.add_argument(
         "--region-map",
         type=str,
-        default=f"{os.path.dirname(os.path.realpath(__file__))}/../../region_map.yml",
-        help="Path of custom region AMI mapping file. Defaults to region_map.yml .",
+        action="append",
+        default=[
+            f"{os.path.dirname(os.path.realpath(__file__))}/../../region_map.yml",
+            f"{os.path.dirname(os.path.realpath(__file__))}/../../region_map_govcloud.yml",
+            f"{os.path.dirname(os.path.realpath(__file__))}/../../region_map_local.yml",
+        ],
+        help="Path of AMI region mapping files. Defaults to various region_map files.",
     )
     parser.add_argument("--bucket", "-b", type=str, help="S3 Bucket to use")
     parser.add_argument("--ssh-keypair", "-ssh", type=str, help="SSH key to use")
@@ -2179,6 +2201,8 @@ if __name__ == "__main__":
             "rhel7",
             "rhel8",
             "rhel9",
+            "ubuntu2204",
+            "ubuntu2404",
         ],
         type=str,
         help="The preferred Linux distribution for the controller and compute instances",
@@ -2247,12 +2271,12 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     # Use script location as current working directory
-    install_directory = os.path.dirname(os.path.realpath(__file__))
-    build_lambda_dependency(install_directory)
-    os.chdir(install_directory)
+    _install_directory = os.path.dirname(os.path.realpath(__file__))
+    build_lambda_dependency(install_directory=_install_directory)
+    os.chdir(path=_install_directory)
 
     # Append Solution ID to Boto3 Construct
-    aws_solution_user_agent = {"user_agent_extra": "AwsSolution/SO0072/25.1.0"}
+    aws_solution_user_agent = {"user_agent_extra": "AwsSolution/SO0072/25.3.0"}
     boto_extra_config = config.Config(**aws_solution_user_agent)
 
     splash_info = f"""
@@ -2278,7 +2302,7 @@ if __name__ == "__main__":
         "security_groups": "Do you want to create new security groups (default) or use existing ones? ",
         "filesystems": "Do you want to create new filesystems for /apps & /data (default) or use existing ones? ",
         "directory_service": "Do you want to create a new Directory Service Managed AD (default) or use an existing one? ",
-        "analytics": "Do you want to create a new Analytics back-end (OpenSearch) (default) or use an existing one?",
+        "analytics": "Do you want to use an existing Analytics back-end (OpenSearch)?",
         "iam_roles": "Do you want to create new IAM roles for controller & compute nodes (default) or use existing ones?",
         "apps_storage_provider": "What storage provider do you want to use for your /apps partition? (fsx_ontap is recommended if you have Linux and Windows clients)",
         "data_storage_provider": "What storage provider do you want to use for your /data partition? (fsx_ontap is recommended if you have Linux and Windows clients)",
@@ -2341,16 +2365,47 @@ if __name__ == "__main__":
     logger.debug(f"Install properties after file read: {install_properties}")
 
     # Read in the RegionMap file(s) specified by the user
-    logger.debug(f"RegionMap file(s) specified: {args.region_map}")
-    _region_map = get_install_properties(pathname=args.region_map)
+    logger.debug(f"RegionMap file(s) specified: {type(args.region_map)} / {args.region_map=}")
 
-    logger.debug(f"RegionMap after file read: {_region_map}")
+    _region_map: dict = {}
+
+    # If we are a string, convert to a list[str] of the single member
+    if isinstance(args.region_map, str):
+        logger.info(f"Converting string RegionMap to list member")
+        args.region_map = [args.region_map]
+
+    if isinstance(args.region_map, list):
+        logger.info(f"Reading {len(args.region_map)} RegionMap files")
+        for _file in args.region_map:
+            logger.info(f"Reading RegionMap file: {os.path.basename(_file)}")
+            if not os.path.isfile(_file):
+                # This isn't an error yet
+                logger.info(f"RegionMap file not found: {_file}")
+                continue
+
+            # We specifically look in "RegionMap" to make sure it is well-formed YAML
+            # and to get an accurate count to see if it has any content
+            _region_map_contents: dict = get_install_properties(pathname=_file).get("RegionMap", {})
+
+            # logger.debug(f"RegionMap contents: {_region_map_contents}")
+            if len(_region_map_contents) == 0:
+                logger.info(f"RegionMap file is empty or malformed: {_file}")
+                continue
+            else:
+                logger.debug(f"Content len {len(_region_map_contents)}")
+                _region_map.update(_region_map_contents)
+                logger.debug(f"RegionMap after applying file update: {_region_map}")
+    else:
+        logger.error(f"RegionMap is not a list. Exiting.")
+        sys.exit(1)
+
+    logger.debug(f"RegionMap after all files are read: {_region_map}")
 
     if args.override:
         overrides: list = [item for sublist in args.override for item in sublist]
         install_properties = override_keys(overrides, install_properties)
 
-    _merged_properties: dict = {**install_properties, **_region_map}
+    _merged_properties: dict = {**install_properties, "RegionMap": _region_map}
 
     logger.debug(f"Merged properties: {_merged_properties}")
 
@@ -2436,6 +2491,7 @@ if __name__ == "__main__":
     default_region: str = ""
     _ssm_region_query: bool = False
 
+    logger.debug(f"Default region: {default_region} / {_ssm_region_query=}")
     match _sts_partition:
         case "aws":
             default_region = "us-east-1"
@@ -2636,27 +2692,33 @@ if __name__ == "__main__":
     # Automatically detect client ip if needed
     if not args.client_ip:
         install_parameters["client_ip"] = detect_customer_ip()
-        logger.warning(
-            f"We determined your IP is {install_parameters['client_ip']}. You can change it later if you are running behind a proxy"
-        )
-        if install_parameters["client_ip"] is False:
-            install_parameters["client_ip"] = get_input(
-                "Client IP authorized to access SOCA on port 443/22",
-                args.client_ip,
-                None,
-                str,
+
+        if install_parameters["client_ip"]:
+            logger.warning(
+                f"We determined your IP is {install_parameters['client_ip']}. You can change it later if you are running behind a proxy"
+            )
+        else:
+            logger.warning(
+                f"Unable to automatically determine your IP address. Manual specification will be required"
             )
     else:
         install_parameters["client_ip"] = args.client_ip
 
-    if install_parameters["client_ip"].endswith("/32"):
-        pass
-    else:
-        if "/" not in install_parameters["client_ip"]:
-            logger.warning(
-                f"No subnet defined for your IP. Adding /32 at the end of {install_parameters['client_ip']}"
-            )
-            install_parameters["client_ip"] = f"{install_parameters['client_ip']}/32"
+    # If we had to auto-probe the IP , give the option to update it before continuing
+    install_parameters["client_ip"] = get_input(
+        "Client IP/CIDR authorized to access SOCA on TCP ports 443/22",
+        specified_value=install_parameters["client_ip"],
+        expected_answers=None,
+        expected_type=str,
+    )
+
+    if "/" not in install_parameters["client_ip"]:
+        logger.warning(
+            f"No subnet/CIDR defined for your IP. Adding /32 at the end of {install_parameters['client_ip']}"
+        )
+        install_parameters["client_ip"] = f"{install_parameters['client_ip']}/32"
+
+
 
     # Get SOCA parameters
     get_install_parameters()
@@ -2757,25 +2819,26 @@ if __name__ == "__main__":
     # First, Bootstrap the environment. This will create a staging S3 bucket if needed
     logger.info("\n====== Running CDK Bootstrap ======\n")
 
-    bootstrap_environment = os.system(cmd_bootstrap)  # nosec
-    if int(bootstrap_environment) != 0:
+    bootstrap_environment = subprocess.run(shlex.split(cmd_bootstrap), stdout=subprocess.PIPE, stderr=subprocess.PIPE)  # nosec
+
+    if int(bootstrap_environment.returncode) != 0:
         logger.error(
             f"Unable to bootstrap environment. Please run {cmd_bootstrap} and fix any errors"
         )
         logger.error(f"{bootstrap_environment} ")
         sys.exit(1)
 
+    # Increase SSM Throughput if needed (https://docs.aws.amazon.com/systems-manager/latest/userguide/parameter-store-throughput.html)
+    # Settings will be restored if needed post deployment
+    disable_ssm_high_throughput_post_install: bool = False
+
     # Upload required assets to customer S3 account
     if cdk_cmd == "deploy":
         upload_objects(
-            install_directory,
+            _install_directory,
             install_parameters["bucket"],
             install_parameters["cluster_id"],
         )
-
-        # Temporarily disable SSM Throughput if needed (https://docs.aws.amazon.com/systems-manager/latest/userguide/parameter-store-throughput.html)
-        # Settings will be re-disabled if needed post deployment
-        disable_ssm_high_throughput_post_install = False
 
         _check_ssm_high_throughput = ssm.get_service_setting(
             SettingId="/ssm/parameter-store/high-throughput-enabled"
@@ -2788,6 +2851,8 @@ if __name__ == "__main__":
             logger.warning(
                 "Temporarily enabling /ssm/parameter-store/high-throughput-enabled for SOCA deployment"
             )
+            # try/catch
+            # Validate the update
             ssm.update_service_setting(
                 SettingId="/ssm/parameter-store/high-throughput-enabled",
                 SettingValue="true",
@@ -2799,11 +2864,13 @@ if __name__ == "__main__":
     launch_installer = os.system(cmd)  # nosec
 
     if cdk_cmd == "deploy":
-        # Optional - Re-enable SSM default high-throughput settings
+        # Optional - Re-enable SSM default
         if disable_ssm_high_throughput_post_install:
             logger.warning(
                 "Restoring /ssm/parameter-store/high-throughput-enabled to its previous value post-deployment"
             )
+            # try/catch
+            # validate
             ssm.update_service_setting(
                 SettingId="/ssm/parameter-store/high-throughput-enabled",
                 SettingValue="false",
@@ -2937,5 +3004,5 @@ if __name__ == "__main__":
         logger.info(f"Deleting stack, running {cmd_destroy}")
         delete_stack = os.system(cmd_destroy)  # nosec
     else:
-        # synth, ls etc ..
+        # synth, ls etc.
         pass

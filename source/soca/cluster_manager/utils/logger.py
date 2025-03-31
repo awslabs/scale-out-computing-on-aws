@@ -11,8 +11,8 @@ import inspect
 
 class PathTruncatingFormatter(logging.Formatter):
     def format(self, record):
-        # custom_pathname return anything after /apps/soca/<cluster_id>/
-        _truncate_after = f"/apps/soca/{os.environ.get('SOCA_CLUSTER_ID')}/"
+        # custom_pathname return anything after /opt/soca/<cluster_id>/
+        _truncate_after = f"/opt/soca/{os.environ.get('SOCA_CLUSTER_ID')}/"
         start_pos = record.pathname.find(_truncate_after) + len(_truncate_after)
         record.custom_pathname = record.pathname[start_pos:]
 

@@ -47,7 +47,7 @@ def metrics(solution_id, uuid, data, url, request_timestamp):
         req = http.request("POST", url, body=json_data.encode("utf-8"), headers=headers)
         rsp_code = req.status
         print(f"Response Code: {rsp_code}")
-    except Exception as e:
+    except Exception as _e:
         exc_type, exc_obj, exc_tb = sys.exc_info()
         fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
         print(exc_type, fname, exc_tb.tb_lineno)
@@ -55,7 +55,7 @@ def metrics(solution_id, uuid, data, url, request_timestamp):
 
 def lambda_handler(event, context):
     try:
-        request_timestamp = str(datetime.datetime.now(datetime.UTC).isoformat())
+        request_timestamp = str(datetime.datetime.now().isoformat())
         solution_id = "SO0072"
         uuid = event["RequestId"]
         data = {
@@ -85,7 +85,7 @@ def lambda_handler(event, context):
         metrics_url = "https://metrics.awssolutionsbuilder.com/generic"
         # Send Anonymous Metrics
         metrics(solution_id, uuid, data, metrics_url, request_timestamp)
-    except Exception as e:
+    except Exception as _e:
         exc_type, exc_obj, exc_tb = sys.exc_info()
         fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
         print(exc_type, fname, exc_tb.tb_lineno)
