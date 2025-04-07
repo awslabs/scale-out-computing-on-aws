@@ -96,6 +96,7 @@ def max_concurrent_desktop_limit_reached(os_family: str, session_owner: str) -> 
     _find_live_session = VirtualDesktopSessions.query.filter(
         VirtualDesktopSessions.is_active == True,
         VirtualDesktopSessions.os_family == os_family,
+        VirtualDesktopSessions.session_owner == session_owner,
     ).count()
 
     logger.debug(f"Found {_find_live_session} active session(s) for {os_family}")
