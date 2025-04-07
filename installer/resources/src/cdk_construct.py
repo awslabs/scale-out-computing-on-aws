@@ -3396,9 +3396,14 @@ class SOCAInstall(Stack):
         # So we make an extra copy of the string that we plan to mutate
         _dep_type_lookup: str = _deployment_type.replace("_", "-").upper()
 
-        # Now adjust the case (since everything is now .upper() and dashed)
-        _dep_type_lookup = _dep_type_lookup.replace("MULTI-AZ", "Multi-AZ")
-        _dep_type_lookup = _dep_type_lookup.replace("SINGLE-AZ", "Single-AZ")
+        if _deployment_type == "MULTI_AZ_1":
+            _dep_type_lookup = "Multi-AZ"
+        elif _deployment_type == "MULTI_AZ_2":
+            _dep_type_lookup = "Multi-AZ-2"
+        elif _deployment_type == "SINGLE_AZ_1":
+            _dep_type_lookup = "Single-AZ_2N"
+        elif _deployment_type == "SINGLE_AZ_2":
+            _dep_type_lookup = "Single-AZ_2N-2"
 
         logger.debug(
             f"Checking if deployment type {_deployment_type} ({_dep_type_lookup=}) is supported in region {user_specified_variables.region}"
