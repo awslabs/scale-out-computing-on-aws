@@ -21,6 +21,7 @@ If you trigger ./install_soca.py directly, make sure to have all the Python and 
 """
 
 import sys
+
 # import re
 import boto3
 from collections import defaultdict
@@ -61,6 +62,7 @@ from rich.logging import RichHandler
 import subprocess
 import shlex
 
+
 class CustomFormatter(logging.Formatter):
     def format(self, record):
         if not isinstance(record.msg, (Text, Table)):
@@ -81,7 +83,11 @@ else:
     _formatter = CustomFormatter("%(message)s")
 
 _rich_handler = RichHandler(
-    rich_tracebacks=True, markup=True, show_time=False, show_level=False
+    rich_tracebacks=True,
+    markup=True,
+    show_time=False,
+    show_level=False,
+    show_path=False,
 )
 _rich_handler.setFormatter(_formatter)
 logging.basicConfig(
@@ -101,8 +107,25 @@ installer_path = "/".join(os.path.dirname(os.path.abspath(__file__)).split("/")[
 sys.path.append(installer_path)
 from installer.resources.src.prompt import get_input as get_input
 from installer.resources.src.find_existing_resources import FindExistingResource
+from rich.console import Console
 
 urllib3.disable_warnings()
+
+console = Console()
+
+
+def stream_subprocess(command: list):
+    process = subprocess.Popen(
+        command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True
+    )
+    for line in process.stdout:
+        console.print(
+            line, end="", markup=False, highlight=False
+        )  # Let Rich render ANSI
+    process.wait()
+
+    if process.returncode != 0:
+        sys.exit(process.returncode)
 
 
 def kms_prepare_account_aliases() -> int:
@@ -159,7 +182,7 @@ def kms_prepare_account_aliases() -> int:
 
     # For the list of services that do not appear in the list_aliases until they are created
     for _alias_name in ["alias/aws/sns"]:
-        logger.info(f"KMS - Checking service alias for {_alias_name}")
+        logger.debug(f"KMS - Checking service alias for {_alias_name}")
         _key = kms.describe_key(KeyId=_alias_name).get("KeyMetadata", {})
         if not _key:
             logger.error(f"Unable to lookup KMS service alias: {_alias_name}")
@@ -264,14 +287,24 @@ def build_lambda_dependency(install_directory: str):
             if filename == "requirements.txt":
                 logger.info(f"Installing Python dependencies for {_dir.path}")
                 _cmd = [
-                    "pip3", "install", "--python-version", "3.12",
-                    "-r", f"{_dir.path}/requirements.txt",
-                    "--platform", "manylinux2014_x86_64",
-                    "--target", f"{_dir.path}",
-                    "--implementation", "cp",
-                    "--only-binary=:all:", "--upgrade"
+                    "pip3",
+                    "install",
+                    "--python-version",
+                    f"{os.environ['SOCA_PYTHON_VERSION']}",
+                    "-r",
+                    f"{_dir.path}/requirements.txt",
+                    "--platform",
+                    "manylinux2014_x86_64",
+                    "--target",
+                    f"{_dir.path}",
+                    "--implementation",
+                    "cp",
+                    "--only-binary=:all:",
+                    "--upgrade",
                 ]
-                result = subprocess.run(_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                result = subprocess.run(
+                    _cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE
+                )
                 if result.returncode != 0:
                     logger.error(f"Error during Lambda Dependency")
                     sys.exit(1)
@@ -1218,13 +1251,8 @@ def get_install_parameters():
         )
 
     _base_os_available = {
-        "amazonlinux2023": {"visible": True},
-        # amazonlinux2 is purposely kept 2nd in the list and defaulted to make sure the prompting
-        # works as expected
-        "amazonlinux2": {
-            "default": True,
-            "visible": True,
-        },
+        "amazonlinux2023": {"visible": True, "default": True},
+        "amazonlinux2": {"visible": False},
         "centos7": {"visible": False},
         "centos8": {"visible": False},
         "rhel7": {"visible": False},
@@ -2276,7 +2304,7 @@ if __name__ == "__main__":
     os.chdir(path=_install_directory)
 
     # Append Solution ID to Boto3 Construct
-    aws_solution_user_agent = {"user_agent_extra": "AwsSolution/SO0072/25.3.0"}
+    aws_solution_user_agent = {"user_agent_extra": "AwsSolution/SO0072/25.5.0"}
     boto_extra_config = config.Config(**aws_solution_user_agent)
 
     splash_info = f"""
@@ -2365,7 +2393,9 @@ if __name__ == "__main__":
     logger.debug(f"Install properties after file read: {install_properties}")
 
     # Read in the RegionMap file(s) specified by the user
-    logger.debug(f"RegionMap file(s) specified: {type(args.region_map)} / {args.region_map=}")
+    logger.debug(
+        f"RegionMap file(s) specified: {type(args.region_map)} / {args.region_map=}"
+    )
 
     _region_map: dict = {}
 
@@ -2385,7 +2415,9 @@ if __name__ == "__main__":
 
             # We specifically look in "RegionMap" to make sure it is well-formed YAML
             # and to get an accurate count to see if it has any content
-            _region_map_contents: dict = get_install_properties(pathname=_file).get("RegionMap", {})
+            _region_map_contents: dict = get_install_properties(pathname=_file).get(
+                "RegionMap", {}
+            )
 
             # logger.debug(f"RegionMap contents: {_region_map_contents}")
             if len(_region_map_contents) == 0:
@@ -2718,8 +2750,6 @@ if __name__ == "__main__":
         )
         install_parameters["client_ip"] = f"{install_parameters['client_ip']}/32"
 
-
-
     # Get SOCA parameters
     get_install_parameters()
 
@@ -2818,15 +2848,7 @@ if __name__ == "__main__":
 
     # First, Bootstrap the environment. This will create a staging S3 bucket if needed
     logger.info("\n====== Running CDK Bootstrap ======\n")
-
-    bootstrap_environment = subprocess.run(shlex.split(cmd_bootstrap), stdout=subprocess.PIPE, stderr=subprocess.PIPE)  # nosec
-
-    if int(bootstrap_environment.returncode) != 0:
-        logger.error(
-            f"Unable to bootstrap environment. Please run {cmd_bootstrap} and fix any errors"
-        )
-        logger.error(f"{bootstrap_environment} ")
-        sys.exit(1)
+    stream_subprocess(command=shlex.split(cmd_bootstrap))
 
     # Increase SSM Throughput if needed (https://docs.aws.amazon.com/systems-manager/latest/userguide/parameter-store-throughput.html)
     # Settings will be restored if needed post deployment

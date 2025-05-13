@@ -11,14 +11,16 @@ function install_dcv_server () {
   local DCV_SESSION_OWNER="{{ context.get("/dcv/SessionOwner") }}"
   local DCV_SESSION_ID="{{ context.get("/dcv/SessionId") }}"
   local DCV_AUTH_TOKEN_VERIFIER="{{ context.get("/dcv/AuthTokenVerifier") }}"
+  local DCV_SESSION_TYPE="{{ context.get("/dcv/SessionType") }}"
   local MACHINE=$(uname -m)
   local SERVER_HOSTNAME=$(hostname)
   local SERVER_HOSTNAME_ALT=$(echo $SERVER_HOSTNAME | cut -d. -f1)
-  local DCV_SESSION_TYPE
   local DCV_START_COMMAND
 
-  {% if context.get("/configuration/BaseOS") in ("amazonlinux2") %}
+  {% if context.get("/configuration/BaseOS") == "amazonlinux2" %}
     {% set DCV_VERSION_FAMILY = "al2" %}
+  {% elif context.get("/configuration/BaseOS") == "amazonlinux2023" %}
+    {% set DCV_VERSION_FAMILY = "al2023" %}
   {% elif context.get("/configuration/BaseOS") in ("rhel7", "centos7") %}
     {% set DCV_VERSION_FAMILY = "el7" %}
   {% elif context.get("/configuration/BaseOS") in ("rhel8", "rocky8") %}
@@ -46,28 +48,13 @@ function install_dcv_server () {
   fi
 
   log_info "Detected following DCV download information:"
-  log_info "DCV_URL ${DCV_URL}"
-  log_info "DCV_HASH ${DCV_HASH}"
-  log_info "DCV_VERSION ${DCV_VERSION}"
+  log_info "DCV_URL: ${DCV_URL}"
+  log_info "DCV_HASH: ${DCV_HASH}"
+  log_info "DCV_VERSION: ${DCV_VERSION}"
+  log_info "DCV_SESSION_TYPE: ${DCV_SESSION_TYPE}"
 
   mkdir -p "${SOCA_BOOTSTRAP_ASSETS_FOLDER}/dcvserver"
   pushd "${SOCA_BOOTSTRAP_ASSETS_FOLDER}/dcvserver"
-
-  if [[ -n ${GPU_DETECTED} ]]; then
-    log_info "GPU Detected on this machine, skipping XDummy Driver and forcing DCV session type to console"
-    # Use Console on GPU instance for better performance
-    DCV_SESSION_TYPE="console"
-  else
-    log_info "No GPU detected on this machine"
-    {% if context.get("/configuration/BaseOS") in ("ubuntu2204", "ubuntu2404") %}
-      # Getting some weird Gnome incompatibility when using virtual session on Ubuntu
-      log_info "Ubuntu detected, using DCV session type: console"
-      DCV_SESSION_TYPE="console"
-    {% else %}
-      log_info "RHEL based instance detected, using DCV session type: virtual"
-      DCV_SESSION_TYPE="virtual"
-    {% endif %}
-  fi
 
   # Download and Install DCV (if not already there)
   if ! verify_package_installed "nice-dcv-server" && ! verify_package_installed "amazon-dcv-server"; then
@@ -78,35 +65,35 @@ function install_dcv_server () {
     tar zxvf "dcv_installer_${DCV_VERSION}.tgz" --strip-components=1 -C .
 
     log_info "Installing DCV ..."
-    {% if context.get("/configuration/BaseOS") in ("centos7", "rhel7", "rhel8", "rhel9", "rocky8", "rocky9", "amazonlinux2")  %}
+    {% if context.get("/configuration/BaseOS") in ("centos7", "rhel7", "rhel8", "rhel9", "rocky8", "rocky9", "amazonlinux2", "amazonlinux2023")  %}
+
+      packages_install ./nice-dcv-server-*.${MACHINE}.rpm
+      packages_install ./nice-dcv-web-viewer-*.${MACHINE}.rpm
 
       if [[ ${DCV_SESSION_TYPE} == "virtual" ]]; then
         # not needed with console
         packages_install ./nice-xdcv-*.${MACHINE}.rpm
       fi
 
-      packages_install ./nice-dcv-server-*.${MACHINE}.rpm
-      packages_install ./nice-dcv-web-viewer-*.${MACHINE}.rpm
-
       # Enable GPU Sharing support
-      if [[ -n ${GPU_DETECTED} ]]; then
-        log_info "Detected GPU instance, adding support for nice-dcv-gl"
-        rpm -ivh nice-dcv-gl*.rpm
+      if [[ -n ${GPU_DETECTED} && ${DCV_SESSION_TYPE} == "virtual" ]]; then
+        log_info "Detected GPU instance and virtual dcv session, adding support for nice-dcv-gl"
+        packages_install ./nice-dcv-gl*.rpm
       fi
 
     {% elif context.get("/configuration/BaseOS") in ("ubuntu2204", "ubuntu2404")  %}
+
+      packages_install ./nice-dcv-server_*.deb
+      packages_install ./nice-dcv-web-viewer_*.deb
 
       if [[ ${DCV_SESSION_TYPE} == "virtual" ]]; then
         # not needed with console
         packages_install ./nice-xdcv_*.deb
       fi
 
-      packages_install ./nice-dcv-server_*.deb
-      packages_install ./nice-dcv-web-viewer_*.deb
-
       # Enable GPU Sharing support
-      if [[ -n ${GPU_DETECTED} ]]; then
-        log_info "Detected GPU instance, adding support for nice-dcv-gl"
+      if [[ -n ${GPU_DETECTED} && ${DCV_SESSION_TYPE} == "virtual" ]]; then
+        log_info "Detected GPU instance and virtual dcv session, adding support for nice-dcv-gl"
         packages_install ./nice-dcv-gl_*.deb
       fi
 
@@ -124,7 +111,6 @@ function install_dcv_server () {
   fi
 
   # Configure DCV
-
   if [[ -z ${GPU_DETECTED} && ${DCV_SESSION_TYPE} == "console" ]]; then
     log_info "Non-GPU instance detected and DCV session type is 'console'. Adding XDummy Driver"
     {% include "templates/linux/dcv/x_dummy_driver.sh.j2" %}

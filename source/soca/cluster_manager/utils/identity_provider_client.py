@@ -132,8 +132,8 @@ class SocaIdentityProviderClient:
                 )
 
             if not re.search(r":\d+$", self._ldap_endpoint):
-                logger.warning(
-                    "Not port specified in ldap endpoint, default to the one configured server-wise"
+                logger.debug(
+                    "No port specified in LDAP endpoint, using default"
                 )
 
             if not options:

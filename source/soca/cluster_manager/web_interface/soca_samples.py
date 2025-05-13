@@ -75,7 +75,7 @@ def insert_default_vdi_profile():
                     .get_value(return_as=list)
                     .get("message")
                 ),
-                max_root_size=500,
+                max_root_size=1_000,
             )
         )
 
@@ -149,7 +149,9 @@ def insert_default_software_stacks():
                     elif _base_os == "rocky9":
                         _description = f"Default Rocky Linux 9 image with no additional software installed."
                     elif _base_os == "amazonlinux2":
-                        _description = f"Vanilla Amazon Linux 2 image with no additional software installed."
+                        _description = f"Vanilla Amazon Linux 2 image with no additional software installed. End-of-Life June 2026, recommended to use Amazon Linux 2023."
+                    elif _base_os == "amazonlinux2023":
+                        _description = f"Vanilla Amazon Linux 2023 image with no additional software installed."
                     else:
                         _description = f"Default {_base_os} image with no additional software installed."
 

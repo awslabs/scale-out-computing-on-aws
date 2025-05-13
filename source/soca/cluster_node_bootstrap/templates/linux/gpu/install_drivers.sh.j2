@@ -20,14 +20,19 @@ function install_gpu_drivers () {
 
   # refer to: https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/install-nvidia-driver.html
 
-  local NVIDIA_TESLA_PUBLIC_DRIVER_PRODUCTION="{{ context.get("/system/gpu/gpu_settings/nvidia/tesla_drivers/public_driver_version") }}"
-  local NVIDIA_TESLA_PUBLIC_DRIVER_LTSB="{{ context.get("/system/gpu/gpu_settings/nvidia/tesla_drivers/public_driver_version_ltsb") }}" # Long Term Servicing Branch, for older instance type
+  local NVIDIA_TESLA_PUBLIC_DRIVER_PRODUCTION="535.104.05"
+  local NVIDIA_TESLA_PUBLIC_DRIVER_LTSB="470.199.02" # Long Term Servicing Branch, for older instance type
+  {% if context.get("/configuration/BaseOS") in ("amazonlinux2") %}
+    # 18.1+ will not work on ALI2, driver does not support kernel 4.14
+    local NVIDIA_GRID_DRIVER_VERSION="grid-17.1"
+  {% else %}
+    local NVIDIA_GRID_DRIVER_VERSION="grid-18.1"
+  {% endif %}
+
   local GPU_MANUFACTURER=$(ec2_describe_instance_types "GpuInfo.Gpus[].Manufacturer")
   local INSTANCE_FAMILY=$(instance_family) # INSTANCE_FAMILY is loaded from common.sh.j2
 
   log_info "Detected GPU instance type: ${INSTANCE_FAMILY}. Installing GPU Drivers for GPU ${GPU_MANUFACTURER} ..."
-
-
   # This section has to be updated every time AWS release a new Accelerated Compute instance
   # https://docs.aws.amazon.com/ec2/latest/instancetypes/ac.html
   # Ex: socactl config set --key "/system/gpu/gpu_settings/nvidia/tesla_drivers_only" --value "(p3|p4d|p4de|p5|p5e|g5g|g6e|NEWINSTANCEFAMILY)"
@@ -54,9 +59,11 @@ function install_gpu_drivers () {
     else
 
       log_info "${INSTANCE_FAMILY} supports both GRID and Tesla drivers"
+
+
       {% if context.get("/job/NodeType") == "dcv_node" %}
         log_info "DCV Virtual Desktop Machine detected for ${INSTANCE_FAMILY}, Installing NVIDIA Grid drivers"
-        install_nvidia_grid_drivers
+        install_nvidia_grid_drivers ${NVIDIA_GRID_DRIVER_VERSION}
       {% else %}
         log_info "FALLBACK - This Instance ${INSTANCE_FAMILY} does support Tesla and Grid. DCV session not detected, so we fallback to Tesla driver. Edit install_drivers.sh.j2 if you are using a new EC2 instance which is not already there"
         install_nvidia_public_tesla_drivers ${NVIDIA_TESLA_PUBLIC_DRIVER_PRODUCTION}

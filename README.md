@@ -7,7 +7,7 @@ Key Features:
 - Linux and Windows Virtual Desktops (with or without dedicated GPUs)
 - CAE Simulations job submission via CLI or Web portal
 - Integration with OpenLDAP or Microsoft Active Directory
-- Multi Operating System Support (Windows, Amazon Linux, Red Hat Enterprise Linux, CentOS, Rocky ...)
+- Multi Operating System Support (Windows, Amazon Linux, Red Hat Enterprise Linux, CentOS, Rocky, Ubuntu ...)
 - Native support for Engineering Licenses Server (e.g: FlexLM)
 - Smart Instance Provisioning (on-demand, spot, alwayson ...)
 - Integration with all storage providers (EBS, FSx Lustre/NetApp ONTAP, local NVME, Elastic File System ...)

@@ -124,6 +124,7 @@ class CreateVirtualDesktop(Resource):
         parser.add_argument("subnet_id", type=str, location="form")
         parser.add_argument("hibernate", type=str, location="form")
         parser.add_argument("tenancy", type=str, location="form")
+        parser.add_argument("session_type", type=str, location="form")
         args = parser.parse_args()
 
         _session_uuid = str(uuid.uuid4())
@@ -178,6 +179,20 @@ class CreateVirtualDesktop(Resource):
                 ).as_flask()
             else:
                 instance_type = args["instance_type"]
+
+            if args["session_type"] not in ["default", "console", "virtual"]:
+                return SocaError.VIRTUAL_DESKTOP_LAUNCH_ERROR(
+                    session_number=_session_uuid,
+                    session_owner=_user,
+                    helper=f"session_type must be default, console or virtual. Detected {args['session_type']}",
+                ).as_flask()
+
+            if args["session_type"] not in config.Config.DCV_ALLOWED_SESSION_TYPES:
+                return SocaError.VIRTUAL_DESKTOP_LAUNCH_ERROR(
+                    session_number=_session_uuid,
+                    session_owner=_user,
+                    helper=f"session_type must be one of {config.Config.DCV_ALLOWED_SESSION_TYPES}. Detected {args['session_type']}",
+                ).as_flask()
 
             if args["software_stack_id"] is None:
                 return SocaError.CLIENT_MISSING_PARAMETER(
@@ -270,6 +285,41 @@ class CreateVirtualDesktop(Resource):
                     helper=f"Max number of Linux or Windows session already reached for this user (Linux: Max {config.Config.DCV_LINUX_SESSION_COUNT}, Windows: max {config.Config.DCV_WINDOWS_SESSION_COUNT})",
                 ).as_flask()
 
+            # Configure Session Type
+            if args["session_type"] == "default":
+                logger.info("Detected default session type, setting up automatically)")
+                if _software_stack_info.get("os_family") == "windows":
+                    _session_type = "console"
+                else:
+                    # Ubuntu does not work well with virtual session, default to console
+                    # GPU instance also use console session by default
+                    # Also edit cluster_node_bootstrap/templates/linux/dcv/dcv_server.sh.j2 if you modify this list
+                    if _software_stack_info.get("ami_base_os") in [
+                        "ubuntu2204",
+                        "ubuntu2404",
+                    ]:
+                        _session_type = "console"
+                    elif args["instance_type"].startswith("p") or args[
+                        "instance_type"
+                    ].startswith("g"):
+                        # GPU use console by default
+                        _session_type = "console"
+                    else:
+                        _session_type = "virtual"
+            else:
+                _session_type = args["session_type"]
+
+            logger.info(f"Detected session type: {_session_type}")
+            if (
+                _session_type == "virtual"
+                and _software_stack_info.get("os_family") == "windows"
+            ):
+                return SocaError.VIRTUAL_DESKTOP_LAUNCH_ERROR(
+                    session_number=_session_name,
+                    session_owner=_user,
+                    helper=f"Windows only support console or default session type, detected {args['session_type']}",
+                ).as_flask()
+
             # Add SOCA job specific variables
             # job/xxx -> Job Specific (JobId, InstanceType, JobProject ...)
             # configuration/xxx -> SOCA environment specific (ClusterName, Base OS, Region ...)
@@ -291,6 +341,7 @@ class CreateVirtualDesktop(Resource):
             # add custom dcv parameter
             soca_parameters["/job/NodeType"] = "dcv_node"
             soca_parameters["/dcv/SessionOwner"] = _user
+            soca_parameters["/dcv/SessionType"] = _session_type
             if _software_stack_info.get("os_family") == "windows":
                 soca_parameters["/dcv/SessionId"] = "console"
             else:
@@ -552,20 +603,6 @@ class CreateVirtualDesktop(Resource):
 
             # Adding Software Stack thumbnail, maybe one day we will add a live screenshot from DCV
             _session_thumbnail = _software_stack_info.get("thumbnail")
-
-            # Configure Session Type
-            if _software_stack_info.get("os_family") == "windows":
-                _session_type = "console"
-            else:
-                # Ubuntu does not work well with virtual session, default to console
-                # Also edit cluster_node_bootstrap/templates/linux/dcv/dcv_server.sh.j2 if you modify this list
-                if _software_stack_info.get("ami_base_os") in [
-                    "ubuntu2204",
-                    "ubuntu2404",
-                ]:
-                    _session_type = "console"
-                else:
-                    _session_type = "virtual"
 
             new_session = VirtualDesktopSessions(
                 is_active=True,

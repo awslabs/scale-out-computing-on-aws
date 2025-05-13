@@ -41,7 +41,6 @@ def metrics(solution_id, uuid, data, url, request_timestamp):
 
         metrics = dict(time_stamp, **params)
         json_data = json.dumps(metrics, indent=4)
-        print(params)
         http = urllib3.PoolManager()
         headers = {"content-type": "application/json"}
         req = http.request("POST", url, body=json_data.encode("utf-8"), headers=headers)

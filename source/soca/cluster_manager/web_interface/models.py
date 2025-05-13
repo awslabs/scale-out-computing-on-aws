@@ -11,12 +11,9 @@
 #  and limitations under the License.                                                                                #
 ######################################################################################################################
 
-from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy import create_engine, Column, Integer, String, ForeignKey, Table
 from sqlalchemy.orm import relationship
-
-
-db = SQLAlchemy()
+from extensions import db
 
 # Association table to link projects and software stacks
 project_software_stack_association = Table(
@@ -88,7 +85,7 @@ class VirtualDesktopSessions(db.Model):
     session_state = db.Column(
         db.String(255), nullable=False
     )  # State of the session (pending/stopped/running)
-    session_type = db.Column(db.String(255), nullable=False) # console or virtual
+    session_type = db.Column(db.String(255), nullable=False)  # console or virtual
     session_state_latest_change_time = db.Column(db.DateTime, nullable=False)
     session_local_admin_password = db.Column(
         db.String(255)

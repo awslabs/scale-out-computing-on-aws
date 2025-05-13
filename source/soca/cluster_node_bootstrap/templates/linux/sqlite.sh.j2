@@ -1,0 +1,47 @@
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# Begin: Configure SQLite
+function install_sqlite () {
+  log_info "Begin: Install SQLite"
+  local SQLITE_VERSION="{{ context.get("/system/sqlite/version") }}"
+  local SQLITE_URL="{{ context.get("/system/sqlite/url") }}"
+  local SQLITE_SHA256="{{ context.get("/system/sqlite/sha256") }}"
+  local SQLITE_INSTALL_PREFIX="/opt/soca/{{ context.get('/configuration/ClusterId') }}/packages/sqlite"
+  if [[ $(${SQLITE_INSTALL_PREFIX}/bin/sqlite3 --version | awk {'print $1'}) == "${SQLITE_VERSION}" ]]; then
+    log_info "SQLITE3 exist and is at correct version, skipping ..."
+  else
+    mkdir -p "${SOCA_BOOTSTRAP_ASSETS_FOLDER}/sqlite"
+    pushd "${SOCA_BOOTSTRAP_ASSETS_FOLDER}/sqlite"
+    if ! file_download --download-url="${SQLITE_URL}" --save-as="sqlite_installer_${SQLITE_VERSION}.zip" --sha256-checksum="${SQLITE_SHA256}"; then
+      exit_fail "Unable to download SQLite"
+    fi
+    unzip "sqlite_installer_${SQLITE_VERSION}.zip" -d sqlite_installer
+    pushd sqlite_installer/*/
+    # -all
+    # Feature flags...
+    # + fts4
+    # + fts5
+    # + geopoly
+    # + rtree
+    # + session
+    # - update-limit
+    # - memsys5
+    # - memsys3
+    # - scanstatus
+    # + json
+
+    # DSQLITE_THREADSAFE=2 - Enable multi-thread https://www.sqlite.org/compile.html#threadsafe
+
+    ./configure CFLAGS="-DSQLITE_THREADSAFE=2" --prefix="${SQLITE_INSTALL_PREFIX}" --all
+    make -j $(nproc)
+    make install
+    echo "${SQLITE_INSTALL_PREFIX}/lib" > /etc/ld.so.conf.d/99-{{ context.get('/configuration/ClusterId') }}-sqlite.conf
+    if ! ldconfig; then
+      exit_fail "SQLite installed but unable to update ldconfig. Check bootstrap logs"
+    fi
+    popd
+  fi
+}
+install_sqlite
+# End: Configure SQLite

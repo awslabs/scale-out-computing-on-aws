@@ -75,7 +75,7 @@
     mkdir -p ${MOUNT_POINT}
 
     # Adding to /etc/fstab
-    log_info "Adding ${MOUNT_FILESYSTEM} ${MOUNT_POINT} ${MOUNT_TYPE} ${MOUNT_OPTIONS} ${MOUNT_DUMP} ${MOUNT_PASS} to /ec/fstab"
+    log_info "Adding ${MOUNT_FILESYSTEM} ${MOUNT_POINT} ${MOUNT_TYPE} ${MOUNT_OPTIONS} ${MOUNT_DUMP} ${MOUNT_PASS} to /etc/fstab"
     echo "${MOUNT_FILESYSTEM} ${MOUNT_POINT} ${MOUNT_TYPE} ${MOUNT_OPTIONS} ${MOUNT_DUMP} ${MOUNT_PASS}" >> /etc/fstab
 
     # Trying to mount

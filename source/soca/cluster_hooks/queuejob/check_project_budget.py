@@ -30,14 +30,14 @@ if site_packages not in sys.path:
 
 import pbs
 from configparser import (
-    SafeConfigParser,
+    ConfigParser,
 )
 
 import boto3
 
 
 def get_all_budgets():
-    config = SafeConfigParser(allow_no_value=True)
+    config = ConfigParser(allow_no_value=True)
     budget_per_project = {}
     try:
         config.read(budget_config_file)

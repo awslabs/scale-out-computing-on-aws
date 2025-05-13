@@ -5,6 +5,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [25.5.0] - 2025-05-13
+
+### Features
+
+- Amazon Linux 2023 can now be used as a Virtual Desktop node
+- Updated Python environment from `3.9.21` from `3.13.2`
+- You can now decide to configure `virtual` or `console` DCV sessions via the web interface
+
+### Changed
+
+- Updated RHEL9 version from `9.3` to `9.5`
+- Updated Amazon Linux 2023 version from `2023.6` to `2023.7`
+- Misc `pip` package updates
+
 ## [25.3.0] - 2025-03-31
 
 ### Features

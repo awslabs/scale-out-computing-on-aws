@@ -8,6 +8,7 @@ from utils.response import SocaResponse
 from utils.error import SocaError
 import os
 import sys
+import json
 logger = logging.getLogger("soca_logger")
 
 
@@ -83,13 +84,15 @@ class SocaCastEngine:
                             )
 
                     elif expected_type == dict:
-                        # casting a dict to str (e.g for Redis) then back to dict could cause:
-                        # ValueError: dictionary update sequence element #0 has length 1; 2 is required
-                        # As a safety measure we use ast.literal_eval() as fail over
                         try:
                             return SocaResponse(success=True, message=dict(self._data))
                         except Exception as _e:
-                            _dict_cast = ast.literal_eval(self._data)
+                            _dict_cast = ast.literal_eval(
+                                self._data.decode("utf-8")
+                                if isinstance(self._data, bytes)
+                                else self._data
+                            )
+
                             if isinstance(_dict_cast, dict):
                                 return SocaResponse(success=True, message=_dict_cast)
                             else:
@@ -97,12 +100,16 @@ class SocaCastEngine:
                                     helper=f"Unable to cast {self._data} as dict because of {_e}"
                                 )
                     elif expected_type == list:
-                        _list_cast = ast.literal_eval(self._data)
+                        _list_cast = ast.literal_eval(
+                            self._data.decode("utf-8")
+                            if isinstance(self._data, bytes)
+                            else self._data
+                        )
                         if isinstance(_list_cast, list):
                             return SocaResponse(success=True, message=_list_cast)
                         else:
                             return SocaError.CAST_ERROR(
-                                helper=f"Unable to cast {self._data} as list"
+                                helper=f"{self._data} seems to be a {type(self._data)} and not a list"
                             )
 
                     # All other types
@@ -122,16 +129,28 @@ class SocaCastEngine:
         else:
             return False
 
+    def as_json(self):
+        try:
+            return SocaResponse(success=True, message=json.loads(self._data))
+        except Exception as err:
+            return SocaError.CAST_ERROR(
+                helper=f"Unable to cast {self._data} as json due to {err}"
+            )
+
     def autocast(self, preserve_key_name: bool = False) -> dict:
         # This function will try to automatically cast self._data as its best type
         # Support nested list and dictionary
         _result = {}
         _cluster_id = f"/soca/{os.environ.get('SOCA_CLUSTER_ID')}"
-        logger.debug(f"Trying to autocast dictionary {self._data} with preserve_key_name to {preserve_key_name}")
+        logger.debug(
+            f"Trying to autocast dictionary {self._data} with preserve_key_name to {preserve_key_name}"
+        )
 
         if preserve_key_name is False:
             if not isinstance(self._data, dict):
-                return SocaError.CAST_ERROR(helper=f"Data must be a dict when preserve_key_name is set to False")
+                return SocaError.CAST_ERROR(
+                    helper=f"Data must be a dict when preserve_key_name is set to False"
+                )
 
             _updated_dict = {}
             for key, value in self._data.items():

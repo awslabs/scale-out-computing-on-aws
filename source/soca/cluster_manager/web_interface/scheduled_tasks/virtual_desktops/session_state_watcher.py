@@ -2,7 +2,8 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import logging
-from models import db, VirtualDesktopSessions
+from extensions import db
+from models import VirtualDesktopSessions
 import utils.aws.boto3_wrapper as utils_boto3
 from utils.aws.ssm_parameter_store import SocaConfig
 from utils.http_client import SocaHttpClient
@@ -13,12 +14,13 @@ from cryptography.fernet import Fernet
 import json
 from sqlalchemy.orm import Session
 import base64
-from typing import Dict, Iterator, List, Union, Literal, Iterable, TypeVar
+from typing import Iterator, List, Literal, Iterable, TypeVar
 from datetime import datetime, timezone
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import sys
 from itertools import islice
 import time
+from flask import Flask
 
 logger = logging.getLogger("scheduled_tasks_virtual_desktops_session_state_watcher")
 
@@ -845,67 +847,68 @@ def update_virtual_desktop_state(
 
 
 # main
-def virtual_desktops_session_state_watcher():
-    logger.info("Scheduled Task: virtual_desktops_session_state_watcher")
+def virtual_desktops_session_state_watcher(app: Flask):
+    with app.app_context():
+        logger.info("Scheduled Task: virtual_desktops_session_state_watcher")
 
-    _start_time = time.time()
+        _start_time = time.time()
 
-    # Get all current active VDI
-    _all_dcv_sessions = VirtualDesktopSessions.query.filter(
-        VirtualDesktopSessions.is_active.is_(True)
-    ).all()
-    if _all_dcv_sessions:
+        # Get all current active VDI
+        _all_dcv_sessions = VirtualDesktopSessions.query.filter(
+            VirtualDesktopSessions.is_active.is_(True)
+        ).all()
+        if _all_dcv_sessions:
 
-        # First, we get the latest status for all the instances IDs registered.
-        # We create batch requests of up to 100 instance ids.
-        _instance_ids_by_state = find_instance_ids_instance_state(
-            all_sessions=_all_dcv_sessions
-        )
-
-        logger.debug(f"Instance ID by State: {_instance_ids_by_state}")
-
-        if _instance_ids_by_state.get("success") is False:
-            logger.critical(
-                f"Unable to retrieve instance state for all instances due to {_instance_ids_by_state.get('message')}"
+            # First, we get the latest status for all the instances IDs registered.
+            # We create batch requests of up to 100 instance ids.
+            _instance_ids_by_state = find_instance_ids_instance_state(
+                all_sessions=_all_dcv_sessions
             )
 
-        # Start by creating chunk of 50 VDI sessions maximum (this is the max number of InstanceIds we can pass to some boto3 API call)
-        # Keep this limit below 50.
-        _chunk_size = 50
+            logger.debug(f"Instance ID by State: {_instance_ids_by_state}")
 
-        # Create chunk of 50 sessions max
-        _chunks_of_sessions = chunked_iterable(_all_dcv_sessions, _chunk_size)
+            if _instance_ids_by_state.get("success") is False:
+                logger.critical(
+                    f"Unable to retrieve instance state for all instances due to {_instance_ids_by_state.get('message')}"
+                )
 
-        # Provision 3 workers to run concurrently
-        _workers = 3
+            # Start by creating chunk of 50 VDI sessions maximum (this is the max number of InstanceIds we can pass to some boto3 API call)
+            # Keep this limit below 50.
+            _chunk_size = 50
 
-        use_multi_threads = False  # for future usage
+            # Create chunk of 50 sessions max
+            _chunks_of_sessions = chunked_iterable(_all_dcv_sessions, _chunk_size)
 
-        if use_multi_threads:
-            with ThreadPoolExecutor(max_workers=_workers) as executor:
-                # Submit each chunk to the executor for parallel processing
-                futures = [
-                    executor.submit(
-                        process_chunk, chunk, _instance_ids_by_state.get("message")
-                    )
-                    for chunk in _chunks_of_sessions
-                ]
+            # Provision 3 workers to run concurrently
+            _workers = 3
 
-                for future in as_completed(futures):
-                    try:
-                        result = future.result()
-                        logger.info(result)
-                    except Exception as e:
-                        logger.error(f"Chunk processing failed: {e}")
+            use_multi_threads = False  # for future usage
+
+            if use_multi_threads:
+                with ThreadPoolExecutor(max_workers=_workers) as executor:
+                    # Submit each chunk to the executor for parallel processing
+                    futures = [
+                        executor.submit(
+                            process_chunk, chunk, _instance_ids_by_state.get("message")
+                        )
+                        for chunk in _chunks_of_sessions
+                    ]
+
+                    for future in as_completed(futures):
+                        try:
+                            result = future.result()
+                            logger.info(result)
+                        except Exception as e:
+                            logger.error(f"Chunk processing failed: {e}")
+            else:
+                # No concurrency, create chunk and process them
+                for _chunk in _chunks_of_sessions:
+                    process_chunk(_chunk, _instance_ids_by_state.get("message"))
+
+            _end_time = time.time()
+            logger.info(
+                f"Scheduled task completed in {_end_time - _start_time:.2f} seconds for {len(_all_dcv_sessions)} sessions"
+            )
+
         else:
-            # No concurrency, create chunk and process them
-            for _chunk in _chunks_of_sessions:
-                process_chunk(_chunk, _instance_ids_by_state.get("message"))
-
-        _end_time = time.time()
-        logger.info(
-            f"Scheduled task completed in {_end_time - _start_time:.2f} seconds for {len(_all_dcv_sessions)} sessions"
-        )
-
-    else:
-        logger.info("No active virtual desktops found")
+            logger.info("No active virtual desktops found")

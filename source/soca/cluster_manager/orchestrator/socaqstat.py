@@ -19,9 +19,8 @@ import sys
 import yaml
 import os
 import hashlib
-from ast import literal_eval
 from datetime import datetime
-
+from utils.cast import SocaCastEngine
 from prettytable import PrettyTable
 
 
@@ -31,7 +30,12 @@ def run_command(cmd):
             cmd.split(), stdout=subprocess.PIPE, stderr=subprocess.STDOUT
         )
         stdout, stderr = command.communicate()
-        return literal_eval(stdout.decode("utf-8"))  # clear possible escape char
+        _cast_tags = SocaCastEngine(data=stdout.decode("utf-8")).as_json()
+        if _cast_tags.get("success") is False:
+            print(f"Unable to parse qstat output due to {_cast_tags.get("message")}")
+            exit(1)
+        else:
+            return _cast_tags.get("message")
     except subprocess.CalledProcessError as _e:
         exit(1)
 

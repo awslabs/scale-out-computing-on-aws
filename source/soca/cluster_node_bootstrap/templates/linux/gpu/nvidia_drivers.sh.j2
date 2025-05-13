@@ -3,6 +3,9 @@
 
 # Begin: Install GPU Drivers - Is GPU Instance Type
 function install_nvidia_grid_drivers () {
+  local GRID_VERSION="${1}"
+  log_info "Installing Grid Nvidia ${GRID_VERSION}"
+
   which nvidia-smi > /dev/null 2>&1
   if [[ "$?" == "0" ]]; then
     log_info "GPU driver already installed. Skip."
@@ -17,17 +20,21 @@ function install_nvidia_grid_drivers () {
   pushd "${SOCA_BOOTSTRAP_ASSETS_FOLDER}/gpu_drivers"
   rm -rf NVIDIA-Linux-x86_64*.run || log_info "No previous .run file detected"
   local DRIVER_BUCKET_REGION=$(curl -s --head "{{ context.get("/system/gpu/gpu_settings/nvidia/linux/grid_drivers/s3_bucket_url") }}" | grep bucket-region | awk '{print $2}' | tr -d '\r\n')
-  aws_cli --region ${DRIVER_BUCKET_REGION} s3 cp --quiet --recursive "{{ context.get("/system/gpu/gpu_settings/nvidia/linux/grid_drivers/s3_bucket_path") }}" .
+  aws_cli --region ${DRIVER_BUCKET_REGION} s3 cp --quiet --recursive "{{ context.get("/system/gpu/gpu_settings/nvidia/linux/grid_drivers/s3_bucket_path") }}/${GRID_VERSION}/" .
   local x_server_pid=$(cat /tmp/.X0-lock)
   if [[ ! -z "${x_server_pid}" ]]; then
     kill $x_server_pid
   fi
-  log_info "Installing NVIDIA Drivers with  NVIDIA-Linux-x86_64*.run --no-precompiled-interface --run-nvidia-xconfig --no-questions --accept-license --silent --no-unified-memory"
-  /bin/bash NVIDIA-Linux-x86_64*.run --no-precompiled-interface \
-   --run-nvidia-xconfig \
-   --no-questions \
-   --accept-license \
-   --silent
+  log_info "Installing NVIDIA Drivers with NVIDIA-Linux-x86_64*.run --no-precompiled-interface --run-nvidia-xconfig --no-questions --accept-license --silent --no-unified-memory"
+  if ! /bin/bash NVIDIA-Linux-x86_64*.run --no-precompiled-interface \
+    --run-nvidia-xconfig \
+    --no-questions \
+    --accept-license \
+    --silent;
+  then
+    log_error "Unable to install GPU driver, check /var/log/nvidia-installer.log for more info. Trying to install a compatibility driver ..."
+  fi
+
   log_info "X server configuration for GPU start..."
   rm -rf /etc/X11/XF86Config*
   local NVIDIA_XCONFIG=$(which nvidia-xconfig)
@@ -41,7 +48,7 @@ function install_nvidia_grid_drivers () {
 function install_nvidia_public_tesla_drivers() {
   local DRIVER_VERSION="${1}"
   local MACHINE=$(uname -m)
-  local DRIVER_URL_ENDPOINT="{{ context.get("/system/gpu/gpu_settings/nvidia/linux/tesla_drivers/public_driver_url_endpoint") }}"
+  local DRIVER_URL_ENDPOINT="{{ context.get("/system/gpu/gpu_settings/nvidia/linux/tesla_drivers/public_driver_url_endpoint") }}/${DRIVER_VERSION}/NVIDIA-Linux-${MACHINE}-${DRIVER_VERSION}.run"
 
   which nvidia-smi > /dev/null 2>&1
   if [[ "$?" == "0" ]]; then
@@ -65,11 +72,13 @@ function install_nvidia_public_tesla_drivers() {
 
   log_info "Installing NVIDIA Drivers with  NVIDIA-Linux-x86_64*.run --no-precompiled-interface --run-nvidia-xconfig --no-questions --accept-license --silent --no-unified-memory"
 
-  /bin/bash NVIDIA-Linux-x86_64*.run --no-precompiled-interface \
+  if ! /bin/bash NVIDIA-Linux-x86_64*.run --no-precompiled-interface \
    --run-nvidia-xconfig \
    --no-questions \
    --accept-license \
-   --silent
+   --silent; then
+   log_error "Unable to install GPU driver, check /var/log/nvidia-installer.log for more info. Trying to install a compatibility driver ..."
+  fi
 
   log_info "X server configuration for GPU start..."
   rm -rf /etc/X11/XF86Config*

@@ -4,11 +4,11 @@
 import logging
 import config
 from dateutil.parser import parse
-from models import db, VirtualDesktopSessions
+from extensions import db
+from models import VirtualDesktopSessions
 from utils.error import SocaError
 from utils.response import SocaResponse
 from utils.cast import SocaCastEngine
-from models import db
 import utils.aws.boto3_wrapper as utils_boto3
 import time
 from datetime import datetime, timedelta, timezone
@@ -19,6 +19,8 @@ from itertools import islice
 from typing import Literal, Union
 import math
 import os
+from flask import Flask
+
 
 logger = logging.getLogger("scheduled_tasks_virtual_desktops_schedule_management")
 
@@ -510,127 +512,131 @@ def chunked_iterable(iterable: VirtualDesktopSessions, chunk_size: int):
         yield [first] + list(islice(iterator, chunk_size - 1))
 
 
-def virtual_desktops_schedule_management():
-    logger.info("Scheduled Task: virtual_desktops_schedule_management")
+def virtual_desktops_schedule_management(app: Flask):
+    with app.app_context():
+        logger.info("Scheduled Task: virtual_desktops_schedule_management")
 
-    _start_time = time.time()
+        _start_time = time.time()
 
-    # Get all current active VDI
-    _all_dcv_sessions = VirtualDesktopSessions.query.filter(
-        VirtualDesktopSessions.is_active.is_(True)
-    ).all()
-    if _all_dcv_sessions:
-        # Start by creating chunk of 50 VDI sessions maximum (this is the max number of InstanceIds we can pass to some boto3 API call)
-        # Keep this limit below 50.
-        _chunk_size = 50
-
-        _chunks_of_sessions = chunked_iterable(_all_dcv_sessions, _chunk_size)
-
-        for _chunk in _chunks_of_sessions:
-            process_chunk(_chunk)
-
-    else:
-        logger.info("No active virtual desktops found")
-
-    _end_time = time.time()
-    logger.info(
-        f"Scheduled task completed in {_end_time - _start_time:.2f} seconds for {len(_all_dcv_sessions)} sessions"
-    )
-
-
-def auto_terminate_stopped_instance():
-    logger.info("Scheduled Task: auto_terminate_stopped_instance")
-    try:
-        _terminate_stopped_windows_instance_after = int(
-            config.Config.DCV_WINDOWS_TERMINATE_STOPPED_SESSION
-        )
-        _terminate_stopped_linux_instance_after = int(
-            config.Config.DCV_LINUX_TERMINATE_STOPPED_SESSION
-        )
-    except ValueError as err:
-        return SocaError.GENERIC_ERROR(
-            helper=f"_terminate_stopped_instance_after does not seems to be a valid integer Script will not proceed to auto-termination. Error: {err}, DCV_WINDOWS_TERMINATE_STOPPED_SESSION={config.Config.DCV_WINDOWS_TERMINATE_STOPPED_SESSION}, DCV_LINUX_TERMINATE_STOPPED_SESSION={config.Config.DCV_LINUX_TERMINATE_STOPPED_SESSION} ."
-        )
-
-    _all_stopped_dcv_sessions = []
-    if _terminate_stopped_windows_instance_after > 0:
-        logger.info(
-            f"Windows instance will be terminated after {_terminate_stopped_windows_instance_after} hours"
-        )
-        _all_stopped_windows_dcv_sessions = VirtualDesktopSessions.query.filter(
-            VirtualDesktopSessions.is_active == True,
-            VirtualDesktopSessions.session_state == "stopped",
-            VirtualDesktopSessions.os_family == "windows",
+        # Get all current active VDI
+        _all_dcv_sessions = VirtualDesktopSessions.query.filter(
+            VirtualDesktopSessions.is_active.is_(True)
         ).all()
-        _all_stopped_dcv_sessions.extend(_all_stopped_windows_dcv_sessions)
+        if _all_dcv_sessions:
+            # Start by creating chunk of 50 VDI sessions maximum (this is the max number of InstanceIds we can pass to some boto3 API call)
+            # Keep this limit below 50.
+            _chunk_size = 50
 
-    if _terminate_stopped_linux_instance_after > 0:
+            _chunks_of_sessions = chunked_iterable(_all_dcv_sessions, _chunk_size)
+
+            for _chunk in _chunks_of_sessions:
+                process_chunk(_chunk)
+
+        else:
+            logger.info("No active virtual desktops found")
+
+        _end_time = time.time()
         logger.info(
-            f"Linux instance will be terminated after {_terminate_stopped_windows_instance_after} hours"
+            f"Scheduled task completed in {_end_time - _start_time:.2f} seconds for {len(_all_dcv_sessions)} sessions"
         )
-        _all_stopped_linux_dcv_sessions = VirtualDesktopSessions.query.filter(
-            VirtualDesktopSessions.is_active == True,
-            VirtualDesktopSessions.session_state == "stopped",
-            VirtualDesktopSessions.os_family == "linux",
-        ).all()
-        _all_stopped_dcv_sessions.extend(_all_stopped_linux_dcv_sessions)
 
-    if _all_stopped_dcv_sessions:
-        for session_info in _all_stopped_dcv_sessions:
+
+def auto_terminate_stopped_instance(app: Flask):
+    with app.app_context():
+        logger.info("Scheduled Task: auto_terminate_stopped_instance")
+        try:
+            _terminate_stopped_windows_instance_after = int(
+                config.Config.DCV_WINDOWS_TERMINATE_STOPPED_SESSION
+            )
+            _terminate_stopped_linux_instance_after = int(
+                config.Config.DCV_LINUX_TERMINATE_STOPPED_SESSION
+            )
+        except ValueError as err:
+            return SocaError.GENERIC_ERROR(
+                helper=f"_terminate_stopped_instance_after does not seems to be a valid integer Script will not proceed to auto-termination. Error: {err}, DCV_WINDOWS_TERMINATE_STOPPED_SESSION={config.Config.DCV_WINDOWS_TERMINATE_STOPPED_SESSION}, DCV_LINUX_TERMINATE_STOPPED_SESSION={config.Config.DCV_LINUX_TERMINATE_STOPPED_SESSION} ."
+            )
+
+        _all_stopped_dcv_sessions = []
+        if _terminate_stopped_windows_instance_after > 0:
             logger.info(
-                f"Checking stopped session {session_info.session_name} owned by {session_info.session_owner}"
+                f"Windows instance will be terminated after {_terminate_stopped_windows_instance_after} hours"
             )
+            _all_stopped_windows_dcv_sessions = VirtualDesktopSessions.query.filter(
+                VirtualDesktopSessions.is_active == True,
+                VirtualDesktopSessions.session_state == "stopped",
+                VirtualDesktopSessions.os_family == "windows",
+            ).all()
+            _all_stopped_dcv_sessions.extend(_all_stopped_windows_dcv_sessions)
 
-            _stack_name = session_info.stack_name
-            _os_family = session_info.os_family
-            _session_state_latest_change_time = (
-                session_info.session_state_latest_change_time
+        if _terminate_stopped_linux_instance_after > 0:
+            logger.info(
+                f"Linux instance will be terminated after {_terminate_stopped_windows_instance_after} hours"
             )
+            _all_stopped_linux_dcv_sessions = VirtualDesktopSessions.query.filter(
+                VirtualDesktopSessions.is_active == True,
+                VirtualDesktopSessions.session_state == "stopped",
+                VirtualDesktopSessions.os_family == "linux",
+            ).all()
+            _all_stopped_dcv_sessions.extend(_all_stopped_linux_dcv_sessions)
 
-            if _os_family == "windows":
-                _terminate_stopped_instance_after = (
-                    _terminate_stopped_windows_instance_after
-                )
-            else:
-                _terminate_stopped_instance_after = (
-                    _terminate_stopped_linux_instance_after
-                )
-
-            if _terminate_stopped_instance_after == 0:
-                logger.info("_terminate_stopped_instance_after is disabled, skipping")
-                continue
-
-            if (
-                _session_state_latest_change_time
-                + timedelta(hours=_terminate_stopped_instance_after)
-            ) < datetime.now(timezone.utc):
+        if _all_stopped_dcv_sessions:
+            for session_info in _all_stopped_dcv_sessions:
                 logger.info(
-                    f"Desktop {session_info.session_uuid} is ready to be terminated, last access time {_session_state_latest_change_time}, stop after idle time (hours): {_terminate_stopped_instance_after}"
+                    f"Checking stopped session {session_info.session_name} owned by {session_info.session_owner}"
                 )
-                try:
-                    client_cloudformation.delete_stack(StackName=_stack_name)
-                except Exception as err:
-                    return SocaError.GENERIC_ERROR(
-                        helper=f"Unable to terminate instance {_stack_name} due to {err}"
+
+                _stack_name = session_info.stack_name
+                _os_family = session_info.os_family
+                _session_state_latest_change_time = (
+                    session_info.session_state_latest_change_time
+                )
+
+                if _os_family == "windows":
+                    _terminate_stopped_instance_after = (
+                        _terminate_stopped_windows_instance_after
+                    )
+                else:
+                    _terminate_stopped_instance_after = (
+                        _terminate_stopped_linux_instance_after
                     )
 
-                try:
-                    session_info.is_active = False
-                    session_info.deactivated_on = datetime.now(timezone.utc)
-                    session_info.deactivated_by = "auto_terminate_stopped_instance"
-                    session_info.session_state_latest_change_time = datetime.now(
-                        timezone.utc
+                if _terminate_stopped_instance_after == 0:
+                    logger.info(
+                        "_terminate_stopped_instance_after is disabled, skipping"
                     )
-                    db.session.commit()
-                    return SocaResponse(
-                        success=True,
-                        message=f"Terminated {_stack_name} successfully",
+                    continue
+
+                if (
+                    _session_state_latest_change_time
+                    + timedelta(hours=_terminate_stopped_instance_after)
+                ) < datetime.now(timezone.utc):
+                    logger.info(
+                        f"Desktop {session_info.session_uuid} is ready to be terminated, last access time {_session_state_latest_change_time}, stop after idle time (hours): {_terminate_stopped_instance_after}"
                     )
-                except Exception as err:
-                    return SocaError.GENERIC_ERROR(
-                        helper=f"Unable to update DB entry for {_stack_name} due to {err}"
-                    )
-    else:
-        logger.info(
-            f"No stopped sessions found or feature is disabled (0). {config.Config.DCV_WINDOWS_TERMINATE_STOPPED_SESSION=} {config.Config.DCV_LINUX_TERMINATE_STOPPED_SESSION=}"
-        )
+                    try:
+                        client_cloudformation.delete_stack(StackName=_stack_name)
+                    except Exception as err:
+                        return SocaError.GENERIC_ERROR(
+                            helper=f"Unable to terminate instance {_stack_name} due to {err}"
+                        )
+
+                    try:
+                        session_info.is_active = False
+                        session_info.deactivated_on = datetime.now(timezone.utc)
+                        session_info.deactivated_by = "auto_terminate_stopped_instance"
+                        session_info.session_state_latest_change_time = datetime.now(
+                            timezone.utc
+                        )
+                        db.session.commit()
+                        return SocaResponse(
+                            success=True,
+                            message=f"Terminated {_stack_name} successfully",
+                        )
+                    except Exception as err:
+                        return SocaError.GENERIC_ERROR(
+                            helper=f"Unable to update DB entry for {_stack_name} due to {err}"
+                        )
+        else:
+            logger.info(
+                f"No stopped sessions found or feature is disabled (0). {config.Config.DCV_WINDOWS_TERMINATE_STOPPED_SESSION=} {config.Config.DCV_LINUX_TERMINATE_STOPPED_SESSION=}"
+            )

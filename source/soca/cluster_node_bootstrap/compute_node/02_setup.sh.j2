@@ -59,10 +59,6 @@ systemctl stop pbs || echo "PBS service not found yet, ignoring"
 
 {% set PATH = '/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin:/opt/pbs/bin:/opt/pbs/sbin:/opt/pbs/bin:/opt/soca/' ~ context.get("/configuration/ClusterId") %}
 
-if [[ $(rpm -qa kernel | wc -l) -gt 1 ]]; then
-    set_reboot_required "Kernel was updated during package install"
-fi
-
 # Check if machine is a login node, if yes perform additional setup actions
 {% include "compute_node/extra/login_node.sh.j2" %}
 

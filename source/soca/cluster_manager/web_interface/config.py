@@ -17,6 +17,7 @@ import utils.cache as utils_cache
 from utils.aws.secrets_manager import SocaSecret
 from utils.aws.ssm_parameter_store import SocaConfig
 from utils.cast import SocaCastEngine
+from extensions import db
 import sys
 
 basedir = os.path.abspath(os.path.dirname(__file__))
@@ -38,6 +39,7 @@ class Config(object):
         SESSION_REDIS = cache_config.get("cache_client")
     else:
         SESSION_TYPE = "sqlalchemy"
+        SESSION_SQLALCHEMY = db
     SECRET_KEY = os.environ.get("SOCA_FLASK_SECRET_KEY", False)
     API_ROOT_KEY = os.environ.get("SOCA_FLASK_API_ROOT_KEY", False)
     SOCA_DATA_SHARING_SYMMETRIC_KEY = os.environ.get("SOCA_FLASK_FERNET_KEY", False)
@@ -128,6 +130,14 @@ class Config(object):
 
     DCV_IDLE_CPU_THRESHOLD = 15  # SOCA will NOT hibernate/stop an instance if current CPU usage % is over this value
 
+    # List of DCV session type allowed to be used by the users
+    # https://docs.aws.amazon.com/dcv/latest/adminguide/managing-sessions-intro.html
+    # default -> console session for Windows, Ubuntu and GPU machines, virtual for everything e;se
+    # virtual -> Force Virtual Session
+    # console -> Force Console Session
+    # note: Windows session can only be console
+    DCV_ALLOWED_SESSION_TYPES = ["default", "console", "virtual"]
+
     DCV_VERIFY_SESSION_HEALTH = True  # if set to True, scheduled_tasks/virtual_desktops/session_state_watcher will try to validate if the DCV Session is correctly running
 
     DCV_ALLOW_DEFAULT_SCHEDULE_UPDATE = (
@@ -179,6 +189,11 @@ class Config(object):
         "amazonlinux2": {
             "family": "linux",
             "friendly_name": "Amazon Linux 2",
+            "visible": True,
+        },
+        "amazonlinux2023": {
+            "family": "linux",
+            "friendly_name": "Amazon Linux 2023",
             "visible": True,
         },
         "rocky9": {

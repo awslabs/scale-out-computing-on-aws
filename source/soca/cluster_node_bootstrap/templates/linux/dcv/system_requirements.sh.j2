@@ -22,6 +22,8 @@ function install_dcv_prerequisites () {
        xorg-x11-utils
        # xorg-x11-fonts-Type1 \
        # xorg-x11-drivers \
+    {% elif context.get("/configuration/BaseOS") == "amazonlinux2023" %}
+      packages_generic_command groupinstall "Desktop" -y
 
     {% elif context.get("/configuration/BaseOS") == "rhel7" %}
       packages_generic_command groups mark convert

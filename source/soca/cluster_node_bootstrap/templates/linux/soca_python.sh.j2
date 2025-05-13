@@ -16,6 +16,25 @@ function install_soca_python () {
     log_info "Local SOCA_PYTHON ${SOCA_PYTHON_LOCAL_INSTALL_PREFIX} found and at correct version, skipping SOCA_PYTHON Install"
 
   else
+
+    {% if context.get("/configuration/BaseOS") == "amazonlinux2" %}
+       log_info "AmazonLinux2 ships with OpenSSL 1.0.x, bumping to openssl11"
+       if ! verify_package_installed openssl11; then
+         # Note: you need openssl 1.1.x devel, however you cannot install them if openssl 1.0.x devel is already there
+         if verify_package_installed openssl-devel; then
+           log_info "Removing openssl 1.0.x devel"
+           packages_remove openssl-devel
+         fi
+         packages_install openssl11 openssl11-devel
+        log_info "openssl11 is installed on /usr/bin/openssl11, we move the required lib/include to the a different folder: /opt/soca/{{ context.get('/configuration/ClusterId') }}/packages/openssl11/"
+         # Avoid conflict with openssl1.0.x
+         mkdir -p "/opt/soca/{{ context.get('/configuration/ClusterId') }}/packages/openssl11/lib"
+         mkdir -p "/opt/soca/{{ context.get('/configuration/ClusterId') }}/packages/openssl11/include"
+         cp -r /usr/include/openssl "/opt/soca/{{ context.get('/configuration/ClusterId') }}/packages/openssl11/include"
+         cp /usr/lib64/libssl.so.1.1.* /usr/lib64/libcrypto.so.1.1 "/opt/soca/{{ context.get('/configuration/ClusterId') }}/packages/openssl11/lib"
+       fi
+    {% endif %}
+
     log_info "Local SOCA_PYTHON ${SOCA_PYTHON_LOCAL_INSTALL_PREFIX} not found, installing it"
     mkdir -p ${SOCA_PYTHON_LOCAL_INSTALL_PREFIX}
     log_info "${SOCA_PYTHON_LOCAL_INSTALL_PREFIX}/bin/python3 not detected or at wrong version, installing Python ${PYTHON_VERSION}"
@@ -25,27 +44,59 @@ function install_soca_python () {
     tar xvf "python3_soca_installer.tgz" --strip-components=1 -C .
 
     {% if context.get("/job/NodeType") == "controller" %}
-      # Add additional compilation flags for Controller as Python will be used for web interface & other tasks
-      if ! ./configure CXX="g++" \
-        LDFLAGS="-L/usr/lib64/openssl" \
-        CPPFLAGS="-I/usr/include/openssl" \
-        CLAGS="fPIC" \
-        --enable-loadable-sqlite-extensions \
-        --prefix=${SOCA_PYTHON_LOCAL_INSTALL_PREFIX} \
-        --enable-optimizations \
-        --enable-shared \
-        --with-ensurepip=install; then
-        exit_fail "Unable to run './configure' for SOCA_PYTHON. Check bootstrap logs."
+      # Full-featured Python build for controller nodes
+      local CXX="g++"
+      local PKG_CONFIG_PATH="/opt/soca/{{ context.get("/configuration/ClusterId") }}/packages/sqlite/lib/pkgconfig:$PKG_CONFIG_PATH"
+      local CPPFLAGS="-I/opt/soca/{{ context.get("/configuration/ClusterId") }}/packages/sqlite/include"
+      local LDFLAGS="-L/opt/soca/{{ context.get("/configuration/ClusterId") }}/packages/sqlite/lib"
+      local ADDITIONAL_ARGS=""
+
+      {% if context.get("/configuration/BaseOS") == "amazonlinux2" %}
+        # ALI2, we use a custom OpenSSL as ALI2 ships with OpenSSL1.0 and we need 1.1
+        # We disable gcov to avoid compilation error when using --enable-optimization with custom sqlite3
+        CPPFLAGS+=" -I/opt/soca/{{ context.get("/configuration/ClusterId") }}/packages/openssl11/include"
+        LDFLAGS+=" -L/opt/soca/{{ context.get("/configuration/ClusterId") }}/packages/openssl11/lib"
+        CFLAGS+=" -fno-omit-frame-pointer -fno-profile-arcs -fno-test-coverage"
+        ADDITIONAL_ARGS+=" --with-openssl=/opt/soca/{{ context.get("/configuration/ClusterId") }}/packages/openssl11"
+        export LD_LIBRARY_PATH="/opt/soca/{{ context.get("/configuration/ClusterId") }}/packages/openssl11/lib:$LD_LIBRARY_PATH"
+      {% endif %}
+
+      local PYTHON_CONFIGURE_CMD="./configure"
+      PYTHON_CONFIGURE_CMD+=" CXX=\"${CXX}\""
+      PYTHON_CONFIGURE_CMD+=" PKG_CONFIG_PATH=\"${PKG_CONFIG_PATH}\""
+      PYTHON_CONFIGURE_CMD+=" CPPFLAGS=\"${CPPFLAGS}\""
+      PYTHON_CONFIGURE_CMD+=" LDFLAGS=\"${LDFLAGS}\""
+      PYTHON_CONFIGURE_CMD+=" --enable-loadable-sqlite-extensions"
+      PYTHON_CONFIGURE_CMD+=" --prefix=\"${SOCA_PYTHON_LOCAL_INSTALL_PREFIX}\""
+      PYTHON_CONFIGURE_CMD+=" --enable-shared"
+      PYTHON_CONFIGURE_CMD+=" --enable-optimizations"
+      PYTHON_CONFIGURE_CMD+=" --with-lto"
+      PYTHON_CONFIGURE_CMD+=" --with-ensurepip=install"
+      PYTHON_CONFIGURE_CMD+=" ${ADDITIONAL_ARGS}"
+
+      if ! eval ${PYTHON_CONFIGURE_CMD}; then
+        exit_fail "Unable to run [${PYTHON_CONFIGURE_CMD}] for SOCA_PYTHON. Check bootstrap logs."
       fi
+
     {% else %}
-      # Minimal Python3 environment to build OpenPBS
-      if ! ./configure CXX="g++" \
-        LDFLAGS="-L/usr/lib64/openssl" \
-        CPPFLAGS="-I/usr/include/openssl" \
-        CLAGS="fPIC" \
-        --prefix=${SOCA_PYTHON_LOCAL_INSTALL_PREFIX} \
-        --enable-shared; then
-        exit_fail "Unable to run './configure' for SOCA_PYTHON. Check bootstrap logs."
+      # Minimal Python build for compute nodes
+      local CXX="g++"
+      local PKG_CONFIG_PATH="/opt/soca/{{  context.get("/configuration/ClusterId")  }}/packages/sqlite/lib/pkgconfig:$PKG_CONFIG_PATH"
+      local ADDITIONAL_ARGS=""
+
+       {% if context.get("/configuration/BaseOS") == "amazonlinux2" %}
+        ADDITIONAL_ARGS+=" --with-openssl=/opt/soca/{{ context.get("/configuration/ClusterId") }}/packages/openssl11"
+        export LD_LIBRARY_PATH="/opt/soca/{{ context.get("/configuration/ClusterId") }}/packages/openssl11/lib:$LD_LIBRARY_PATH"
+       {% endif %}
+
+      local PYTHON_CONFIGURE_CMD="./configure"
+      PYTHON_CONFIGURE_CMD+=" CXX=\"${CXX}\""
+      PYTHON_CONFIGURE_CMD+=" --prefix=\"${SOCA_PYTHON_LOCAL_INSTALL_PREFIX}\""
+      PYTHON_CONFIGURE_CMD+=" --enable-shared"
+      PYTHON_CONFIGURE_CMD+=" ${ADDITIONAL_ARGS}"
+
+      if ! eval ${PYTHON_CONFIGURE_CMD}; then
+        exit_fail "Unable to run [${PYTHON_CONFIGURE_CMD}] for SOCA_PYTHON. Check bootstrap logs."
       fi
     {% endif %}
 
@@ -62,9 +113,10 @@ function install_soca_python () {
     popd
 
     log_info "SOCA_PYTHON installed successfully, updating dynamic linker cache"
+
     # ensure 99- is there to avoid version conflict if /lib64 system python3 is already at the same version
     echo "/lib64" > /etc/ld.so.conf.d/00-system-python.conf # ensure system python is always loaded first
-    echo "/opt/soca/{{ context.get('/configuration/ClusterId') }}/python/latest/lib" > /etc/ld.so.conf.d/99-python-{{ context.get('/configuration/ClusterId') }}.conf
+    echo "/opt/soca/{{ context.get('/configuration/ClusterId') }}/python/latest/lib" > /etc/ld.so.conf.d/99-{{ context.get('/configuration/ClusterId') }}-python.conf
     if ! ldconfig; then
       exit_fail "SOCA_PYTHON installed but unable to update ldconfig. Check bootstrap logs"
     fi

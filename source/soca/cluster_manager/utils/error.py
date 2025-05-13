@@ -10,6 +10,7 @@ from typing import Optional
 import logging
 from flask import Flask, jsonify, request, flash, redirect, has_request_context
 from utils.response import SocaResponse
+import json
 
 logger = logging.getLogger("soca_logger")
 
@@ -75,9 +76,9 @@ class SocaError:
         # Handle case where response is dict (e.g: SocaSubprocessClient)
         # we can't append Request ID otherwise it will break the dictionary
         # instead we add a new request_id key and cast back as str
-        _error_message_to_str = str(_error_message)
+        _error_message_as_str = str(_error_message)
         try:
-            _error_dict = ast.literal_eval(_error_message_to_str)
+            _error_dict = json.loads(_error_message_as_str)
             if isinstance(_error_dict, dict):
                 _error_dict["request_id"] = f"Request ID: {_request_uuid}"
                 _error_dict["error_documentation_url"] = f"{error_doc_url}"
@@ -90,12 +91,14 @@ class SocaError:
 
         except Exception as err:
             # handle case with str breaking literal_eval such as "Unable to search due to NotFoundError(404, 'index_not_found_exception', 'no such index [soca_jobs]', soca_jobs, index_or_alias)" c
-            logger.info(f"Unable to literal_eval {_error_message_to_str} due to {err}, defaulting to str")
+            logger.info(
+                f"Unable to literal_eval {_error_message_as_str} due to {err}, defaulting to str"
+            )
 
             if error_doc_url is not None:
-                message = f"{_error_message_to_str}. For troubleshooting, please visit: {error_doc_url}. (Request ID: {_request_uuid})"
+                message = f"{_error_message_as_str}. For troubleshooting, please visit: {error_doc_url}. (Request ID: {_request_uuid})"
             else:
-                message = f"{_error_message_to_str}  (Request ID: {_request_uuid})"
+                message = f"{_error_message_as_str}  (Request ID: {_request_uuid})"
 
         _soca_response = SocaResponse(
             success=False,
@@ -134,6 +137,7 @@ class SocaError:
             helper=helper,
             status_code=status_code,
         )
+
     @staticmethod
     def JINJA_GENERATOR_ERROR(
             helper: Optional[str] = None,

@@ -18,11 +18,7 @@ from flask_restful import Resource, reqparse
 import logging
 import base64
 from decorators import private_api
-from requests import get
-import ast
-import shlex
 import sys
-import errors
 import os
 import re
 import random
@@ -32,6 +28,7 @@ from utils.error import SocaError
 from utils.subprocess_client import SocaSubprocessClient
 from utils.http_client import SocaHttpClient
 from utils.response import SocaResponse
+from utils.cast import SocaCastEngine
 
 logger = logging.getLogger("soca_logger")
 
@@ -81,11 +78,21 @@ class Job(Resource):
                 get_job_info = get_job_info.replace(
                     f'"project":{match},', f'"project":"{match}",'
                 )
-            job_info = ast.literal_eval(get_job_info)
+            _get_job_info = SocaCastEngine(data=get_job_info).as_json()
+            if _get_job_info.get("success") is False:
+                return SocaError.PBS_JOBS(
+                    helper=f"Unable to query get_job_info due to {_get_job_info.get("message")} with job data {get_job_info}"
+                ).as_flask()
+            else:
+                job_info = _get_job_info.get("message")
             job_key = list(job_info["Jobs"].keys())[0]
-            return SocaResponse(success=True, message=job_info["Jobs"][job_key]).as_flask()
+            return SocaResponse(
+                success=True, message=job_info["Jobs"][job_key]
+            ).as_flask()
         else:
-            return SocaError.PBS_JOB(job_id=job_id, helper="Job may have terminated.", status_code=210).as_flask()
+            return SocaError.PBS_JOB(
+                job_id=job_id, helper="Job may have terminated.", status_code=210
+            ).as_flask()
 
     @private_api
     def post(self):
@@ -176,7 +183,9 @@ class Job(Resource):
                 )
                 job_submit_file = f"job_submit_{random_id}.sh"
 
-                group_ownership = f"{request_user}{config.Config.DIRECTORY_GROUP_NAME_SUFFIX}"
+                group_ownership = (
+                    f"{request_user}{config.Config.DIRECTORY_GROUP_NAME_SUFFIX}"
+                )
                 if args["input_file_path"]:
                     job_output_path = args["input_file_path"]
                 else:
@@ -209,8 +218,12 @@ class Job(Resource):
                     group=group_ownership,
                 )
                 os.chmod(job_output_path + "/" + job_submit_file, 0o700)
-                submit_job_command = f"{interpreter} {job_output_path}/{job_submit_file}"
-                logger.debug(f"About to run su {request_user} -c '{submit_job_command}'")
+                submit_job_command = (
+                    f"{interpreter} {job_output_path}/{job_submit_file}"
+                )
+                logger.debug(
+                    f"About to run su {request_user} -c '{submit_job_command}'"
+                )
                 launch_job = SocaSubprocessClient(
                     run_command=f"su {request_user} -c '{submit_job_command}'"
                 ).run()
@@ -222,12 +235,20 @@ class Job(Resource):
                             .lstrip()
                             .split(".")[0]
                         )
-                        return SocaResponse(success=True, message=str(job_id)).as_flask()
+                        return SocaResponse(
+                            success=True, message=str(job_id)
+                        ).as_flask()
                     else:
-                        return SocaResponse(success=True, message=f"Your Linux command has been executed successfully. Output (if any) can be accessed on <a href='/my_files?path={job_output_path}'>{job_output_path}</a>").as_flask()
+                        return SocaResponse(
+                            success=True,
+                            message=f"Your Linux command has been executed successfully. Output (if any) can be accessed on <a href='/my_files?path={job_output_path}'>{job_output_path}</a>",
+                        ).as_flask()
 
                 else:
-                    return SocaError.PBS_JOB(job_id=False, helper=f"Unable to submit job: {launch_job.get('message')}").as_flask()
+                    return SocaError.PBS_JOB(
+                        job_id=False,
+                        helper=f"Unable to submit job: {launch_job.get('message')}",
+                    ).as_flask()
 
             except subprocess.CalledProcessError as e:
                 return SocaError.SUBPROCESS_ERROR(
@@ -290,7 +311,9 @@ class Job(Resource):
         )
 
         if get_job_info.success is False:
-            return SocaError.PBS_JOB(job_id=job_id, helper="Job may have terminated.").as_flask()
+            return SocaError.PBS_JOB(
+                job_id=job_id, helper="Job may have terminated."
+            ).as_flask()
         else:
             job_info = get_job_info.message
             job_owner = job_info["Job_Owner"].split("@")[0]
@@ -309,7 +332,9 @@ class Job(Resource):
                 ).run()
                 if delete_job.success:
                     logger.info(f"Job {job_id} deleted successfully")
-                    return SocaResponse(success=True, message="Job deleted successfully").as_flask()
+                    return SocaResponse(
+                        success=True, message="Job deleted successfully"
+                    ).as_flask()
                 else:
                     return SocaError.PBS_JOB(
                         job_id=job_id,

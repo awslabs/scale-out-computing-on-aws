@@ -2,7 +2,6 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import logging
-import elasticsearch
 import opensearchpy
 from utils.error import SocaError
 from utils.aws.ssm_parameter_store import SocaConfig
@@ -13,7 +12,7 @@ from utils.aws.boto3_wrapper import (
     get_boto_session_region,
 )
 from opensearchpy import OpenSearch, RequestsHttpConnection
-from elasticsearch import Elasticsearch, RequestsHttpConnection
+
 from requests_aws4auth import AWS4Auth
 from typing import Optional
 import os
@@ -120,15 +119,9 @@ class SocaAnalyticsClient:
                     connection_class=RequestsHttpConnection,
                 )
             else:
-                self._conn = Elasticsearch(
-                    [self._endpoint],
-                    headers=headers,
-                    port=port,
-                    http_auth=_http_auth,
-                    use_ssl=use_ssl,
-                    verify_certs=verify_certs,
-                    connection_class=RequestsHttpConnection,
-                )
+                logger.warning(f"Analytics Engine {self._engine} is unsupported")
+                return SocaError.ANALYTICS_ERROR(helper=f"Analytics Engine {self._engine} is unsupported")
+
             logger.debug(f"Successfully initialized {self._engine} client")
             return SocaResponse(
                 success=True, message=f"{self._engine} client initialized"
@@ -173,10 +166,6 @@ class SocaAnalyticsClient:
         try:
             _search = self._conn.search(
                 index=index, scroll=scroll, size=size, body=body
-            )
-        except elasticsearch.exceptions.NotFoundError as err:
-            return SocaError.ANALYTICS_ERROR(
-                helper=f"ElasticSearch Index {index} not found {err}"
             )
         except opensearchpy.exceptions.NotFoundError as err:
             return SocaError.ANALYTICS_ERROR(

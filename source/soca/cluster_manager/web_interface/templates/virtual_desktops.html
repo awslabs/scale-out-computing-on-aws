@@ -742,6 +742,13 @@
                                                                 </select>
                                                                 <small class="form-text text-muted">Enable Hibernation Support. <a href="https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/Hibernate.html" target="_blank">See Documentation.</a> </small>
                                                                 <br>
+                                                                <select class="form-control" name="session_type">
+                                                                    {% for dcv_session_type in allowed_dcv_session_types %}
+                                                                      <option value="{{ dcv_session_type }}"> {{ dcv_session_type }}</option>
+                                                                    {% endfor %}
+                                                                </select>
+                                                                <small class="form-text text-muted">DCV Session Type. <a href="https://docs.aws.amazon.com/dcv/latest/adminguide/managing-sessions-intro.html" target="_blank">See Documentation.</a> </small>
+                                                                <br>
                                                             </div>
                                                         </div>
                                                     </div>

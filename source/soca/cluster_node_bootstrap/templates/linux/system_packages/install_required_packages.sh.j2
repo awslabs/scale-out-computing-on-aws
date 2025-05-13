@@ -87,6 +87,17 @@ function system_packages_install {
       systemctl enable hibinit-agent
     {% endif %}
 
+    # Prepare for reboot
+    {%  if context.get("/configuration/BaseOS") in ("ubuntu2204", "ubuntu2404") %}
+      if [[ $(dpkg -l | grep linux-image | wc -l) -gt 1 ]]; then
+        set_reboot_required "Kernel was updated during package install"
+      fi
+    {% else %}
+      if [[ $(rpm -qa kernel | wc -l) -gt 1 ]]; then
+        set_reboot_required "Kernel was updated during package install"
+      fi
+    {% endif %}
+
   else
     log_info "Existing Package log ${PACKAGES_ALREADY_INSTALLED_FILE_LOCK} found. Bypassing package installation steps. Remove this file if you have modified the list of package to install"
   fi

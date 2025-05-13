@@ -94,11 +94,19 @@ class CustomFormatter(logging.Formatter):
     def format(self, record):
         if not isinstance(record.msg, (Text, Table)):
             if record.levelno == logging.ERROR:
-                record.msg = f"[bold red]ERROR: {record.msg}[/bold red]"
+                record.msg = f"[bold red]{record.msg}[/bold red]"
             elif record.levelno == logging.WARNING:
-                record.msg = f"[bold yellow]WARNING: {record.msg} [/bold yellow]"
+                record.msg = f"[bold yellow]{record.msg} [/bold yellow]"
+            elif record.levelno == logging.FATAL:
+                record.msg = f"[bold red] FATAL {record.msg}[/bold red]"
 
         return super().format(record)
+
+
+class CustomLogger(logging.getLoggerClass()):
+    def fatal(self, msg, *args, **kwargs):
+        self.critical(msg, *args, **kwargs)
+        sys.exit(1)
 
 
 _soca_debug = os.environ.get("SOCA_DEBUG", False)
@@ -110,15 +118,20 @@ else:
     _formatter = CustomFormatter("%(message)s")
 
 _rich_handler = RichHandler(
-    rich_tracebacks=True, markup=True, show_time=False, show_level=False
+    rich_tracebacks=True,
+    markup=True,
+    show_time=False,
+    show_level=False,
+    show_path=False,
 )
+_rich_handler.console.file = sys.stdout
 _rich_handler.setFormatter(_formatter)
-logging.basicConfig(
-    level=_log_level,
-    handlers=[_rich_handler],
-)
 
+logging.basicConfig(level=_log_level, handlers=[_rich_handler])
+logging.setLoggerClass(CustomLogger)
+logging.root.manager.loggerDict.pop("soca_logger", None)
 logger = logging.getLogger("soca_logger")
+
 for _logger_name in ["boto3", "botocore"]:
     logging.getLogger(_logger_name).setLevel(
         logging.DEBUG if _soca_debug in {"trace", "2"} else logging.WARNING
@@ -126,7 +139,7 @@ for _logger_name in ["boto3", "botocore"]:
 
 
 def get_lambda_runtime_version() -> aws_lambda.Runtime:
-    return typing.cast(aws_lambda.Runtime, aws_lambda.Runtime.PYTHON_3_12)
+    return typing.cast(aws_lambda.Runtime, aws_lambda.Runtime.PYTHON_3_13)
 
 
 def get_config_key(
@@ -143,8 +156,7 @@ def get_config_key(
             break
 
     if required and _result is None:
-        logger.error(f"{key_name} must be set but returned no value")
-        sys.exit(1)
+        logger.fatal(f"{key_name} must be set but returned no value")
 
     if _result is None and default is not None:
         # logger.debug(f"Default specified as  [[ {default} ]] / Type: {type(default)} - Returning")
@@ -172,10 +184,9 @@ def get_config_key(
                     _ret_value: dict = {}
                 else:
                     # This shouldn't happen
-                    logger.error(
+                    logger.fatal(
                         f"Unsupported type passed to get_config_key(): {expected_type}"
                     )
-                    sys.exit(1)
 
                 logger.debug(
                     f"Returning an empty equiv for key {key_name} - [[ {_ret_value} ]] / {type(_ret_value)}"
@@ -184,8 +195,7 @@ def get_config_key(
             else:
                 return expected_type(_result)
         except ValueError:
-            logger.error(f"Expected {expected_type} for {key_name}")
-            sys.exit(1)
+            logger.fatal(f"Expected {expected_type} for {key_name}")
 
 
 def flatten_parameterstore_config(
@@ -208,10 +218,23 @@ def flatten_parameterstore_config(
 
 def get_subnet_route_table_by_subnet_id(subnet_ids: list) -> dict:
     """
-    Return the route tables associated with a list oif given subnets.
+    Return the route tables associated with a list of given subnets.
     The returned dict contains the subnetID and route-table IDs for those found.
     """
     _return_dict: dict = {}
+
+    # Subnets to VPC lookup
+    # Needed to resolve a subnet to a specific VPC-ID for the def route table
+    # subnet-123 -> vpc-123
+    _subnet_to_vpc: dict = {}
+
+    # Store a mapping of VPCId to RTB ID for defaults
+    # These do not explicitly show up in the return API as the default is a fallback
+    # dict is simple lookup of:
+    # vpc-123 -> rtb-123
+    # This can therefore be applied to any subnets in vpc-123 that have not seen
+    # explicit associations
+    _default_rtb_id_by_vpc_id: dict = {}
 
     logger.debug(f"get_subnet_route_table_by_subnet_id() called with {subnet_ids=}")
 
@@ -221,37 +244,141 @@ def get_subnet_route_table_by_subnet_id(subnet_ids: list) -> dict:
         region_name=user_specified_variables.region,
     )
 
+    # First - make sure we understand our subnets to VPC mappings
+
+    logger.debug(f"Starting Subnet to VPC mapping lookup")
+    _vpc_lu_paginator = ec2_client.get_paginator("describe_subnets")
+
+    _vpc_lu_iterator = _vpc_lu_paginator.paginate(
+        SubnetIds=subnet_ids
+    )
+
+    for _vpc_lu_i in _vpc_lu_iterator:
+        logger.debug(f"Processing VPC LU: {_vpc_lu_i=}")
+        for _vpc_lu_subnet in _vpc_lu_i.get("Subnets", []):
+            _subnet_state: str = _vpc_lu_subnet.get("State", "")
+            _subnet_vpc_id: str = _vpc_lu_subnet.get("VpcId", "")
+            _subnet_subnet_id: str = _vpc_lu_subnet.get("SubnetId", "")
+
+            if not _subnet_state:
+                logger.fatal(f"Cannot determine subnet state for subnets {subnet_ids}")
+
+            if not _subnet_vpc_id:
+                logger.fatal(f"Cannot determine subnet VPC ids for subnets {subnet_ids}")
+
+            if not _subnet_subnet_id:
+                logger.fatal(f"Cannot determine subnet IDs for subnets {subnet_ids}")
+
+            # Sanity
+            if _subnet_state not in ["available"]:
+                logger.warning(f"SubnetID {_subnet_subnet_id} in VPC {_subnet_vpc_id} - state ({_subnet_state}) is not available - skipping")
+                continue
+
+            logger.debug(f"Saving Subnet to VPC mapping of {_subnet_subnet_id} - {_subnet_vpc_id}")
+            _subnet_to_vpc[_subnet_subnet_id] = _subnet_vpc_id
+
+    logger.debug(f"Completed Subnet to VPC mapping lookup")
+
+    # Grab the default route-tables for the VPCs
+    # We need these for returns that don't have explicit associations
+
+    _def_rtb_paginator = ec2_client.get_paginator("describe_route_tables")
+    logger.debug(f"Scanning for VPC default route tables")
+    _def_rtb_iterator = _def_rtb_paginator.paginate(
+        Filters=[{"Name": "association.main", "Values": ['true']}]
+    )
+    for _rt_i in _def_rtb_iterator:
+        for _rt in _rt_i.get("RouteTables", []):
+            _vpc_id: str = _rt.get("VpcId", "")
+            _owner_id: str = _rt.get("OwnerId", "")
+            if not _vpc_id:
+                logger.fatal(f"Unable to determine VPCId for Route Table entry")
+            if not _owner_id:
+                logger.fatal(f"Unable to determine OwnerID for Route Table entry")
+
+            logger.debug(f"VPC {_vpc_id} / Owner {_owner_id}")
+
+            for _associations in _rt.get("Associations", []):
+                _rtb_id: str = _associations.get("RouteTableId", "")
+                if not _rtb_id:
+                    logger.fatal(f"Unable to determine RouteTableId for {_vpc_id}")
+
+                if _associations.get("Main", False):
+                    logger.debug(f"Default RTB VPC {_vpc_id} - {_rtb_id}")
+                    _default_rtb_id_by_vpc_id[_vpc_id] = _rtb_id
+                else:
+                    logger.debug(f"VPC {_vpc_id} - Assoc {_associations=} . Non-Default. This can be normal.")
+
+
+    # Now query the subnets we are actually interested in
+    logger.debug(f"Querying route tables for subnets {subnet_ids=}")
+
     _rt_paginator = ec2_client.get_paginator("describe_route_tables")
     _rt_iterator = _rt_paginator.paginate(
         Filters=[{"Name": "association.subnet-id", "Values": subnet_ids}]
     )
 
     for _rt_i in _rt_iterator:
+        logger.debug(f"Processing {_rt_i}")
         for _rt in _rt_i.get("RouteTables", []):
-            _subnet_id = _rt.get("Associations", [{}])[0].get("SubnetId", "")
-            if _subnet_id in subnet_ids:
-                if _subnet_id not in _return_dict:
-                    _return_dict[_subnet_id] = _rt.get("RouteTableId", "")
-                else:
-                    logger.error(
-                        f"get_subnet_route_table_by_subnet_id() called with {subnet_ids=} / found duplicate subnet {_subnet_id=} in route table {_rt.get('RouteTableId', '')}"
-                    )
-                    sys.exit(1)
-            else:
-                # The response came back for a subnetID we are not interested in?
-                logger.warning(
-                    f"get_subnet_route_table_by_subnet_id() got information for {_subnet_id} - but I didnt ask for it!  Defect?"
-                )
-                continue
+            logger.debug(f"Processing RouteTables {_rt=}")
+            _rtb_id: str = _rt.get("RouteTableId", "")
+            _vpc_id: str = _rt.get("VpcId", "")
+            _owner_id: str = _rt.get("OwnerId", "")
 
-    #
-    # Sanity check - make sure we have a route table for each subnet
+            if not _vpc_id:
+                logger.fatal(f"Unable to determine VPCId for Route Table entry")
+            if not _owner_id:
+                logger.fatal(f"Unable to determine OwnerID for Route Table entry")
+
+            logger.debug(f"VPC {_vpc_id} / Owner {_owner_id}")
+
+            for _associations in _rt.get("Associations", []):
+                # SubnetIds only appear in explicit associations between the Route Tables and Subnets
+                # The default route table may therefore apply to a subnet and not be explicitly listed
+                # in the API return.
+                # If we don't have an _rtb_id - assume that the subnet uses the default route table ID
+                logger.debug(f"Scanning {_rtb_id=}")
+                if not _rtb_id:
+                    logger.debug(f"Performing lookup for default route table for {_vpc_id=}")
+                    _def_rtb_id: str = _default_rtb_id_by_vpc_id.get(_vpc_id, "")
+
+                    if not _def_rtb_id:
+                        logger.fatal(f"Unable to find explicit route-table ID for subnet and no default exists for VPC {_vpc_id}")
+
+                    _rtb_id = _def_rtb_id
+                    logger.info(f"Using VPC {_vpc_id} default route table of {_rtb_id}")
+
+                _subnet_id = _associations.get("SubnetId", "")
+                if _subnet_id in subnet_ids:
+                    if _subnet_id not in _return_dict:
+                        _return_dict[_subnet_id] = _rtb_id
+                    else:
+                        logger.debug(
+                            f"get_subnet_route_table_by_subnet_id() called with {subnet_ids=} / found duplicate subnet {_subnet_id=} in route table {_rtb_id}"
+                        )
+                else:
+                    # The response came back for a subnetID we are not interested in?
+                    logger.warning(
+                        f"get_subnet_route_table_by_subnet_id() got information for {_subnet_id} - but I didnt ask for it!  Defect?"
+                    )
+                    continue
+
+    # Sanity check - make sure we have a route table for each subnet and apply VPC default otherwise
     _missing_subnet_ids = [x for x in subnet_ids if x not in _return_dict.keys()]
+
     if _missing_subnet_ids:
-        logger.error(
-            f"get_subnet_route_table_by_subnet_id() called with {subnet_ids=} / missing route table for {_missing_subnet_ids=}"
-        )
-        sys.exit(1)
+        for _missing_subnet_id in _missing_subnet_ids:
+            logger.debug(f"Trying to resolve default RTB for Subnet ID {_missing_subnet_id}")
+            _vpc_def_rtb: str = _default_rtb_id_by_vpc_id.get(_subnet_to_vpc.get(_missing_subnet_id, ""), "")
+
+            if not _vpc_def_rtb:
+                logger.fatal(f"Unable to resolve Subnet route table information for {_missing_subnet_id}")
+            _return_dict[_missing_subnet_id] = _vpc_def_rtb
+
+        # logger.fatal(
+        #     f"get_subnet_route_table_by_subnet_id() called with {subnet_ids=} / missing route table for {_missing_subnet_ids=}"
+        # )
 
     logger.debug(
         f"get_subnet_route_table_by_subnet_id() called with {subnet_ids=} / returning {_return_dict=}"
@@ -306,10 +433,9 @@ def validate_kms_key_id(kms_client: BaseClient, key_id: str) -> [bool, str]:
         logger.debug(f"No KMS key_id passed to is_valid_kms_key_id() - rejecting.")
         return False, ""
     if not kms_client:
-        logger.error(
+        logger.fatal(
             f"No KMS client passed to is_valid_kms_key_id() - unable to continue. Probable code defect."
         )
-        sys.exit(1)
 
     # If we are passed something that doesn't look like an ARN - fixup the name as it
     # is an alias lookup. E.g. 'MyEBSCMK' becomes 'alias/MyEBSCMK' for API calls.
@@ -394,22 +520,19 @@ def return_ebs_volume_type(volume_string: str, fallback_volume: str = "gp2") -> 
         if fallback_volume:
             volume_string = fallback_volume
         else:
-            logger.error(
+            logger.fatal(
                 f"No volume_string or fallback_volume passed to return_ebs_volume_type() - unable to continue. Probable code defect."
             )
-            sys.exit(1)
 
     if not isinstance(volume_string, str):
-        logger.error(
+        logger.fatal(
             f"volume_string must be a string - unable to continue. Probable code defect."
         )
-        sys.exit(1)
 
     if not isinstance(fallback_volume, str):
-        logger.error(
+        logger.fatal(
             f"fallback_volume must be a string - unable to continue. Probable code defect."
         )
-        sys.exit(1)
 
     _ebs_volume_type_map = {
         "default": ec2.EbsDeviceVolumeType.GP3,
@@ -819,10 +942,9 @@ class SOCAInstall(Stack):
             self._base_os in ("rhel8", "rhel9", "rocky8", "rocky9")
             and self.directory_service_resource_setup.get("provider") == "openldap"
         ):
-            logger.error(
+            logger.fatal(
                 f"{self._base_os} do not support openldap. Please use aws_ds_simple_activedirectory, aws_ds_managed_activedirectory or existing_openldap instead"
             )
-            sys.exit(1)
 
         if self.directory_service_resource_setup.get("endpoint") is not None:
             if (
@@ -832,30 +954,27 @@ class SOCAInstall(Stack):
                 )
                 is None
             ):
-                logger.error(
+                logger.fatal(
                     f"Config.directoryservice.{_ds_provider}.use_existing_directory is set but does not start with ldaps:// or ldap://"
                 )
-                sys.exit(1)
 
         if (
             self.directory_service_resource_setup.get("use_existing_directory") is True
             and self.directory_service_resource_setup.get("service_account_secret_arn")
             is None
         ):
-            logger.error(
+            logger.fatal(
                 f"Config.directoryservice.{_ds_provider}.use_existing_directory is set to True but Config.directoryservice.service_account_secret_arn is not set"
             )
-            sys.exit(1)
 
         if (
             self.directory_service_resource_setup.get("use_existing_directory") is None
             and self.directory_service_resource_setup.get("service_account_secret_arn")
             is not None
         ):
-            logger.error(
+            logger.fatal(
                 f"Config.directoryservice.{_ds_provider}.use_existing_directory is None but Config.directoryservice.service_account_secret_arn is set"
             )
-            sys.exit(1)
 
         logger.debug(
             f"DS Environment Setup Name: {self.directory_service_resource_setup}"
@@ -874,10 +993,9 @@ class SOCAInstall(Stack):
                 )
                 is None
             ):
-                logger.error(
+                logger.fatal(
                     f"Parameters.system.scheduler.openpbs.{_scheduler_deployment_type}.repo is None but must be set since Config.scheduler.deployment_type is et to {_scheduler_deployment_type}"
                 )
-                sys.exit(1)
 
             if (
                 _scheduler_deployment_options.get(_scheduler_deployment_type).get(
@@ -885,10 +1003,9 @@ class SOCAInstall(Stack):
                 )
                 is None
             ):
-                logger.error(
+                logger.fatal(
                     f"Parameters.system.scheduler.openpbs.{_scheduler_deployment_type}.version is None but must be set since Config.scheduler.deployment_type is et to {_scheduler_deployment_type}"
                 )
-                sys.exit(1)
 
         if _scheduler_deployment_type == "s3_tgz":
             if (
@@ -897,10 +1014,9 @@ class SOCAInstall(Stack):
                 )
                 is None
             ):
-                logger.error(
+                logger.fatal(
                     f"Parameters.system.scheduler.openpbs.{_scheduler_deployment_type}.s3_uri is None but must be set since Config.scheduler.deployment_type is et to {_scheduler_deployment_type}"
                 )
-                sys.exit(1)
 
             if (
                 _scheduler_deployment_options.get(_scheduler_deployment_type).get(
@@ -908,10 +1024,9 @@ class SOCAInstall(Stack):
                 )
                 is None
             ):
-                logger.error(
+                logger.fatal(
                     f"Parameters.system.scheduler.openpbs.{_scheduler_deployment_type}.version is None but must be set since Config.scheduler.deployment_type is et to {_scheduler_deployment_type}"
                 )
-                sys.exit(1)
 
         _apps_provider = user_specified_variables.fs_apps_provider
         _data_provider = user_specified_variables.fs_data_provider
@@ -922,10 +1037,9 @@ class SOCAInstall(Stack):
         ]:
             for fs_provider in [_apps_provider, _data_provider]:
                 if fs_provider == "fsx_ontap":
-                    logger.error(
+                    logger.fatal(
                         f"Config.storage.apps.provider and/or Config.storage.data.provider are set to fsx_ontap but Config.directoryservice.provider is not ActiveDirectory. AD is required for FSx ONTAP"
                     )
-                    sys.exit(1)
 
         # The actual AMI ID for the controller (based on our selected instance_type)
         # print(f"DEBUG: Trying to resolve the AMI from the AMI - Arch: {_instance_arch} . BaseOS: {_base_os}")
@@ -1201,7 +1315,11 @@ class SOCAInstall(Stack):
                     },
                     {
                         "Name": "subnet-id",
-                        "Values": [_sn for _subnet_list in [public_subnet_ids, private_subnet_ids] for _sn in _subnet_list],
+                        "Values": [
+                            _sn
+                            for _subnet_list in [public_subnet_ids, private_subnet_ids]
+                            for _sn in _subnet_list
+                        ],
                     },
                 ]
             )
@@ -1320,10 +1438,9 @@ class SOCAInstall(Stack):
             default="valkey",
         )
         if _cache_engine not in _supported_cache_engines:
-            print(
+            logger.fatal(
                 f"Unsupported option for Config.services.aws_elasticache.engine. Specify one of {', '.join(_supported_cache_engines)} ."
             )
-            sys.exit(1)
 
         if _cache_engine in {"redis", "valkey"}:
             self.soca_resources["cache_admin_user_secret"] = (
@@ -2479,8 +2596,11 @@ class SOCAInstall(Stack):
         if self.directory_service_resource_setup.get("provider") in {
             "aws_ds_simple_activedirectory"
         }:
-            logger.debug(f"Creating AWS SimpleAD Directory Service")
-            return self.directory_service_aws_simplead()
+            logger.error(
+                f"AWS SimpleAD is no longer supported. Please update your configuration to use a supported Directory Service"
+            )
+            exit(1)
+            # return self.directory_service_aws_simplead()
 
         elif self.directory_service_resource_setup.get("provider") in {
             "aws_ds_managed_activedirectory"
@@ -2526,10 +2646,9 @@ class SOCAInstall(Stack):
                 self.directory_service_resource_setup["ds_admin_username"] is None
                 or self.directory_service_resource_setup["ds_admin_password"] is None
             ):
-                logger.error(
+                logger.fatal(
                     f"Unable to retrieve username/password for the service account. Please check the secret provided on {_ad_service_account_secret}"
                 )
-                sys.exit(1)
 
         elif (
             self.directory_service_resource_setup.get("provider") == "existing_openldap"
@@ -2541,11 +2660,11 @@ class SOCAInstall(Stack):
                 f"Self-hosted OpenLDAP will be initialized with the controller instance."
             )
         else:
-            logger.error(
+            logger.fatal(
                 f"Unknown Directory Service provider: {self.directory_service_resource_setup.get('provider')}"
             )
-            sys.exit(1)
 
+    # SimpleAD deprecated - codepath to be removed at a later date
     def directory_service_aws_simplead(self):
         """
         Deploy an AWS SimpleAD Directory Service
@@ -2627,12 +2746,22 @@ class SOCAInstall(Stack):
         )
 
         # Finally , fixup our DNS
-        self.aws_route53_resolver(
-            launch_subnets=launch_subnets,
-            dns_ip_addresses=self.directory_service_resource_setup[
-                "ds"
-            ].attr_dns_ip_addresses,
-        )
+        if get_config_key(
+            key_name="Config.directoryservice.create_route53_resolver",
+            expected_type=bool,
+            required=False,
+            default=True,
+        ):
+            self.aws_route53_resolver(
+                launch_subnets=launch_subnets,
+                dns_ip_addresses=self.directory_service_resource_setup[
+                    "ds"
+                ].attr_dns_ip_addresses,
+            )
+        else:
+            logger.info(
+                f"Bypassing Route53 Resolver Creation due to Config.directoryservice.create_route53_resolver_rule == False"
+            )
 
     def directory_service_aws_mad(self):
         """
@@ -2712,13 +2841,24 @@ class SOCAInstall(Stack):
             ),
         ]
 
-        # Finally, fixup our DNS
-        self.aws_route53_resolver(
-            launch_subnets=launch_subnets,
-            dns_ip_addresses=self.directory_service_resource_setup[
-                "ds"
-            ].attr_dns_ip_addresses,
-        )
+        # Finally, fixup our DNS unless instructed not to
+        # Some Shared VPC environments do not allow the downstream account to create R53 resolvers.
+        if get_config_key(
+            key_name="Config.directoryservice.create_route53_resolver",
+            expected_type=bool,
+            required=False,
+            default=True,
+        ):
+            self.aws_route53_resolver(
+                launch_subnets=launch_subnets,
+                dns_ip_addresses=self.directory_service_resource_setup[
+                    "ds"
+                ].attr_dns_ip_addresses,
+            )
+        else:
+            logger.info(
+                f"Bypassing Route53 Resolver Creation due to Config.directoryservice.create_route53_resolver_rule == False"
+            )
 
     def aws_route53_resolver(self, launch_subnets: list, dns_ip_addresses: list):
         """
@@ -3285,10 +3425,9 @@ class SOCAInstall(Stack):
                 _pricing_data.append(_entry)
 
         if not _pricing_data:
-            logger.error(
+            logger.fatal(
                 f"No FSx pricing data retrieved. Check auth for pricing API at region {_pricing_region}."
             )
-            exit(1)
 
         logger.info(
             f"Pricing data retrieved: {_pricing_pages} pages, {_pricing_entries} entries"
@@ -3329,7 +3468,6 @@ class SOCAInstall(Stack):
 
             if _dep_type not in _reply_data[_region][_fs_type]:
                 _reply_data[_region][_fs_type].append(_dep_type)
-
         logger.debug(f"Reply Data len: {len(_reply_data)}")
         return _reply_data
 
@@ -3343,14 +3481,12 @@ class SOCAInstall(Stack):
         _fsx_deployment_options: dict = self.get_fsx_deployment_options(region=region)
 
         if not _fsx_deployment_options:
-            logger.error(f"No FSx deployment options retrieved. Check auth.")
-            exit(1)
+            logger.fatal(f"No FSx deployment options retrieved. Check auth.")
 
         if not _fsx_deployment_options.get(region, {}):
-            logger.error(
+            logger.fatal(
                 f"No FSx deployment options retrieved for region {region}. Check auth."
             )
-            exit(1)
 
         logger.debug(
             f"FSx Deployment Options for region {region}: {len(_fsx_deployment_options.get(region, {}))}"
@@ -3382,6 +3518,22 @@ class SOCAInstall(Stack):
             default=256,
         )
 
+        _allowed_throughput_capacity = {
+            "MULTI_AZ_1": [128, 256, 512, 1024, 2048, 4096],
+            "MULTI_AZ_2": [384, 768, 1536, 3072, 6144],
+            "SINGLE_AZ_1": [128, 256, 512, 1024, 2048, 4096],
+            # "SINGLE_AZ_2": Too many options, will let CLoudFormation returns the error based on HA pair
+        }
+
+        if _deployment_type in _allowed_throughput_capacity:
+            if (
+                _throughput_capacity
+                not in _allowed_throughput_capacity[_deployment_type]
+            ):
+                logger.fatal(
+                    f"Invalid throughput_capacity {_throughput_capacity} for {_deployment_type}. Accepted value: {_allowed_throughput_capacity[_deployment_type]}"
+                )
+
         _storage_capacity: int = get_config_key(
             key_name=f"Config.storage.{fs_key}.fsx_ontap.storage_capacity",
             expected_type=int,
@@ -3408,13 +3560,13 @@ class SOCAInstall(Stack):
         logger.debug(
             f"Checking if deployment type {_deployment_type} ({_dep_type_lookup=}) is supported in region {user_specified_variables.region}"
         )
+
         if _dep_type_lookup not in _fsx_regional_capability.get(
             user_specified_variables.region, {}
         ).get("ONTAP", []):
-            logger.error(
+            logger.fatal(
                 f"Config.storage.{fs_key}.fsx_ontap.deployment_type {_deployment_type} ({_dep_type_lookup=}) is not supported in region {user_specified_variables.region}"
             )
-            sys.exit(1)
 
         _automatic_backup_retention_days: int = get_config_key(
             key_name=f"Config.storage.{fs_key}.fsx_ontap.automatic_backup_retention_days",
@@ -3443,10 +3595,9 @@ class SOCAInstall(Stack):
         ).upper()
 
         if len(_netbios_name) > 15:
-            logger.error(
+            logger.fatal(
                 f"Config.storage.{fs_key}.fsx_ontap.netbios_name must be 15 characters or less"
             )
-            sys.exit(1)
 
         _file_system_administrators_group: str = get_config_key(
             key_name=f"Config.storage.{fs_key}.fsx_ontap.file_system_administrators_group",
@@ -3507,10 +3658,9 @@ class SOCAInstall(Stack):
                         f"FSx/ONTAP - User selected the following private subnet: {_sn_id=} / AZ: {_sn.split(',')[1]}"
                     )
                 else:
-                    logger.error(
+                    logger.fatal(
                         f"FSx/ONTAP - Duplicate subnet {_sn_id} selected. Subnets now {_fsx_ontap_source_subnets=}. Probable defect?"
                     )
-                    exit(1)
 
             # Now that we have built up _fsx_ontap_source_subnets, we need to populate the route table info
             _rt_dict: dict = get_subnet_route_table_by_subnet_id(
@@ -3518,18 +3668,16 @@ class SOCAInstall(Stack):
             )
 
             if not _rt_dict:
-                logger.error(
+                logger.fatal(
                     f"FSx/ONTAP - Unable to lookup route tables for {_fsx_ontap_source_subnets=}"
                 )
-                exit(1)
 
             for _sn_id in _rt_dict:
                 _rt_id: str = _rt_dict.get(_sn_id, "")
                 if not _rt_id:
-                    logger.error(
+                    logger.fatal(
                         f"FSx/ONTAP - Unable to lookup route table for subnet {_sn_id}"
                     )
-                    exit(1)
                 logger.debug(
                     f"FSx/ONTAP - Using Route Table {_rt_id} for subnet {_sn_id}"
                 )
@@ -3554,10 +3702,9 @@ class SOCAInstall(Stack):
                         f"FSx/ONTAP - Using VPC subnet {_sn.subnet_id} / RTB: {_sn.route_table.route_table_id} . Subnets now {_fsx_ontap_source_subnets=}"
                     )
                 else:
-                    logger.error(
+                    logger.fatal(
                         f"FSx/ONTAP - Duplicate subnet {_sn.subnet_id} selected. Subnets now {_fsx_ontap_source_subnets=}. Probable defect?"
                     )
-                    exit(1)
 
         logger.debug(
             f"FSx/ONTAP - Final FSx/Source Subnets/RTB for consideration: {_fsx_ontap_source_subnets=}"
@@ -3573,10 +3720,9 @@ class SOCAInstall(Stack):
                     "route_table_id", ""
                 )
                 if not _route_id:
-                    logger.error(
+                    logger.fatal(
                         f"FSx/ONTAP - Unable to lookup route table for subnet {_subnet}"
                     )
-                    exit(1)
 
                 if _route_id not in _route_table_ids:
                     _route_table_ids.append(_route_id)
@@ -3698,10 +3844,9 @@ class SOCAInstall(Stack):
 
         # Create the SVM
         if not self.directory_service_resource_setup.get("domain_controller_ips", []):
-            logger.error(
+            logger.fatal(
                 "Unable to retrieve Domain Controller IPs. If using existing AD, you must specific dc_ips"
             )
-            sys.exit(1)
 
         logger.debug(
             f"Using AD/DC IP addresses: {self.directory_service_resource_setup.get('domain_controller_ips')}"
@@ -4018,7 +4163,7 @@ class SOCAInstall(Stack):
                 key_name="Config.directoryservice.provider"
             ),
             "/configuration/Region": user_specified_variables.region,
-            "/configuration/Version": "25.3.0",
+            "/configuration/Version": "25.5.0",
             "/configuration/CustomAMI": self.soca_resources["ami_id"],
             "/configuration/S3Bucket": user_specified_variables.bucket,
             "/configuration/HPC/SchedulerEngine": get_config_key(
@@ -4503,7 +4648,7 @@ class SOCAInstall(Stack):
                 _analytics_engine: str = _analytics_config.get("engine", "")
                 logger.debug(f"Analytics engine: {_analytics_engine}")
 
-                if _analytics_engine in {"opensearch", "elasticsearch"}:
+                if _analytics_engine in {"opensearch"}:
                     _analytics_config["endpoint"] = (
                         f"https://{self.soca_resources['os_domain'].domain_endpoint}"
                     )
@@ -4513,10 +4658,9 @@ class SOCAInstall(Stack):
                         f"https://{self.soca_resources['os_domain'].attr_collection_endpoint}"
                     )
                 else:
-                    logger.error(
+                    logger.fatal(
                         f"Unsupported analytics engine defined: {_analytics_engine}"
                     )
-                    sys.exit(1)
             else:
                 logger.debug(
                     f"Analytics Endpoint: {user_specified_variables.os_endpoint=}"
@@ -4720,10 +4864,9 @@ class SOCAInstall(Stack):
                     r"s3://([^/]+)", _install_scheduler_from_s3_uri
                 ).group(1)
             except AttributeError:
-                logger.error(
+                logger.fatal(
                     f"s3_uri {_install_scheduler_from_s3_uri} does not seems to be a valid s3_uri"
                 )
-                sys.exit(1)
 
             _custom_openpbs_s3_bucket_policy = iam.Policy(
                 self,
@@ -4773,15 +4916,14 @@ class SOCAInstall(Stack):
             default="opensearch",
         ).lower()
 
-        if _desired_engine in {"opensearch", "elasticsearch"}:
+        if _desired_engine in {"opensearch"}:
             self.analytics_opensearch()
         elif _desired_engine in {"opensearch_serverless", "aoss_serverless"}:
             self.analytics_opensearch_serverless()
         else:
-            print(
-                f"Config.analytics.engine must be one of opensearch, opensearch_serverless, or elasticsearch. Detected {_desired_engine}"
+            logger.fatal(
+                f"Config.analytics.engine must be one of opensearch or opensearch_serverless. Detected {_desired_engine}"
             )
-            sys.exit(1)
 
     def analytics_create_opensearch_serverless_vpce(self):
         """
@@ -5030,13 +5172,10 @@ class SOCAInstall(Stack):
 
         if _desired_engine == "opensearch":
             _engine_version = opensearch.EngineVersion.OPENSEARCH_2_17
-        elif _desired_engine == "elasticsearch":
-            _engine_version = opensearch.EngineVersion.ELASTICSEARCH_7_10
         else:
-            logger.error(
-                f"Config.analytics.engine must be one of opensearch, opensearch_serverless, or elasticsearch. Detected {_desired_engine}"
+            logger.fatal(
+                f"Config.analytics.engine must be one of opensearch, or opensearch_serverless. Detected {_desired_engine}"
             )
-            sys.exit(1)
 
         if not user_specified_variables.os_endpoint:
             # Determine serverless or classic
@@ -6006,10 +6145,7 @@ class SOCAInstall(Stack):
             get_config_key(key_name="Config.analytics.enabled", expected_type=bool)
             is True
         ):
-            if get_config_key("Config.analytics.engine") in {
-                "opensearch",
-                "elasticsearch",
-            }:
+            if get_config_key("Config.analytics.engine") in {"opensearch"}:
                 self.viewer_analytics_opensearch()
             elif get_config_key("Config.analytics.engine") in {
                 "opensearch_serverless",
@@ -6265,10 +6401,9 @@ class SOCAInstall(Stack):
                     )
 
         if _default_ami_for_instance is None:
-            logger.error(
+            logger.fatal(
                 "No AMI on region_map.yml found. Choose a different OS/Region or Architecture"
             )
-            sys.exit(1)
 
         if _selected_instance == "amnesiac":
             _selected_instance = fallback_instance if fallback_instance else "m5.large"
@@ -6359,7 +6494,7 @@ class SOCAInstall(Stack):
                     key_name="Config.directoryservice.provider"
                 ),
                 "/configuration/Region": Aws.REGION,
-                "/configuration/Version": "25.3.0",
+                "/configuration/Version": "25.5.0",
                 "/configuration/CustomAMI": self.soca_resources[
                     "ami_id"
                 ],  # FIXME TODO - This needs to be updated from the selected_instance and arch

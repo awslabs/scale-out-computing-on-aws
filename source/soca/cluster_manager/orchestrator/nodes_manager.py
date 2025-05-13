@@ -26,8 +26,8 @@ from datetime import datetime, timezone, timedelta
 from utils.aws.boto3_wrapper import get_boto
 from utils.aws.ssm_parameter_store import SocaConfig
 from utils.logger import SocaLogger
-from ast import literal_eval
 import pathlib
+import json
 
 
 def run_command(cmd: list, cmd_type: str):
@@ -35,7 +35,7 @@ def run_command(cmd: list, cmd_type: str):
         logger.info(f"About to run {cmd} with cmd_type {cmd_type}")
         if cmd_type == "check_output":
             command = subprocess.check_output(cmd)
-            return literal_eval(command.decode("utf-8"))
+            return json.loads(command.decode("utf-8"))
         elif cmd_type == "call":
             command = subprocess.call(cmd)
             return command

@@ -30,5 +30,11 @@ ADD_PKGS=(
   openldap-compat
 )
 
+if (uname -r | grep -q ^6.12.); then
+  ADD_PKGS+=(kernel-devel-$(uname -r) kernel6.12-modules-extra)
+else
+  ADD_PKGS+=(kernel-devel-$(uname -r) kernel-modules-extra)
+fi
+
 log_info "Removing packages for ALI2023: ${REMOVE_PKGS[*]}"
 log_info "Adding extra packages for ALI2023: ${ADD_PKGS[*]}"

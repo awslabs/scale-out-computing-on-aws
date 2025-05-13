@@ -62,6 +62,9 @@ chmod +x /opt/soca/{{ context.get("/configuration/ClusterId") }}/cluster_manager
 chmod +x /opt/soca/{{ context.get("/configuration/ClusterId") }}/cluster_manager/socactl
 chmod +x /opt/soca/{{ context.get("/configuration/ClusterId") }}/cluster_manager/analytics/wrapper.sh
 
+# Install SQLite (deps for SOCA Python)
+{% include "templates/linux/sqlite.sh.j2" %}
+
 # Install SOCA Python
 {% include "templates/linux/soca_python.sh.j2" %}
 

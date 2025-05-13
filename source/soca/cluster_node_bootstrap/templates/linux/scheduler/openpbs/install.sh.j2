@@ -6,13 +6,58 @@ function build_openpbs {
   log_info "Building OpenPBS from $(pwd)"
   local NCPUS=$(nproc)
   local SOCA_PYTHON="/opt/soca/{{ context.get('/configuration/ClusterId') }}/python"
-  log_info "Running AutoGen"
+  {% if context.get("/configuration/BaseOS") in ("amazonlinux2", "rhel8", "rocky8") %}
+    log_info "Detected old Linux Distro, patching libtool/automake/pkg-config to make sure we can compile OpenPBS with python3.13"
+    local COMPAT_PACKAGE_INSTALLER_PATH="/opt/soca/{{ context.get('/configuration/ClusterId') }}/packages"
 
+    log_info "Installing custom automake ${COMPAT_PACKAGE_INSTALLER_PATH}/automake"
+    file_download --download-url="{{ context.get("/system/scheduler/openpbs/compatibility_packages/automake/url") }}" --save-as="automake_installer.tar.gz" --sha256-checksum="{{ context.get("/system/scheduler/openpbs/compatibility_packages/automake/sha256") }}"
+    mkdir automake_installer
+    tar zxvf automake_installer.tar.gz --strip-components=1 -C automake_installer
+    pushd automake_installer
+    ./configure --prefix="${COMPAT_PACKAGE_INSTALLER_PATH}/automake"
+    make -j${NCPUS}
+    make install -j${NCPUS}
+    popd
+
+    log_info "Installing custom libtool ${COMPAT_PACKAGE_INSTALLER_PATH}/libtool"
+    file_download --download-url="{{ context.get("/system/scheduler/openpbs/compatibility_packages/libtool/url") }}" --save-as="libtool_installer.tar.gz" --sha256-checksum="{{ context.get("/system/scheduler/openpbs/compatibility_packages/libtool/sha256") }}"
+    mkdir libtool_installer
+    tar zxvf libtool_installer.tar.gz --strip-components=1 -C libtool_installer
+    pushd libtool_installer
+    ./configure --prefix="${COMPAT_PACKAGE_INSTALLER_PATH}/libtool"
+    make -j${NCPUS}
+    make install -j${NCPUS}
+    popd
+
+    log_info "Installing custom pkg-config ${COMPAT_PACKAGE_INSTALLER_PATH}/pkg-config"
+    file_download --download-url="{{ context.get("/system/scheduler/openpbs/compatibility_packages/pkgconfig/url") }}" --save-as="pkg-config_installer.tar.gz" --sha256-checksum="{{ context.get("/system/scheduler/openpbs/compatibility_packages/pkgconfig/sha256") }}"
+    mkdir pkg-config_installer
+    tar -xvzf pkg-config_installer.tar.gz --strip-components=1 -C pkg-config_installer
+    pushd pkg-config_installer
+    ./configure --with-internal-glib --prefix="${COMPAT_PACKAGE_INSTALLER_PATH}/pkgconfig"
+    make
+    make install
+
+    log_info "Exporting custom path for all compat-packages"
+    export PKG_CONFIG_PATH="${COMPAT_PACKAGE_INSTALLER_PATH}/pkgconfig/bin/pkg-config"
+    export LIBTOOL="${COMPAT_PACKAGE_INSTALLER_PATH}/libtool/bin/libtool"
+    export AUTOMAKE="${COMPAT_PACKAGE_INSTALLER_PATH}/automake/bin/automake"
+    export ACLOCAL="${COMPAT_PACKAGE_INSTALLER_PATH}/automake/bin/aclocal"
+    export ACLOCAL_PATH="${COMPAT_PACKAGE_INSTALLER_PATH}/libtool/share/aclocal:${COMPAT_PACKAGE_INSTALLER_PATH}/automake/share/aclocal:${COMPAT_PACKAGE_INSTALLER_PATH}/pkgconfig/share/aclocal"
+
+    log_info "Running autoreconf"
+    autoreconf -fi
+    popd
+
+  {% endif %}
+
+  log_info "Running AutoGen"
   if ! ./autogen.sh; then
     exit_fail "Unable to run autogen.sh for OpenPBS. See log for additional details"
   fi
-  log_info "Running Configure, adding SOCA Python location to rpath"
 
+  log_info "Running Configure, adding SOCA Python location to rpath"
   # objdump -x /opt/pbs/sbin/pbs_sched | grep RPATH ensure this contains path to SOCA_PYTHON for hooks
   if ! LDFLAGS="-Wl,-rpath,${SOCA_PYTHON}/latest/lib" ./configure --prefix=/opt/pbs --with-python=${SOCA_PYTHON}/latest; then
     exit_fail "Unable to run ./configure --prefix=/opt/pbs for OpenPBS. See log for additional details"
@@ -20,12 +65,12 @@ function build_openpbs {
 
   log_info "Running Make"
 
-  if ! make -j ${NCPU}; then
+  if ! make -j${NCPU}; then
     exit_fail "Unable to run make -j ${NCPU} for OpenPBS. See log for additional details"
   fi
 
-  if ! make install -j ${NCPU}; then
-    exit_fail "Unable to run make install -j ${NCPU} for OpenPBS. See log for additional details"
+  if ! make install -j${NCPU}; then
+    exit_fail "Unable to run make install -j${NCPU} for OpenPBS. See log for additional details"
   fi
 
   log_info "Post Build Command"
@@ -96,9 +141,9 @@ function openpbs_install {
 
 
           # todo: understand why libcjson(-dev) from yum does not work here
-          if test ! -e "/lib64/libcjson.so"; then
-              log_info "/lib64/libcjson.so not found, installing it"
-              git clone https://github.com/DaveGamble/cJSON.git
+          if test ! -e "/lib64/libcjson.so.1"; then
+              log_info "/lib64/libcjson.so.1 not found, installing it"
+              git clone {{ context.get("/system/scheduler/openpbs/compatibility_packages/cjson/url") }}
               pushd cJSON
               mkdir build
               pushd build

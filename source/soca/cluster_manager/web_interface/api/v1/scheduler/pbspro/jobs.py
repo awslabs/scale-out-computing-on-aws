@@ -12,7 +12,6 @@
 ######################################################################################################################
 
 import config
-import ast
 import re
 from flask_restful import Resource, reqparse
 import logging
@@ -20,6 +19,7 @@ from decorators import private_api
 from utils.error import SocaError
 from utils.subprocess_client import SocaSubprocessClient
 from utils.response import SocaResponse
+from utils.cast import SocaCastEngine
 
 logger = logging.getLogger("soca_logger")
 
@@ -58,14 +58,24 @@ class Jobs(Resource):
                         f'"project":{match},', f'"project":"{match}",'
                     )
 
-                job_info = ast.literal_eval(get_job_info)
+                _get_job_info = SocaCastEngine(data=get_job_info).as_json()
+                if _get_job_info.get("success") is False:
+                    return SocaError.PBS_JOBS(
+                        helper=f"Unable to query get_job_info due to {_get_job_info.get("message")} with job data {get_job_info}"
+                    ).as_flask()
+                else:
+                    job_info = _get_job_info.get("message")
+
             except Exception as err:
                 return SocaError.PBS_JOBS(
                     helper=f"Unable to query get_job_info due to {err} with job data {get_job_info}"
                 ).as_flask()
 
             if user is None:
-                return SocaResponse(success=True, message=job_info["Jobs"] if "Jobs" in job_info.keys() else {}).as_flask()
+                return SocaResponse(
+                    success=True,
+                    message=job_info["Jobs"] if "Jobs" in job_info.keys() else {},
+                ).as_flask()
 
             else:
                 job_for_user = {"Jobs": {}}
@@ -75,7 +85,9 @@ class Jobs(Resource):
                         job_owner = job_info["Jobs"][job_id]["Job_Owner"].split("@")[0]
                         if job_owner == user:
                             job_for_user["Jobs"][job_id] = job_info["Jobs"][job_id]
-                return SocaResponse(success=True, message=job_for_user["Jobs"]).as_flask()
+                return SocaResponse(
+                    success=True, message=job_for_user["Jobs"]
+                ).as_flask()
         else:
             return SocaError.PBS_JOBS(
                 helper=f"{qstat_command.get('message').get('helper')}: {qstat_command.get('message').get('stderr')}"

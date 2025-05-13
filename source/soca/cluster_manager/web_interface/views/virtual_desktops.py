@@ -184,8 +184,11 @@ def index():
         for s in _get_software_stacks
     }
 
+    _allowed_dcv_session_types = config.Config.DCV_ALLOWED_SESSION_TYPES
+
     return render_template(
         "virtual_desktops.html",
+        allowed_dcv_session_types=_allowed_dcv_session_types,
         user=session["user"],
         software_stacks=_software_stacks,
         base_os_labels=config.Config.DCV_BASE_OS,
@@ -388,10 +391,9 @@ def generate_client():
     _check_session = VirtualDesktopSessions.query.filter_by(
         session_owner=session["user"], session_uuid=_session_uuid, is_active=True
     ).first()
+
     if _check_session:
-        _ad_enabled = SocaConfig("/configuration/UserDirectory/enabled").get_value(
-            return_as=bool
-        )
+
         if SocaConfig("/configuration/UserDirectory/provider").get_value().get(
             "message"
         ) in [

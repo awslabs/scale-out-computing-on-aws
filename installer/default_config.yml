@@ -4,7 +4,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 Config:
-  version: "25.3.0"  # version automatically populated as part of RELEASE-PIPELINE.sh (see github_release.py)
+  version: "25.5.0"  # version automatically populated as part of RELEASE-PIPELINE.sh (see github_release.py)
   termination_protection: true  # Enable (recommended) or Disable Cloudformation Stack termination protection
   entry_points_subnets: "Public"  # Public (recommended) or Private. In public mode the scheduler and ELB are deployed on PublicSubnets and assigned Public IPS. In Private mode scheduler and ELB are deployed in private subnets. In both case compute nodes and OpenSearch/EFS/FSxL are deployed in private subnets. Public does not means your cluster will be accessible to everyone by default, access to your cluster is still protected by security groups
   skip_quotas: false  # Enable (True) or Disable (False) AWS Service quotas check. It's recommended to disable this setting only when the AWS Service Quotas API is not accessible (e.g: isolated subnets)
@@ -247,7 +247,7 @@ Config:
 
   # Configure your Directory options below
   directoryservice:
-
+    create_route53_resolver: true  # Create (true) the Route53 resolver and rules for the domain in AD mode. This may need to be set to false for shared VPC environments where the downstream AWS account is not able to create the Route53 resolver/rules.
     # Choose the Directory to use on SOCA:
     # 1 - aws_ds_managed_activedirectory (Recommended) - Create a new AWS Directory Service Managed Active Directory -  https://docs.aws.amazon.com/directoryservice/latest/admin-guide/directory_microsoft_ad.html
     # 2 - existing_active_directory (Experimental) - Connect to an existing Microsoft Active Directory
@@ -388,11 +388,13 @@ Parameters:
       windows:
         x86_64: "https://awscli.amazonaws.com/AWSCLIV2.msi"
 
+    # SOCA Python, installed on all SOCA nodes
     python:
-      version: "3.9.21"
-      url: "https://www.python.org/ftp/python/3.9.21/Python-3.9.21.tgz"
-      sha256: "667c3ba2ca98d39ead1162f6548c3475768582e2ff89e0821d25eb956ac09944"
+      version: "3.13.2"
+      url: "https://www.python.org/ftp/python/3.13.2/Python-3.13.2.tgz"
+      sha256: "b8d79530e3b7c96a5cb2d40d431ddb512af4a563e863728d8713039aa50203f9"
 
+    # Scheduler to deploy on all SOCA nodes
     scheduler:
       openpbs:
         tgz:  # Download OpenPBS tgz from the URL listed below
@@ -403,10 +405,27 @@ Parameters:
           version: "23.06.06"  # Version to install (this can be anything, it's just used to avoid re-installation if the same version is already detected)
           repo: "https://github.com/openpbs/openpbs.git"  # Repo to clone from, e.g https://github.com/openpbs/openpbs.git
           branch: "master"  # (Optional: Specify the branch if you do not want to use the default)
-          commit_id: "494e0f0186dd7d51ae5a8005f21438d900c0a842"  # (Optional: Specify the commit id if you do not want to use the default)
+          commit_id: "b22e67ed4709cd952fc166ba599de9a20a3d9b02"  # (Optional: Specify the commit id if you do not want to use the default)
         s3_tgz:
           version: ~  # Version to install (this can be anything, it's just used to avoid re-installation if the same version is already detected)
           s3_uri: ~  # Full name of your file archive on S3 (e.g: s3://mcrozes-soca-test-bucket/tarball/openpbs-23.06.06.tar.gz)
+
+        compatibility_packages:
+          # Package installed/replaced on older distro (RHEL8, Rocky8 ..) to enable OpenPBS compilation for python3.13
+          automake:
+            url: "https://ftp.gnu.org/gnu/automake/automake-1.16.5.tar.gz"
+            sha256: "07bd24ad08a64bc17250ce09ec56e921d6343903943e99ccf63bbf0705e34605"
+          # Package installed/replaced on older distro (RHEL8, Rocky8 ..) to enable OpenPBS compilation for python3.13
+          libtool:
+            url: "https://ftp.gnu.org/gnu/libtool/libtool-2.4.7.tar.gz"
+            sha256: "04e96c2404ea70c590c546eba4202a4e12722c640016c12b9b2f1ce3d481e9a8"
+          # Package installed/replaced on older distro (RHEL8, Rocky8 ..) to enable OpenPBS compilation for python3.13
+          pkgconfig:
+            url: "https://pkg-config.freedesktop.org/releases/pkg-config-0.29.2.tar.gz"
+            sha256: "6fc69c01688c9458a57eb9a1664c9aba372ccda420a02bf4429fe610e7e7d591"
+          # Dependency when compiling OpenPBS from source
+          cjson:
+            url: "https://github.com/DaveGamble/cJSON.git"
 
     cache_client:
       valkey:
@@ -415,18 +434,25 @@ Parameters:
       redis:
         url: "http://download.redis.io/redis-stable.tar.gz"
 
+    # OpenMPI is automatically installed on /apps partition at the end of the initial Controller setup
+    # You can disable it via installer/resources/user_data/controller/03_setup.sh.j2
     openmpi:
       version: "5.0.6"
       url: "https://download.open-mpi.org/release/open-mpi/v5.0/openmpi-5.0.6.tar.gz"
       sha256: "1d6dd41f6b53c00db23b40e56733d16a996fa743957ef8add8e117feffd92689"
 
+    # CloudWatch agent is only used if you enable cluster_node_boostrap/templates/linux/aws_cloudwatch_agent.sh.j2
     cloudwatch_agent:
       download_link_pattern: "https://s3.%region%.amazonaws.com/amazoncloudwatch-agent-%region%/%os%/%architecture%/latest/amazon-cloudwatch-agent.%ext%"
 
+    # SSM is automatically installed on all SOCA nodes, giving you the permission to access your host via AWS System Manager and perform DCV automations
+    # We do not recommend disable it
     ssm:
       x86_64: "https://s3.amazonaws.com/ec2-downloads-windows/SSMAgent/latest/linux_amd64/amazon-ssm-agent.rpm"
       aarch64: "https://s3.amazonaws.com/ec2-downloads-windows/SSMAgent/latest/linux_arm64/amazon-ssm-agent.rpm"
 
+    # S3 Mountpoint is only used if you mount an S3 path via SOCA Shared Storage
+    # https://awslabs.github.io/scale-out-computing-on-aws-documentation/documentation/storage/dedicated-storage/
     s3_mountpoint:
       x86_64:
         url: "https://s3.amazonaws.com/mountpoint-s3-release/1.14.0/x86_64/mount-s3-1.14.0-x86_64.rpm"
@@ -435,16 +461,27 @@ Parameters:
         url: "https://s3.amazonaws.com/mountpoint-s3-release/1.14.0/arm64/mount-s3-1.14.0-arm64.rpm"
         sha256: "5c13de3fa0a8fd884444c5bf149cc4c3967aadad5c6fc4925df2529d4a83a5dd"
 
+    # NVM is installed only on the controller host and is required to install some required library on the SOCA Web Interface
     nvm:
       node_version: "20.9.0"  # Note:  Older distro (ALI2, centos7, rhel7 ... ) will use 17.9.0 as GLIBC on these distro are not compatible with Node18+
       url: "https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.7/install.sh"
       sha256: "8e45fa547f428e9196a5613efad3bfa4d4608b74ca870f930090598f5af5f643"
 
+    # EFA Drivers installed on all HPC Compute node when efa_support=True is specified
+    # https://aws.amazon.com/hpc/efa/
     efa:
       version: "1.38.0"
       url: "https://efa-installer.amazonaws.com/aws-efa-installer-1.38.0.tar.gz"
       sha256: "4f436954f35ad53754b4d005fd8d0be63de3b4184de41a695b504bdce0fecb22"
 
+    # SQLite is installed on the controller host and is the primary DB for SOCA Web UI
+    sqlite:
+      version: "3.49.1"
+      url: "https://www.sqlite.org/2025/sqlite-src-3490100.zip"
+      sha256: "4404d93cbce818b1b98ca7259d0ba9b45db76f2fdd9373e56f2d29b519f4d43b"
+
+    # EPEL repository
+    # https://docs.fedoraproject.org/en-US/epel/
     epel:
       el7:
         url: "https://dl.fedoraproject.org/pub/epel/epel-release-latest-7.noarch.rpm"
@@ -453,9 +490,11 @@ Parameters:
       el9:
         url: "https://dl.fedoraproject.org/pub/epel/epel-release-latest-9.noarch.rpm"
 
+    # Chocolatey package manager installed on DCV Windows. You can disable it via cluster_node_boostrap/templates/windows/
     chocolatey:
       url: "https://community.chocolatey.org/install.ps1"
 
+    # GPU settings when using a GPU-supported EC2 instance
     gpu:
       gpu_settings:
         nvidia:
@@ -463,30 +502,33 @@ Parameters:
             #  https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/install-nvidia-driver.html#nvidia-driver-instance-type
             # If EC2 Instance Family only supports Tesla, SOCA will install Tesla Drivers
             # If EC2 Instance family supports both Tesla and Grid, SOCA will only install Grid Driver if it's a DCV (Virtual Desktop) machine
-            # Edit templates/linux/gpu/install_drivers.j2 to change the behavior if needed.
             tesla_drivers_only: "(p3|p4d|p4de|p5|p5e|g5g)"
             tesla_drivers_ltsb_only: "(p2|g2)"  # (Experimental) For Older GPU generation
             grid_drivers:
               s3_bucket_url: "https://ec2-linux-nvidia-drivers.s3.amazonaws.com"
-              s3_bucket_path: "s3://ec2-linux-nvidia-drivers/latest/"
+              s3_bucket_path: "s3://ec2-linux-nvidia-drivers" # Note: GRID Driver version is managed via linux/gpu/install_drivers.sh.j2
+
             tesla_drivers:
-              public_driver_version: "535.104.05"
-              public_driver_version_ltsb: "470.199.02"  # (Experimental)  Long Term Servicing Branch, for older instance type
-              public_driver_url_endpoint: "https://us.download.nvidia.com/tesla/${DRIVER_VERSION}/NVIDIA-Linux-${MACHINE}-${DRIVER_VERSION}.run"
+              public_driver_url_endpoint: "https://us.download.nvidia.com/tesla" # Edit linux/gpu/install_drivers.sh.j2 if you need to change the driver versions
+
           windows:
             # Windows is only for VDI instance, so we install only Grid Drivers.
             # User can replace with TESLA post-VDI deployment if needed.
             grid_drivers:
               s3_bucket_url: "https://ec2-windows-nvidia-drivers.s3.amazonaws.com"
-              s3_bucket_path: "s3://ec2-windows-nvidia-drivers/latest/"
+              s3_bucket_path: "s3://ec2-windows-nvidia-drivers" # Note: GRID Driver version is managed via windows/gpu/nvidia_drivers.ps.j2
 
         amd:
           linux:
             s3_bucket_url: "https://ec2-amd-linux-drivers.s3.amazonaws.com"
             s3_bucket_path: "s3://ec2-amd-linux-drivers/latest/"
+            radeon_repo_url: "https://repo.radeon.com/amdgpu"
           windows:
             s3_bucket_url: "https://ec2-amd-windows-drivers.s3.amazonaws.com"
             s3_bucket_path: "s3://ec2-amd-windows-drivers/latest/"
+
+    # Amazon DCV Settings
+    # https://aws.amazon.com/hpc/dcv/
     dcv:
       session_storage: "dcv_session_storage"  # $HOME will be appended as prefix https://docs.aws.amazon.com/dcv/latest/adminguide/manage-storage.html
       idle_timeout: 1440  # in minutes. Disconnect DCV (but not terminate the session) after 1 day if not active
@@ -499,7 +541,15 @@ Parameters:
           version: "2024.0-17979-el7-only-al2-aarch64"
           url: "https://d1uj6qtbmh3dt5.cloudfront.net/2024.0/Servers/nice-dcv-2024.0-17979-el7-only-al2-aarch64.tgz"
           sha256: "59011a340e903c058013c8c8f2aa346e864eb3a4168f6d74779e21f9ea8e8e86"
-
+      al2023: # Amazon linux 2023
+        x86_64:
+          version: "nice-dcv-2024.0-19030-amzn2023-x86_64"
+          url: "https://d1uj6qtbmh3dt5.cloudfront.net/2024.0/Servers/nice-dcv-2024.0-19030-amzn2023-x86_64.tgz"
+          sha256: "35128b988dee4f1f4582bd912dc4764b8712c1f0e3a35082a5da7e039eb7ff92"
+        aarch64:
+          version: "nice-dcv-2024.0-19030-amzn2023-aarch6"
+          url: "https://d1uj6qtbmh3dt5.cloudfront.net/2024.0/Servers/nice-dcv-2024.0-19030-amzn2023-aarch64.tgz"
+          sha256: "60001ea60e91513b5c5018c38c2178cb0fac5cd0f15875ccf694ab95d7cfe661"
       el7:  ## Centos7/RHEL7 [IMPORTANT: Latest supported is 2023.1]
         x86_64:
           version: "2023.1-17701-el7-x86_64"

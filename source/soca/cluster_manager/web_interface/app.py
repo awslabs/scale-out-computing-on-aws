@@ -88,16 +88,16 @@ if config.Config.DIRECTORY_AUTH_PROVIDER in [
     from api.v1.ldap.activedirectory.reset_password import Reset
 else:
     from api.v1.ldap.reset_password import Reset
-from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.interval import IntervalTrigger
 from apscheduler.triggers.cron import CronTrigger
 
-from models import db
 import soca_samples
 import os
 import stat
 from utils.logger import SocaLogger
 import json
+
+from extensions import db, scheduler
 
 app = Flask(__name__)
 
@@ -283,10 +283,6 @@ with app.app_context():
     os.chmod(os.path.join(basedir, "db.sqlite"), stat.S_IWUSR + stat.S_IRUSR)
     app_session = Session(app)
 
-    # This only takes place in SQL mode
-    if config.Config.SESSION_TYPE == "sqlalchemy":
-        app_session.app.session_interface.db.create_all()
-
     # now import scheduled tasks
     from scheduled_tasks.virtual_desktops.session_state_watcher import (
         virtual_desktops_session_state_watcher,
@@ -315,9 +311,6 @@ with app.app_context():
         title="SOCA API Documentation",
     )
 
-    # Schedule tasks using the scheduler
-    scheduler = BackgroundScheduler()
-
     # Task: Backup DB every 12 hours
     scheduler.add_job(
         backup_db,
@@ -329,6 +322,7 @@ with app.app_context():
     # Task: Auto terminate stopped instances every 30 minutes
     scheduler.add_job(
         auto_terminate_stopped_instance,
+        args=[app],
         trigger=IntervalTrigger(minutes=30),
         id="auto_terminate_stopped_instance",
         replace_existing=True,
@@ -337,6 +331,7 @@ with app.app_context():
     # Task: Virtual desktops schedule management
     scheduler.add_job(
         virtual_desktops_schedule_management,
+        args=[app],
         trigger=CronTrigger(
             minute="0,16,32,47"
         ),  # every hour , every 16 minutes (as users can adjust schedule every 15 mins)
@@ -347,6 +342,7 @@ with app.app_context():
     # Task: Virtual desktops session state watcher every 1 minute
     scheduler.add_job(
         virtual_desktops_session_state_watcher,
+        args=[app],
         trigger=IntervalTrigger(minutes=1),
         id="virtual_desktops_session_state_watcher",
         replace_existing=True,
@@ -356,6 +352,7 @@ with app.app_context():
     # Task: Virtual desktops session error watcher every 5 minutes
     scheduler.add_job(
         virtual_desktops_session_error_watcher,
+        args=[app],
         trigger=IntervalTrigger(minutes=5),
         id="virtual_desktops_session_error_watcher",
         replace_existing=True,

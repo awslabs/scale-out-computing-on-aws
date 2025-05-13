@@ -31,12 +31,13 @@ function install_amd_gpu_drivers() {
     /bin/bash ./amdgpu-pro-install -y --opencl=pal,legacy
 
   {% elif context.get("/configuration/BaseOS") in ("rhel8", "rhel9", "rocky8", "rocky9") %}
-     local AMD_RADEON_REPO_BASE_URL="https://repo.radeon.com/amdgpu"
+     local AMD_RADEON_REPO_BASE_URL="{{ context.get("/system/gpu/gpu_settings/amd/linux/radeon_repo_url") }}"
      local AMD_GPU_VERSION
      local OS_VERSION=$(awk -F= '/^VERSION_ID/ {gsub(/"/, "", $2); print $2}' /etc/os-release)
      log_info "Detected OS Version ${OS_VERSION}"
 
      case "${OS_VERSION}" in
+          *"9.5"*) AMD_GPU_VERSION="6.2.3" ;;
           *"9.4"*) AMD_GPU_VERSION="6.2.3" ;;
           *"9.3"*) AMD_GPU_VERSION="6.2.3" ;;
           *"9.2"*) AMD_GPU_VERSION="6.2.3" ;;
