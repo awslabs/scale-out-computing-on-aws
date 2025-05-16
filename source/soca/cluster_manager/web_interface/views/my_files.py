@@ -72,9 +72,15 @@ def change_ownership(file_path: str) -> dict:
     uid = user_info.pw_uid
     gid = user_info.pw_gid
     os.chown(path=file_path, uid=uid, gid=gid)
+    _desired_mode = stat.S_IRUSR | stat.S_IWUSR | stat.S_IRGRP
+
+    # Make sure the user and group can access into directories
+    if os.path.isdir(file_path):
+        _desired_mode = _desired_mode | stat.S_IXUSR | stat.S_IXGRP
+
     os.chmod(
         path=file_path,
-        mode=stat.S_IRUSR | stat.S_IWUSR | stat.S_IRGRP,
+        mode=_desired_mode,
     )
     return {"success": True, "message": "Permission updated correctly"}
 
