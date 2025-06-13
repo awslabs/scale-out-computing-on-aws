@@ -26,11 +26,11 @@ function realpath() {
 
 function run_pip() {
   if [[ "$QUIET_MODE" = "true" ]]; then
-    pip3 install --upgrade pip --quiet
-    pip3 install -r resources/src/requirements.txt --quiet
+    pip3 install --upgrade pip --quiet -i https://pypi.tuna.tsinghua.edu.cn/simple
+    pip3 install -r resources/src/requirements.txt --quiet -i https://pypi.tuna.tsinghua.edu.cn/simple
   else
-    pip3 install --upgrade pip
-    pip3 install -r resources/src/requirements.txt
+    pip3 install --upgrade pip -i https://pypi.tuna.tsinghua.edu.cn/simple
+    pip3 install -r resources/src/requirements.txt -i https://pypi.tuna.tsinghua.edu.cn/simple
   fi
 }
 
@@ -126,7 +126,7 @@ INSTALLER_DIRECTORY=$(dirname $(realpath "$0"))
 PYTHON_VENV="$INSTALLER_DIRECTORY/resources/src/envs/venv-py-installer"
 
 # NVM path
-NODEJS_BIN="https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.1/install.sh"
+NODEJS_BIN="https://soca-gcr.s3.us-west-2.amazonaws.com/nvm-sh/nvm/v0.40.1/install.sh"
 
 # Color
 NC="\033[0m"
