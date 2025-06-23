@@ -22,16 +22,7 @@
                 "arn:aws-cn:s3:::%%BUCKET%%"
             ],
             "Effect": "Allow"
-        },
-        {
-            "Action": [
-                "ses:SendEmail"
-            ],
-            "Resource": [
-                "arn:aws-cn:ses:*:%%AWS_ACCOUNT_ID%%:identity*"
-            ],
-            "Effect": "Allow"
-        },
+        }, 
         {
             "Action": [
                 "ec2:CreateTags"
