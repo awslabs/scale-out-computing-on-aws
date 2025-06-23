@@ -714,49 +714,49 @@ RegionMap:
   # GCR regions
   cn-north-1:
     arm64:
-      amazonlinux2: ami-placeholder
-      amazonlinux2023: ami-placeholder
-      rhel8: ami-placeholder
-      rhel9: ami-placeholder
-      rocky8: ami-placeholder
-      rocky9: ami-placeholder
-      ubuntu2204: ami-placeholder
-      ubuntu2404: ami-placeholder
+      amazonlinux2: ami-0b6b5c2b39fbe6e25
+      amazonlinux2023: ami-0050bdea503afb267
+      rhel8: ami-057bc1aba4c81bbad
+      rhel9: ami-046deb8fe767796fa
+      # rocky8: not supported
+      rocky9: ami-05a30ad42a4562be2
+      ubuntu2204: ami-039b85aae4e82c275
+      ubuntu2404: ami-0a298ada2f151492b
     x86_64:
-      amazonlinux2: ami-placeholder
-      amazonlinux2023: ami-placeholder
-      rhel7: ami-placeholder
-      rhel8: ami-placeholder
-      rhel9: ami-placeholder
-      rocky8: ami-placeholder
-      rocky9: ami-placeholder
-      ubuntu2204: ami-placeholder
-      ubuntu2404: ami-placeholder
-      windows2019: ami-placeholder
-      windows2022: ami-placeholder
-      windows2025: ami-placeholder
+      amazonlinux2: ami-044825ed7269ce5ae
+      amazonlinux2023: ami-07e6f3a55a0591957
+      rhel7: ami-03d8043294fea9aab
+      rhel8: ami-0a63ed58be40131a8
+      rhel9: ami-05c94ad454112ae74
+      rocky8: ami-0b45e59d7f20e48ab
+      rocky9: ami-07f5b7614f70a6c81
+      ubuntu2204: ami-0bb5b7a6a081b4071
+      ubuntu2404: ami-0a83c884ad208dfbc
+      windows2019: 
+      windows2022: 
+      windows2025: 
   cn-northwest-1:
     arm64:
-      amazonlinux2: ami-placeholder
-      amazonlinux2023: ami-placeholder
-      rhel8: ami-placeholder
-      rhel9: ami-placeholder
-      rocky8: ami-placeholder
-      rocky9: ami-placeholder
-      ubuntu2204: ami-placeholder
-      ubuntu2404: ami-placeholder
+      amazonlinux2: ami-0c662664eb417cfe4
+      amazonlinux2023: ami-00c2a939d499dd3b9
+      rhel8: ami-0f5411e7d874d6a0e
+      rhel9: ami-084a9971dac348932
+      # rocky8: not supported
+      rocky9: ami-00c556f64bee59a22
+      ubuntu2204: ami-08e2c3633ffeab3e6
+      ubuntu2404: ami-04d9f0e389358b7b1
     x86_64:
-      amazonlinux2: ami-placeholder
-      amazonlinux2023: ami-placeholder
-      rhel7: ami-placeholder
-      rhel8: ami-placeholder
-      rhel9: ami-placeholder
-      rocky8: ami-placeholder
-      rocky9: ami-placeholder
-      ubuntu2204: ami-placeholder
-      ubuntu2404: ami-placeholder
-      windows2019: ami-placeholder
-      windows2022: ami-placeholder
-      windows2025: ami-placeholder
+      amazonlinux2: ami-074569be118d63cd3
+      amazonlinux2023: ami-0860d42a423b663c6
+      rhel7: ami-047eb9da7101b389f
+      rhel8: ami-099bfa7e6b651200b
+      rhel9: ami-0f03ab64a3798169d
+      rocky8: ami-03ef4ab38a835fa82
+      rocky9: ami-0d8859df92f1ff688
+      ubuntu2204: ami-0ee7890ada8cf3617
+      ubuntu2404: ami-01785c07ce58610d6
+      windows2019: ami-04de7b39d2aab1d8a
+      windows2022: ami-0774a48a7423faec4
+      windows2025: ami-0c1f49057ab497dd8
 
 # SOCA AMI List for commercial partition generated 2025-05-09 11:38:44 UTC
