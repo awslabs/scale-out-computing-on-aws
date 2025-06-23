@@ -5,7 +5,7 @@
             "Action": [
                 "logs:CreateLogGroup"
             ],
-            "Resource": "arn:aws-cn:logs:%%AWS_REGION%%:%%AWS_ACCOUNT_ID%%:log-group:/aws/lambda/%%CLUSTER_ID%%*",
+            "Resource": "*",
             "Effect": "Allow",
             "Sid": "CloudWatchLogsPermissions"
         },
@@ -14,7 +14,7 @@
                 "logs:CreateLogStream",
                 "logs:PutLogEvents"
             ],
-            "Resource": "arn:aws-cn:logs:%%AWS_REGION%%:%%AWS_ACCOUNT_ID%%:log-group:/aws/lambda/%%CLUSTER_ID%%*:log-stream:*",
+            "Resource": "*",
             "Effect": "Allow",
             "Sid": "CloudWatchLogStreamPermissions"
         },

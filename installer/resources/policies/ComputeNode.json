@@ -60,7 +60,7 @@
                 "logs:PutLogEvents",
                 "logs:DescribeLogStreams"
             ],
-            "Resource": "arn:aws-cn:logs:%%AWS_REGION%%:*"
+            "Resource": "*"
         }
     ]
 }

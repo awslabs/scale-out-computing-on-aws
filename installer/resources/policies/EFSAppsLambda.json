@@ -7,7 +7,7 @@
                         "logs:CreateLogStream",
                         "logs:PutLogEvents"
                     ],
-            "Resource": "arn:aws-cn:logs:%%AWS_REGION%%:%%AWS_ACCOUNT_ID%%:log-group:/aws/lambda/%%CLUSTER_ID%%*EFSAppsLambda*",
+            "Resource": "*",
             "Effect": "Allow",
             "Sid": "CloudWatchLogsPermissions"
         },
