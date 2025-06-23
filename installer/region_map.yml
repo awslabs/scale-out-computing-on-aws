@@ -711,5 +711,52 @@ RegionMap:
       windows2019: ami-05298029d06a92e58
       windows2022: ami-0e5c99cd8f3e521cb
       windows2025: ami-00b33f437a7cec8c5
+  # GCR regions
+  cn-north-1:
+    arm64:
+      amazonlinux2: ami-placeholder
+      amazonlinux2023: ami-placeholder
+      rhel8: ami-placeholder
+      rhel9: ami-placeholder
+      rocky8: ami-placeholder
+      rocky9: ami-placeholder
+      ubuntu2204: ami-placeholder
+      ubuntu2404: ami-placeholder
+    x86_64:
+      amazonlinux2: ami-placeholder
+      amazonlinux2023: ami-placeholder
+      rhel7: ami-placeholder
+      rhel8: ami-placeholder
+      rhel9: ami-placeholder
+      rocky8: ami-placeholder
+      rocky9: ami-placeholder
+      ubuntu2204: ami-placeholder
+      ubuntu2404: ami-placeholder
+      windows2019: ami-placeholder
+      windows2022: ami-placeholder
+      windows2025: ami-placeholder
+  cn-northwest-1:
+    arm64:
+      amazonlinux2: ami-placeholder
+      amazonlinux2023: ami-placeholder
+      rhel8: ami-placeholder
+      rhel9: ami-placeholder
+      rocky8: ami-placeholder
+      rocky9: ami-placeholder
+      ubuntu2204: ami-placeholder
+      ubuntu2404: ami-placeholder
+    x86_64:
+      amazonlinux2: ami-placeholder
+      amazonlinux2023: ami-placeholder
+      rhel7: ami-placeholder
+      rhel8: ami-placeholder
+      rhel9: ami-placeholder
+      rocky8: ami-placeholder
+      rocky9: ami-placeholder
+      ubuntu2204: ami-placeholder
+      ubuntu2404: ami-placeholder
+      windows2019: ami-placeholder
+      windows2022: ami-placeholder
+      windows2025: ami-placeholder
 
 # SOCA AMI List for commercial partition generated 2025-05-09 11:38:44 UTC
