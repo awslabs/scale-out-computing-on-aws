@@ -9,16 +9,16 @@
                 "ec2:TerminateInstances"
             ],
             "Resource": [
-                "arn:%%AWS_PARTITION%%:ec2:*:%%AWS_ACCOUNT_ID%%:subnet/*",
-                "arn:%%AWS_PARTITION%%:ec2:*:%%AWS_ACCOUNT_ID%%:key-pair/*",
-                "arn:%%AWS_PARTITION%%:ec2:*:%%AWS_ACCOUNT_ID%%:instance/*",
-                "arn:%%AWS_PARTITION%%:ec2:*::snapshot/*",
-                "arn:%%AWS_PARTITION%%:ec2:*:%%AWS_ACCOUNT_ID%%:launch-template/*",
-                "arn:%%AWS_PARTITION%%:ec2:*:%%AWS_ACCOUNT_ID%%:volume/*",
-                "arn:%%AWS_PARTITION%%:ec2:*:%%AWS_ACCOUNT_ID%%:security-group/*",
-                "arn:%%AWS_PARTITION%%:ec2:*:%%AWS_ACCOUNT_ID%%:placement-group/*",
-                "arn:%%AWS_PARTITION%%:ec2:*:%%AWS_ACCOUNT_ID%%:network-interface/*",
-                "arn:%%AWS_PARTITION%%:ec2:*::image/*"
+                "arn:aws-cn:ec2:*:%%AWS_ACCOUNT_ID%%:subnet/*",
+                "arn:aws-cn:ec2:*:%%AWS_ACCOUNT_ID%%:key-pair/*",
+                "arn:aws-cn:ec2:*:%%AWS_ACCOUNT_ID%%:instance/*",
+                "arn:aws-cn:ec2:*::snapshot/*",
+                "arn:aws-cn:ec2:*:%%AWS_ACCOUNT_ID%%:launch-template/*",
+                "arn:aws-cn:ec2:*:%%AWS_ACCOUNT_ID%%:volume/*",
+                "arn:aws-cn:ec2:*:%%AWS_ACCOUNT_ID%%:security-group/*",
+                "arn:aws-cn:ec2:*:%%AWS_ACCOUNT_ID%%:placement-group/*",
+                "arn:aws-cn:ec2:*:%%AWS_ACCOUNT_ID%%:network-interface/*",
+                "arn:aws-cn:ec2:*::image/*"
             ],
             "Effect": "Allow"
         },
@@ -48,7 +48,7 @@
                 "elasticfilesystem:Restore",
                 "elasticfilesystem:DeleteFilesystem"
             ],
-            "Resource": "arn:%%AWS_PARTITION%%:elasticfilesystem:%%AWS_REGION%%:%%AWS_ACCOUNT_ID%%:file-system/*",
+            "Resource": "arn:aws-cn:elasticfilesystem:%%AWS_REGION%%:%%AWS_ACCOUNT_ID%%:file-system/*",
             "Effect": "Allow"
         },
         {
@@ -83,7 +83,7 @@
         {
             "Condition": {
                 "ForAllValues:ArnEqualsIfExists": {
-                    "ec2:Vpc": "arn:%%AWS_PARTITION%%:ec2:%%AWS_REGION%%:%%AWS_ACCOUNT_ID%%:vpc/%%VPC_ID%%"
+                    "ec2:Vpc": "arn:aws-cn:ec2:%%AWS_REGION%%:%%AWS_ACCOUNT_ID%%:vpc/%%VPC_ID%%"
                 }
             },
             "Action": [
@@ -96,16 +96,16 @@
                 "ec2:DeregisterImage"
             ],
             "Resource": [
-                "arn:%%AWS_PARTITION%%:ec2:*:%%AWS_ACCOUNT_ID%%:subnet/*",
-                "arn:%%AWS_PARTITION%%:ec2:*:%%AWS_ACCOUNT_ID%%:key-pair/*",
-                "arn:%%AWS_PARTITION%%:ec2:*:%%AWS_ACCOUNT_ID%%:instance/*",
-                "arn:%%AWS_PARTITION%%:ec2:*::snapshot/*",
-                "arn:%%AWS_PARTITION%%:ec2:*:%%AWS_ACCOUNT_ID%%:launch-template/*",
-                "arn:%%AWS_PARTITION%%:ec2:*:%%AWS_ACCOUNT_ID%%:volume/*",
-                "arn:%%AWS_PARTITION%%:ec2:*:%%AWS_ACCOUNT_ID%%:security-group/*",
-                "arn:%%AWS_PARTITION%%:ec2:*:%%AWS_ACCOUNT_ID%%:placement-group/*",
-                "arn:%%AWS_PARTITION%%:ec2:*:%%AWS_ACCOUNT_ID%%:network-interface/*",
-                "arn:%%AWS_PARTITION%%:ec2:*::image/*"
+                "arn:aws-cn:ec2:*:%%AWS_ACCOUNT_ID%%:subnet/*",
+                "arn:aws-cn:ec2:*:%%AWS_ACCOUNT_ID%%:key-pair/*",
+                "arn:aws-cn:ec2:*:%%AWS_ACCOUNT_ID%%:instance/*",
+                "arn:aws-cn:ec2:*::snapshot/*",
+                "arn:aws-cn:ec2:*:%%AWS_ACCOUNT_ID%%:launch-template/*",
+                "arn:aws-cn:ec2:*:%%AWS_ACCOUNT_ID%%:volume/*",
+                "arn:aws-cn:ec2:*:%%AWS_ACCOUNT_ID%%:security-group/*",
+                "arn:aws-cn:ec2:*:%%AWS_ACCOUNT_ID%%:placement-group/*",
+                "arn:aws-cn:ec2:*:%%AWS_ACCOUNT_ID%%:network-interface/*",
+                "arn:aws-cn:ec2:*::image/*"
             ],
             "Effect": "Allow"
         },
@@ -137,14 +137,14 @@
                 "backup:CopyIntoBackupVault",
                 "backup:DescribeBackupVault"
             ],
-            "Resource": "arn:%%AWS_PARTITION%%:backup:%%AWS_REGION%%:%%AWS_ACCOUNT_ID%%:backup-vault/*",
+            "Resource": "arn:aws-cn:backup:%%AWS_REGION%%:%%AWS_ACCOUNT_ID%%:backup-vault/*",
             "Effect": "Allow"
         },
         {
             "Action": [
                 "elasticfilesystem:Backup"
             ],
-            "Resource": "arn:%%AWS_PARTITION%%:elasticfilesystem:%%AWS_REGION%%:%%AWS_ACCOUNT_ID%%:file-system/*",
+            "Resource": "arn:aws-cn:elasticfilesystem:%%AWS_REGION%%:%%AWS_ACCOUNT_ID%%:file-system/*",
             "Effect": "Allow"
         },
         {
@@ -168,7 +168,7 @@
             "Action": [
                 "kms:GenerateDataKeyWithoutPlaintext"
             ],
-            "Resource": "arn:%%AWS_PARTITION%%:kms:%%AWS_REGION%%:%%AWS_ACCOUNT_ID%%:key/*",
+            "Resource": "arn:aws-cn:kms:%%AWS_REGION%%:%%AWS_ACCOUNT_ID%%:key/*",
             "Effect": "Allow"
         }
     ]

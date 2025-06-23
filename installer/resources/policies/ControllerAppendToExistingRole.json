@@ -5,14 +5,14 @@
             "Action": [
                 "elasticloadbalancing:DeleteRule"
             ],
-            "Resource": "arn:%%AWS_PARTITION%%:elasticloadbalancing:%%AWS_REGION%%:%%AWS_ACCOUNT_ID%%:listener-rule/app/%%CLUSTER_ID%%*/*/*",
+            "Resource": "arn:aws-cn:elasticloadbalancing:%%AWS_REGION%%:%%AWS_ACCOUNT_ID%%:listener-rule/app/%%CLUSTER_ID%%*/*/*",
             "Effect": "Allow"
         },
         {
             "Action": [
                 "elasticloadbalancing:CreateRule"
             ],
-            "Resource": "arn:%%AWS_PARTITION%%:elasticloadbalancing:%%AWS_REGION%%:%%AWS_ACCOUNT_ID%%:listener/app/%%CLUSTER_ID%%*/*/*",
+            "Resource": "arn:aws-cn:elasticloadbalancing:%%AWS_REGION%%:%%AWS_ACCOUNT_ID%%:listener/app/%%CLUSTER_ID%%*/*/*",
             "Effect": "Allow"
         },
        {
@@ -38,7 +38,7 @@
                 "lambda:InvokeFunction"
             ],
             "Resource": [
-                "arn:%%AWS_PARTITION%%:lambda:%%AWS_REGION%%:%%AWS_ACCOUNT_ID%%:function:%%CLUSTER_ID%%-*"
+                "arn:aws-cn:lambda:%%AWS_REGION%%:%%AWS_ACCOUNT_ID%%:function:%%CLUSTER_ID%%-*"
             ],
             "Effect": "Allow"
         },
@@ -52,7 +52,7 @@
                 "fsx:DeleteFileSystem"
             ],
             "Resource": [
-                "arn:%%AWS_PARTITION%%:fsx:%%AWS_REGION%%:%%AWS_ACCOUNT_ID%%:file-system/*"
+                "arn:aws-cn:fsx:%%AWS_REGION%%:%%AWS_ACCOUNT_ID%%:file-system/*"
             ],
             "Effect": "Allow"
         }

@@ -14,7 +14,7 @@
         {
             "Condition": {
                 "StringEquals": {
-                    "ec2:Vpc": "arn:%%AWS_PARTITION%%:ec2:%%AWS_REGION%%:*:vpc/%%VPC_ID%%"
+                    "ec2:Vpc": "arn:aws-cn:ec2:%%AWS_REGION%%:*:vpc/%%VPC_ID%%"
                 }
             },
             "Action": [
@@ -22,7 +22,7 @@
                 "ec2:TerminateInstances",
                 "ec2:CreateTags"
             ],
-            "Resource": "arn:%%AWS_PARTITION%%:ec2:*:%%AWS_ACCOUNT_ID%%:instance/*",
+            "Resource": "arn:aws-cn:ec2:*:%%AWS_ACCOUNT_ID%%:instance/*",
             "Effect": "Allow",
             "Sid": "SpotPermissions"
         },

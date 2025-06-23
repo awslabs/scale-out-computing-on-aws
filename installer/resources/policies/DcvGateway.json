@@ -8,8 +8,8 @@
                 "s3:PutObject"
             ],
             "Resource": [
-                "arn:%%AWS_PARTITION%%:s3:::%%BUCKET%%/*",
-                "arn:%%AWS_PARTITION%%:s3:::%%BUCKET%%"
+                "arn:aws-cn:s3:::%%BUCKET%%/*",
+                "arn:aws-cn:s3:::%%BUCKET%%"
             ],
             "Effect": "Allow"
         }
