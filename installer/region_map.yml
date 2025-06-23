@@ -732,9 +732,9 @@ RegionMap:
       rocky9: ami-07f5b7614f70a6c81
       ubuntu2204: ami-0bb5b7a6a081b4071
       ubuntu2404: ami-0a83c884ad208dfbc
-      windows2019: 
-      windows2022: 
-      windows2025: 
+      windows2019: ami-0aced60d5a97d56c1
+      windows2022: ami-02862b4d551aae7ef
+      windows2025: ami-0325e5ef7145a0604
   cn-northwest-1:
     arm64:
       amazonlinux2: ami-0c662664eb417cfe4
