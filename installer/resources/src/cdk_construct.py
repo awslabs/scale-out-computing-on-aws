@@ -766,7 +766,7 @@ class SOCAInstall(Stack):
             key_name="Config.controller.instance_type",
             expected_type=list,
             required=False,
-            default=["m7i-flex.large", "m5.large"],
+            default=["m5.large"],
         )
         logger.debug(f"ControllerNode - Configured instance type: {_instance_type}")
 
@@ -5551,7 +5551,7 @@ class SOCAInstall(Stack):
             key_name="Config.login_node.instance_type",
             expected_type=list,
             required=False,
-            default=["m7i-flex.large", "m5.large"],
+            default=["m5.large"],
         )
         logger.debug(
             f"LoginNode - Configured instance type: {_configured_instance_type}"
@@ -6672,6 +6672,8 @@ class SOCAInstall(Stack):
 
 if __name__ == "__main__":
     app = App()
+    print("lvning test in main cdk")
+    print(app.node.try_get_context("region"))
 
     # User specified variables/install properties, queryable as Python Object
     user_specified_variables = json.loads(

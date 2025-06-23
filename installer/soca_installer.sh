@@ -226,6 +226,7 @@ else
           MAX_RETRIES=3
           RETRY_COUNT=0
           PYTHON_INSTALLED=false
+          export PYTHON_BUILD_MIRROR_URL="https://pypi.tuna.tsinghua.edu.cn/simple"
           
           while [[ $RETRY_COUNT -lt $MAX_RETRIES && "$PYTHON_INSTALLED" = "false" ]]; do
             # First try with default mirrors

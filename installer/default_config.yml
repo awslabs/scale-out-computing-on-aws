@@ -162,7 +162,7 @@ Config:
 
   # Configure your EC2 instance used as login host below
   login_node:
-    instance_type: ["m7i-flex.large", "m7i.large", "m6a.large", "m6i.large", "m5.large"]  # Type of EC2 machine to deploy for login_node
+    instance_type: ["m6i.large", "m5.large"]  # Type of EC2 machine to deploy for login_node
     min_count: 1  # Minimum Number of login node(s) to provision. This value can be changed post deployment
     desired_count: ~  # Default is to match minimum count
     max_count: 2  # Maximum Number of login node(s) to provision. This value can be changed post deployment
@@ -188,7 +188,7 @@ Config:
 
   # Configure your EC2 instance used as controller host below
   controller:
-    instance_type: ["m7i-flex.large", "m7i.large", "m6a.large", "m6i.large", "m5.large"]  # Type of EC2 machine to deploy for controller
+    instance_type: ["m6i.large", "m5.large"]  # Type of EC2 machine to deploy for controller
     volume_size: 300  # Size of the EBS root disk in GB
     volume_type: "gp3"  #  'gp2' may be needed for AWS Outposts installations
     volume_throughput: 150  #  For Provisioned IOPS SSD (io1) volumes
@@ -230,17 +230,17 @@ Config:
     version: "2023.1.16388"
     high_scale: false  # Should DCV be configured to support HA and high scale?
     gateway:
-      instance_type: ["m7i-flex.large", "m7i.large", "m6a.large", "m6i.large", "m5.large"]  # EC2 instance to deploy
+      instance_type: ["m6i.large", "m5.large"]  # EC2 instance to deploy
       instance_count: 1  # Number of DCV gateway node(s) to provision. This value can be changed post deployment
       volume_size: 50  # Size of the EBS root disk in GB
       volume_type: "gp3"
     broker:
-      instance_type: ["m7i-flex.large", "m7i.large", "m6a.large", "m6i.large", "m5.large"]  # EC2 instance to deploy
+      instance_type: ["m6i.large", "m5.large"]  # EC2 instance to deploy
       instance_count: 1  # Number of DCV broker node(s) to provision. This value can be changed post deployment
       volume_size: 50  # Size of the EBS root disk in GB
       volume_type: "gp3"
     manager:
-      instance_type: ["m7i-flex.large", "m7i.large", "m6a.large", "m6i.large", "m5.large"]  # EC2 instance to deploy
+      instance_type: ["m6i.large", "m5.large"]  # EC2 instance to deploy
       instance_count: 1  # Number of DCV session_manager node(s) to provision. This value can be changed post deployment
       volume_size: 50  # Size of the EBS root disk in GB
       volume_type: "gp3"
