@@ -40,11 +40,7 @@ mkdir -p ${SOCA_HOME}
 {% endif %}
 
 # Retrieve the region of the bucket specified at install time
-{% if context.get("/configuration/Region") in ('us-gov-east-1', 'us-gov-west-1')  %}
-  S3_BUCKET_REGION=$(curl -s --head {{ context.get("/configuration/S3Bucket") }}.s3.{{ context.get("/configuration/Region") }}.amazonaws.com | grep bucket-region | awk '{print $2}' | tr -d '\r\n')
-{% else %}
-  S3_BUCKET_REGION=$(curl -s --head {{ context.get("/configuration/S3Bucket") }}.s3.amazonaws.com | grep bucket-region | awk '{print $2}' | tr -d '\r\n')
-{% endif %}
+S3_BUCKET_REGION=$(curl -s --head {{ context.get("/configuration/S3Bucket") }}.s3.{{ context.get("/configuration/Region") }}.amazonaws.com.cn | grep bucket-region | awk '{print $2}' | tr -d '\r\n')
 
 # Retrieve SOCA configuration under soca.tar.gz and extract it on /opt/soca/
 aws_cli s3 --region ${S3_BUCKET_REGION} cp s3://{{ context.get("/configuration/S3Bucket") }}/{{ context.get("/configuration/ClusterId") }}/soca.tar.gz ${SOCA_BOOTSTRAP_ASSETS_FOLDER}

@@ -6,7 +6,7 @@ function install_soca_python () {
   mkdir -p "${SOCA_BOOTSTRAP_ASSETS_FOLDER}/soca_python"
   pushd "${SOCA_BOOTSTRAP_ASSETS_FOLDER}/soca_python"
   local PYTHON_VERSION="{{ context.get("/system/python/version") }}"
-  local PYTHON_URL="{{ context.get("/system/python/url") }}"
+  local PYTHON_URL="https://aws-gcr-industry-assets.s3.cn-northwest-1.amazonaws.com.cn/soca/Python-3.13.2.tgz"
   local PYTHON_SHA256="{{ context.get("/system/python/sha256") }}"
   local SOCA_PYTHON_LOCAL_INSTALL_PREFIX="/opt/soca/{{ context.get("/configuration/ClusterId") }}/python/${PYTHON_VERSION}/$(uname -m)/{{ context.get('/configuration/BaseOS') }}"
   local SOCA_PYTHON_VENV="${SOCA_PYTHON_LOCAL_INSTALL_PREFIX}/soca-python-virtual-env"
