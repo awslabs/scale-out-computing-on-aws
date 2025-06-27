@@ -391,7 +391,7 @@ Parameters:
     # SOCA Python, installed on all SOCA nodes
     python:
       version: "3.13.2"
-      url: "https://www.python.org/ftp/python/3.13.2/Python-3.13.2.tgz"
+      url: "https://mirrors.huaweicloud.com/python/3.13.2/Python-3.13.2.tgz"
       sha256: "b8d79530e3b7c96a5cb2d40d431ddb512af4a563e863728d8713039aa50203f9"
 
     # Scheduler to deploy on all SOCA nodes
@@ -399,13 +399,13 @@ Parameters:
       openpbs:
         tgz:  # Download OpenPBS tgz from the URL listed below
           version: "23.06.06"
-          url: "https://github.com/openpbs/openpbs/archive/v23.06.06.tar.gz"
+          url: "https://aws-gcr-industry-assets.s3.cn-northwest-1.amazonaws.com.cn/soca/openpbs-23.06.06.tar.gz"
           sha256: "689df6caa101422237118d81f9cfb0e6cad432209c77a6b3b8021cf984a91a90"
         git:  # Install OpenPBS from Source.
           version: "23.06.06"  # Version to install (this can be anything, it's just used to avoid re-installation if the same version is already detected)
-          repo: "https://github.com/openpbs/openpbs.git"  # Repo to clone from, e.g https://github.com/openpbs/openpbs.git
-          branch: "master"  # (Optional: Specify the branch if you do not want to use the default)
-          commit_id: "b22e67ed4709cd952fc166ba599de9a20a3d9b02"  # (Optional: Specify the commit id if you do not want to use the default)
+          repo: "https://gitee.com/fctestbot/openpbs.git"  # Repo to clone from, e.g https://github.com/openpbs/openpbs.git
+          branch: "main"  # (Optional: Specify the branch if you do not want to use the default)
+          commit_id: "f37fbc8b751632748f7e84efb1e5f411b9171cdf"  # (Optional: Specify the commit id if you do not want to use the default)
         s3_tgz:
           version: ~  # Version to install (this can be anything, it's just used to avoid re-installation if the same version is already detected)
           s3_uri: ~  # Full name of your file archive on S3 (e.g: s3://mcrozes-soca-test-bucket/tarball/openpbs-23.06.06.tar.gz)
@@ -413,32 +413,32 @@ Parameters:
         compatibility_packages:
           # Package installed/replaced on older distro (RHEL8, Rocky8 ..) to enable OpenPBS compilation for python3.13
           automake:
-            url: "https://ftp.gnu.org/gnu/automake/automake-1.16.5.tar.gz"
+            url: "https://mirrors.tuna.tsinghua.edu.cn/gnu/automake/automake-1.16.5.tar.gz"
             sha256: "07bd24ad08a64bc17250ce09ec56e921d6343903943e99ccf63bbf0705e34605"
           # Package installed/replaced on older distro (RHEL8, Rocky8 ..) to enable OpenPBS compilation for python3.13
           libtool:
-            url: "https://ftp.gnu.org/gnu/libtool/libtool-2.4.7.tar.gz"
+            url: "https://mirrors.tuna.tsinghua.edu.cn/gnu/libtool/libtool-2.4.7.tar.gz"
             sha256: "04e96c2404ea70c590c546eba4202a4e12722c640016c12b9b2f1ce3d481e9a8"
           # Package installed/replaced on older distro (RHEL8, Rocky8 ..) to enable OpenPBS compilation for python3.13
           pkgconfig:
-            url: "https://pkg-config.freedesktop.org/releases/pkg-config-0.29.2.tar.gz"
+            url: "https://aws-gcr-industry-assets.s3.cn-northwest-1.amazonaws.com.cn/soca/pkg-config-0.29.2.tar.gz"
             sha256: "6fc69c01688c9458a57eb9a1664c9aba372ccda420a02bf4429fe610e7e7d591"
           # Dependency when compiling OpenPBS from source
           cjson:
-            url: "https://github.com/DaveGamble/cJSON.git"
+            url: "https://gitee.com/mirrors/cJSON.git"
 
     cache_client:
       valkey:
-        url: "https://github.com/valkey-io/valkey/archive/refs/tags/8.0.2.tar.gz"
+        url: "https://aws-gcr-industry-assets.s3.cn-northwest-1.amazonaws.com.cn/soca/valkey-8.0.2.tar.gz"
         sha256: "e052c45b3cbe512e24fdfdc3fd337f9f5e4b8f8b8713f349ba867b829c8ff11a"
       redis:
-        url: "http://download.redis.io/redis-stable.tar.gz"
+        url: "https://aws-gcr-industry-assets.s3.cn-northwest-1.amazonaws.com.cn/soca/redis-stable.tar.gz"
 
     # OpenMPI is automatically installed on /apps partition at the end of the initial Controller setup
     # You can disable it via installer/resources/user_data/controller/03_setup.sh.j2
     openmpi:
       version: "5.0.6"
-      url: "https://download.open-mpi.org/release/open-mpi/v5.0/openmpi-5.0.6.tar.gz"
+      url: "https://aws-gcr-industry-assets.s3.cn-northwest-1.amazonaws.com.cn/soca/openmpi-5.0.6.tar.gz"
       sha256: "1d6dd41f6b53c00db23b40e56733d16a996fa743957ef8add8e117feffd92689"
 
     # CloudWatch agent is only used if you enable cluster_node_boostrap/templates/linux/aws_cloudwatch_agent.sh.j2
@@ -464,7 +464,8 @@ Parameters:
     # NVM is installed only on the controller host and is required to install some required library on the SOCA Web Interface
     nvm:
       node_version: "20.9.0"  # Note:  Older distro (ALI2, centos7, rhel7 ... ) will use 17.9.0 as GLIBC on these distro are not compatible with Node18+
-      url: "https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.7/install.sh"
+      # url: "https://gitee.com/mirrors/nvm/raw/v0.39.7/install.sh"
+      url: "https://soca-gcr.s3.us-west-2.amazonaws.com/nvm-sh/nvm/v0.40.1/install.sh"
       sha256: "8e45fa547f428e9196a5613efad3bfa4d4608b74ca870f930090598f5af5f643"
 
     # EFA Drivers installed on all HPC Compute node when efa_support=True is specified
@@ -477,7 +478,7 @@ Parameters:
     # SQLite is installed on the controller host and is the primary DB for SOCA Web UI
     sqlite:
       version: "3.49.1"
-      url: "https://www.sqlite.org/2025/sqlite-src-3490100.zip"
+      url: "https://aws-gcr-industry-assets.s3.cn-northwest-1.amazonaws.com.cn/soca/sqlite-src-3490100.zip"
       sha256: "4404d93cbce818b1b98ca7259d0ba9b45db76f2fdd9373e56f2d29b519f4d43b"
 
     # EPEL repository
@@ -486,9 +487,9 @@ Parameters:
       el7:
         url: "https://dl.fedoraproject.org/pub/epel/epel-release-latest-7.noarch.rpm"
       el8:
-        url: "https://dl.fedoraproject.org/pub/epel/epel-release-latest-8.noarch.rpm"
+        url: "https://aws-gcr-industry-assets.s3.cn-northwest-1.amazonaws.com.cn/soca/epel-release-latest-8.noarch.rpm"
       el9:
-        url: "https://dl.fedoraproject.org/pub/epel/epel-release-latest-9.noarch.rpm"
+        url: "https://aws-gcr-industry-assets.s3.cn-northwest-1.amazonaws.com.cn/soca/epel-release-latest-9.noarch.rpm"
 
     # Chocolatey package manager installed on DCV Windows. You can disable it via cluster_node_boostrap/templates/windows/
     chocolatey:
