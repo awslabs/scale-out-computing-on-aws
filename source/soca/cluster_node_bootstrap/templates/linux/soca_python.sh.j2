@@ -140,7 +140,7 @@ export PYTHONEXECUTABLE=${SOCA_PYTHON_LOCAL_INSTALL_PREFIX}/bin/python3
     source ${SOCA_PYTHON_LOCAL_INSTALL_PREFIX}/soca_python.env
 
     # --user to make sure python libs are installed in the SOCA_PYTHON path only (we don't touch system python)
-    if ! ${SOCA_PYTHON_LOCAL_INSTALL_PREFIX}/bin/pip3 install --user -r requirements.txt; then
+    if ! ${SOCA_PYTHON_LOCAL_INSTALL_PREFIX}/bin/pip3 install --user -i https://pypi.tuna.tsinghua.edu.cn/simple -r requirements.txt; then
         exit_fail "Unable to install SOCA Python requirements (see templates/linux/soca_python_requirements.txt.j2)"
     fi
 
