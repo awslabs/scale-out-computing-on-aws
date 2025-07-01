@@ -198,25 +198,22 @@ else
             * ) log_error "Please answer yes or no."
             exit 1 ;;
           esac
-          # Try primary URL first, if it fails try the China mirror
-          if curl --connect-timeout 10 --max-time 30 --silent $PYENV_URL | bash; then
-            log_success "PyEnv installed successfully"
+
+          log_warning "Primary PyEnv URL failed, trying China mirror..."
+          # For China mirror, we need to clone the repo and run the installer
+          git clone --depth=1 $PYENV_URL_CHINA "$HOME/.pyenv"
+          if [[ $? -eq 0 ]]; then
+            log_success "PyEnv cloned successfully from China mirror"
+            # Add pyenv to path
+            export PYENV_ROOT="$HOME/.pyenv"
+            export PATH="$PYENV_ROOT/bin:$PATH"
+            # Initialize pyenv
+            eval "$(pyenv init -)"
           else
-            log_warning "Primary PyEnv URL failed, trying China mirror..."
-            # For China mirror, we need to clone the repo and run the installer
-            git clone --depth=1 $PYENV_URL_CHINA "$HOME/.pyenv"
-            if [[ $? -eq 0 ]]; then
-              log_success "PyEnv cloned successfully from China mirror"
-              # Add pyenv to path
-              export PYENV_ROOT="$HOME/.pyenv"
-              export PATH="$PYENV_ROOT/bin:$PATH"
-              # Initialize pyenv
-              eval "$(pyenv init -)"
-            else
-              log_error "Unable to access PyEnv from any source. Please check your network connection."
-              exit 1
-            fi
+            log_error "Unable to access PyEnv from any source. Please check your network connection."
+            exit 1
           fi
+        
           export PYENV_ROOT="$HOME/.pyenv"
           command -v pyenv >/dev/null || export PATH="$PYENV_ROOT/bin:$PATH"
           eval "$(pyenv init -)"
@@ -229,7 +226,6 @@ else
           export PYTHON_BUILD_MIRROR_URL="https://pypi.tuna.tsinghua.edu.cn/simple"
           
           while [[ $RETRY_COUNT -lt $MAX_RETRIES && "$PYTHON_INSTALLED" = "false" ]]; do
-            # First try with default mirrors
             if $PYENV install "${SOCA_PYTHON_VERSION}"; then
               PYTHON_INSTALLED=true
             else
