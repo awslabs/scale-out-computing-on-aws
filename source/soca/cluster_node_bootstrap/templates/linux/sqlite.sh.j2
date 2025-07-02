@@ -8,6 +8,7 @@ function install_sqlite () {
   local SQLITE_URL="https://aws-gcr-industry-assets.s3.cn-northwest-1.amazonaws.com.cn/soca/sqlite-src-3490100.zip"
   local SQLITE_SHA256="{{ context.get("/system/sqlite/sha256") }}"
   local SQLITE_INSTALL_PREFIX="/opt/soca/{{ context.get('/configuration/ClusterId') }}/packages/sqlite"
+  chmod +x "${SQLITE_INSTALL_PREFIX}/bin/sqlite3"
   if [[ $(${SQLITE_INSTALL_PREFIX}/bin/sqlite3 --version | awk {'print $1'}) == "${SQLITE_VERSION}" ]]; then
     log_info "SQLITE3 exist and is at correct version, skipping ..."
   else

@@ -1,8 +1,57 @@
 # Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 # SPDX-License-Identifier: Apache-2.0
 
+function install_python_dependencies() {
+  local packages=(
+    "python3-devel"
+    "gcc"
+    "gcc-c++"
+    "make"
+    "zlib-devel"
+    "bzip2-devel"
+    "readline-devel"
+    "sqlite-devel"
+    "openssl-devel"
+    "libffi-devel"
+    "ncurses-devel"
+    "gdbm-devel"
+    "expat-devel"
+    "libuuid-devel"
+    "tk-devel"
+    "xz-devel"
+  )
+  
+  # Try different package managers and approaches
+  local install_success=false
+  
+  # Method 1: Try with dnf
+  if command -v dnf >/dev/null 2>&1; then
+    log_info "Attempting package installation with dnf..."
+    if PYTHONPATH="" dnf install -y "${packages[@]}" 2>/dev/null; then
+      install_success=true
+      log_info "Successfully installed dependencies with dnf"
+    fi
+  fi
+  
+  # Method 2: Try with yum if dnf failed
+  if [ "$install_success" = false ] && command -v yum >/dev/null 2>&1; then
+    log_info "Attempting package installation with yum..."
+    if PYTHONPATH="" yum install -y "${packages[@]}" 2>/dev/null; then
+      install_success=true
+      log_info "Successfully installed dependencies with yum"
+    fi
+  fi
+  
+  if [ "$install_success" = false ]; then
+    log_info "Warning: Some dependencies may not be installed. Python compilation may fail."
+    log_info "Continuing with Python installation attempt..."
+  fi
+}
+install_python_dependencies
+
 function install_soca_python () {
   log_info "Installing SOCA Python"
+
   mkdir -p "${SOCA_BOOTSTRAP_ASSETS_FOLDER}/soca_python"
   pushd "${SOCA_BOOTSTRAP_ASSETS_FOLDER}/soca_python"
   local PYTHON_VERSION="{{ context.get("/system/python/version") }}"
@@ -11,10 +60,10 @@ function install_soca_python () {
   local SOCA_PYTHON_LOCAL_INSTALL_PREFIX="/opt/soca/{{ context.get("/configuration/ClusterId") }}/python/${PYTHON_VERSION}/$(uname -m)/{{ context.get('/configuration/BaseOS') }}"
   local SOCA_PYTHON_VENV="${SOCA_PYTHON_LOCAL_INSTALL_PREFIX}/soca-python-virtual-env"
   local SOCA_PYTHON_SITE_PACKAGES
+  chmod +x "${SOCA_PYTHON_LOCAL_INSTALL_PREFIX}/bin/python3"
 
   if [[ $(${SOCA_PYTHON_LOCAL_INSTALL_PREFIX}/bin/python3 --version | awk {'print $NF'}) == "${PYTHON_VERSION}" ]]; then
     log_info "Local SOCA_PYTHON ${SOCA_PYTHON_LOCAL_INSTALL_PREFIX} found and at correct version, skipping SOCA_PYTHON Install"
-
   else
 
     {% if context.get("/configuration/BaseOS") == "amazonlinux2" %}
@@ -69,9 +118,11 @@ function install_soca_python () {
       PYTHON_CONFIGURE_CMD+=" --enable-loadable-sqlite-extensions"
       PYTHON_CONFIGURE_CMD+=" --prefix=\"${SOCA_PYTHON_LOCAL_INSTALL_PREFIX}\""
       PYTHON_CONFIGURE_CMD+=" --enable-shared"
-      PYTHON_CONFIGURE_CMD+=" --enable-optimizations"
-      PYTHON_CONFIGURE_CMD+=" --with-lto"
+      # PYTHON_CONFIGURE_CMD+=" --enable-optimizations"
+      # PYTHON_CONFIGURE_CMD+=" --with-lto"
       PYTHON_CONFIGURE_CMD+=" --with-ensurepip=install"
+      PYTHON_CONFIGURE_CMD+=" --build=\$(uname -m)-linux-gnu"
+      PYTHON_CONFIGURE_CMD+=" --host=\$(uname -m)-linux-gnu"
       PYTHON_CONFIGURE_CMD+=" ${ADDITIONAL_ARGS}"
 
       if ! eval ${PYTHON_CONFIGURE_CMD}; then
