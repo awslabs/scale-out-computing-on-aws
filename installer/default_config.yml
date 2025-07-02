@@ -404,8 +404,8 @@ Parameters:
         git:  # Install OpenPBS from Source.
           version: "23.06.06"  # Version to install (this can be anything, it's just used to avoid re-installation if the same version is already detected)
           repo: "https://gitee.com/fctestbot/openpbs.git"  # Repo to clone from, e.g https://github.com/openpbs/openpbs.git
-          branch: "main"  # (Optional: Specify the branch if you do not want to use the default)
-          commit_id: "f37fbc8b751632748f7e84efb1e5f411b9171cdf"  # (Optional: Specify the commit id if you do not want to use the default)
+          branch: "master"  # (Optional: Specify the branch if you do not want to use the default)
+          commit_id: "b22e67ed4709cd952fc166ba599de9a20a3d9b02"  # (Optional: Specify the commit id if you do not want to use the default)
         s3_tgz:
           version: ~  # Version to install (this can be anything, it's just used to avoid re-installation if the same version is already detected)
           s3_uri: ~  # Full name of your file archive on S3 (e.g: s3://mcrozes-soca-test-bucket/tarball/openpbs-23.06.06.tar.gz)
