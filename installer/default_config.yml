@@ -465,7 +465,7 @@ Parameters:
     nvm:
       node_version: "20.9.0"  # Note:  Older distro (ALI2, centos7, rhel7 ... ) will use 17.9.0 as GLIBC on these distro are not compatible with Node18+
       # url: "https://gitee.com/mirrors/nvm/raw/v0.39.7/install.sh"
-      url: "https://soca-gcr.s3.us-west-2.amazonaws.com/nvm-sh/nvm/v0.40.1/install.sh"
+      url: "https://aws-gcr-industry-assets.s3.cn-northwest-1.amazonaws.com.cn/soca/nvm-sh/nvm/v0.40.1/install_gcr.sh"
       sha256: "8e45fa547f428e9196a5613efad3bfa4d4608b74ca870f930090598f5af5f643"
 
     # EFA Drivers installed on all HPC Compute node when efa_support=True is specified
