@@ -62,8 +62,18 @@ set_environment_variable "SOCA_CONTROLLER_IP" "$(hostname -I)"
 # Install NodeJS
 {% include "templates/linux/nodejs.sh.j2" %}
 
-# Install required Node modules
-npm install --prefix "/opt/soca/{{ context.get("/configuration/ClusterId") }}/cluster_manager/web_interface/static" monaco-editor@0.52.0
+# Ensure Node.js environment is available and install required Node modules
+if command -v npm >/dev/null 2>&1; then
+  npm install --prefix "/opt/soca/{{ context.get("/configuration/ClusterId") }}/cluster_manager/web_interface/static" monaco-editor@0.52.0
+else
+  # If npm is not in PATH, try to source NVM environment
+  if [ -f "${SOCA_BOOTSTRAP_ASSETS_FOLDER}/nvm/*/.*nvm/nvm.sh" ]; then
+    source "${SOCA_BOOTSTRAP_ASSETS_FOLDER}/nvm/*/.*nvm/nvm.sh"
+    npm install --prefix "/opt/soca/{{ context.get("/configuration/ClusterId") }}/cluster_manager/web_interface/static" monaco-editor@0.52.0
+  else
+    log_warning "npm not available, skipping monaco-editor installation"
+  fi
+fi
 
 # Reload OpenPBS
 systemctl restart pbs
@@ -139,7 +149,8 @@ openssl req -new -newkey rsa:4096 -days 3650 -nodes -x509 \
 IFS="-" read name sanitized_cluster_name <<< "echo {{ context.get("/configuration/ClusterId") }}"
 sed -i "s/__SOCA_CLUSTER__NAME__/${sanitized_cluster_name}/g" /opt/soca/{{ context.get("/configuration/ClusterId") }}/cluster_manager/web_interface/templates/common/horizontal_menu_bar.html
 
-# Start Web UI
+# Fix permissions for uwsgi binary and start Web UI
+chmod +x /opt/soca/{{ context.get("/configuration/ClusterId") }}/python/latest/bin/uwsgi
 chmod +x /opt/soca/{{ context.get("/configuration/ClusterId") }}/cluster_manager/web_interface/socawebui.sh
 ./socawebui.sh start
 

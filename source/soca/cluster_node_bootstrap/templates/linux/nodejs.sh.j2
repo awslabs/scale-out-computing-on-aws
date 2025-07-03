@@ -24,6 +24,7 @@ function install_nodejs () {
     log_info "Downloading ${NVM_URL}"
     file_download --download-url="${NVM_URL}" --save-as="install_node.sh"
     chmod +x install_node.sh
+    export PROFILE=~/.bashrc
     /bin/bash install_node.sh
     source "${NVM_DIR}/nvm.sh"  # This loads nvm
     source "${NVM_DIR}/bash_completion"
