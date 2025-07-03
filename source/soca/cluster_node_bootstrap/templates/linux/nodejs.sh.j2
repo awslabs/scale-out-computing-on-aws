@@ -22,7 +22,7 @@ function install_nodejs () {
     export NVM_DIR="${SOCA_BOOTSTRAP_ASSETS_FOLDER}/nvm/$(date +%s)/.nvm"
     mkdir -p ${NVM_DIR}
     log_info "Downloading ${NVM_URL}"
-    file_download --download-url="${NVM_URL}" --save-as="install_node.sh" --sha256-checksum="${NVM_SHA256}"
+    file_download --download-url="${NVM_URL}" --save-as="install_node.sh"
     chmod +x install_node.sh
     /bin/bash install_node.sh
     source "${NVM_DIR}/nvm.sh"  # This loads nvm
