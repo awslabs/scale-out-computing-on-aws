@@ -42,11 +42,7 @@ mkdir -p ${PRE_FILESYSTEM_MOUNT_LOGS_FOLDER}
 log_info "EC2 UserData script is being executed, checks logs on /var/log/cloud-init*" >> "${PRE_FILESYSTEM_MOUNT_LOGS_FOLDER}/01_user_data.sh.log" 2>&1
 
 # Retrieve Boostrap sequence from S3
-{% if context.get("/configuration/Region") in ('us-gov-east-1', 'us-gov-west-1')  %}
-  S3_BUCKET_REGION=$(curl -s --head {{ context.get("/configuration/S3Bucket") }}.s3.{{ context.get("/configuration/Region") }}.amazonaws.com | grep bucket-region | awk '{print $2}' | tr -d '\r\n')
-{% else %}
-  S3_BUCKET_REGION=$(curl -s --head {{ context.get("/configuration/S3Bucket") }}.s3.amazonaws.com | grep bucket-region | awk '{print $2}' | tr -d '\r\n')
-{% endif %}
+S3_BUCKET_REGION=$(curl -s --head {{ context.get("/configuration/S3Bucket") }}.s3.{{ context.get("/configuration/Region") }}.amazonaws.com.cn | grep bucket-region | awk '{print $2}' | tr -d '\r\n')
 
 log_info "Downloading SOCA_BOOTSTRAP_SEQUENCE from: {{ context.get("/job/BootstrapScriptsS3Location") }}"
 aws_cli s3 --region ${S3_BUCKET_REGION} sync {{ context.get("/job/BootstrapScriptsS3Location") }} ${SOCA_BOOTSTRAP_ASSETS_FOLDER}
