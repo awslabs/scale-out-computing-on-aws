@@ -58,15 +58,7 @@ function build_openpbs {
   fi
 
   log_info "Running Configure, adding SOCA Python location to rpath"
-  # objdump -x /opt/pbs/sbin/pbs_sched | grep RPATH ensure this contains path to SOCA_PYTHON for hooks
-  # if ! LDFLAGS="-Wl,-rpath,${SOCA_PYTHON}/latest/lib" ./configure --prefix=/opt/pbs --with-python=${SOCA_PYTHON}/latest; then
-  #   exit_fail "Unable to run ./configure --prefix=/opt/pbs for OpenPBS. See log for additional details"
-  # fi
-
-  local PYTHON_VERSION=$(${SOCA_PYTHON}/latest/bin/python3 -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")')
-  export CPPFLAGS="-I${SOCA_PYTHON}/latest/include/python${PYTHON_VERSION}"
-  export LDFLAGS="-Wl,-rpath,${SOCA_PYTHON}/latest/lib -L${SOCA_PYTHON}/latest/lib -lpython${PYTHON_VERSION}"
-  if ! ./configure --prefix=/opt/pbs --with-python=${SOCA_PYTHON}/latest; then
+  if ! LDFLAGS="-Wl,-rpath,${SOCA_PYTHON}/latest/lib" ./configure --prefix=/opt/pbs --with-python=${SOCA_PYTHON}/latest; then
     exit_fail "Unable to run ./configure --prefix=/opt/pbs for OpenPBS. See log for additional details"
   fi
 
