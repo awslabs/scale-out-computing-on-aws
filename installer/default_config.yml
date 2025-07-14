@@ -118,10 +118,10 @@ Config:
         performance_mode: "generalPurpose"  # https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-efs-filesystem.html#cfn-efs-filesystem-performancemode
         deletion_policy: "NO_RETAIN"  # RETAIN will preserve the EFS even if you delete the stack. Any other value will delete EFS if you delete the CFN stack
       fsx_ontap:
-        deployment_type: "MULTI_AZ_2"
+        deployment_type: "MULTI_AZ_1"
         automatic_backup_retention_days: 7
         daily_automatic_backup_start_time: "03:00"
-        throughput_capacity: 384
+        throughput_capacity: 256
         storage_capacity: 1024
         junction_path: "/apps"
         netbios_name: "SOCAAPPSSVM"  # 15 Chars Max, must be unique to your AD
@@ -143,10 +143,10 @@ Config:
         transition_to_ia: "AFTER_30_DAYS"  # https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-efs-filesystem-lifecyclepolicy.html
         deletion_policy: "NO_RETAIN"  # RETAIN will preserve the EFS even if you delete the stack. Any other value will delete EFS if you delete the CFN stack
       fsx_ontap:
-        deployment_type: "MULTI_AZ_2"
+        deployment_type: "MULTI_AZ_1"
         automatic_backup_retention_days: 7
         daily_automatic_backup_start_time: "03:00"
-        throughput_capacity: 384
+        throughput_capacity: 256
         storage_capacity: 1024
         junction_path: "/data"
         netbios_name: "SOCADATASVM"  # 15 Chars Max, must be unique to your AD.

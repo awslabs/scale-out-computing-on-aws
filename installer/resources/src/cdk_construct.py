@@ -3506,8 +3506,6 @@ class SOCAInstall(Stack):
             required=False,
             default="MULTI_AZ_1",
         ).upper()
-        logger.info("lvning")
-        logger.info(_deployment_type)
 
         # Determine the regions that various FSx types are supported
         _fsx_regional_capability: dict = self.get_fsx_deployment_options_by_region(
