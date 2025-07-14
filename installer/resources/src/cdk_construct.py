@@ -3381,6 +3381,8 @@ class SOCAInstall(Stack):
                 _pricing_region = "ap-south-1"
             elif region.startswith("eu"):
                 _pricing_region = "eu-central-1"
+            elif region.startswith("cn"):
+                _pricing_region = "cn-northwest-1"
             else:
                 # default to us-east-1
                 _pricing_region = "us-east-1"
@@ -3389,7 +3391,6 @@ class SOCAInstall(Stack):
             _pricing_region = "us-east-1"
 
         logger.debug(f"Using Pricing region endpoint from: {_pricing_region}")
-
         _pricing_client = boto3_helper.get_boto(
             service_name="pricing",
             profile_name=user_specified_variables.profile,
@@ -3479,6 +3480,7 @@ class SOCAInstall(Stack):
         logger.debug(f"Getting FSx deployment options for region {region}")
 
         _fsx_deployment_options: dict = self.get_fsx_deployment_options(region=region)
+        logger.info(_fsx_deployment_options)
 
         if not _fsx_deployment_options:
             logger.fatal(f"No FSx deployment options retrieved. Check auth.")
@@ -3498,13 +3500,14 @@ class SOCAInstall(Stack):
         Build an FSx/ONTAP filesystem.
         """
         logger.debug(f"_storage_build_fsx_ontap_filesystem called for {fs_key}")
-
         _deployment_type: str = get_config_key(
             key_name=f"Config.storage.{fs_key}.fsx_ontap.deployment_type",
             expected_type=str,
             required=False,
-            default="MULTI_AZ_2",
+            default="MULTI_AZ_1",
         ).upper()
+        logger.info("lvning")
+        logger.info(_deployment_type)
 
         # Determine the regions that various FSx types are supported
         _fsx_regional_capability: dict = self.get_fsx_deployment_options_by_region(
@@ -3520,7 +3523,7 @@ class SOCAInstall(Stack):
 
         _allowed_throughput_capacity = {
             "MULTI_AZ_1": [128, 256, 512, 1024, 2048, 4096],
-            "MULTI_AZ_2": [384, 768, 1536, 3072, 6144],
+            # "MULTI_AZ_2": [384, 768, 1536, 3072, 6144],
             "SINGLE_AZ_1": [128, 256, 512, 1024, 2048, 4096],
             # "SINGLE_AZ_2": Too many options, will let CLoudFormation returns the error based on HA pair
         }
@@ -3550,8 +3553,8 @@ class SOCAInstall(Stack):
 
         if _deployment_type == "MULTI_AZ_1":
             _dep_type_lookup = "Multi-AZ"
-        elif _deployment_type == "MULTI_AZ_2":
-            _dep_type_lookup = "Multi-AZ-2"
+        # elif _deployment_type == "MULTI_AZ_2":
+        #     _dep_type_lookup = "Multi-AZ-2"
         elif _deployment_type == "SINGLE_AZ_1":
             _dep_type_lookup = "Single-AZ_2N"
         elif _deployment_type == "SINGLE_AZ_2":
@@ -3797,7 +3800,7 @@ class SOCAInstall(Stack):
             f"{user_specified_variables.cluster_id}-ONTAP{fs_key.capitalize()}SG",
         )
 
-        if _deployment_type in ["MULTI_AZ_1", "MULTI_AZ_2"]:
+        if _deployment_type in ["MULTI_AZ_1"]:
             _ontap_configuration_property = fsx.CfnFileSystem.OntapConfigurationProperty(
                 preferred_subnet_id=_vpc_subnets_id[0],
                 route_table_ids=_route_table_ids,
