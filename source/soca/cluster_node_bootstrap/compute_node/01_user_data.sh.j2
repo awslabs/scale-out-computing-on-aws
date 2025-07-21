@@ -60,7 +60,7 @@ chmod 600 ${POST_FILESYSTEM_MOUNT_LOGS_FOLDER}
 # Copy the User Data log into the shared filesystem to simplify troubleshooting
 cp /var/log/messages ${POST_FILESYSTEM_MOUNT_LOGS_FOLDER} || echo "/var/log/messages found on this system"
 cp /var/log/cloud-init* ${POST_FILESYSTEM_MOUNT_LOGS_FOLDER} || echo "/var/log/cloud-init not found on this system"
-cp "${PRE_FILESYSTEM_MOUNT_LOGS_FOLDER}/*" ${POST_FILESYSTEM_MOUNT_LOGS_FOLDER}
+cp -r "${PRE_FILESYSTEM_MOUNT_LOGS_FOLDER}" ${POST_FILESYSTEM_MOUNT_LOGS_FOLDER}
 
 echo "{{ context.get("/job/BootstrapScriptsS3Location") }}" >> "${POST_FILESYSTEM_MOUNT_LOGS_FOLDER}/bootstrap_s3_location.log"
 
