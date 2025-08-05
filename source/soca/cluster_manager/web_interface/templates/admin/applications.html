@@ -115,7 +115,7 @@
                                               <strong>Once you have created your Application Profile, please ensure that it is <a href="/admin/projects" target="_blank">assigned to at least one SOCA Project.</a></strong> Failure to do so will result in your profile remaining hidden from users.</strong>
                                           </div>
 
-                                        <div class="tab-content" id="nav-tabContent">
+                                        <div class="tab-content" id="nav-tabContent2">
                                             <div class="tab-pane fade show active" id="nav-designform" role="tabpanel"
                                                 aria-labelledby="nav-designform">
                                                 <br>
@@ -129,9 +129,10 @@
                                                     <strong><a style="cursor:pointer;color: #ff5252"
                                                             id="clear-all-fields">click
                                                             here to start from scratch.</a></strong>
-                                                    <hr>
-                                                        <!-- Toggle: SOCA Reserved Variables -->
-                                                        <div>
+                                                    <hr>                                         
+                                                    
+                                                    <!-- Toggle: SOCA Reserved Variables -->
+                                                    <div>
                                                             <h2 class="mb-0">
                                                                 <button class="btn btn-link" type="button" data-bs-toggle="collapse" data-bs-target="#collapseProtectedVariable" aria-expanded="true" aria-controls="collapseProtectedVariable">
                                                                     SOCA reserved variables
@@ -193,128 +194,79 @@
                                                             </div>
                                                         </div>
                                                     </div>
+                                                    <!-- Form Builder -->
+                                            
+                                                    <div class="form-build"></div>
+                                            
+                                                    <!-- Form Builder -->
+                                        
+                                                </div> <!-- nav form -->
 
-                                                    
-
-                                                </div>
-                                                <!-- Form Builder -->
-                                                <div class="form-build"></div>
-                                                <!-- Form Builder -->
-                                            </div> <!-- nav form -->
-
-                                            <div class="tab-pane fade show" id="nav-designscript" role="tabpanel"
-                                                aria-labelledby="nav-designscript">
-                                                <br>
-                                                <div class="alert alert-info">
-                                                    Edit the test template below to match the variables you have created
-                                                    on
-                                                    your form or simply write code that cannot be changed by the user.
-                                                    To read values from your form, use <a href="https://jinja.palletsprojects.com/en/stable/" target="_blank">Jinja2 templating</a> syntax
-                                                    (e.g. if your form input name is <code>my_param</code>,
-                                                    retrieve the value via <kbd>{% raw %}{{my_param}}{% endraw %}</kbd>)
-                                                </div>
-                                                Choose what interpreter you want to use:
-                                                <div class="form-group">
-                                                    <select class="form-control" name="interpreter" id="interpreter">
-                                                        {% if profile_interpreter == "qsub" %}
-                                                        <option value="qsub" selected>This is a PBS job script (will use
-                                                            qsub)
-                                                        </option>
-                                                        <option value="/bin/bash">This is a Linux script (will use
-                                                            /bin/bash)
-                                                        </option>
-                                                        {% else %}
-                                                        <option value="qsub">This is a PBS job script (will use qsub)
-                                                        </option>
-                                                        <option value="/bin/bash" selected>This is a Linux script (will use
-                                                            /bin/bash)
-                                                        </option>
-                                                        {% endif %}
-
-                                                    </select>
-                                                </div>
-                                                <div id="text-editor"
-                                                    style="width:100%;height:600px;padding-bottom: 50px;"></div>
-                                                <div class="alert alert-primary">
-                                                    PBS parameters are optional. If not set, your job will use the
-                                                    default
-                                                    settings configured for your queue (if no queue is specified, the
-                                                    job
-                                                    will use <code>normal</code> queue). Refer to <a
-                                                        href="https://awslabs.github.io/scale-out-computing-on-aws-documentation/documentation/web-interface/create-your-own-queue/#option1-i-want-to-use-the-same-settings-as-an-existing-queue"
-                                                        target="_blank" rel="noopener,noreferrer"> this link for
-                                                        more.</a>
-                                                </div>
-                                            </div> <!-- nav script -->
-
-                                            <div class="tab-pane fade show" id="nav-save" role="tabpanel"
-                                                aria-labelledby="nav-save">
-                                                <br>
-                                                {% if action == "edit" %}
-                                                <form name="manageprofile_edit" id="manageprofile_edit" method="post"
-                                                    action="/admin/applications/create">
-                                                    <div class="form-group">
-                                                        <label for="profile_name">How do you want to name this
-                                                            application profile?</label>
-                                                        <input type="text" class="form-control" name="profile_name"
-                                                            required value="{{ profile_name }}">
+                                        
+                                                <div class="tab-pane fade" id="nav-designscript" role="tabpanel"
+                                                    aria-labelledby="nav-designscript">
+                                                    <br>
+                                                    <div class="alert alert-info">
+                                                        Edit the test template below to match the variables you have created
+                                                        on
+                                                        your form or simply write code that cannot be changed by the user.
+                                                        To read values from your form, use <a href="https://jinja.palletsprojects.com/en/stable/" target="_blank">Jinja2 templating</a> syntax
+                                                        (e.g. if your form input name is <code>my_param</code>,
+                                                        retrieve the value via <kbd>{% raw %}{{my_param}}{% endraw %}</kbd>)
                                                     </div>
-                                                    <div class="input-group">
-                                                        <div class="custom-file">
-                                                            <input type="file" class="custom-file-input" id="thumbnail"
-                                                                accept="image/png, image/jpeg, image/jpg">
-                                                            <label class="custom-file-label" for="thumbnail">Select an
-                                                                image (jpg or png) to use as thumbnail. Leave blank to
-                                                                use the existing thumbnail</label>
+                                                    Choose what interpreter you want to use:
+                                                    <div class="form-group">
+                                                        <select class="form-control" name="interpreter" id="interpreter">
+                                                            {% if profile_interpreter == "qsub" %}
+                                                            <option value="qsub" selected>This is a PBS job script (will use
+                                                                qsub)
+                                                            </option>
+                                                            <option value="/bin/bash">This is a Linux script (will use
+                                                                /bin/bash)
+                                                            </option>
+                                                            {% else %}
+                                                            <option value="qsub">This is a PBS job script (will use qsub)
+                                                            </option>
+                                                            <option value="/bin/bash" selected>This is a Linux script (will use
+                                                                /bin/bash)
+                                                            </option>
+                                                            {% endif %}
+
+                                                        </select>
+                                                    </div>
+                                                    <div id="text-editor"
+                                                        style="width:100%;height:600px;padding-bottom: 50px;"></div>
+                                                    <div class="alert alert-primary">
+                                                        PBS parameters are optional. If not set, your job will use the
+                                                        default
+                                                        settings configured for your queue (if no queue is specified, the
+                                                        job
+                                                        will use <code>normal</code> queue). Refer to <a
+                                                            href="https://awslabs.github.io/scale-out-computing-on-aws-documentation/documentation/web-interface/create-your-own-queue/#option1-i-want-to-use-the-same-settings-as-an-existing-queue"
+                                                            target="_blank" rel="noopener,noreferrer"> this link for
+                                                            more.</a>
+                                                    </div>
+                                                </div> <!-- nav script -->
+
+                                                <div class="tab-pane fade" id="nav-save" role="tabpanel"
+                                                    aria-labelledby="nav-save">
+                                                    <br>
+                                                    {% if action == "edit" %}
+                                                    <form name="manageprofile_edit" id="manageprofile_edit" method="post"
+                                                        action="/admin/applications/create">
+                                                        <div class="form-group">
+                                                            <label for="profile_name">How do you want to name this
+                                                                application profile?</label>
+                                                            <input type="text" class="form-control" name="profile_name"
+                                                                required value="{{ profile_name }}">
                                                         </div>
-                                                        <script>
-                                                            $(".custom-file-input").on("change", function () {
-                                                                let fileName = $(this).val().split("\\").pop();
-                                                                $(this).siblings(".custom-file-label").addClass("selected").html(fileName);
-                                                            });
-                                                        </script>
-                                                    </div>
-
-                                                    <input type="hidden" value="{{ csrf_token() }}" name="csrf_token">
-                                                    <input type="hidden" value="" id="submit_job_script"
-                                                        name="submit_job_script">
-                                                    <input type="hidden" value="" id="submit_job_form"
-                                                        name="submit_job_form">
-                                                    <input type="hidden" value="" id="submit_job_interpreter"
-                                                        name="submit_job_interpreter">
-                                                    <input type="hidden" value="{{ app_id }}" id="app_id" name="app_id">
-                                                    <input type="hidden" value="" id="thumbnail_b64"
-                                                        name="thumbnail_b64">
-                                                    <input type="hidden" value="edit" id="action" name="action">
-
-                                                    <div>
-                                                        <br>
-                                                        <button type="submit" class="btn btn-success">Update this
-                                                            application
-                                                        </button>
-                                                    </div>
-                                                </form>
-
-
-                                                {% else %}
-                                                <form id="manageprofile_new" name="manageprofile_new" method="post"
-                                                    action="/admin/applications/create" enctype="multipart/form-data">
-                                                    <div class="form-group">
-                                                        <label for="profile_name">How do you want to name this
-                                                            application profile?</label>
-                                                        <input type="text" class="form-control" name="profile_name"
-                                                            required>
-                                                    </div>
-                                                    <div class="form-group">
-                                                        <label for="profile_name">Do you want to specify a thumbnail
-                                                            (this will be scaled to 150*150px)?</label>
                                                         <div class="input-group">
                                                             <div class="custom-file">
-                                                                <input type="file" class="custom-file-input"
-                                                                    id="thumbnail"
+                                                                <input type="file" class="custom-file-input" id="thumbnail"
                                                                     accept="image/png, image/jpeg, image/jpg">
-                                                                <label class="custom-file-label" for="thumbnail">Select
-                                                                    an image (jpg or png) to use as thumbnail</label>
+                                                                <label class="custom-file-label" for="thumbnail">Select an
+                                                                    image (jpg or png) to use as thumbnail. Leave blank to
+                                                                    use the existing thumbnail</label>
                                                             </div>
                                                             <script>
                                                                 $(".custom-file-input").on("change", function () {
@@ -324,35 +276,85 @@
                                                             </script>
                                                         </div>
 
-                                                    </div>
-                                                    <input type="hidden" value="{{ csrf_token() }}" name="csrf_token">
-                                                    <input type="hidden" value="" id="submit_job_script"
-                                                        name="submit_job_script">
-                                                    <input type="hidden" value="" id="submit_job_form"
-                                                        name="submit_job_form">
-                                                    <input type="hidden" value="" id="submit_job_interpreter"
-                                                        name="submit_job_interpreter">
-                                                    <input type="hidden" value="create" id="action" name="action">
-                                                    <input type="hidden" value="" id="thumbnail_b64"
-                                                        name="thumbnail_b64">
+                                                        <input type="hidden" value="{{ csrf_token() }}" name="csrf_token">
+                                                        <input type="hidden" value="" id="submit_job_script"
+                                                            name="submit_job_script">
+                                                        <input type="hidden" value="" id="submit_job_form"
+                                                            name="submit_job_form">
+                                                        <input type="hidden" value="" id="submit_job_interpreter"
+                                                            name="submit_job_interpreter">
+                                                        <input type="hidden" value="{{ app_id }}" id="app_id" name="app_id">
+                                                        <input type="hidden" value="" id="thumbnail_b64"
+                                                            name="thumbnail_b64">
+                                                        <input type="hidden" value="edit" id="action" name="action">
+
+                                                        <div>
+                                                            <br>
+                                                            <button type="submit" class="btn btn-success">Update this
+                                                                application
+                                                            </button>
+                                                        </div>
+                                                    </form>
 
 
-                                                    <div>
-                                                        <button type="submit" class="btn btn-success">Create this
-                                                            application
-                                                        </button>
-                                                    </div>
-                                                </form>
-                                                {% endif %}
-                                            </div> <!-- nav save -->
+                                                    {% else %}
+                                                    <form id="manageprofile_new" name="manageprofile_new" method="post"
+                                                        action="/admin/applications/create" enctype="multipart/form-data">
+                                                        <div class="form-group">
+                                                            <label for="profile_name">How do you want to name this
+                                                                application profile?</label>
+                                                            <input type="text" class="form-control" name="profile_name"
+                                                                required>
+                                                        </div>
+                                                        <div class="form-group">
+                                                            <label for="profile_name">Do you want to specify a thumbnail
+                                                                (this will be scaled to 150*150px)?</label>
+                                                            <div class="input-group">
+                                                                <div class="custom-file">
+                                                                    <input type="file" class="custom-file-input"
+                                                                        id="thumbnail"
+                                                                        accept="image/png, image/jpeg, image/jpg">
+                                                                    <label class="custom-file-label" for="thumbnail">Select
+                                                                        an image (jpg or png) to use as thumbnail</label>
+                                                                </div>
+                                                                <script>
+                                                                    $(".custom-file-input").on("change", function () {
+                                                                        let fileName = $(this).val().split("\\").pop();
+                                                                        $(this).siblings(".custom-file-label").addClass("selected").html(fileName);
+                                                                    });
+                                                                </script>
+                                                            </div>
 
+                                                        </div>
+                                                        <input type="hidden" value="{{ csrf_token() }}" name="csrf_token">
+                                                        <input type="hidden" value="" id="submit_job_script"
+                                                            name="submit_job_script">
+                                                        <input type="hidden" value="" id="submit_job_form"
+                                                            name="submit_job_form">
+                                                        <input type="hidden" value="" id="submit_job_interpreter"
+                                                            name="submit_job_interpreter">
+                                                        <input type="hidden" value="create" id="action" name="action">
+                                                        <input type="hidden" value="" id="thumbnail_b64"
+                                                            name="thumbnail_b64">
+
+
+                                                        <div>
+                                                            <button type="submit" class="btn btn-success">Create this
+                                                                application
+                                                            </button>
+                                                        </div>
+                                                    </form>
+                                                    {% endif %}
+                                                </div> <!-- nav save -->
                                         </div>
                                     </div>
                                 </div>
-                            </div> <!-- add -->
+                            </div>
+                           
 
-                            <div class="tab-pane fade show" id="nav-edit" role="tabpanel"
+                            <div class="tab-pane fade" id="nav-edit" role="tabpanel"
                                 aria-labelledby="nav-home-tab">
+                                <br>
                                 <div class="card shadow mb-4">
                                     <div class="card-header py-3">
                                         <h6 class="m-0 font-weight-bold text-primary">Edit an existing application</h6>
@@ -376,8 +378,9 @@
                                 </div>
                             </div>
 
-                            <div class="tab-pane fade show" id="nav-delete" role="tabpanel"
+                            <div class="tab-pane fade" id="nav-delete" role="tabpanel"
                                 aria-labelledby="nav-home-tab">
+                                <br>
                                 <div class="card shadow mb-4">
                                     <div class="card-header py-3">
                                         <h6 class="m-0 font-weight-bold text-primary">Delete an existing application
@@ -410,9 +413,10 @@
                                     </div>
                                 </div>
                             </div>
-
-                            <div class="tab-pane fade show" id="nav-importexport" role="tabpanel"
+                      
+                            <div class="tab-pane fade" id="nav-importexport" role="tabpanel"
                                 aria-labelledby="nav-home-tab">
+                                <br>
                                 <div class="card shadow mb-4">
                                     <div class="card-header py-3">
                                         <h6 class="m-0 font-weight-bold text-primary">Import/Export existing SOCA
@@ -471,10 +475,7 @@
                                                     </div>
                                                 </form>
                                             </div>
-
                                         </div>
-
-
                                     </div>
                                 </div>
                             </div>
