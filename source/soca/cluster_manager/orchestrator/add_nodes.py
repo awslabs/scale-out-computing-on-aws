@@ -21,6 +21,7 @@ import uuid
 from math import ceil
 from botocore.exceptions import ClientError
 from botocore import exceptions
+import utils.aws.odcr_helper as odcr_helper
 
 sys.path.append(
     f"/opt/soca/{os.environ.get('SOCA_CLUSTER_ID', 'SOCA_CONFIGURATION_NOT_FOUND')}/cluster_manager"
@@ -28,6 +29,7 @@ sys.path.append(
 import cloudformation_builder
 from utils.aws.ssm_parameter_store import SocaConfig
 from utils.aws.boto3_wrapper import get_boto
+from utils.cast import SocaCastEngine
 
 cloudformation = get_boto(service_name="cloudformation").message
 s3 = get_boto(service_name="s3").message
@@ -265,7 +267,7 @@ def verify_vcpus_limit(instance_type, desired_capacity, quota_info):
 
 
 def can_launch_capacity(
-    instance_type, desired_capacity, image_id, subnet_id, security_group
+    instance_type, desired_capacity, image_id, subnet_id, security_group, custom_tags
 ):
     # Allow skipping DryRun and Quotas - default to False if they are not set in the config
     skip_dryrun: bool = (
@@ -273,13 +275,22 @@ def can_launch_capacity(
         .get_value(return_as=bool, default=False)
         .get("message")
     )
-    skip_quota: bool = (
-        SocaConfig(key="/configuration/SkipQuotas")
-        .get_value(return_as=bool, default=False)
+    enforce_quota: bool = (
+        SocaConfig(key="/configuration/FeatureFlags/EnableAWSQuotaChecks")
+        .get_value(return_as=bool, default=True)
         .get("message")
     )
 
-    if skip_dryrun and skip_quota:
+    
+    _custom_tags = []
+    if custom_tags:
+        for tag in custom_tags.values():
+            if tag.get("Enabled", ""):
+                _custom_tags.append({"Key": tag["Key"], "Value": tag["Value"]})
+            else:
+                print(f"{tag} does not have Enabled key or Enabled is False.")
+
+    if skip_dryrun and enforce_quota is False:
         # No need to even send the API calls if we have both knobs set to Skip
         return True
 
@@ -298,12 +309,13 @@ def can_launch_capacity(
                     .get("message")
                 },
                 DryRun=True,
+                TagSpecifications=[{"ResourceType": "instance", "Tags": _custom_tags}] if _custom_tags else [],
             )
 
         except ClientError as e:
             if e.response["Error"].get("Code") == "DryRunOperation":
                 # Dry Run Succeed.
-                if skip_quota:
+                if enforce_quota is False:
                     return True
                 else:
                     try:
@@ -1194,6 +1206,7 @@ def main(**kwargs):
             },
             "VolumeTypeIops": {"Key": "scratch_iops", "Default": 0},
             "WeightedCapacity": {"Key": "weighted_capacity", "Default": False},
+            "CustomTags": {"Key": None, "Default": {}},
         }
         cfn_stack_parameters = {}
         for k, v in parameters_list.items():
@@ -1209,6 +1222,37 @@ def main(**kwargs):
                 else:
                     cfn_stack_parameters[k] = v["Default"]
 
+        # Get custom tags if specified
+        _tags_allowed = SocaConfig(
+            key="/configuration/FeatureFlags/AllowCustomTagsHPC"
+        ).get_value(return_as=bool)
+        if _tags_allowed.get("success") is True:
+            if _tags_allowed.get("message") is True:
+                _get_tags = SocaConfig(
+                    key="/configuration/Tags/CustomTags/"
+                ).get_value(allow_unknown_key=True)
+                if _get_tags.get("success") is True:
+                    _tag_dict = SocaCastEngine(data=_get_tags.get("message")).autocast(
+                        preserve_key_name=True
+                    )
+                    if _tag_dict.get("success") is True:
+                        cfn_stack_parameters["CustomTags"] = _tag_dict.get("message")
+                    else:
+                        print(f"Unable to autocast custom tags {_tag_dict=} ")
+                else:
+                  print(
+                        "/configuration/CustomTags/ does not exist in this environment"
+                    )
+            else:
+                print(
+                    f"Unable to determine if tags are allowed because of: {_tags_allowed=} "
+                )
+
+        else:
+            print(
+                "Custom tags are not allowed. AllowCustomTagsHPC is set to false"
+            )
+
         cfn_stack_body = cloudformation_builder.main(**cfn_stack_parameters)
         if cfn_stack_body["success"] is False:
             return return_message(cfn_stack_body["output"])
@@ -1223,7 +1267,29 @@ def main(**kwargs):
             cfn_stack_parameters["ImageId"],
             cfn_stack_parameters["SubnetId"][0],
             cfn_stack_parameters["SecurityGroupId"],
+            cfn_stack_parameters["CustomTags"]
         )
+
+        if cfn_stack_parameters.get("SpotPrice") is None:
+            # Submit ODCR
+            _request_capacity_reservation = odcr_helper.create_capacity_reservation(
+                instance_type=cfn_stack_parameters["InstanceType"],
+                instance_count=cfn_stack_parameters["DesiredCapacity"],
+                instance_ami=cfn_stack_parameters["ImageId"],
+                instance_subnet=cfn_stack_parameters["SubnetId"],
+                instance_security_group=cfn_stack_parameters["SecurityGroupId"],
+            )
+            print(f"Request Capacity Reservation: {_request_capacity_reservation}")
+            if _request_capacity_reservation.get("success"):
+                # Add the reservation ID tag to Stack
+                cfn_stack_tags.append(
+                    {
+                        "Key": "capacity-reservation-id",
+                        "Value": _request_capacity_reservation.get("message"),
+                    }
+                )
+            else:
+                can_launch = False
 
         if can_launch is True:
             try:

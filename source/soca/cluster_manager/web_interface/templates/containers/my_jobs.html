@@ -1,0 +1,168 @@
+<!-- Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+ SPDX-License-Identifier: Apache-2.0 -->
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    {% include 'common/header.html' %}
+</head>
+
+<body id="page-top">
+    <div id="wrapper">
+        {% include 'common/vertical_menu_bar.html' %}
+        <div id="content-wrapper" class="d-flex flex-column">
+            <div id="content">
+                <br>
+                <div class="container-fluid">
+                    {% include 'common/horizontal_menu_bar.html' %}
+                    {% include 'common/flashed_messages.html' %}
+                    <div class="card shadow mb-4">
+                        <div class="card-header py-3 d-flex justify-content-between align-items-center">
+                            <h6 class="m-0 font-weight-bold text-primary">Your EKS Jobs</h6>
+                        </div>
+
+                        <div class="card-body">
+                                {% if not jobs %}
+                                    You don't have any jobs in the queue.
+                                {% else %}
+                               <div class="alert alert-info">
+                                   Job completed are automatically removed after 1 hour.
+                               </div>
+                             <br>
+                                    <table class="table table-striped">
+                                        <thead>
+                                        <tr>
+                                            <th scope="col">Cluster</th>
+                                            <th scope="col">Job Name</th>
+                                            <th scope="col">Namespace</th>
+                                            <th scope="col">Image</th>
+                                            <th scope="col">Job State</th>
+                                            <th scope="col">Pod(s) IP(s)</th>
+                                            <th>Job Details</th>
+                                        </tr>
+                                        </thead>
+                                        <tbody>
+                                        {% for job_dict in jobs.values() %}
+                                            {% for job_uuid, job_info in job_dict.items() %}
+                                                <tr>
+                                                    <td>{{ job_info.get('eks_cluster') }}</td>
+                                                    <td>{{ job_info.get('metadata', {}).get('name') }}</td>
+                                                    <td>{{ job_info.get('metadata', {}).get('namespace') }}</td>
+
+                                                    <td>
+                                                        {% for image in job_info.get('images', []) %}
+                                                            {{ image }}<br>
+                                                        {% else %}
+                                                            <em>No image</em>
+                                                        {% endfor %}
+                                                    </td>
+                                                    <td>
+                                                        {% if job_info.get('status', {}).get('active') == 1 %}
+                                                            <span class="badge badge-primary">ACTIVE</span>
+                                                        {% elif job_info.get('status', {}).get('ready') == 0 %}
+                                                            <span class="badge badge-secondary">WAITING FOR PODS</span>
+                                                        {% elif job_info.get('status', {}).get('ready') == 1 %}
+                                                            <span class="badge badge-success">RUNNING</span>
+                                                        {% elif job_info.get('status', {}).get('succeeded') %}
+                                                            <span class="badge badge-success">SUCCEEDED</span>
+                                                        {% elif job_info.get('status', {}).get('failed') %}
+                                                            <span class="badge badge-danger">FAILED</span>
+                                                        {% else %}
+                                                            <span class="badge badge-light">UNKNOWN</span>
+                                                        {% endif %}
+                                                    </td>
+                                                    <td>
+                                                        {% for pod_ip in job_info.get('pod_ips', []) %}
+                                                            {{ pod_ip }}<br>
+                                                        {% else %}
+                                                            <em>None</em>
+                                                        {% endfor %}
+                                                    </td>
+                                                    <td>
+                                                        <button type="button" class="btn btn-primary" data-bs-toggle="modal"
+                                                                data-bs-target="#job{{ loop.index0 }}">Job Info</button>
+                                                        <button type="button" class="btn btn-danger" data-bs-toggle="modal"
+                                                                data-bs-target="#deletejob{{ loop.index0 }}">Delete Job</button>
+                                                    </td>
+                                                </tr>
+
+                                                <!-- Modal Info -->
+                                                <div class="modal fade" id="job{{ loop.index0 }}" tabindex="-1"
+                                                     role="dialog" aria-labelledby="jobModalLabel{{ loop.index0 }}" aria-hidden="true">
+                                                    <div class="modal-dialog modal-lg" role="document">
+                                                        <div class="modal-content modal-lg">
+                                                            <div class="modal-header">
+                                                                <h5 class="modal-title">Job Info</h5>
+                                                                <button type="button" class="close" data-bs-dismiss="modal" aria-label="Close">
+                                                                   <span aria-hidden="true">×</span>
+                                                                </button>
+                                                            </div>
+                                                            <div class="modal-body container">
+                                                                <pre>{{ job_info | tojson(indent=2) }}</pre>
+                                                            </div>
+                                                            <div class="modal-footer">
+                                                                <button type="button" class="btn btn-secondary"
+                                                                        data-bs-dismiss="modal">Close</button>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+
+                                                <!-- Modal Delete -->
+                                                <div class="modal fade" id="deletejob{{ loop.index0 }}" tabindex="-1"
+                                                     role="dialog" aria-labelledby="deleteModalLabel{{ loop.index0 }}" aria-hidden="true">
+                                                    <div class="modal-dialog" role="document">
+                                                        <div class="modal-content">
+                                                            <div class="modal-header">
+                                                                <h5 class="modal-title">Confirm Delete</h5>
+                                                                <button type="button" class="close" data-bs-dismiss="modal" aria-label="Close">
+                                                                    <span aria-hidden="true">×</span>
+                                                                </button>
+                                                            </div>
+                                                            <div class="modal-body container">
+                                                                <div class="alert alert-danger">
+                                                                    <strong>Attention</strong><br>
+                                                                    You are about to remove this job from your EKS cluster.
+                                                                </div>
+                                                                <a href="/containers/delete_job?job_name={{ job_info.get('metadata', {}).get('name') }}&eks_cluster={{ job_info.get('eks_cluster') }}&namespace={{ job_info.get('metadata').get('namespace')}}">
+                                                                    <button type="button" class="btn btn-danger form-control">Delete Job: {{ job_info.get('metadata', {}).get('name') }}</button>
+                                                                </a>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            {% endfor %}
+                                        {% endfor %}
+
+
+                                        </tbody>
+                                    </table>
+                                {% endif %}
+                        </div>
+                    </div>
+
+
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <a class="scroll-to-top rounded" href="#page-top">
+        <i class="fas fa-angle-up"></i>
+    </a>
+
+        {% include 'common/footer.html' %}
+
+    <script>
+        $(document).ready(function () {
+            // enable tooltip
+            $(function () {
+                $('[data-toggle="tooltip"]').tooltip()
+            })
+        })
+    </script>
+
+
+</body>
+
+</html>

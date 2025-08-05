@@ -77,7 +77,7 @@ echo "${FS_MAP}" | jq -r 'keys[]' | while read FS_NAME; do
     MOUNT_FUNCTION="mount_fsx_ontap"
     ;;
   "fsx_openzfs")
-    MOUNT_FUNCTION="mount_openzfs"
+    MOUNT_FUNCTION="mount_fsx_openzfs"
     ;;
   "s3")
     MOUNT_FUNCTION="mount_s3"

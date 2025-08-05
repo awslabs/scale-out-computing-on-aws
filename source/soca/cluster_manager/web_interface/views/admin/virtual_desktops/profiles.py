@@ -25,6 +25,7 @@ admin_virtual_desktops_profiles = Blueprint(
     "admin_virtual_desktops_profiles", __name__, template_folder="templates"
 )
 
+
 @admin_virtual_desktops_profiles.route(
     "/admin/virtual_desktops/profiles", methods=["GET"]
 )
@@ -46,8 +47,6 @@ def index():
     else:
         _vdi_profiles = _all_profiles.get("message")
 
-    for _profile_id, _profile_data in _vdi_profiles.items():
-        print
     _soca_private_subnets = (
         SocaConfig(key="/configuration/PrivateSubnets")
         .get_value(return_as=list)
@@ -60,11 +59,10 @@ def index():
 
     return render_template(
         "admin/virtual_desktops/profiles.html",
-        user=session["user"],
         allowed_subnets=", ".join(_soca_private_subnets),
         default_instance_type_pattern=_default_instance_type_pattern,
         vdi_profiles=_vdi_profiles,
-        page="admin_profiles"
+        page="admin_profiles",
     )
 
 
@@ -147,7 +145,7 @@ def profile_edit():
             profiles=_list_profiles.get("message"),
             supported_base_os=config.Config.DCV_BASE_OS.keys(),
             profile_info=_get_profile_info.get("message").get(_profile_to_modify),
-            page="admin_profiles"
+            page="admin_profiles",
         )
     else:
         flash(

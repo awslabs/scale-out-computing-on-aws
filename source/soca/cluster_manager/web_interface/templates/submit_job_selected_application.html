@@ -161,7 +161,7 @@
 
                 $("#cost_result").html('<div><i class="fas fa-spinner fa-5x"></i></div><h3><br> Please wait while we estimate the price of this job ... </h3>'),
 
-                    $.get('/api/system/aws_price', {
+                    $.get('/api/cost_management/pricing', {
                         "instance_type": instance_type,
                         "scratch_size": scratch_size,
                         "root_size": root_size,

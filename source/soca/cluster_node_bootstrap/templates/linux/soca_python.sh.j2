@@ -11,6 +11,7 @@ function install_soca_python () {
   local SOCA_PYTHON_LOCAL_INSTALL_PREFIX="/opt/soca/{{ context.get("/configuration/ClusterId") }}/python/${PYTHON_VERSION}/$(uname -m)/{{ context.get('/configuration/BaseOS') }}"
   local SOCA_PYTHON_VENV="${SOCA_PYTHON_LOCAL_INSTALL_PREFIX}/soca-python-virtual-env"
   local SOCA_PYTHON_SITE_PACKAGES
+  local OVERRIDE_TMPDIR
 
   if [[ $(${SOCA_PYTHON_LOCAL_INSTALL_PREFIX}/bin/python3 --version | awk {'print $NF'}) == "${PYTHON_VERSION}" ]]; then
     log_info "Local SOCA_PYTHON ${SOCA_PYTHON_LOCAL_INSTALL_PREFIX} found and at correct version, skipping SOCA_PYTHON Install"
@@ -43,6 +44,19 @@ function install_soca_python () {
     file_download --download-url="${PYTHON_URL}" --save-as="python3_soca_installer.tgz" --sha256-checksum="${PYTHON_SHA256}"
     tar xvf "python3_soca_installer.tgz" --strip-components=1 -C .
 
+    # Python uses /tmp by default. We verify if there is no permission errors / noexec flag set, and change the TMP dir if needed
+    if [[ -n "${TMPDIR}" ]]; then
+      log_warning "TMPDIR is set to: ${TMPDIR}, SOCA will honors it, verify if this partition is not mounted with noexec flag."
+    else
+      log_info "TMPDIR not set, checking if /tmp is mounted with noexec flag"
+      if [[ $(findmnt -no OPTIONS /tmp) == *noexec* ]]; then
+        export TMPDIR="${SOCA_BOOTSTRAP_ASSETS_FOLDER}/local_tmp"
+        log_warning "/tmp is mounted with noexec flag, updating TMPDIR to ${TMPDIR}"
+        OVERRIDE_TMPDIR=1
+      else
+        log_info "/tmp does NOT have the noexec flag, ok to proceed"
+      fi
+    fi
     {% if context.get("/job/NodeType") == "controller" %}
       # Full-featured Python build for controller nodes
       local CXX="g++"
@@ -106,6 +120,11 @@ function install_soca_python () {
 
     if ! make install -j$(nproc); then
        exit_fail "Unable to run 'make install' for SOCA_PYTHON. Check bootstrap logs."
+    fi
+
+    if [[ ${OVERRIDE_TMPDIR} -eq 1 ]]; then
+      log_info "Temporarily configured TMPDIR to ${TMPDIR}, python installation is completed, removing this variable"
+      unset TMPDIR
     fi
 
     log_info "Creating symlink /opt/soca/{{ context.get("/configuration/ClusterId") }}/python/latest pointing to ${SOCA_PYTHON_LOCAL_INSTALL_PREFIX}"

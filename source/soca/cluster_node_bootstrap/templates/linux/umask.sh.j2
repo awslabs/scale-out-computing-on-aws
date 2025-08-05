@@ -1,0 +1,14 @@
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# Begin: Validate umask
+# Umask != 0022 (e.g 0027) will break file permission for /data/home and DCV (dcv user will not be able to read /etc/dcv/... as permission will be 750 and not 755)
+function validate_umask () {
+  local DETECTED_UMASK
+  DETECTED_UMASK=$(umask)
+  if [[ ${DETECTED_UMASK} != "0022" ]]; then
+    exit_fail "Detected umask (${DETECTED_UMASK}) is not 0022. Please update your umask to be 0022. Run 'umask 0022' as root to update your current shell or add 'umask 0022' in your /etc/profile for persistence"
+  fi
+}
+validate_umask
+# End: Validate umask

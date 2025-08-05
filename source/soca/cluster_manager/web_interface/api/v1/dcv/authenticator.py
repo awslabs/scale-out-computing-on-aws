@@ -42,25 +42,101 @@ class DcvAuthenticator(Resource):
     @staticmethod
     def post():
         """
-        Authenticate a DCV desktop via authToken
+        Authenticate a DCV desktop session
         ---
+        openapi: 3.1.0
+        operationId: authenticateDcvSession
         tags:
-          - DCV
+          - Virtual Desktops
+        summary: Authenticate DCV desktop session
+        description: Validates DCV session authentication token and returns XML response for session access
         parameters:
-          - in: body
-            name: body
+          - name: X-SOCA-USER
+            in: header
+            required: true
             schema:
-              required:
-                - authenticationToken
-              properties:
-                authenticationToken:
-                  type: string
-                  description: DCV auth token
+              type: string
+              minLength: 1
+              maxLength: 64
+              pattern: '^[a-zA-Z0-9._-]+$'
+            description: SOCA username for authentication
+            example: "john.doe"
+          - name: X-SOCA-TOKEN
+            in: header
+            required: true
+            schema:
+              type: string
+              minLength: 1
+              maxLength: 256
+            description: SOCA authentication token
+            example: "abc123token456"
+        requestBody:
+          required: true
+          content:
+            application/x-www-form-urlencoded:
+              schema:
+                type: object
+                required:
+                  - sessionId
+                  - authenticationToken
+                  - clientAddress
+                properties:
+                  sessionId:
+                    type: string
+                    minLength: 1
+                    maxLength: 100
+                    pattern: '^[a-zA-Z0-9._-]+$'
+                    description: DCV session identifier
+                    example: "dcv-session-123"
+                  authenticationToken:
+                    type: string
+                    minLength: 1
+                    maxLength: 10000
+                    format: base64
+                    description: Base64 encoded encrypted authentication token containing session details
+                    example: "Z0FBQUFBQmhkX1pHVGtOcVRHVnNkR1Z5"
+                  clientAddress:
+                    type: string
+                    format: ipv4
+                    description: Client IP address requesting authentication
+                    example: "192.168.1.100"
         responses:
-          200:
-            description: The Pair of user/token is valid
-          401:
-            description: Invalid user/token pair
+          '200':
+            description: Authentication successful
+            content:
+              text/xml:
+                schema:
+                  type: string
+                  pattern: '^<auth result="yes"><username>[^<]+</username></auth>$'
+                example: '<auth result="yes"><username>john.doe</username></auth>'
+          '400':
+            description: Missing required parameters
+            content:
+              application/json:
+                schema:
+                  type: object
+                  required:
+                    - success
+                    - error_code
+                    - message
+                  properties:
+                    success:
+                      type: boolean
+                      example: false
+                    error_code:
+                      type: integer
+                      example: 400
+                    message:
+                      type: string
+                      example: "Missing required parameter: sessionId"
+          '401':
+            description: Authentication failed - invalid credentials or session
+            content:
+              text/xml:
+                schema:
+                  type: string
+                  pattern: '^<auth result="no"/>$'
+                example: '<auth result="no"/>'
         """
         parser = reqparse.RequestParser()
         parser.add_argument("sessionId", type=str, location="form")

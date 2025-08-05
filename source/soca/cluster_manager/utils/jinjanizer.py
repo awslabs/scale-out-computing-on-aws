@@ -1,7 +1,7 @@
 # Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-from jinja2 import Environment, FileSystemLoader, select_autoescape
+from jinja2 import Environment, FileSystemLoader, select_autoescape, Template
 from utils.cast import SocaCastEngine
 from utils.error import SocaError
 from utils.response import SocaResponse
@@ -16,7 +16,30 @@ from types import SimpleNamespace
 logger = logging.getLogger("soca_logger")
 
 
+class SocaJinja2Renderer:
+    """
+    Class for rendering Jinja2 templates from strings.
+    """
+
+    @staticmethod
+    def from_string(data: str, variables: dict):
+        template = Template(data)
+        if not isinstance(variables, dict):
+            return SocaError.JINJA_GENERATOR_ERROR(
+                helper=f"Unable to cast {variables} as dict. Verify format"
+            )
+        try:
+            _rendered_user_data = template.render(**variables)
+            return SocaResponse(success=True, message=_rendered_user_data)
+        except Exception as err:
+            return SocaError.JINJA_GENERATOR_ERROR(helper=f"{err}")
+
+
 class SocaJinja2Generator:
+    """
+    Class for rendering Jinja2 templates from template stored on local filesystem.
+    """
+
     def __init__(self, get_template: str, variables: dict, template_dirs: list):
         self._get_template = get_template
         self._template_dirs = template_dirs

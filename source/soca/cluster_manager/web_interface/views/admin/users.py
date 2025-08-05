@@ -16,7 +16,7 @@ import config
 from flask import render_template, Blueprint, request, redirect, session, flash
 from requests import get, post, delete
 from models import ApiKeys
-from decorators import login_required, admin_only
+from decorators import login_required, admin_only, feature_flag
 import subprocess
 import os
 
@@ -27,6 +27,7 @@ admin_users = Blueprint("admin_users", __name__, template_folder="templates")
 @admin_users.route("/admin/users", methods=["GET"])
 @login_required
 @admin_only
+@feature_flag(flag_name="USERS_GROUPS_MANAGEMENT", mode="view")
 def index():
     get_all_users = get(
         config.Config.FLASK_ENDPOINT + "/api/ldap/users",
@@ -45,7 +46,6 @@ def index():
         all_shells = ["/bin/bash"]
     return render_template(
         "admin/users.html",
-        user=session["user"],
         all_users=sorted(all_users),
         all_shells=all_shells,
         directory=config.Config.DIRECTORY_AUTH_PROVIDER,
@@ -55,6 +55,7 @@ def index():
 @admin_users.route("/admin/manage_sudo", methods=["POST"])
 @login_required
 @admin_only
+@feature_flag(flag_name="USERS_GROUPS_MANAGEMENT", mode="view")
 def manage_sudo():
     user = request.form.get("user", None)
     action = request.form.get("action", None)
@@ -107,6 +108,7 @@ def manage_sudo():
 @admin_users.route("/admin/create_user", methods=["POST"])
 @login_required
 @admin_only
+@feature_flag(flag_name="USERS_GROUPS_MANAGEMENT", mode="view")
 def create_new_account():
     user = str(request.form.get("user"))
     password = str(request.form.get("password"))
@@ -171,6 +173,7 @@ def create_new_account():
 @admin_users.route("/admin/delete_user", methods=["POST"])
 @login_required
 @admin_only
+@feature_flag(flag_name="USERS_GROUPS_MANAGEMENT", mode="view")
 def delete_account():
     user = str(request.form.get("user_to_delete"))
     if session["user"] == user:

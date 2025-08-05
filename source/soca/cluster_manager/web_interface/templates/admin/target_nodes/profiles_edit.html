@@ -1,0 +1,120 @@
+<!--
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: Apache-2.0
+-->
+
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    {% include 'common/header.html' %}
+</head>
+<body id="page-top">
+<div id="wrapper">
+    {% include 'common/vertical_menu_bar.html' %}
+    <div id="content-wrapper" class="d-flex flex-column">
+        <div id="content">
+            <br>
+            <div class="container-fluid">
+                {% include 'common/horizontal_menu_bar.html' %}
+                {% include 'common/flashed_messages.html' %}
+
+                <div class="col-md-12">
+                            <div class="card shadow mb-4">
+                                <div class="card-header py-3">
+                                    <h6 class="m-0 font-weight-bold text-primary">Edit Target Node Profile</h6>
+                                </div>
+                                    <div class="card-body">
+                                        <form action="/admin/target_nodes/profiles/edit/update" method="post">
+                                            <form action="/admin/target_nodes/profiles/create" method="post">
+                                            <div class="form-group">
+                                                <label for="profile_name" data-toggle="tooltip" data-placement="top"
+                                                       title="Name of your profile">Profile name</label>
+                                                <input id="profile_name" value="{{profile_info.profile_name}}"
+                                                       class="form-control"
+                                                       type="text"
+                                                       name="profile_name" disabled maxlength="50">
+                                            </div>
+
+                                            <div class="form-group">
+                                                <label data-toggle="tooltip" data-placement="top"
+                                                       title="The maximum size (in GB) of the root disk a user can specify"
+                                                       for="root_size">Maximum EBS Root Disk size (in GB)</label>
+                                                <input type="number" min=0 value={{profile_info.max_root_size}} id="root_size" class="form-control"
+                                                       required name="max_root_size">
+                                            </div>
+
+                                                <div class="form-group">
+                                                <label for="description" data-toggle="tooltip" data-placement="top"
+                                                       title="Description of your Target Node Profile">Description
+                                                </label>
+                                                <textarea id="description"
+                                                          class="form-control" rows="3"  name="description">{{profile_info.description}}</textarea>
+                                            </div>
+
+                                             <div class="form-group">
+                                                <label data-toggle="tooltip" data-placement="top"
+                                                       title="List of allowed instance type/family"
+                                                       for="pattern_allowed_instance_types">List of instance type or family allowed</label>
+                                                <input id="pattern_allowed_instance_types" value="{{profile_info.pattern_allowed_instance_types}}" class="form-control" required name="pattern_allowed_instance_types" data-ub-tag-variant="primary">
+                                                 <small>Notes: <ul>
+                                                 <li>Support Exact Instance Type (<code>c6i.xlarge</code>)</li>
+                                                 <li>Support Instance Family (<code>c6i.*</code>)</li>
+                                                 <li>Refer to <a href="https://aws.amazon.com/ec2/instance-types/" target="_blank">Amazon EC2 Instance types</a> page for a list of EC2 instances</li>
+                                                 <li>You will need to update <code>boto3</code> to add instances released after the date of your SOCA installation</li>
+                                                 </ul></small>
+
+                                             </div>
+
+
+                                            <div class="form-group">
+                                                <label for="allowed_subnet_ids" data-toggle="tooltip" data-placement="top"
+                                                       title="List of authorized subnets">List of allowed subnets
+                                                 </label>
+                                                <input id="allowed_subnet_ids"
+                                                       class="form-control" type="text"
+                                                       required name="allowed_subnet_ids" value="{{profile_info.allowed_subnet_ids}}" data-ub-tag-variant="primary">
+                                                <small>Notes:
+                                                    <ul>
+                                                        <li>Subnets must be from the list of private subnets configured on SOCA</li>
+                                                    </ul>
+                                                </small>
+                                            </div>
+
+                                            <div>
+                                                <input type="hidden" name="csrf_token"
+                                                       value="{{ csrf_token() }}">
+                                                <input type="hidden" name="profile_id" value="{{ profile_info.id }}">
+
+                                                <button type="submit" class="btn btn-primary btn-lg">Update Target Node Profile
+                                                </button>
+                                            </div>
+                                        </form>
+                                    </div>
+                                </div>
+
+
+                    <a class="scroll-to-top rounded" href="#page-top">
+                        <i class="fas fa-angle-up"></i>
+                    </a>
+
+                {% include 'common/footer.html' %}
+                <script>
+                    $(document).ready(function () {
+                        // enable tooltip
+                        $(function () {
+                            $('[data-toggle="tooltip"]').tooltip()
+                        })
+
+                        const bootstrapTagInputBoxPatternAllowedInstanceType = UseBootstrapTag(document.getElementById('pattern_allowed_instance_types'));
+                        const bootstrapTagInputBoxAllowedSubnetIds = UseBootstrapTag(document.getElementById('allowed_subnet_ids'));
+                    })
+
+                </script>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+</body>
+</html>

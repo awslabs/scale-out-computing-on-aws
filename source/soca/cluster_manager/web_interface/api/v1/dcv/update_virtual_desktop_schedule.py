@@ -14,7 +14,7 @@
 from flask_restful import Resource, reqparse
 from flask import request
 import logging
-from decorators import private_api
+from decorators import private_api, feature_flag
 from models import db, VirtualDesktopSessions
 import utils.aws.boto3_wrapper as utils_boto3
 from utils.error import SocaError
@@ -28,32 +28,104 @@ client_ec2 = utils_boto3.get_boto(service_name="ec2").message
 
 class UpdateVirtualDesktopSchedule(Resource):
     @private_api
+    @feature_flag(flag_name="VIRTUAL_DESKTOPS", mode="api")
     def put(self):
         """
         Modify schedule of a DCV desktop session
         ---
+        openapi: 3.1.0
+        operationId: updateVirtualDesktopSchedule
         tags:
-          - DCV
-
+          - Virtual Desktops
+        summary: Update virtual desktop schedule
+        description: Update the start/stop schedule for a DCV virtual desktop session
         parameters:
-          - in: body
-            name: body
+          - in: header
+            name: X-SOCA-USER
+            required: true
             schema:
-              required:
-                - os
-                - action
-              properties:
-                os:
-                  type: string
-                  description: DCV session type (Windows or Linux)
-                action:
-                  type: string
-                  description: stop, hibernate or terminate
+              type: string
+              example: "john.doe"
+            description: SOCA username for authentication
+          - in: header
+            name: X-SOCA-TOKEN
+            required: true
+            schema:
+              type: string
+              example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+            description: SOCA authentication token
+        requestBody:
+          required: true
+          content:
+            application/x-www-form-urlencoded:
+              schema:
+                type: object
+                required:
+                  - session_uuid
+                  - schedule
+                properties:
+                  session_uuid:
+                    type: string
+                    format: uuid
+                    description: UUID of the virtual desktop session
+                    example: "12345678-1234-1234-1234-123456789012"
+                  schedule:
+                    type: string
+                    description: JSON string containing weekly schedule with start/stop times in minutes (0-1440)
+                    example: '{"monday":{"start":480,"stop":1020},"tuesday":{"start":480,"stop":1020},"wednesday":{"start":480,"stop":1020},"thursday":{"start":480,"stop":1020},"friday":{"start":480,"stop":1020},"saturday":{"start":0,"stop":0},"sunday":{"start":0,"stop":0}}'
         responses:
-          200:
-            description: Pair of user/token is valid
-          401:
-            description: Invalid user/token pair
+          '200':
+            description: Schedule updated successfully
+            content:
+              application/json:
+                schema:
+                  type: object
+                  properties:
+                    success:
+                      type: boolean
+                      example: true
+                    message:
+                      type: string
+                      example: "Your virtual desktop schedule has been updated"
+          '400':
+            description: Invalid parameters or schedule format
+            content:
+              application/json:
+                schema:
+                  type: object
+                  properties:
+                    success:
+                      type: boolean
+                      example: false
+                    message:
+                      type: string
+                      example: "Missing required parameter: session_uuid"
+          '401':
+            description: Unauthorized or session not found
+            content:
+              application/json:
+                schema:
+                  type: object
+                  properties:
+                    success:
+                      type: boolean
+                      example: false
+                    message:
+                      type: string
+                      example: "Unable to find this session"
+          '500':
+            description: Database error during update
+            content:
+              application/json:
+                schema:
+                  type: object
+                  properties:
+                    success:
+                      type: boolean
+                      example: false
+                    message:
+                      type: string
+                      example: "Unable to update session schedule"
         """
         parser = reqparse.RequestParser()
         parser.add_argument("session_uuid", type=str, location="form")

@@ -11,7 +11,12 @@ installer/resources/src/cdk.context.json
 installer/resources/src/cdk.out/
 installer/resources/src/envs/
 installer/resources/src/.requirements_installed
+installer/resources/functions/CreateELBSSLCertificate/*cffi*
+installer/resources/functions/CreateELBSSLCertificate/cryptography*
+installer/resources/functions/CreateELBSSLCertificate/pycparser*
 installer/resources/user_data/upload_to_s3/*
+installer/resources/upload_to_s3
+github/
 
 # C extensions
 *.so

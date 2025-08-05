@@ -43,7 +43,6 @@ def index():
         application_profiles[profile.id] = {"profile_name": profile.profile_name}
     return render_template(
         "admin/applications.html",
-        user=session["user"],
         page="application",
         profile_interpreter="qsub",
         application_profiles=application_profiles,
@@ -66,6 +65,7 @@ def edit():
     if get_application_profile:
         profile_form = base64.b64decode(get_application_profile.profile_form).decode()
         profile_job = base64.b64decode(get_application_profile.profile_job).decode()
+        profile_job = json.dumps(profile_job)[1:-1]
         profile_interpreter = get_application_profile.profile_interpreter
         profile_name = get_application_profile.profile_name
 
@@ -109,7 +109,6 @@ def create_application():
                     "error",
                 )
                 return redirect("/admin/applications")
-
         if request.form["action"] == "create":
             if request.form["thumbnail_b64"] == "":
                 # Default to SOCA logo

@@ -16,7 +16,7 @@ from models import db, ApiKeys
 from datetime import datetime, timezone
 import secrets
 import config
-from decorators import restricted_api, admin_api, retrieve_api_key
+from decorators import restricted_api, admin_api, retrieve_api_key, feature_flag
 import logging
 from utils.error import SocaError
 from utils.http_client import SocaHttpClient
@@ -29,30 +29,62 @@ logger = logging.getLogger("soca_logger")
 
 class ApiKey(Resource):
     @retrieve_api_key
+    @feature_flag(flag_name="MY_API_KEY_MANAGEMENT", mode="api")
     def get(self):
         """
-        Retrieve API key of the user
+        Retrieve API key for a user
         ---
+        openapi: 3.1.0
+        operationId: getUserApiKey
         tags:
-          - User Management
+          - User API Keys
         parameters:
-          - in: body
-            name: body
+          - name: X-SOCA-USER
+            in: header
             schema:
-              required:
-                - user
-              properties:
-                user:
-                  type: string
-                  description: user of the SOCA user
-
+              type: string
+              minLength: 1
+            required: true
+            description: SOCA username for authentication
+            example: admin
+          - name: X-SOCA-PASSWORD
+            in: header
+            schema:
+              type: string
+              minLength: 1
+            required: true
+            description: SOCA password for the specified user
+            example: mypassword
+          - name: user
+            in: query
+            schema:
+              type: string
+              pattern: '^[a-zA-Z0-9._-]+$'
+              minLength: 1
+            required: true
+            description: Username to retrieve API key for
+            example: john.doe
         responses:
-          200:
-            description: Return the token associated to the user
-          203:
-            description: No token detected
-          400:
-            description: Malformed client input
+          '200':
+            description: API key retrieved successfully
+            content:
+              application/json:
+                schema:
+                  type: object
+                  properties:
+                    success:
+                      type: boolean
+                      example: true
+                    message:
+                      type: string
+                      pattern: f'^[a-f0-9]{32}$'
+                      example: a1b2c3d4e5f6789012345678
+          '400':
+            description: Missing required parameter
+          '401':
+            description: Authentication required
+          '404':
+            description: User not found
         """
         parser = reqparse.RequestParser()
         parser.add_argument("user", type=str, location="args")
@@ -69,13 +101,21 @@ class ApiKey(Resource):
             ).first()
             if check_existing_key:
                 logger.debug(f"API Key for {user} detected")
-                return SocaResponse(success=True, message=check_existing_key.token).as_flask()
+                return SocaResponse(
+                    success=True, message=check_existing_key.token
+                ).as_flask()
             else:
                 logger.debug(f"No API Key for {user} detected, creating new one")
                 try:
-                    user_exist = SocaHttpClient(endpoint="/api/ldap/user", headers={"X-SOCA-TOKEN": config.Config.API_ROOT_KEY}).get(params={"user": user})
+                    user_exist = SocaHttpClient(
+                        endpoint="/api/ldap/user",
+                        headers={"X-SOCA-TOKEN": config.Config.API_ROOT_KEY},
+                    ).get(params={"user": user})
                     if user_exist.success:
-                        permissions = SocaHttpClient(endpoint="/api/ldap/sudo", headers={"X-SOCA-TOKEN": config.Config.API_ROOT_KEY}).get(params={"user": user})
+                        permissions = SocaHttpClient(
+                            endpoint="/api/ldap/sudo",
+                            headers={"X-SOCA-TOKEN": config.Config.API_ROOT_KEY},
+                        ).get(params={"user": user})
                         if permissions.success:
                             logger.debug("User has SUDO permission")
                             scope = "sudo"
@@ -122,30 +162,67 @@ class ApiKey(Resource):
             ).as_flask()
 
     @restricted_api
+    @feature_flag(flag_name="MY_API_KEY_MANAGEMENT", mode="api")
     def delete(self):
         """
-        Delete API key(s) associated to a user
+        Delete API key(s) for a user
         ---
+        openapi: 3.1.0
+        operationId: deleteUserApiKey
         tags:
-          - User Management
+          - User API Keys
         parameters:
-            - in: body
-              name: body
+          - name: X-SOCA-USER
+            in: header
+            schema:
+              type: string
+              minLength: 1
+            required: true
+            description: SOCA username for authentication
+            example: admin
+          - name: X-SOCA-TOKEN
+            in: header
+            schema:
+              type: string
+              minLength: 1
+            required: true
+            description: SOCA authentication token
+            example: abc123token
+        requestBody:
+          required: true
+          content:
+            application/x-www-form-urlencoded:
               schema:
+                type: object
                 required:
                   - user
                 properties:
-                    user:
-                        type: string
-                        description: user of the SOCA user
-
+                  user:
+                    type: string
+                    pattern: '^[a-zA-Z0-9._-]+$'
+                    minLength: 1
+                    description: Username to delete API key for
+                    example: john.doe
         responses:
-            200:
-                description: Key(s) has been deleted successfully.
-            203:
-                description: Unable to find a token.
-            400:
-               description: Client error.
+          '200':
+            description: API key(s) deleted successfully
+            content:
+              application/json:
+                schema:
+                  type: object
+                  properties:
+                    success:
+                      type: boolean
+                      example: true
+                    message:
+                      type: string
+                      example: Successfully deactivated
+          '400':
+            description: Missing required parameter
+          '401':
+            description: Authentication required
+          '404':
+            description: No active API key found for user
         """
         parser = reqparse.RequestParser()
         parser.add_argument("user", type=str, location="form")
@@ -171,7 +248,9 @@ class ApiKey(Resource):
                             query=key,
                             helper=f"Unable to deactivate key in DB due to {err}",
                         ).as_flask()
-                return SocaResponse(success=True, message="Successfully deactivated").as_flask()
+                return SocaResponse(
+                    success=True, message="Successfully deactivated"
+                ).as_flask()
             else:
                 logger.info("No active token found")
                 return SocaError.API_KEY_ERROR(

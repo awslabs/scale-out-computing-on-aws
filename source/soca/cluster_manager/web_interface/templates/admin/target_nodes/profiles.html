@@ -1,0 +1,234 @@
+<!--
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: Apache-2.0
+-->
+
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    {% include 'common/header.html' %}
+</head>
+<body id="page-top">
+<div id="wrapper">
+    {% include 'common/vertical_menu_bar.html' %}
+    <div id="content-wrapper" class="d-flex flex-column">
+        <div id="content">
+            <br>
+            <div class="container-fluid">
+                {% include 'common/horizontal_menu_bar.html' %}
+                {% include 'common/flashed_messages.html' %}
+
+                <div class="col-md-12">
+                    <nav>
+                        <div class="nav nav-tabs" id="nav-tab" role="tablist">
+                            <a class="nav-item nav-link active" id="nav-home-tab" data-bs-toggle="tab" href="#nav-add"
+                               role="tab" aria-controls="nav-home" aria-selected="true">Create new Target Node Profile</a>
+                            <a class="nav-item nav-link" id="nav-profile-tab" data-bs-toggle="tab" href="#nav-delete"
+                               role="tab" aria-controls="nav-delete" aria-selected="false">Manage Target Node Profiles</a>
+                        </div>
+                    </nav>
+
+                    <div class="tab-content" id="nav-tabContent">
+                        <div class="tab-pane fade show active" id="nav-add" role="tabpanel"
+                             aria-labelledby="nav-home-tab">
+                            <br>
+                            <div class="card shadow mb-4">
+                                <div class="card-header py-3">
+                                    <h6 class="m-0 font-weight-bold text-primary">Create a new Target Node Profile</h6>
+                                </div>
+                                    <div class="card-body">
+                                        <div class="alert alert-primary">
+                                            <ul>
+                                                <li>A Target Node Profile controls the list of EC2 instance types, maximum storage size as well as approved subnet ids for your <a target="_blank" href="/admin/target_nodes/software_stacks">Target Node Software Stack</a>.</li>
+                                                <li>You can have multiple Software Stacks using the same Target Node Profile.</li>
+                                            </ul>
+                                        </div>
+                                        <form action="/admin/target_nodes/profiles/create" method="post">
+                                            <div class="form-group">
+                                                <label for="profile_name" data-toggle="tooltip" data-placement="top"
+                                                       title="Name of your profile">Profile name</label>
+                                                <input id="profile_name" placeholder="My Profile"
+                                                       class="form-control"
+                                                       type="text"
+                                                       required name="profile_name">
+                                            </div>
+
+                                            <div class="form-group">
+                                                <label data-toggle="tooltip" data-placement="top"
+                                                       title="The maximum size (in GB) of the root disk a user can specify"
+                                                       for="root_size">Maximum EBS Root Disk size (in GB)</label>
+                                                <input type="number" min=0 value=500 id="root_size" class="form-control"
+                                                       required name="max_root_size">
+                                                <small>Note:
+                                                    <ul>
+                                                        <li>Maximum EBS storage the user will be able to provision for their target node</li>
+                                                    </ul>
+                                                </small>
+                                            </div>
+
+                                            <div class="form-group">
+                                                <label for="description" data-toggle="tooltip" data-placement="top"
+                                                       title="Description of your Target Node Profile">Description
+                                                </label>
+                                                <textarea id="description" placeholder="(Optional) Description for your Target Node Profile (maximum 500 characters)."
+                                                          class="form-control" rows="3"  name="description"></textarea>
+                                            </div>
+
+                                             <div class="form-group">
+                                                <label data-toggle="tooltip" data-placement="top"
+                                                       title="List of allowed instance type/family"
+                                                       for="pattern_allowed_instance_types">List of instance type or family allowed</label>
+                                                <input id="pattern_allowed_instance_types" value="{{default_instance_type_pattern}}" data-ub-tag-variant="primary" class="form-control" required name="pattern_allowed_instance_types">
+                                                 <small>Note:
+                                                     <ul>
+                                                         <li>Support Exact Instance Type (<code>c6i.xlarge</code>)</li>
+                                                         <li>Support Instance Family (<code>c6i.*</code>)</li>
+                                                         <li>Refer to <a href="https://aws.amazon.com/ec2/instance-types/" target="_blank">Amazon EC2 Instance types</a> page for a list of EC2 instances</li>
+                                                         <li>You will need to update <code>boto3</code> to add instances released after the date of your SOCA installation</li>
+                                                     </ul>
+                                                 </small>
+                                             </div>
+
+
+                                            <div class="form-group">
+                                                <label for="allowed_subnet_ids" data-toggle="tooltip" data-placement="top"
+                                                       title="List of authorized subnets">List of allowed subnets
+                                                 </label>
+                                                <input id="allowed_subnet_ids"
+                                                       class="form-control" type="text"
+                                                       required name="allowed_subnet_ids" value="{{allowed_subnets}}"  data-ub-tag-variant="primary">
+                                                <small>Note:
+                                                    <ul>
+                                                        <li>Subnets must be from the list of private subnets configured on SOCA</li>
+                                                    </ul>
+                                                </small>
+                                            </div>
+
+                                            <div>
+                                                <input type="hidden" name="csrf_token"
+                                                       value="{{ csrf_token() }}">
+                                                <button type="submit" class="btn btn-primary btn-lg">Create new Target Node Profile
+                                                </button>
+                                            </div>
+                                        </form>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="tab-pane fade" id="nav-delete" role="tabpanel" aria-labelledby="nav-profile-tab">
+                                <br>
+                                <div class="card shadow mb-4">
+                                    <div class="card-header py-3">
+                                        <h6 class="m-0 font-weight-bold text-primary">Manage Target Node Profiles</h6>
+                                    </div>
+                                    <div class="card-body">
+                                        <div class="alert alert-primary" role="alert">
+                                            <strong>Important:</strong> <br>
+                                            You cannot delete a Target Node Profile if it's being associated to an existing target node. <br>
+                                            You cannot delete <code>default</code> profile.
+                                        </div>
+
+                                        <div class="row">
+                                        {% if profiles %}
+                                            <div class="col-md-5">
+                                            <form id="profileEditForm" action="/admin/target_nodes/profiles/delete" method="post">
+                                                <div class="form-group">
+                                                    <select id="profile_id" class="form-control" name="profile_id">
+                                                        {% for profile_id, profile_info in profiles.items() %}
+                                                            <option value="{{ profile_id }}"
+                                                                    data-soca-allowed-instances-types="{{profile_info.allowed_instance_types}}"
+                                                                    data-soca-pattern-allowed-instances-types="{{profile_info.pattern_allowed_instance_types}}"
+                                                                    data-soca-allowed-subnets="{{profile_info.allowed_subnet_ids}}"
+                                                                    data-soca-description="{{profile_info.description}}"
+                                                                    data-soca-max-root-size="{{profile_info.max_root_size}}"
+                                                                    data-soca-software-stack-ids="{{profile_info.software_stack_ids}}"
+                                                                    data-soca-created-by="{{profile_info.created_by }}"
+                                                                    data-soca-created-on="{{profile_info.created_on }}">
+                                                                 ID: {{ profile_id }} - {{ profile_info.profile_name }}
+                                                            </option>
+                                                        {% endfor %}
+                                                    </select>
+
+
+                                                </div>
+                                                <div class="form-group form-check">
+                                                    <input type="checkbox" class="form-check-input" name="verif" id="verif"
+                                                           required>
+                                                    <label class="form-check-label" for="verif">I am sure I want to
+                                                        delete this Target Node Profile</label>
+                                                </div>
+
+                                                <div class="d-flex justify-content-center">
+                                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                                    <button type="submit" class="btn btn-danger btn-lg mr-2">Delete Target Node Profile</button>
+                                                    <button type="button" class="btn btn-primary btn-lg" onclick="submitEditForm()">Edit Target Node Profile</button>
+                                                </div>
+                                            </form>
+                                            </div>
+                                            <div class="col-md-7">
+                                                 <div id="profileInfo">
+                                                     Select a profile to see details.
+                                                    </div>
+                                            </div>
+                                        {% else %}
+                                            No Target Node  Profiles found.
+                                        {% endif %}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    <a class="scroll-to-top rounded" href="#page-top">
+                        <i class="fas fa-angle-up"></i>
+                    </a>
+
+                {% include 'common/footer.html' %}
+
+
+                <script>
+                    $(document).ready(function () {
+                        // enable tooltip
+                        $(function () {
+                            $('[data-toggle="tooltip"]').tooltip()
+                        })
+                    })
+
+                    const bootstrapTagInputBoxPatternAllowedInstanceType = UseBootstrapTag(document.getElementById('pattern_allowed_instance_types'));
+                    const bootstrapTagInputBoxAllowedSubnetIds = UseBootstrapTag(document.getElementById('allowed_subnet_ids'));
+
+
+                     function submitEditForm() {
+                            let form = document.getElementById('profileEditForm');
+                            form.action = "/admin/target_nodes/profiles/edit";
+                            form.submit();
+                        }
+
+                        function updateProfileInfo() {
+                        var selectElement = document.getElementById("profile_id");
+                        var selectedOption = selectElement.options[selectElement.selectedIndex];
+
+                        document.getElementById("profileInfo").innerHTML =
+                            "<h3>Profile Details:</h3> <hr>" +
+                            "<strong>Allowed Instances Types:</strong> " + selectedOption.getAttribute("data-soca-allowed-instances-types") +
+                            "<br><strong>Allowed Instances (pattern):</strong> " + selectedOption.getAttribute("data-soca-pattern-allowed-instances-types") +
+                            "<br><strong>Allowed Subnets:</strong> " + selectedOption.getAttribute("data-soca-allowed-subnets") +
+                            "<br><strong><a href='/admin/target_nodes/software_stacks' target='_blank'>Associated Target Node Software Stack IDs:</a></strong> " + selectedOption.getAttribute("data-soca-software-stack-ids") +
+                            "<br><strong>Max Root disk Size:</strong> " + selectedOption.getAttribute("data-soca-max-root-size")  +
+                            "<br><strong>Description:</strong> " + selectedOption.getAttribute("data-soca-description") +
+                            "<br><strong>Created By:</strong> " + selectedOption.getAttribute("data-soca-created-by") +
+                            "<br><strong>Created On</strong> " + selectedOption.getAttribute("data-soca-created-on");
+                        }
+
+                        document.addEventListener("DOMContentLoaded", function() {
+                            updateProfileInfo(); // Call the function on page load
+                            document.getElementById("profile_id").addEventListener("change", updateProfileInfo);
+                        });
+                </script>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+</body>
+</html>

@@ -29,7 +29,7 @@
                     </div>
 
                       <div class="alert alert-warning">
-                        <strong>Once you've created your Software Stack, make sure to <a href="/admin/projects" target="_blank">assign it to at least one SOCA Project</a>.</strong> Otherwise, your profile will remain hidden from users.
+                          <strong>Once you have created your Virtual Desktop Software Stack, please ensure that it is <a href="/admin/projects" target="_blank">assigned to at least one SOCA Project.</a></strong> Failure to do so will result in your profile remaining hidden from users.</strong>
                       </div>
 
                     <nav>
@@ -75,7 +75,7 @@
                                                 <label for="description" data-toggle="tooltip" data-placement="top"
                                                        title="Description of your Software Stack">Software Stack Description
                                                 </label>
-                                                <textarea id="description" placeholder="(Optional) Description for your software stack, maximum 500 characters."
+                                                <textarea id="description" placeholder="(Optional) Description for your software stack (maximum 500 characters)."
                                                           class="form-control" rows="3"  name="description"></textarea>
                                             </div>
 
@@ -99,8 +99,8 @@
 
                                              <div class="form-group">
                                                 <label data-toggle="tooltip" data-placement="top"
-                                                       title="List of allowed instance type/family"
-                                                       for="virtual_desktop_profile_id">Profile associated to this stack</label>
+                                                       title="Profile that control the list of allowed EC2 instance types, subnet IDs, maximum storage etc ..."
+                                                       for="virtual_desktop_profile_id">Profile associated with this stack (<a target="_blank" href="/admin/virtual_desktops/profiles">see Virtual Desktop Profiles</a>)</label>
                                                 <select class="form-control" required id="virtual_desktop_profile_id" name="virtual_desktop_profile_id">
                                                  {% for profile_id, profile_info in profiles.items() %}
                                                     <option value="{{profile_id}}"> {{ profile_info.profile_name }}</option>

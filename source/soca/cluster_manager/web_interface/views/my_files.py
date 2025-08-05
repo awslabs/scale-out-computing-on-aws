@@ -16,7 +16,7 @@ import time
 
 import config
 import zipfile
-from decorators import login_required
+from decorators import login_required, feature_flag
 from flask import (
     render_template,
     request,
@@ -31,19 +31,19 @@ import errno
 import math
 import os
 import stat
-from natsort import os_sorted
 import base64
 from requests import get
 from cryptography.fernet import Fernet, InvalidToken, InvalidSignature
 import json
 import pwd
 from collections import OrderedDict
-import grp
 from flask import Flask
 from werkzeug.utils import secure_filename
 from cachetools import TTLCache
 from datetime import datetime, timezone
 from utils.aws.ssm_parameter_store import SocaConfig
+from helpers.user_acls import check_user_permission, Permissions
+import pathlib
 
 logger = logging.getLogger("soca_logger")
 my_files = Blueprint("my_files", __name__, template_folder="templates")
@@ -55,8 +55,6 @@ with app.app_context():
         maxsize=10000, ttl=config.Config.DEFAULT_CACHE_TIME
     )  # default is 120 seconds
 
-CACHE_FOLDER_PERMISSION_PREFIX = "my_files_folder_permissions_"
-CACHE_GROUP_MEMBERSHIP_PREFIX = "my_files_group_membership_"
 CACHE_FOLDER_CONTENT_PREFIX = "my_files_folder_content_"
 
 
@@ -72,6 +70,7 @@ def change_ownership(file_path: str) -> dict:
     uid = user_info.pw_uid
     gid = user_info.pw_gid
     os.chown(path=file_path, uid=uid, gid=gid)
+
     _desired_mode = stat.S_IRUSR | stat.S_IWUSR | stat.S_IRGRP
 
     # Make sure the user and group can access into directories
@@ -134,248 +133,35 @@ def demote(user_uid, user_gid):
     return set_ids
 
 
-def user_has_permission(
-    path: str, permission_required: str, permission_type: str
-) -> bool:
-    _start_time = time.perf_counter_ns()
-
-    logger.info(f"Checking {permission_required} for {path} ({permission_type})")
-
-    _user_from_session = session["user"]
-
-    if not _user_from_session:
-        logger.error(
-            f"User not logged in / unable to read session: {_user_from_session}"
-        )
-        return False
-
-    user_uid = pwd.getpwnam(_user_from_session).pw_uid
-    user_gid = pwd.getpwnam(_user_from_session).pw_gid
-
-    if logger.isEnabledFor(logging.DEBUG):
-        logger.debug(
-            f"Resolved user {_user_from_session} to UID: {user_uid} GID: {user_gid}"
-        )
-
-    if permission_type not in {"file", "folder"}:
-        logger.error("Permission Type must be file or folder")
-        return False
-
-    if permission_required not in {"write", "read"}:
-        logger.error("permission_required must be write or read")
-        return False
-
-    if path.startswith("//"):
-        # Remove first slash if present. Case when user click "root" label on breadcrumb and then select a folder from the top level
-        path = path[1:]
-
-    if config.Config.CHROOT_USER is True:
-        if not path.lower().startswith(
-            config.Config.USER_HOME.lower() + "/" + _user_from_session
-        ):
-            logger.error(
-                f"User ({_user_from_session}) attempting to access path outside of chroot environment: {path}"
-            )
-            return False
-
-    for restricted_path in config.Config.PATH_TO_RESTRICT:
-        if path.lower().startswith(restricted_path.lower()):
-            logger.error(
-                f"User ({_user_from_session}) attempting to access restricted path: {path}"
-            )
-            return False
-
-    min_permission_level = {
-        "write": 6,  # Read+Write
-        "read": 5,  # Read+Execute
-        "execute": 1,  # Min permission to be able to CD into directory
-    }
-
-    # First, make sure user can access the entire folder hierarchy
-    folder_level = 1
-    folder_hierarchy = path.split("/")
-
-    if permission_required == "read":
-        last_folder = folder_hierarchy[-1]
-    else:
-        # When we create a new folder, the last existing folder is 2 level up in the array
-        last_folder = folder_hierarchy[-2]
-    try:
-        for folder in folder_hierarchy:
-            if folder != "":
-                folder_path = "/".join(folder_hierarchy[:folder_level])
-                if CACHE_FOLDER_PERMISSION_PREFIX + folder_path not in cache.keys():
-                    check_folder = {
-                        "folder_owner": os.stat(folder_path).st_uid,
-                        "folder_group_id": os.stat(folder_path).st_gid
-                    }
-                    logger.debug(
-                        f"Folder ({folder_path}) owner ({check_folder['folder_owner']}) Group ({check_folder['folder_group_id']})"
-                    )
-                    try:
-                        check_folder["folder_group_name"] = grp.getgrgid(
-                            check_folder["folder_group_id"]
-                        ).gr_name
-                    except:
-                        check_folder["folder_group_name"] = "UNKNOWN"
-
-                    check_folder["folder_permission"] = oct(
-                        os.stat(folder_path).st_mode
-                    )[-3:]
-                    check_folder["group_permission"] = int(
-                        check_folder["folder_permission"][-2]
-                    )
-                    check_folder["other_permission"] = int(
-                        check_folder["folder_permission"][-1]
-                    )
-                    cache[CACHE_FOLDER_PERMISSION_PREFIX + folder_path] = check_folder
-                else:
-                    check_folder = cache[CACHE_FOLDER_PERMISSION_PREFIX + folder_path]
-
-                if (
-                    CACHE_GROUP_MEMBERSHIP_PREFIX + check_folder["folder_group_name"]
-                    not in cache.keys()
-                ):
-                    _ldap_check_start_time = time.perf_counter_ns()
-                    check_group_membership = get(
-                        config.Config.FLASK_ENDPOINT + "/api/ldap/group",
-                        headers={"X-SOCA-TOKEN": config.Config.API_ROOT_KEY},
-                        params={"group": check_folder["folder_group_name"]},
-                        verify=False,
-                    )  # nosec
-                    _ldap_check_duration_ms = (
-                        time.perf_counter_ns() - _ldap_check_start_time
-                    ) / 1_000_000
-                    logger.debug(f"LDAP group lookup took {_ldap_check_duration_ms} ms")
-
-                    _os_check_start_time = time.perf_counter_ns()
-                    _os_groups = os.getgrouplist(session["user"], user_gid)
-                    _os_check_duration_ms = (
-                        time.perf_counter_ns() - _os_check_start_time
-                    ) / 1_000_000
-                    logger.debug(
-                        f"OS groups ({_os_groups}) lookup took {_os_check_duration_ms} ms "
-                    )
-
-                    if check_group_membership.status_code == 200:
-                        group_members = check_group_membership.json()["message"][
-                            "members"
-                        ]
-                    else:
-                        logger.warning(
-                            f"Unable to check group membership {check_folder['folder_group_id']} because of "
-                            + check_group_membership.text.strip()
-                        )
-                        group_members = []
-                    cache[
-                        CACHE_GROUP_MEMBERSHIP_PREFIX
-                        + check_folder["folder_group_name"]
-                    ] = group_members
-                else:
-                    group_members = cache[
-                        CACHE_GROUP_MEMBERSHIP_PREFIX
-                        + check_folder["folder_group_name"]
-                    ]
-
-                if _user_from_session in group_members:
-                    user_belong_to_group = True
-                else:
-                    user_belong_to_group = False
-
-                # Verify if user has the required permissions on the folder
-                if folder == last_folder:
-                    # Last folder, must have at least R or W permission
-                    if check_folder["folder_owner"] != user_uid:
-                        if user_belong_to_group is True:
-                            if (
-                                check_folder["group_permission"]
-                                < min_permission_level[permission_required]
-                            ):
-                                logger.error(
-                                    f"user ({_user_from_session}) does not have {permission_required} permission for {folder_path}"
-                                )
-                                return False
-                        else:
-                            if (
-                                check_folder["other_permission"]
-                                < min_permission_level[permission_required]
-                            ):
-                                logger.error(
-                                    f"user ({_user_from_session}) does not have {permission_required} permission for {folder_path}"
-                                )
-                                return False
-                else:
-                    # Folder chain, must have at least Execute permission
-                    if check_folder["folder_owner"] != user_uid:
-                        if user_belong_to_group is True:
-                            if (
-                                check_folder["group_permission"]
-                                < min_permission_level[permission_required]
-                            ):
-                                logger.error(
-                                    f"user ({_user_from_session}) does not have {permission_required} permission for {folder_path}"
-                                )
-                                return False
-                        else:
-                            if (
-                                check_folder["other_permission"]
-                                < min_permission_level["execute"]
-                            ):
-                                logger.error(
-                                    f"user ({_user_from_session}) does not have EXECUTE permission for {folder_path}"
-                                )
-                                return False
-
-            folder_level += 1
-
-        _duration_time_ms = (time.perf_counter_ns() - _start_time) / 1_000_000
-        logger.debug(f"check permission completed in {_duration_time_ms} ms")
-        logger.info("Permissions valid.")
-        return True
-    except FileNotFoundError:
-        return False
-
-
 @my_files.route("/my_files", methods=["GET"])
 @login_required
+@feature_flag(flag_name="FILE_BROWSER", mode="view")
 def index():
     try:
-        path = request.args.get("path", None)
+        path = request.args.get("path")
+        path = path or f"{config.Config.USER_HOME}/{session.get('user')}"
 
-        if path is None:
-            path = config.Config.USER_HOME + "/" + session["user"]
-        else:
-            path = path
+        path = pathlib.Path(path).resolve()
 
         timestamp = datetime.now(timezone.utc).strftime("%s")
-
-        logger.info(f"User {session['user']} trying to access {path=}")
-
         ts = request.args.get("ts", None)
 
         if ts is None:
             if path is None:
-                return redirect("/my_files?ts=" + timestamp)
+                return redirect(f"/my_files?ts={timestamp}")
             else:
-                return redirect("/my_files?path=" + path + "&ts=" + timestamp)
+                return redirect(f"/my_files?path={path}&ts={timestamp}")
 
         filesystem = {}
         breadcrumb = {}
 
-        # Clean Path
-        if path != "/":
-            if path.endswith("/"):
-                return redirect("/my_files?path=" + path[:-1])
-        if ".." in path:
-            return redirect("/my_files")
-
         if (
-            user_has_permission(
-                path=path, permission_required="read", permission_type="folder"
+            check_user_permission(
+                path=path, permissions=Permissions.READ, user=session.get("user", None)
             )
             is False
         ):
-            if path == config.Config.USER_HOME + "/" + session["user"]:
+            if path == f"{config.Config.USER_HOME}/{session['user']}":
                 flash(
                     "SOCA cannot access your home directory. Please ask an admin to set your folder ACLs to 750"
                 )
@@ -389,16 +175,16 @@ def index():
 
         # Build breadcrumb
         count = 1
-        for level in path.split("/"):
+        for level in str(path).split("/"):
             if level == "":
                 breadcrumb["/"] = "root"
             else:
-                breadcrumb["/".join(path.split("/")[:count])] = level
+                breadcrumb["/".join(str(path).split("/")[:count])] = level
 
             count += 1
 
         # Retrieve files/folders
-        if CACHE_FOLDER_CONTENT_PREFIX + path not in cache.keys():
+        if CACHE_FOLDER_CONTENT_PREFIX + str(path) not in cache.keys():
             is_cached = False
             logger.debug(f"Cache miss for {path=}")
             try:
@@ -406,9 +192,9 @@ def index():
                     if not entry.name.startswith("."):
                         try:
                             filesystem[entry.name] = {
-                                "path": path + "/" + entry.name,
+                                "path": f"{path}/{entry.name}",
                                 "uid": encrypt(
-                                    path + "/" + entry.name, entry.stat().st_size
+                                    f"{path}/{entry.name}", entry.stat().st_size
                                 )["message"],
                                 "type": "folder" if entry.is_dir() else "file",
                                 "st_size": convert_size(entry.stat().st_size),
@@ -420,9 +206,9 @@ def index():
                             flash(
                                 f"{entry.name} returned an error and cannot be displayed: {err}"
                             )
-                cache[CACHE_FOLDER_CONTENT_PREFIX + path] = filesystem
+                cache[CACHE_FOLDER_CONTENT_PREFIX + str(path)] = filesystem
 
-            except Exception as err:
+            except OSError as err:
                 if err.errno == errno.EPERM:
                     flash(
                         "Sorry we could not access this location due to a permission error. If you recently changed the permissions, please allow up to 10 minutes for sync.",
@@ -435,10 +221,14 @@ def index():
                 else:
                     flash("Could not locate the directory: " + str(err), "error")
                 return redirect("/my_files")
+            except Exception as err:
+                logger.error(f"Unable to access directory due to {err}")
+                flash("Could not locate the directory: " + str(err), "error")
+                return redirect("/my_files")
         else:
             logger.debug(f"Cache hit for {path}")
             is_cached = True
-            filesystem = cache[CACHE_FOLDER_CONTENT_PREFIX + path]
+            filesystem = cache[CACHE_FOLDER_CONTENT_PREFIX + str(path)]
 
         get_all_uid = [
             file_info["uid"]
@@ -448,7 +238,6 @@ def index():
 
         return render_template(
             "my_files.html",
-            user=session["user"],
             filesystem=OrderedDict(
                 sorted(filesystem.items(), key=lambda t: t[0].lower())
             ),
@@ -472,6 +261,7 @@ def index():
 
 @my_files.route("/my_files/download", methods=["GET"])
 @login_required
+@feature_flag(flag_name="FILE_BROWSER", mode="view")
 def download():
     uid = request.args.get("uid", None)
     if uid is None:
@@ -488,7 +278,14 @@ def download():
         file_information = decrypt(files_to_download[0])
         if file_information["success"] is True:
             file_info = json.loads(file_information["message"])
-            if user_has_permission(file_info["file_path"], "read", "file") is False:
+            if (
+                check_user_permission(
+                    path=file_info.get("file_path", ""),
+                    permissions=Permissions.READ,
+                    user=session.get("user", None),
+                )
+                is False
+            ):
                 flash(
                     " You are not authorized to download this file or this file is no longer available on the filesystem"
                 )
@@ -498,7 +295,7 @@ def download():
             if current_user == file_info["file_owner"]:
                 try:
                     return send_file(
-                        file_info["file_path"],
+                        file_info.get("file_path", ""),
                         as_attachment=True,
                         download_name=file_info["file_path"].split("/")[-1],
                     )
@@ -510,7 +307,7 @@ def download():
                 return redirect("/my_files")
 
         else:
-            flash("Unable to download " + file_information["message"], "error")
+            flash("Unable to download " + file_information.get("message"), "error")
             return redirect("/my_files")
     else:
         valid_file_path = []
@@ -520,7 +317,14 @@ def download():
             file_information = decrypt(file_to_download)
             if file_information["success"] is True:
                 file_info = json.loads(file_information["message"])
-                if user_has_permission(file_info["file_path"], "read", "file") is False:
+                if (
+                    check_user_permission(
+                        path=file_info["file_path"],
+                        permissions=Permissions.READ,
+                        user=session.get("user", None),
+                    )
+                    is False
+                ):
                     flash(
                         "You are not authorized to download this file or this file is no longer available on the filesystem"
                     )
@@ -591,9 +395,10 @@ def download():
 
 @my_files.route("/my_files/download_all", methods=["GET"])
 @login_required
+@feature_flag(flag_name="FILE_BROWSER", mode="view")
 def download_all():
-    path = request.args.get("path", None)
-    if path is None:
+    path = request.args.get("path", "")
+    if not path:
         return redirect("/my_files")
     allow_download = config.Config.ALLOW_DOWNLOAD_FROM_PORTAL
     if allow_download is not True:
@@ -636,7 +441,14 @@ def download_all():
     total_size = 0
     total_files = 0
     for file_name, file_info in filesystem.items():
-        if user_has_permission(file_info["path"], "read", "file") is False:
+        if (
+            check_user_permission(
+                path=file_info["path"],
+                permissions=Permissions.READ,
+                user=session.get("user"),
+            )
+            is False
+        ):
             flash(
                 "You are not authorized to download some files (double check if your user own ALL files in this directory)."
             )
@@ -695,14 +507,20 @@ def download_all():
 
 @my_files.route("/my_files/upload", methods=["POST"])
 @login_required
+@feature_flag(flag_name="FILE_BROWSER", mode="view")
 def upload():
-    path = request.form["path"]
+    path = request.form.get("path", "")
     file_list = request.files.getlist("file")
     if not path:
         return redirect("/my_files")
     if not file_list:
         return redirect("/my_files")
-    if user_has_permission(path, "write", "folder") is False:
+    if (
+        check_user_permission(
+            path=path, permissions=Permissions.WRITE, user=session.get("user", "")
+        )
+        is False
+    ):
         flash(
             f"You are not authorized to upload in this location ({path}). If you recently changed the permissions, please allow up to 10 minutes for sync"
         )
@@ -723,52 +541,63 @@ def upload():
 
 @my_files.route("/my_files/create_folder", methods=["POST"])
 @login_required
+@feature_flag(flag_name="FILE_BROWSER", mode="view")
 def create():
     if "folder_name" not in request.form.keys() or "path" not in request.form.keys():
         return redirect("/my_files")
-    try:
-        folder_name = request.form["folder_name"]
-        folder_path = request.form["path"]
-        folder_to_create = folder_path + folder_name
+    folder_name = request.form.get("folder_name", "")
+    folder_path = request.form.get("path", "")
+    if not folder_path or not folder_name:
+        logger.error(f"{folder_path=} or {folder_name=} are not set")
+        return redirect("/my_files")
 
-        if user_has_permission(folder_path, "write", "folder") is False:
+    folder_to_create = pathlib.Path(f"{folder_path}/{folder_name}")
+    folder_location = folder_to_create.parent
+    try:
+        logger.info(f"About to create {folder_to_create=}")
+        if (
+            check_user_permission(
+                path=folder_location,
+                permissions=Permissions.WRITE,
+                user=session.get("user", ""),
+            )
+            is False
+        ):
             flash(
-                "You do not have write permission on this folder. If you recently changed the permissions, please allow up to 10 minutes for sync.",
+                f"You do not have write permission on {folder_location=} If you recently changed the permissions, please allow up to 10 minutes for sync.",
                 "error",
             )
-            return redirect("/my_files?path=" + folder_path)
+            return redirect(f"/my_files?path={folder_path}")
 
         access_right = 0o750
         os.makedirs(folder_to_create, access_right)
         change_ownership(folder_to_create)
         if CACHE_FOLDER_CONTENT_PREFIX + folder_path[:-1] in cache.keys():
             del cache[CACHE_FOLDER_CONTENT_PREFIX + folder_path[:-1]]
-        flash(folder_to_create + " created successfully.", "success")
+        flash(f"{folder_to_create} created successfully.", "success")
     except OSError as err:
         if err.errno == errno.EEXIST:
             flash("This folder already exist, choose a different name", "error")
         else:
             flash(
-                "Unable to create: "
-                + folder_path
-                + folder_name
-                + ". Error: "
-                + str(err.errno),
+                f"Unable to create: {folder_to_create}. Check logs for more details.{str(err.errno)}",
                 "error",
             )
+            logger.error(f"Unable to create: {folder_to_create}. {str(err.errno)}")
 
     except Exception as err:
         logger.error(err)
-        flash("Unable to create: " + folder_path + folder_name, "error")
+        flash(f"Unable to create: {folder_to_create}", "error")
 
-    return redirect("/my_files?path=" + folder_path)
+    return redirect(f"/my_files?path={folder_path}")
 
 
 @my_files.route("/my_files/delete", methods=["GET"])
 @login_required
+@feature_flag(flag_name="FILE_BROWSER", mode="view")
 def delete():
-    uid = request.args.get("uid", None)
-    if uid is None:
+    uid = request.args.get("uid", "")
+    if not uid:
         return redirect("/my_files")
 
     file_information = decrypt(uid)
@@ -776,7 +605,14 @@ def delete():
         file_info = json.loads(file_information["message"])
         try:
             if os.path.isfile(file_info["file_path"]):
-                if user_has_permission(file_info["file_path"], "write", "file") is True:
+                if (
+                    check_user_permission(
+                        path=file_info.get("file_path", ""),
+                        permissions=Permissions.WRITE,
+                        user=session.get("user", ""),
+                    )
+                    is True
+                ):
                     os.remove(file_info["file_path"])
                     if (
                         CACHE_FOLDER_CONTENT_PREFIX
@@ -802,7 +638,11 @@ def delete():
                 ]
                 if len(files_in_folder) == 0:
                     if (
-                        user_has_permission(file_info["file_path"], "write", "folder")
+                        check_user_permission(
+                            path=file_info["file_path"],
+                            permissions=Permissions.WRITE,
+                            user=session.get("user", ""),
+                        )
                         is True
                     ):
                         os.rmdir(file_info["file_path"])
@@ -851,12 +691,18 @@ def delete():
 
 @my_files.route("/my_files/flush_cache", methods=["POST"])
 @login_required
+@feature_flag(flag_name="FILE_BROWSER", mode="view")
 def flush_cache():
     path = request.form["path"]
     if not path:
         return redirect("/my_files")
     else:
-        if user_has_permission(path, "read", "folder") is True:
+        if (
+            check_user_permission(
+                path=path, permissions=Permissions.READ, user=session.get("user", "")
+            )
+            is True
+        ):
             if CACHE_FOLDER_CONTENT_PREFIX + path in cache.keys():
                 del cache[CACHE_FOLDER_CONTENT_PREFIX + path]
                 flash("Cache updated with the latest revision of the folder", "success")
@@ -867,15 +713,23 @@ def flush_cache():
 
 @my_files.route("/editor", methods=["GET"])
 @login_required
+@feature_flag(flag_name="FILE_BROWSER", mode="view")
 def editor():
-    uid = request.args.get("uid", None)
-    if uid is None:
+    uid = request.args.get("uid", "")
+    if not uid:
         return redirect("/my_files")
 
     file_information = decrypt(uid)
     if file_information["success"] is True:
         file_info = json.loads(file_information["message"])
-        if user_has_permission(file_info["file_path"], "write", "file") is False:
+        if (
+            check_user_permission(
+                path=file_info["file_path"],
+                permissions=Permissions.WRITE,
+                user=session.get("user", ""),
+            )
+            is False
+        ):
             flash(
                 "You are not authorized to download this file or this file is no longer available on the filesystem"
             )
@@ -883,7 +737,10 @@ def editor():
 
         text = get(
             config.Config.FLASK_ENDPOINT + "/api/system/files",
-            headers={"X-SOCA-TOKEN": config.Config.API_ROOT_KEY},
+            headers={
+                "X-SOCA-USER": session["user"],
+                "X-SOCA-TOKEN": session["api_key"],
+            },
             params={"file": file_info["file_path"]},
             verify=False,  # nosec
         )
@@ -930,13 +787,11 @@ def editor():
             file_to_edit=file_info["file_path"],
             file_data=file_data.split("\n"),
             file_syntax=file_syntax,
-            user=session["user"],
             api_key=session["api_key"],
         )
     else:
         flash(
-            "Unable to access the file. Please try again:  "
-            + file_information["message"],
+            "Unable to access the file. Please try again:  " + str(file_information),
             "error",
         )
         return redirect("/my_files")

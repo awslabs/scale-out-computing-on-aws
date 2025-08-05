@@ -5,6 +5,9 @@
 
 {% include "templates/linux/common.sh.j2" %}
 
+# Validate umask
+{% include "templates/linux/umask.sh.j2" %}
+
 log_info "Setup Start Date: $(date)"
 
 # Prevent script to be executed twice (or more)
@@ -63,7 +66,7 @@ set_environment_variable "SOCA_CONTROLLER_IP" "$(hostname -I)"
 {% include "templates/linux/nodejs.sh.j2" %}
 
 # Install required Node modules
-npm install --prefix "/opt/soca/{{ context.get("/configuration/ClusterId") }}/cluster_manager/web_interface/static" monaco-editor@0.52.0
+${SOCA_BOOTSTRAP_ASSETS_FOLDER}/node/bin/npm install --prefix "/opt/soca/{{ context.get("/configuration/ClusterId") }}/cluster_manager/web_interface/static" monaco-editor@0.52.0
 
 # Reload OpenPBS
 systemctl restart pbs
@@ -88,6 +91,9 @@ echo "
 
 */10 * * * * source /etc/environment; \
  /opt/soca/{{ context.get("/configuration/ClusterId") }}/cluster_manager/analytics/wrapper.sh desktop_hosts_tracking
+
+*/10 * * * * source /etc/environment; \
+ /opt/soca/{{ context.get("/configuration/ClusterId") }}/cluster_manager/analytics/wrapper.sh target_nodes_tracking
 
 ########################
 # Cluster Log Management

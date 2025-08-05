@@ -10,6 +10,7 @@ from utils.error import SocaError
 from utils.response import SocaResponse
 from utils.cast import SocaCastEngine
 import utils.aws.boto3_wrapper as utils_boto3
+import utils.aws.cloudformation_helper as cloudformation_helper
 import time
 from datetime import datetime, timedelta, timezone
 import pytz
@@ -26,11 +27,10 @@ logger = logging.getLogger("scheduled_tasks_virtual_desktops_schedule_management
 
 client_ec2 = utils_boto3.get_boto(service_name="ec2").message
 client_ssm = utils_boto3.get_boto(service_name="ssm").message
-client_cloudformation = utils_boto3.get_boto(service_name="cloudformation").message
 
 
 def ssm_get_command_info(
-    os_family: Literal["linux", "windows"]
+    os_family: Literal["linux", "windows"],
 ) -> Union[SocaResponse, SocaError]:
     """
     Returns the SSM command & document name to run based on the operating system
@@ -490,7 +490,10 @@ def process_chunk(vdi_sessions: list[VirtualDesktopSessions]):
         _sessions_schedule_stop = [
             session
             for session in _sessions_outside_of_grace_period
-            if _now_in_minutes > json.loads(session.schedule).get(_day).get("stop")
+            if (
+                _now_in_minutes < json.loads(session.schedule).get(_day).get("start")
+                or _now_in_minutes > json.loads(session.schedule).get(_day).get("stop")
+            )
             and session.session_state == "running"
         ]
         if _sessions_schedule_stop:
@@ -613,9 +616,11 @@ def auto_terminate_stopped_instance(app: Flask):
                     logger.info(
                         f"Desktop {session_info.session_uuid} is ready to be terminated, last access time {_session_state_latest_change_time}, stop after idle time (hours): {_terminate_stopped_instance_after}"
                     )
-                    try:
-                        client_cloudformation.delete_stack(StackName=_stack_name)
-                    except Exception as err:
+
+                    _delete_stack = cloudformation_helper.delete_stack(
+                        stack_name=_stack_name
+                    )
+                    if _delete_stack.get("success") is False:
                         return SocaError.GENERIC_ERROR(
                             helper=f"Unable to terminate instance {_stack_name} due to {err}"
                         )

@@ -3,31 +3,24 @@
 
 # Begin: Install NodeJS
 
-# Usage: Ensure NVM_DIR environment variable is added to /etc/environment when nodejs is installed.
+# Usage: Ensure NodeJS  environment is installed as SOCA Web Interface needs some specific modules
 function install_nodejs () {
   pushd "${SOCA_BOOTSTRAP_ASSETS_FOLDER}"
-  local NVM_URL="{{ context.get("/system/nvm/url") }}"
-  local NVM_SHA256="{{ context.get("/system/nvm/sha256") }}"
-
-  {% if context.get("/configuration/BaseOS") == "amazonlinux2023" %}
-  local NODE_VERSION="{{ context.get("/system/nvm/node_version") }}"
-  {% else %}
-  # Older distro don't have support for required GLIBC_2.27 / GLIBC_2.28  required by Node 18+
-  local NODE_VERSION="17.9.0"
-  {% endif %}
+  local NODEJS_URL="{{ context.get("/system/nodejs/url") }}"
+  local NODEJS_SHA256="{{ context.get("/system/nodejs/sha256") }}"
 
   # Install NodeJS/NPM if needed
   if ! command -v npm; then
-    log_info "npm not detected, installing it ... "
-    export NVM_DIR="${SOCA_BOOTSTRAP_ASSETS_FOLDER}/nvm/$(date +%s)/.nvm"
-    mkdir -p ${NVM_DIR}
-    log_info "Downloading ${NVM_URL}"
-    file_download --download-url="${NVM_URL}" --save-as="install_node.sh" --sha256-checksum="${NVM_SHA256}"
-    chmod +x install_node.sh
-    /bin/bash install_node.sh
-    source "${NVM_DIR}/nvm.sh"  # This loads nvm
-    source "${NVM_DIR}/bash_completion"
-    nvm install ${NODE_VERSION}
+    log_info "npm not detected, installing node ... "
+    export SOCA_NODEJS_DIR="${SOCA_BOOTSTRAP_ASSETS_FOLDER}/node/"
+    mkdir -p ${SOCA_NODEJS_DIR}
+    file_download --download-url="${NODEJS_URL}" --save-as="nodejs.tar.xz" --sha256-checksum="${NODEJS_SHA256}"
+    tar xvf "./nodejs.tar.xz" -C "${SOCA_NODEJS_DIR}" --strip-components=1
+    # attention, this path is loaded only for the current shell
+    # add to your profile or re-export if planning to use post shell reload
+    export PATH=${SOCA_BOOTSTRAP_ASSETS_FOLDER}/node/bin:$PATH
+  else
+    log_info "npm/node is already installed on this machine"
   fi
   popd
 }

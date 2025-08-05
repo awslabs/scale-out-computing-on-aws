@@ -40,9 +40,7 @@ def index():
         )
         all_queues = []
 
-    return render_template(
-        "admin/queues.html", user=session["user"], all_queues=all_queues
-    )
+    return render_template("admin/queues.html", all_queues=all_queues)
 
 
 @admin_queues.route("/admin/queues/create", methods=["POST"])

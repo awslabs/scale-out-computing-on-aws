@@ -1,0 +1,28 @@
+---
+# SOCA AMI List for commercial partition generated 2025-08-01 20:57:46 UTC
+eu-west-3:
+  x86_64:
+    amazonlinux2: ami-08b8615ce07009c39
+    amazonlinux2023: ami-0cce68a01b615024a
+    rhel10: ami-0cfda8538783a8826
+    rhel7: ami-0af9a7147a096d743
+    rhel8: ami-095ce16b90f2025bd
+    rhel9: ami-03bc18513b510213f
+    rocky8: ami-07b9b3580fd50d52d
+    rocky9: ami-05e6a5fbf52bcf86a
+    ubuntu2204: ami-0fc9df40a6c4cc53c
+    ubuntu2404: ami-03d7944d35381a611
+    windows2019: ami-03440f0d88fea1060
+    windows2022: ami-0a611cbb83ff7034c
+    windows2025: ami-02479628b16e2316c
+  arm64:
+    amazonlinux2: ami-03fc7a9e81685e49e
+    amazonlinux2023: ami-082e9c1cb817af391
+    rhel10: ami-0b8f2b4d40614ad80
+    rhel8: ami-037d4165bb3537742
+    rhel9: ami-0b6a596042e9344b3
+    rocky8: ami-0e9181a90bb5ae7b5
+    rocky9: ami-06a716075f219a248
+    ubuntu2204: ami-0bbeecfe5196eab29
+    ubuntu2404: ami-007bbe7f3bf791805
+# SOCA AMI List for commercial partition generated 2025-08-01 20:57:46 UTC

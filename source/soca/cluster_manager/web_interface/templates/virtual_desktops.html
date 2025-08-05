@@ -320,11 +320,17 @@
                                                               </button>
                                                           </div>
                                                           <div class="modal-body">
-                                                              {% for k,v in user_sessions[session_data.session_uuid].items() %}
-                                                              {% if k not in ["session_thumbnail", "session_token", "connection_string", "connection_string_authenticator", "authentication_token", "deactivated_on", "deactivated_by", "session_local_admin_password"] %}
-                                                                <strong>{{k}}</strong>: {{v}} <br>
-                                                              {% endif %}
-                                                              {% endfor %}
+                                                            {% for k,v in user_sessions[session_data.session_uuid].items() %}
+                                                                {% if k not in ["session_thumbnail", "session_token", "connection_string", "connection_string_authenticator", "authentication_token", "deactivated_on", "deactivated_by"] %}
+                                                                    {% if k == "session_local_admin_password" %} 
+                                                                        {% if v %}
+                                                                            <strong>{{k}}</strong>: {{v}} <br>
+                                                                        {% endif %} 
+                                                                    {% else %}
+                                                                        <strong>{{k}}</strong>: {{v}} <br>
+                                                                    {% endif %}
+                                                                {% endif %}
+                                                            {% endfor %}
                                                           </div>
                                                       </div>
                                                   </div>
@@ -524,110 +530,110 @@
 
                                                                         <script>
                                                                             document.addEventListener('DOMContentLoaded', function() {
-                                    const modal = document.getElementById('schedule-{{DCV_CARD_UUID}}');
+                                                                             const modal = document.getElementById('schedule-{{DCV_CARD_UUID}}');
 
-                                    if (modal) {
-                                        modal.addEventListener('shown.bs.modal', function() {
-                                            const schedule = JSON.parse({{ session_data.schedule | tojson }});
-                                            const globalAmpmSelect = document.getElementById('global-ampm-select-{{DCV_CARD_UUID}}');
-                                            const scheduleInput = document.getElementById('schedule-input-{{DCV_CARD_UUID}}');
-                                            const form = modal.querySelector('form');
+                                                                        if (modal) {
+                                                                            modal.addEventListener('shown.bs.modal', function() {
+                                                                                const schedule = JSON.parse({{ session_data.schedule | tojson }});
+                                                                                const globalAmpmSelect = document.getElementById('global-ampm-select-{{DCV_CARD_UUID}}');
+                                                                                const scheduleInput = document.getElementById('schedule-input-{{DCV_CARD_UUID}}');
+                                                                                const form = modal.querySelector('form');
 
-                                            // Time formatting
-                                            function formatTime(value, format) {
-                                                let hours = Math.floor(value);
-                                                let minutes = Math.round((value % 1) * 60);
+                                                                                // Time formatting
+                                                                                function formatTime(value, format) {
+                                                                                    let hours = Math.floor(value);
+                                                                                    let minutes = Math.round((value % 1) * 60);
 
-                                                if (value === 24) {
-                                                    return format === '12h' ? '12:00 AM (Next Day)' : '24:00';
-                                                }
+                                                                                    if (value === 24) {
+                                                                                        return format === '12h' ? '12:00 AM (Next Day)' : '24:00';
+                                                                                    }
 
-                                                if (format === '12h') {
-                                                    const period = hours >= 12 ? 'PM' : 'AM';
-                                                    hours = hours % 12 || 12;
-                                                    return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')} ${period}`;
-                                                }
+                                                                                    if (format === '12h') {
+                                                                                        const period = hours >= 12 ? 'PM' : 'AM';
+                                                                                        hours = hours % 12 || 12;
+                                                                                        return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')} ${period}`;
+                                                                                    }
 
-                                                return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
-                                            }
+                                                                                    return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
+                                                                                }
 
-                                            // Get schedule values in minutes
-                                            function getScheduleInMinutes() {
-                                                const result = {};
+                                                                                // Get schedule values in minutes
+                                                                                function getScheduleInMinutes() {
+                                                                                    const result = {};
 
-                                                Object.keys(schedule).forEach(day => {
-                                                    const slider = document.getElementById(`slider-{{DCV_CARD_UUID}}-${day}`);
-                                                    if (slider) {
-                                                        const values = slider.noUiSlider.get();
-                                                        const startMinutes = Math.round(parseFloat(values[0]) * 60);
-                                                        const stopMinutes = Math.round(parseFloat(values[1]) * 60);
+                                                                                    Object.keys(schedule).forEach(day => {
+                                                                                        const slider = document.getElementById(`slider-{{DCV_CARD_UUID}}-${day}`);
+                                                                                        if (slider) {
+                                                                                            const values = slider.noUiSlider.get();
+                                                                                            const startMinutes = Math.round(parseFloat(values[0]) * 60);
+                                                                                            const stopMinutes = Math.round(parseFloat(values[1]) * 60);
 
-                                                        result[day] = {
-                                                            start: startMinutes,
-                                                            stop: stopMinutes
-                                                        };
-                                                    }
-                                                });
+                                                                                            result[day] = {
+                                                                                                start: startMinutes,
+                                                                                                stop: stopMinutes
+                                                                                            };
+                                                                                        }
+                                                                                    });
 
-                                                return JSON.stringify(result);
-                                            }
+                                                                                    return JSON.stringify(result);
+                                                                                }
 
-                                            // Update sliders for time format
-                                            function updateAllSliders(format) {
-                                                Object.keys(schedule).forEach(day => {
-                                                    const slider = document.getElementById(`slider-{{DCV_CARD_UUID}}-${day}`);
-                                                    if (slider) {
-                                                        slider.noUiSlider.updateOptions({
-                                                            tooltips: [
-                                                                { to: value => formatTime(value, format), from: value => value },
-                                                                { to: value => formatTime(value, format), from: value => value }
-                                                            ]
-                                                        });
-                                                    }
-                                                });
-                                            }
+                                                                                // Update sliders for time format
+                                                                                function updateAllSliders(format) {
+                                                                                    Object.keys(schedule).forEach(day => {
+                                                                                        const slider = document.getElementById(`slider-{{DCV_CARD_UUID}}-${day}`);
+                                                                                        if (slider) {
+                                                                                            slider.noUiSlider.updateOptions({
+                                                                                                tooltips: [
+                                                                                                    { to: value => formatTime(value, format), from: value => value },
+                                                                                                    { to: value => formatTime(value, format), from: value => value }
+                                                                                                ]
+                                                                                            });
+                                                                                        }
+                                                                                    });
+                                                                                }
 
-                                            // Time format selector (12h/24h)
-                                            if (globalAmpmSelect) {
-                                                globalAmpmSelect.addEventListener('change', function() {
-                                                    updateAllSliders(this.value);
-                                                });
-                                            }
+                                                                                // Time format selector (12h/24h)
+                                                                                if (globalAmpmSelect) {
+                                                                                    globalAmpmSelect.addEventListener('change', function() {
+                                                                                        updateAllSliders(this.value);
+                                                                                    });
+                                                                                }
 
-                                            // Initialize sliders
-                                            Object.keys(schedule).forEach(day => {
-                                                const slider = document.getElementById(`slider-{{DCV_CARD_UUID}}-${day}`);
-                                                if (slider) {
-                                                    noUiSlider.create(slider, {
-                                                        start: [schedule[day].start / 60, schedule[day].stop / 60],
-                                                        connect: true,
-                                                        range: { min: 0, max: 24 },
-                                                        step: 0.25,
-                                                        tooltips: [
-                                                            { to: value => formatTime(value, '24h'), from: value => value },
-                                                            { to: value => formatTime(value, '24h'), from: value => value }
-                                                        ]
-                                                    });
+                                                                                // Initialize sliders
+                                                                                Object.keys(schedule).forEach(day => {
+                                                                                    const slider = document.getElementById(`slider-{{DCV_CARD_UUID}}-${day}`);
+                                                                                    if (slider) {
+                                                                                        noUiSlider.create(slider, {
+                                                                                            start: [schedule[day].start / 60, schedule[day].stop / 60],
+                                                                                            connect: true,
+                                                                                            range: { min: 0, max: 24 },
+                                                                                            step: 0.25,
+                                                                                            tooltips: [
+                                                                                                { to: value => formatTime(value, '24h'), from: value => value },
+                                                                                                { to: value => formatTime(value, '24h'), from: value => value }
+                                                                                            ]
+                                                                                        });
 
-                                                    const modeSelect = document.getElementById(`mode-{{DCV_CARD_UUID}}-${day}`);
-                                                    if (modeSelect) {
-                                                        modeSelect.addEventListener('change', function() {
-                                                            if (this.value === 'stopped') slider.noUiSlider.set([0, 0]);
-                                                            if (this.value === 'run') slider.noUiSlider.set([0, 24]);
-                                                            if (this.value === 'custom') slider.noUiSlider.set([schedule[day].start / 60, schedule[day].stop / 60]);
-                                                        });
-                                                    }
-                                                }
-                                            });
+                                                                                        const modeSelect = document.getElementById(`mode-{{DCV_CARD_UUID}}-${day}`);
+                                                                                        if (modeSelect) {
+                                                                                            modeSelect.addEventListener('change', function() {
+                                                                                                if (this.value === 'stopped') slider.noUiSlider.set([0, 0]);
+                                                                                                if (this.value === 'run') slider.noUiSlider.set([0, 24]);
+                                                                                                if (this.value === 'custom') slider.noUiSlider.set([schedule[day].start / 60, schedule[day].stop / 60]);
+                                                                                            });
+                                                                                        }
+                                                                                    }
+                                                                                });
 
-                                            // Update hidden input before form submission
-                                            form.addEventListener('submit', function() {
-                                                const scheduleString = getScheduleInMinutes();
-                                                scheduleInput.value = scheduleString;
-                                            });
-                                        });
-                                    }
-                                    });
+                                                                                // Update hidden input before form submission
+                                                                                form.addEventListener('submit', function() {
+                                                                                    const scheduleString = getScheduleInMinutes();
+                                                                                    scheduleInput.value = scheduleString;
+                                                                                });
+                                                                            });
+                                                                        }
+                                                                        });
 
                                                                         </script>
                                                                     </div>
@@ -676,18 +682,18 @@
                                             <div class="tab-pane fade show active" id="pills-home" role="tabpanel" aria-labelledby="pills-home-tab">
                                                 <form method="POST" action="/virtual_desktops/create">
                                                     <div class="form-group row">
-                                                        <label for="session_name" data-toggle="tooltip" data-placement="top" title="Pick a simple name to identify your graphical session" class="col-sm-2 col-form-label">Session Name</label>
+                                                        <label for="session_name" data-toggle="tooltip" data-placement="top" title="Pick a simple name to identify your graphical session" class="col-sm-2 col-form-label"><i class="fa-solid fa-tag"></i> Session Name</label>
                                                         <div class="col-sm-10">
                                                             <input id="session_name" class="form-control" value="My Virtual Desktop #{{ CURRENT_SESSION_COUNT + 1 }}" type="text" name="session_name" required maxlength="30" oninput="checkSessionName()">
                                                         </div>
                                                     </div>
 
                                                     <div class="form-group row">
-                                                        <label for="selectBaseOS" data-toggle="tooltip" data-placement="top" title="Select the operating system for your virtual desktop" class="col-sm-2 col-form-label">Operating System</label>
+                                                        <label for="selectBaseOS" data-toggle="tooltip" data-placement="top" title="Select the operating system for your virtual desktop" class="col-sm-2 col-form-label"><i class="fa-brands fa-windows"></i> Operating System</label>
                                                         <div class="col-sm-10" id="divSelectBaseOS">
                                                             <select name="base_os" required class="form-control" id="selectBaseOS" onchange="filterAMIbyOS()">
                                                                 <option value="" selected disabled>Choose your Operating System</option>
-                                                                {% for base_os in software_stacks.values() | map(attribute='ami_base_os') | unique | list %}
+                                                                {% for base_os in software_stacks | map(attribute='ami_base_os') | unique | list %}
                                                                 <option value="{{ base_os }}">{{ base_os_labels.get(base_os).get('friendly_name', base_os) }}</option>
                                                                 {% endfor %}
                                                             </select>
@@ -695,14 +701,14 @@
                                                     </div>
 
                                                     <div class="form-group row">
-                                                        <label for="selectAMI" data-toggle="tooltip" data-placement="top" title="Select an image with pre-installed applications or use the default vanilla image" class="col-sm-2 col-form-label">Software Stack</label>
+                                                        <label for="selectAMI" data-toggle="tooltip" data-placement="top" title="Select an image with pre-installed applications or use the default vanilla image" class="col-sm-2 col-form-label"><i class="fa-solid fa-sliders"></i> Software Stack</label>
                                                         <div required class="col-sm-10" id="divSelectAMI" style="display: none;">
                                                             <select name="software_stack_id" class="form-control" id="selectAMI" onchange="updateInstanceTypes()"></select>
                                                         </div>
                                                     </div>
 
                                                     <div class="form-group row">
-                                                        <label for="selectInstanceType" data-toggle="tooltip" data-placement="top" title="Select the instance type to provision" class="col-sm-2 col-form-label">Session Type</label>
+                                                        <label for="selectInstanceType" data-toggle="tooltip" data-placement="top" title="Select the instance type to provision" class="col-sm-2 col-form-label"><i class="fa-solid fa-microchip"></i> Session Type</label>
                                                         <div class="col-sm-10" id="divSelectInstanceType" style="display: none;">
                                                             <select name="instance_type" required class="form-control" id="selectInstanceType"></select>
                                                             <small class="form-text text-muted">EC2 Instance Types you are authorized to deploy for this software stack. Manage list via <a href="/admin/virtual_desktops/profiles">SOCA VDI Profiles.</a></small>
@@ -710,11 +716,20 @@
                                                     </div>
 
                                                     <div class="form-group row">
-                                                        <label for="selectReview" data-toggle="tooltip" data-placement="top" title="Review" class="col-sm-2 col-form-label">Review</label>
-                                                        <div class="col-sm-10" id="selectReview" style="display: none;">
-                                                            <input required id="disk_size" value="100" min="100" class="form-control" type="number" name="disk_size">
-                                                            <small class="form-text text-muted">Storage Size for your main partition (<kbd>/</kbd> for Linux, <kbd>C:</kbd> for Windows)</small>
+                                                        <label for="project" data-toggle="tooltip" data-placement="top" title="Select the SOCA Projects and optional AWS Budget for this desktop" class="col-sm-2 col-form-label"><i class="fa-solid fa-folder-open"></i> Project</label>
+                                                        <div class="col-sm-10" id="divSelectProject" style="display: none;">
+                                                            <select name="project" required class="form-control" id="project"></select>
+                                                            <small class="form-text text-muted">SOCA projects you are authorized to use for this stack. Resources will use the assigned budget if specified. Manage list via <a href="/admin/projects">SOCA Projects.</a></small>
+                                                        </div>
+                                                    </div>
 
+                                                    <div class="form-group row">
+                                                        <label for="selectReview" data-toggle="tooltip" data-placement="top" title="Review" class="col-sm-2 col-form-label"><i class="fa-solid fa-check"></i> Review</label>
+                                                        <div class="col-sm-10" id="selectReview" style="display: none;">
+                                                            <div class="form-group">
+                                                                <input required id="disk_size" value="100" min="100" class="form-control" type="number" name="disk_size">
+                                                                <small class="form-text text-muted">Storage Size for your main partition (<kbd>/</kbd> for Linux, <kbd>C:</kbd> for Windows)</small>
+                                                            </div>
                                                             <hr>
 
                                                             <button class="btn btn-info btn-sm" type="button" data-bs-toggle="collapse" data-bs-target="#advancedOptions" aria-expanded="false">
@@ -736,7 +751,7 @@
                                                                 </select>
                                                                 <small class="form-text text-muted">Tenancy defines how EC2 instances are distributed across physical hardware.</small>
                                                                 <br>
-                                                                <select class="form-control" name="tenancy">
+                                                                <select class="form-control" name="hibernate">
                                                                     <option value="false" selected>No</option>
                                                                     <option value="true">Yes</option>
                                                                 </select>
@@ -794,137 +809,273 @@
     </a>
 
         {% include 'common/footer.html' %}
-
-
     <script>
-                                                    const softwareStack = {{ software_stacks | tojson }};
+        const softwareStack = {{ software_stacks | tojson }};
 
-                                                    function checkSessionName() {
-                                                        const sessionNameInput = document.getElementById('session_name').value.trim();
-                                                        const divSelectBaseOS = document.getElementById('divSelectBaseOS');
-                                                        const divSelectAMI = document.getElementById('divSelectAMI');
-                                                        const divSelectInstanceType = document.getElementById('divSelectInstanceType');
-                                                        const divSelectReview = document.getElementById('selectReview');
-                                                        const launchButton = document.getElementById('launchButton');
+        function flushSelectMenus() {
+            const selectedOS = document.getElementById('selectBaseOS')?.value || '';
+            const selectInstanceType = document.getElementById('selectInstanceType');
+            const selectProject = document.getElementById('project');
+            const selectAMI = document.getElementById('selectAMI');
+            selectAMI.innerHTML = '<option value="" selected disabled>Choose a SOCA software stack for ' + selectedOS + '</option>';
+            selectInstanceType.innerHTML = '<option value="" selected disabled>Choose an Instance Type supported for this Software Stack</option>';
+            selectProject.innerHTML = '<option value="" selected disabled>Select a SOCA Project</option>'
+        }
 
-                                                        if (sessionNameInput.length > 0) {
-                                                            divSelectBaseOS.style.display = 'block';
-                                                        } else {
-                                                            divSelectBaseOS.style.display = 'none';
-                                                            divSelectAMI.style.display = 'none';
-                                                            divSelectInstanceType.style.display = 'none';
-                                                            divSelectReview.style.display = 'none'
-                                                            launchButton.style.display = 'none';
-                                                        }
-                                                    }
+        function checkSessionName() {
+            const sessionNameInput = document.getElementById('session_name').value.trim();
+            const divSelectBaseOS = document.getElementById('divSelectBaseOS');
+            const divSelectAMI = document.getElementById('divSelectAMI');
+            const divSelectProject = document.getElementById('divSelectProject');
+            const divSelectInstanceType = document.getElementById('divSelectInstanceType');
+            const divSelectReview = document.getElementById('selectReview');
+            const launchButton = document.getElementById('launchButton');
 
-                                                    function filterAMIbyOS() {
-                                                        const selectedOS = document.getElementById('selectBaseOS').value;
-                                                        const divSelectAMI = document.getElementById('divSelectAMI');
-                                                        const selectAMI = document.getElementById('selectAMI');
-                                                        const divSelectInstanceType = document.getElementById('divSelectInstanceType');
-                                                        const selectInstanceType = document.getElementById('selectInstanceType');
-                                                        const selectReview = document.getElementById('selectReview');
-                                                        const launchButton = document.getElementById('launchButton');
+            if (sessionNameInput.length > 0) {
+                divSelectBaseOS.style.display = 'block';
+            } else {
+                divSelectBaseOS.style.display = 'none';
+                divSelectAMI.style.display = 'none';
+                divSelectInstanceType.style.display = 'none';
+                divSelectProject.style.display = 'none';
+                divSelectReview.style.display = 'none'
+                launchButton.style.display = 'none';
+                flushSelectMenus()
 
-                                                        // Clear selections and hide everything below OS selection
-                                                        selectAMI.innerHTML = '<option value="" selected disabled>Choose a SOCA software stack for ' + selectedOS + '</option>';
-                                                        selectInstanceType.innerHTML = '<option value="" selected disabled>Choose an Instance Type supported for this Software Stack</option>';
-
-                                                        divSelectInstanceType.style.display = 'none';
-                                                        selectReview.style.display = 'none';
-                                                        launchButton.style.display = 'none';
-
-                                                        // Filter softwareStack to find matching OS
-                                                        Object.values(softwareStack).forEach(software_stack => {
-                                                            if (software_stack.ami_base_os === selectedOS) {
-                                                                const option = document.createElement('option');
-                                                                option.value = software_stack.id;
-                                                                option.textContent = `ID: ${software_stack.id} - ${software_stack.stack_name} (${software_stack.ami_arch}) - ${software_stack.ami_id} - Created on ${software_stack.created_on}`;
-                                                                selectAMI.appendChild(option);
-                                                            }
-                                                        });
-
-                                                        divSelectAMI.style.display = selectAMI.options.length > 0 ? 'block' : 'none';
-                                                    }
-
-                                                    function updateInstanceTypes() {
-                                                        const selectedOption = document.getElementById('selectAMI').selectedOptions[0];
-                                                        const selectedAMI = softwareStack[selectedOption.value];
-                                                        const divSelectInstanceType = document.getElementById('divSelectInstanceType');
-                                                        const selectInstanceType = document.getElementById('selectInstanceType');
-                                                        const selectReview = document.getElementById('selectReview');
-                                                        const diskSizeInput = document.getElementById('disk_size');
-                                                        const selectVpcSubnet = document.getElementById('subnet_id');
-                                                        const launchButton = document.getElementById('launchButton');
-
-                                                        const allowedSubnetIds = softwareStack[selectedOption.value].allowed_subnet_ids;
-                                                        // Randomize the array using sort() with Math.random()
-                                                        allowedSubnetIds.sort(() => Math.random() - 0.5);
-
-                                                        // Reset everything on AMI change
-                                                        selectInstanceType.innerHTML = '<option value="" selected disabled>Choose an Instance Type</option>';
-                                                        selectReview.style.display = 'none';
-                                                        launchButton.style.display = 'none';
-
-                                                        if (selectedAMI && selectedAMI.allowed_instance_types) {
-                                                            const sortedInstanceTypes = selectedAMI.allowed_instance_types.sort();
-
-                                                            sortedInstanceTypes.forEach((instanceType, index) => {
-                                                                const option = document.createElement('option');
-                                                                option.value = instanceType;
-                                                                option.textContent = instanceType;
-
-                                                                // Automatically select if there's only one option
-                                                                if (sortedInstanceTypes.length === 1) {
-                                                                    option.selected = true;
-                                                                    selectReview.style.display = 'block';
-                                                                    launchButton.style.display = 'block';
-                                                                }
-
-                                                                selectInstanceType.appendChild(option);
-                                                            });
+            }
+        }
 
 
-                                                            divSelectInstanceType.style.display = 'block';
+        function filterAMIbyOS() {
+            const selectedOS = document.getElementById('selectBaseOS').value;
+            const divSelectAMI = document.getElementById('divSelectAMI');
+            const selectAMI = document.getElementById('selectAMI');
+            const divSelectInstanceType = document.getElementById('divSelectInstanceType');
+            const divSelectProject = document.getElementById('divSelectProject');
+            const selectReview = document.getElementById('selectReview');
+            const launchButton = document.getElementById('launchButton');
 
-                                                            // Populate the VPC Select Subnet element with options
-                                                            selectVpcSubnet.innerHTML = '';
-                                                            allowedSubnetIds.forEach(subnetId => {
-                                                                const option = document.createElement('option');
-                                                                option.value = subnetId;
-                                                                option.textContent = subnetId;
-                                                                selectVpcSubnet.appendChild(option);
-                                                            });
+            flushSelectMenus()
 
-                                                            // Set disk size and min from selected AMI
-                                                            diskSizeInput.value = selectedAMI.ami_root_disk_size;
-                                                            diskSizeInput.min = selectedAMI.ami_root_disk_size;
-                                                            diskSizeInput.max = selectedAMI.max_root_size;
-                                                        } else {
-                                                            divSelectInstanceType.style.display = 'none';
-                                                        }
+            divSelectInstanceType.style.display = 'none';
+            selectReview.style.display = 'none';
+            launchButton.style.display = 'none';
+            divSelectProject.style.display = 'none';
 
-                                                        // Handle instance type selection
-                                                        selectInstanceType.onchange = function () {
-                                                            if (selectInstanceType.value) {
-                                                                selectReview.style.display = 'block';
-                                                                launchButton.style.display = 'inline-block';
-                                                            } else {
-                                                                selectReview.style.display = 'none';
-                                                                launchButton.style.display = 'none';
-                                                            }
-                                                        };
-                                                    }
+            // Filter softwareStack to find matching OS
+            Object.values(softwareStack).forEach(software_stack => {
+                if (software_stack.ami_base_os === selectedOS) {
+                    const option = document.createElement('option');
+                    option.value = software_stack.id;
+                    option.textContent = `ID: ${software_stack.id} - ${software_stack.stack_name} (${software_stack.ami_arch}) - ${software_stack.ami_id} - Created on ${software_stack.created_on.split('.')[0]}`;
+                    selectAMI.appendChild(option);
+                }
+            });
 
-                                                    // generate software stack grid view
-                                                    $(document).ready(function () {
-                                                        // Convert JSON to an array format for easier processing
-                                                       var data = Object.keys(softwareStack)
-                                                        .map(key => {
-                                                            let item = softwareStack[key];
-                                                            return {
-                                                                name: key,
+            divSelectAMI.style.display = selectAMI.options.length > 0 ? 'block' : 'none';
+        }
+
+        const sizeRank = (type) => {
+            // Try to extract a number before "xlarge"
+            const numMatch = type.match(/(\d+)xlarge/);
+            if (numMatch) return parseInt(numMatch[1]);
+
+            // Fallback to named sizes
+            if (/nano/.test(type)) return 0.1;
+            if (/micro/.test(type)) return 0.2;
+            if (/small/.test(type)) return 0.3;
+            if (/medium/.test(type)) return 0.4;
+            if (/large/.test(type) && !/xlarge/.test(type)) return 0.5;
+            if (/xlarge/.test(type)) return 0.6;
+            
+            if (/metal/.test(type)) {
+                const metalMatch = type.match(/metal-?(\d+)/i); // matches 'metal-24xl' '48-xl' etc 
+                const metalSize = metalMatch ? parseInt(metalMatch[1], 10) : 0;
+                return 1000 + metalSize;
+            }
+
+            return 0;
+        };
+
+        function updateInstanceTypes() {
+            const selectedOption = document.getElementById('selectAMI').selectedOptions[0];
+            const selectedAMI = softwareStack.find(item => item.id === parseInt(selectedOption.value, 10));
+            const divSelectInstanceType = document.getElementById('divSelectInstanceType');
+            const selectInstanceType = document.getElementById('selectInstanceType');
+            const diskSizeInput = document.getElementById('disk_size');
+            const selectVpcSubnet = document.getElementById('subnet_id');
+            const divSelectProject = document.getElementById('divSelectProject');
+            const selectProject = document.getElementById('project');
+            const launchButton = document.getElementById('launchButton');
+            const divSelectReview = document.getElementById('selectReview');
+
+            const allowedProjects = selectedAMI.allowed_projects;
+            const allowedSubnetIds = selectedAMI.profile.allowed_subnet_ids.split(',');
+
+            allowedSubnetIds.sort(() => Math.random() - 0.5);
+
+            selectProject.innerHTML = '';
+            divSelectProject.style.display = 'none';
+            divSelectReview.style.display = 'none';
+            launchButton.style.display = 'none';
+
+            if (updateInstanceTypes.instanceChoices) {
+                updateInstanceTypes.instanceChoices.destroy();
+            }
+
+            if (selectedAMI) {
+                const getInstanceTypes = JSON.parse(selectedAMI.profile.allowed_instance_types);
+                const findInstancesTypeForArch = getInstanceTypes[selectedAMI.ami_arch];
+                const sortedInstanceTypes = findInstancesTypeForArch.sort();
+
+                selectInstanceType.innerHTML = '<option value="" selected disabled>Choose an Instance Type</option>';
+
+                const groupedInstances = {};
+
+                // Group instance types by prefix (family)
+                sortedInstanceTypes.forEach(type => {
+                    const group = type.split('.')[0];
+                    if (!groupedInstances[group]) {
+                        groupedInstances[group] = [];
+                    }
+                    groupedInstances[group].push(type);
+                });
+
+                // Sort each group by instance size
+                for (const group in groupedInstances) {
+                    groupedInstances[group].sort((a, b) => sizeRank(b) - sizeRank(a));
+                }
+
+                
+                const sortedGroupKeys = Object.keys(groupedInstances).sort((a, b) => {
+                const extract = (str) => {
+                    const gen = parseInt(str.match(/\d+/)?.[0] || '0', 10);
+                    const prefix = str.match(/^[a-z]+/i)?.[0] || '';
+                    return { gen, prefix };
+                };
+
+                const aParts = extract(a);
+                const bParts = extract(b);
+
+                if (aParts.gen !== bParts.gen) {
+                    return bParts.gen - aParts.gen; // Descending generation
+                }
+                return aParts.prefix.localeCompare(bParts.prefix); // Alphabetical family if same generation
+            });
+
+                // Build select options using sorted groups
+                sortedGroupKeys.forEach(group => {
+                    const optgroup = document.createElement('optgroup');
+                    optgroup.label = group;
+
+                    groupedInstances[group].forEach(type => {
+                        const option = document.createElement('option');
+                        option.value = type;
+                        option.text = type;
+                        optgroup.appendChild(option);
+                    });
+
+                    selectInstanceType.appendChild(optgroup);
+                });
+
+                divSelectInstanceType.style.display = 'block';
+
+                // Initialize Choices
+                updateInstanceTypes.instanceChoices = new Choices(selectInstanceType, {
+                    searchEnabled: true,
+                    itemSelectText: '',
+                    shouldSort: false,
+                    placeholder: true,
+                    searchPlaceholderValue: 'Type to search an instance type...',
+                    allowHTML: true,
+                    searchResultLimit: -1,
+                });
+
+                // Prepare Choices data
+                const choicesData = [];
+                sortedGroupKeys.forEach(group => {
+                    choicesData.push({
+                        label: `<span style="color:#000000; font-weight:bold;">=== Instance Family: ${group} ===</span>`,
+                        id: group,
+                        disabled: true,
+                    });
+
+                    groupedInstances[group].forEach(type => {
+                        choicesData.push({
+                            label: type,
+                            value: type,
+                            customProperties: { group },
+                        });
+                    });
+                });
+
+                updateInstanceTypes.instanceChoices.setChoices(choicesData, 'value', 'label', true);
+
+                selectVpcSubnet.innerHTML = '';
+                allowedSubnetIds.forEach(subnetId => {
+                    const option = document.createElement('option');
+                    option.value = subnetId;
+                    option.textContent = subnetId;
+                    selectVpcSubnet.appendChild(option);
+                });
+
+                diskSizeInput.value = selectedAMI.ami_root_disk_size;
+                diskSizeInput.min = selectedAMI.ami_root_disk_size;
+                diskSizeInput.max = selectedAMI.profile.max_root_size;
+            } else {
+                divSelectInstanceType.style.display = 'none';
+            }
+
+            // Instance type selection logic
+            selectInstanceType.onchange = function () {
+                if (selectInstanceType.value) {
+                    divSelectProject.style.display = 'block';
+                    selectProject.innerHTML = '<option value="" selected disabled>Select a SOCA Project</option>';
+                    allowedProjects.forEach(projectName => {
+                        const option = document.createElement('option');
+                        option.value = projectName;
+                        option.textContent = projectName;
+                        selectProject.appendChild(option);
+                    });
+                } else {
+                    divSelectProject.style.display = 'none';
+                }
+
+                updateProject();
+            };
+
+            updateProject();
+        }
+
+        function updateProject() {
+            const selectProject = document.getElementById('project');
+            const divSelectReview = document.getElementById('selectReview');
+            const launchButton = document.getElementById('launchButton');
+
+            if (selectProject.value) {
+                divSelectReview.style.display = 'block';
+                launchButton.style.display = 'inline-block';
+            } else {
+                divSelectReview.style.display = 'none';
+                launchButton.style.display = 'none';
+            }
+
+            selectProject.onchange = function () {
+                updateProject(); // Re-check value and update visibility
+            };
+        }
+
+
+
+
+        // generate software stack grid view
+        $(document).ready(function () {
+            // Convert JSON to an array format for easier processing
+            var data = softwareStack
+                .filter(item => item.id !== undefined) // Ensure valid ids
+                .map(item => ({
+                                                                stack_id: item.id,
+                                                                name: item.stack_name,
                                                                 ami_id: item.ami_id,
                                                                 ami_arch: item.ami_arch,
                                                                 ami_base_os: item.ami_base_os,
@@ -933,13 +1084,11 @@
                                                                 stack_name: item.stack_name,
                                                                 thumbnail: item.thumbnail,
                                                                 description: item.description,
-                                                                software_stack_id: item.id,
-                                                                profile_name: item.profile_name,
+                                                                profile_name: item.profile.profile_name,
+                                                                profile_id: item.profile.id,
                                                                 os_family: item.os_family
-                                                            };
-                                                        })
-                                                        .filter(item => item.software_stack_id !== undefined) // Ensure valid ids
-                                                        .sort((a, b) => b.software_stack_id - a.software_stack_id); // Sort descending
+                                                            }))
+                                                            .sort((a, b) => b.stack_id - a.stack_id); // Sort descending
 
                                                         var itemsPerPage = 12;
                                                         var currentPage = 1;
@@ -952,7 +1101,7 @@
                                                             if (filteredData.length === 0) {
                                                                 var noDataMessage = `
                                                                     <div class="col-12 text-center">
-                                                                        <h3>No software stack available to be deployed. Verify SOCA Projects membership.</h3>
+                                                                        <h3>No software stack found. Please verify that you’ve been added to the appropriate <a href="/admin/projects">SOCA projects</a>. If the issue persists, contact your SOCA administrator.</h3>
                                                                     </div>
                                                                 `;
                                                                 gridContainer.append(noDataMessage);
@@ -978,13 +1127,13 @@
                                                                                 <div class="card-body" style="padding: 0.2rem;">
                                                                                     <strong>${item.stack_name}</strong>
                                                                                     <hr>
-                                                                                    <p class="card-text">${item.description}</p>
-                                                                                    <small class="text-muted">AMI ID: ${item.ami_id} <br> VDI Profile: ${item.profile_name} <br> Stack ID: ${item.software_stack_id} </small>
+                                                                                    <p class="card-text">${item.description || 'No Description Provided'}</p>
+                                                                                    <small class="text-muted"> <hr> AMI ID: ${item.ami_id} <br> <span>Profile ID: ${item.profile_id} | Stack ID: ${item.stack_id} </span></small>
                                                                                 </div>
                                                                                 <div class="card-footer text-center">
                                                                                     <button type="button" class="btn btn-success select-ami-btn"
                                                                                         data-base-os="${item.ami_base_os}"
-                                                                                        data-software-stack-id="${item.software_stack_id}"
+                                                                                        data-software-stack-id="${item.stack_id}"
                                                                                         data-arch="${item.ami_arch}">
                                                                                         Select this Stack
                                                                                     </button>

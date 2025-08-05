@@ -58,15 +58,17 @@
         if [[ -z "${MOUNT_TARGET}" ]]; then
           exit_fail "--mount-target not set for mount_efs"
         else
-          local EFS_ENDPOINT=$(aws_cli efs describe-mount-targets --file-system-id ${MOUNT_TARGET} --query "MountTargets[?AvailabilityZoneName=='$(instance_az)'].IpAddress" --output text)
+          # Trim to FS-ID only for the next query
+          local MOUNT_TARGET_ID=$(echo ${MOUNT_TARGET} | cut -d'.' -f1)
+          local EFS_ENDPOINT=$(aws_cli efs describe-mount-targets --file-system-id ${MOUNT_TARGET_ID} --query "MountTargets[?AvailabilityZoneName=='$(instance_az)'].IpAddress" --output text)
           if [[ -z ${EFS_ENDPOINT} ]]; then
-             exit_fail "Unable to find Mount Target for ${MOUNT_TARGET}"
+             exit_fail "Unable to find Mount Target for ${MOUNT_TARGET_ID}"
           fi
           ENDPOINT="${EFS_ENDPOINT}:/"
         fi
 
         if fstab_wrapper "${ENDPOINT} ${MOUNT_PATH} nfs4 ${MOUNT_OPTIONS} 0 0"; then
-          log_info "Successfully mounted ${ENDPOINT} as ${MOUNT_PATH}"
+          log_info "Successfully mounted ${ENDPOINT} as ${MOUNT_PATH} (${MOUNT_TARGET_ID})"
         else
           if [[ "${ON_MOUNT_FAILURE}" == "exit" ]]; then
             exit_fail "Unable to mount ${ENDPOINT} as ${MOUNT_PATH}"

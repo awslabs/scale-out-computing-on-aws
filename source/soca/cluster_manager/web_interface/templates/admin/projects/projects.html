@@ -39,64 +39,229 @@
                                 </div>
                                     <div class="card-body">
                                         <div class="alert alert-primary">
-                                            SOCA Projects let you control visibility for your <a href="/admin/virtual_desktops/software_stacks" target="_blank">Virtual Desktop Software stacks</a>.
+                                            SOCA Projects let you control visibility for your <a href="/admin/virtual_desktops/software_stacks" target="_blank">Virtual Desktop Software stacks</a> and <a href="/admin/target_nodes/software_stacks" target="_blank">Target Nodes Software stacks</a>.
                                         </div>
 
                                         <form action="/admin/projects/create" method="post">
-                                            <div class="form-group">
-                                                <label for="project_name" data-toggle="tooltip" data-placement="top"
-                                                       title="Name for your project">Project Name</label>
-                                                <input id="project_name" placeholder="Friendly Name for your project"
-                                                       class="form-control"
-                                                       type="text"
-                                                       required name="project_name">
+                                          <div class="form-group row">
+                                            <label for="project_name" class="col-md-2 col-form-label" data-toggle="tooltip" data-placement="top" title="Name for your project">
+                                              Project Name
+                                            </label>
+                                            <div class="col-md-10">
+                                              <input id="project_name" placeholder="Friendly Name for your project" class="form-control" type="text" required name="project_name">
                                             </div>
+                                          </div>
 
-                                            <div class="form-group">
-                                                <label for="description" data-toggle="tooltip" data-placement="top"
-                                                       title="Description of your Project">Project Description
-                                                </label>
-                                                <textarea id="description" placeholder="(Optional) Description for your project maximum 500 characters."
-                                                          class="form-control" rows="3"  name="description"></textarea>
+                                          <div class="form-group row">
+                                            <label for="aws_budget" class="col-md-2 col-form-label" data-toggle="tooltip" data-placement="top" title="Control AWS resource deployment authorization via AWS Budget">
+                                              Associated AWS Budget
+                                            </label>
+                                            <div class="col-md-10">
+                                              <select class="form-control" id="aws_budget" name="aws_budget">
+                                                <option value="" selected>No Budget</option>
+                                                {% for budget_name in budgets %}
+                                                <option value="{{ budget_name }}">{{ budget_name }}</option>
+                                                {% endfor %}
+                                              </select>
                                             </div>
+                                          </div>
 
-                                            <div class="form-group">
-                                                <label for="allowed_users" data-toggle="tooltip" data-placement="top"
-                                                       title="Name for your project">Allowed Users</label>
-                                                <input id="allowed_users"
-                                                       class="form-control"
-                                                       type="text"
-                                                       name="allowed_users" value="*" data-ub-tag-variant="primary">
-                                                <small>Notes:
-                                                    <ul>
+                                          <div class="form-group row">
+                                            <label for="description" class="col-md-2 col-form-label" data-toggle="tooltip" data-placement="top" title="Description of your Project">
+                                              Description
+                                            </label>
+                                            <div class="col-md-10">
+                                              <textarea id="description" class="form-control" rows="3" name="description" placeholder="(Optional) Description for your project (maximum 500 characters)."></textarea>
+                                            </div>
+                                          </div>
+
+                                          <!-- User/Group ACL -->
+                                          <div class="form-group row">
+                                            <label for="project_name" class="col-md-2 col-form-label" data-toggle="tooltip" data-placement="top" title="List of allowed/denied users or group">
+                                              Users/Groups Permissions
+                                            </label>
+                                            <div class="col-md-10">
+                                              <nav>
+                                                <div class="nav nav-tabs" id="nav-tab" role="tablist">
+                                                  <a class="nav-item nav-link active" id="nav-home-tab" data-bs-toggle="tab" href="#users"
+                                                    role="tab" aria-controls="nav-home" aria-selected="true">Users Permissions</a>
+                                                  <a class="nav-item nav-link" id="nav-profile-tab" data-bs-toggle="tab" href="#groups"
+                                                    role="tab" aria-controls="nav-delete" aria-selected="false">Groups Permissions</a>
+                                                </div>
+                                              </nav>
+
+                                              <!-- Tab Content -->
+                                              <div class="tab-content" id="accessControlContent">
+                                                <br>
+
+                                                <!-- USERS TAB -->
+                                                <div class="tab-pane fade show active" id="users" role="tabpanel">
+
+                                                  <!-- Allowed Users -->
+                                                  <div class="form-group mb-3">
+                                                    <label for="allowed_users" data-bs-toggle="tooltip" title="List of allowed users">
+                                                      <strong>Allowed Users</strong>
+                                                    </label>
+                                                    <div class="row g-2 align-items-center">
+                                                      <div class="col-md-3">
+                                                        <div class="input-group">
+                                                          <select class="form-control" id="user_select">
+                                                            <option value="*">All users</option>
+                                                            {% for user in all_users %}
+                                                            <option value="{{ user }}">{{ user }}</option>
+                                                            {% endfor %}
+                                                          </select>
+                                                          <button class="btn btn-primary" type="button" id="add_user_btn">Add</button>
+                                                        </div>
+                                                      </div>
+                                                      <div class="col-md-9">
+                                                        <input id="allowed_users" class="form-control" name="allowed_users" value="*" data-ub-tag-variant="primary">
+                                                      </div>
+                                                    </div>
+                                                    <small>
+                                                      <ul>
                                                         <li>Must be a valid SOCA user</li>
-                                                        <li>Enter <code>*</code> to grant permissions to all users</li>
-                                                        <li>Leave it blank to remove access for all users</li>
+                                                        <li>Use <code>*</code> to allow all users</li>
+                                                        <li>Leave blank to remove access</li>
+                                                      </ul>
+                                                    </small>
+                                                  </div>
 
-                                                    </ul>
-                                                </small>
+                                                  <!-- Denied Users -->
+                                                  <div class="form-group mb-3">
+                                                    <label for="denied_users" data-bs-toggle="tooltip" title="List of denied users">
+                                                      <strong>Denied Users</strong>
+                                                    </label>
+                                                    <input id="denied_users" class="form-control mb-2" name="denied_users" data-ub-tag-variant="primary">                
+                                                  </div>
+                                                  <small>
+                                                      <ul>
+                                                        <li>Must be a valid SOCA user</li>
+                                                        <li>Use <code>*</code> to deny all</li>
+                                                        <li>Deny takes precedence over allow</li>
+                                                      </ul>
+                                                    </small>
+                                                </div>
+
+                                                <!-- GROUPS TAB -->
+                                                <div class="tab-pane fade" id="groups" role="tabpanel">
+
+                                                  <!-- Allowed Groups -->
+                                                  <div class="form-group mb-3">
+                                                    <label for="allowed_groups" data-bs-toggle="tooltip" title="List of allowed groups">
+                                                      <strong>Allowed Groups</strong>
+                                                    </label>
+                                                    <div class="row g-2 align-items-center">
+                                                      <div class="col-md-3">
+                                                        <div class="input-group">
+                                                          <select class="form-control" id="group_select">
+                                                            {% for group in all_groups %}
+                                                            <option value="{{ group }}">{{ group }}</option>
+                                                            {% endfor %}
+                                                          </select>
+                                                          <button class="btn btn-primary" type="button" id="add_group_btn">Add</button>
+                                                        </div>
+                                                      </div>
+                                                      <div class="col-md-9">
+                                                        <input id="allowed_groups" class="form-control" name="allowed_groups" data-ub-tag-variant="primary">
+                                                      </div>
+                                                    </div>
+                                                    <small>
+                                                      <ul>
+                                                        <li>Must be a valid SOCA group</li>
+                                                      </ul>
+                                                    </small>
+                                                  </div>
+
+                                                  <!-- Denied Groups -->
+                                                  <div class="form-group mb-3">
+                                                    <label for="denied_groups" data-bs-toggle="tooltip" title="List of denied groups">
+                                                      <strong>Denied Groups</strong>
+                                                    </label>
+                                                    <input id="denied_groups" class="form-control mb-2" name="denied_groups" data-ub-tag-variant="primary">
+                                                    <small>
+                                                      <ul>
+                                                        <li>Must be a valid SOCA group</li>
+                                                        <li>Deny takes precedence over allow</li>
+                                                        <li>Users in denied groups will be denied even if individually allowed</li>
+                                                      </ul>
+                                                    </small>
+                                                  </div>
+                                                </div>
+                                              </div>
                                             </div>
+                                          </div>
 
-                                             <div class="form-group">
-                                                  <label for="software_stack_ids" data-toggle="tooltip" data-placement="top"
-                                                       title="List of authorized software stacks">Authorized VDI Software Stacks (select all that apply)</label>
-                                                <div class="alert alert-warning" id="numberOfSelectedStacks"></div>
-                                                 <select class="form-control" style="height: 500px;" id="software_stack_ids" name="software_stack_ids" multiple>
-                                                        {% for software_stack_id, software_stack_info in software_stacks.items() %}
-                                                            <option selected value="{{ software_stack_id }}">
-                                                                ID: {{software_stack_id}} - {{ software_stack_info.stack_name }} ({{software_stack_info.ami_arch}})
-                                                            </option>
-                                                        {% endfor %}
-                                                    </select>
-                                             </div>
+                                                                           
 
-                                            <div>
-                                                <input type="hidden" name="csrf_token"
-                                                       value="{{ csrf_token() }}">
-                                                <button type="submit" class="btn btn-primary btn-lg">Create new SOCA Project
-                                                </button>
+                                          <!-- Virtual Desktop Stacks -->
+                                          <div class="form-group row">
+                                            <label for="software_stack_ids" class="col-md-2 col-form-label" data-toggle="tooltip" data-placement="top" title="List of authorized Virtual Desktop Software Stacks">
+                                              Authorized <a target="_blank" href="/admin/virtual_desktops/software_stacks">Virtual Desktop Stacks</a>
+                                            </label>
+                                            <div class="col-md-10">
+                                              <div class="alert alert-warning" id="numberOfSelectedStacks"></div>
+                                              <button class="btn btn-secondary mb-2" type="button" data-bs-toggle="collapse" data-bs-target="#softwareStackSelect">
+                                                View/Manage Authorized Virtual Desktops Stacks
+                                              </button>
+                                              <div class="collapse" id="softwareStackSelect">
+                                                <select class="form-control" style="height: 500px;" id="software_stack_ids" name="software_stack_ids" multiple>
+                                                  {% for software_stack_id, software_stack_info in software_stacks.items() %}
+                                                  <option selected value="{{ software_stack_id }}">ID: {{software_stack_id}} - {{ software_stack_info.stack_name }} ({{software_stack_info.ami_arch}})</option>
+                                                  {% endfor %}
+                                                </select>
+                                              </div>
                                             </div>
+                                          </div>
+
+                                          <!-- Target Node Stacks -->
+                                          <div class="form-group row">
+                                            <label for="target_nodes_software_stack_ids" class="col-md-2 col-form-label" data-toggle="tooltip" data-placement="top" title="List of authorized Target node stacks">
+                                              Authorized <a target="_blank" href="/admin/target_nodes/software_stacks">Target Node Stacks</a>
+                                            </label>
+                                            <div class="col-md-10">
+                                              <div class="alert alert-warning" id="numberOfSelectedTargetNodeStacks"></div>
+                                              <button class="btn btn-secondary mb-2" type="button" data-bs-toggle="collapse" data-bs-target="#targetNodeSoftwareStackSelect">
+                                                View/Manage Authorized Target Nodes Stacks
+                                              </button>
+                                              <div class="collapse" id="targetNodeSoftwareStackSelect">
+                                                <select class="form-control" style="height: 500px;" id="target_nodes_software_stack_ids" name="target_nodes_software_stack_ids" multiple>
+                                                  {% for software_stack_id, software_stack_info in target_nodes_software_stacks.items() %}
+                                                  <option selected value="{{ software_stack_id }}">ID: {{software_stack_id}} - {{ software_stack_info.stack_name }} ({{software_stack_info.ami_arch}})</option>
+                                                  {% endfor %}
+                                                </select>
+                                              </div>
+                                            </div>
+                                          </div>
+
+                                          <!-- Application Profiles -->
+                                          <div class="form-group row">
+                                            <label for="application_profile_ids" class="col-md-2 col-form-label" data-toggle="tooltip" data-placement="top" title="List of authorized Application Profiles">
+                                              Authorized <a target="_blank" href="/admin/applications">Application Profiles</a>
+                                            </label>
+                                            <div class="col-md-10">
+                                              <div class="alert alert-warning" id="numberOfSelectedApplicationProfiles"></div>
+                                              <button class="btn btn-secondary mb-2" type="button" data-bs-toggle="collapse" data-bs-target="#ApplicationProfileSelect">
+                                                View/Manage Authorized Application Profiles
+                                              </button>
+                                              <div class="collapse" id="ApplicationProfileSelect">
+                                                <select class="form-control" style="height: 500px;" id="application_profile_ids" name="application_profile_ids" multiple>
+                                                  {% for application_id, application_data in application_profiles.items() %}
+                                                  <option selected value="{{ application_id }}">ID: {{application_id}} - {{ application_data.profile_name }}</option>
+                                                  {% endfor %}
+                                                </select>
+                                              </div>
+                                            </div>
+                                          </div>
+
+                                          <div class="form-group row">
+                                            <div class="col-md-9 offset-md-3">
+                                              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                              <button type="submit" class="btn btn-primary btn-lg">Create new SOCA Project</button>
+                                            </div>
+                                          </div>
                                         </form>
+
                                     </div>
                                 </div>
                             </div>
@@ -116,11 +281,17 @@
                                                     <select class="form-control" id="project_id" name="project_id">
                                                         {% for project_id, project_data in projects.items() %}
                                                         <option value="{{project_id}}"
-                                                        data-soca-allowed-users="{{project_data.allowed_users}}"
-                                                        data-soca-created-on="{{project_data.created_on}}"
-                                                        data-soca-created-by="{{project_data.created_by}}"
-                                                        data-soca-description="{{project_data.description}}"
-                                                        data-soca-allowed-software-stacks="{{project_data.software_stack_ids}}">ID: {{project_id}} - {{project_data.project_name}}
+                                                                data-soca-allowed-application-profiles="{{project_data.application_profile_ids}}"
+                                                                data-soca-allowed-users="{{project_data.allowed_users}}"
+                                                                data-soca-denied-users="{{project_data.denied_users}}"
+                                                                data-soca-allowed-groups="{{project_data.allowed_groups}}"
+                                                                data-soca-denied-groups="{{project_data.denied_groups}}"
+                                                                data-soca-created-on="{{project_data.created_on}}"
+                                                                data-soca-created-by="{{project_data.created_by}}"
+                                                                data-soca-budget="{{project_data.aws_budget}}"
+                                                                data-soca-description="{{project_data.description}}"
+                                                                data-soca-allowed-software-stacks="{{project_data.software_stack_ids}}"
+                                                                data-soca-allowed-target-node-software-stacks="{{project_data.target_node_software_stack_ids}}">ID: {{project_id}} - {{project_data.project_name}}
                                                         </option>
                                                     {% endfor %}
                                                     </select>
@@ -168,18 +339,41 @@
                     })
                 </script>
                     <script>
-
                         const selectElement = document.getElementById("software_stack_ids");
-    const countDiv = document.getElementById("numberOfSelectedStacks");
+                        const countDiv = document.getElementById("numberOfSelectedStacks");
 
-    function updateSelectedCount() {
-        const selectedCount = selectElement.selectedOptions.length;
-        countDiv.innerHTML = `You have selected: <strong>${selectedCount}</strong> Stacks for this profile`;
-    }
+                        function updateSelectedCount() {
+                            const selectedCount = selectElement.selectedOptions.length;
+                            countDiv.innerHTML = `You have selected: <strong>${selectedCount}</strong> Virtual Desktop Software Stacks for this project. (Use <kbd>Command+Click</kbd> or <kbd>Windows+Click</kbd> to select/unselect stacks)`;
+                        }
 
-    updateSelectedCount();
+                        updateSelectedCount();
+                        selectElement.addEventListener("change", updateSelectedCount);
 
-    selectElement.addEventListener("change", updateSelectedCount);
+
+                        const selectTargetNodeElement = document.getElementById("target_nodes_software_stack_ids");
+                        const countTargetNodeDiv = document.getElementById("numberOfSelectedTargetNodeStacks");
+
+                        function updateSelectedTargetNodeStackCount() {
+                            const selectedCount = selectTargetNodeElement.selectedOptions.length;
+                            countTargetNodeDiv.innerHTML = `You have selected: <strong>${selectedCount}</strong> Target Node Software Stacks for this project. (Use <kbd>Command+Click</kbd> or <kbd>Windows+Click</kbd> to select/unselect stacks)`;
+                        }
+
+                        updateSelectedTargetNodeStackCount();
+                        selectTargetNodeElement.addEventListener("change", updateSelectedTargetNodeStackCount);
+
+                        const selectApplicationProfileElement = document.getElementById("application_profile_ids");
+                        const countApplicationProfileDiv = document.getElementById("numberOfSelectedApplicationProfiles");
+
+                        function updateSelectedApplicationProfileCount() {
+                            const selectedCount = selectApplicationProfileElement.selectedOptions.length;
+                            countApplicationProfileDiv.innerHTML = `You have selected: <strong>${selectedCount}</strong> Applications for this project. (Use <kbd>Command+Click</kbd> or <kbd>Windows+Click</kbd> to select/unselect stacks)`;
+                        }
+
+                        updateSelectedApplicationProfileCount();
+                        selectApplicationProfileElement.addEventListener("change", updateSelectedApplicationProfileCount);
+
+
 
                         function submitEditForm() {
                             let form = document.getElementById('projectForm');
@@ -194,23 +388,63 @@
                         document.getElementById("projectInfo").innerHTML =
                             "<h3>Project Details:</h3> <hr>" +
                             "<strong>Allowed Users:</strong> " + selectedOption.getAttribute("data-soca-allowed-users") +
-                            "<br><strong><a href='/admin/virtual_desktops/software_stacks' target='_blank'>Allowed Software Stack IDs:</a></strong> " + selectedOption.getAttribute("data-soca-allowed-software-stacks") +
+                            "<br><strong>Denied Users:</strong> " + selectedOption.getAttribute("data-soca-denied-users") +
+                            "<br><strong>Allowed Groups:</strong> " + selectedOption.getAttribute("data-soca-allowed-groups") +
+                            "<br><strong>Denied Groups:</strong> " + selectedOption.getAttribute("data-soca-denied-groups") +
+                            "<br><strong><a href='/admin/virtual_desktops/software_stacks' target='_blank'>Allowed Virtual Desktop Software Stack IDs:</a></strong> " + selectedOption.getAttribute("data-soca-allowed-software-stacks") +
+                            "<br><strong><a href='/admin/target_nodes/software_stacks' target='_blank'>Allowed Target Node Software Stack IDs:</a></strong> " + selectedOption.getAttribute("data-soca-allowed-target-node-software-stacks") +
+                            "<br><strong><a href='/admin/applications' target='_blank'>Allowed Applications IDs:</a></strong> " + selectedOption.getAttribute("data-soca-allowed-application-profiles") +
                             "<br><strong>Description:</strong> " + selectedOption.getAttribute("data-soca-description") +
+                            "<br><strong>Budget:</strong> " + selectedOption.getAttribute("data-soca-budget") +
                             "<br><strong>Created By:</strong> " + selectedOption.getAttribute("data-soca-created-by") +
                             "<br><strong>Created On</strong> " + selectedOption.getAttribute("data-soca-created-on");
                         }
 
-                        const bootstrapTagInputBoxAllowedUsers = UseBootstrapTag(document.getElementById('allowed_users'));
 
                         document.addEventListener("DOMContentLoaded", function() {
                             updateProjectInfo(); // Call the function on page load
                             document.getElementById("project_id").addEventListener("change", updateProjectInfo);
                         });
+
+                        const bootstrapTagInputBoxDeniedUsers = UseBootstrapTag(document.getElementById('denied_users'));
+                        const bootstrapTagInputBoxAllowedUsers = UseBootstrapTag(document.getElementById('allowed_users'));
+                        const bootstrapTagInputBoxDeniedGroups = UseBootstrapTag(document.getElementById('denied_groups'));
+                        const bootstrapTagInputBoxAllowedGroups = UseBootstrapTag(document.getElementById('allowed_groups'));
+                        document.getElementById('add_user_btn').addEventListener('click', function () {
+                          const select = document.getElementById('user_select');
+                          const selectedUser = select.value.trim();
+
+                          if (selectedUser === '*') {
+                            // Clear all tags first
+                            const existingTags = bootstrapTagInputBoxAllowedUsers.getValues();
+                            if (existingTags.length > 0) {
+                              bootstrapTagInputBoxAllowedUsers.removeValue(existingTags);
+                            }
+                            // Add only '*'
+                            bootstrapTagInputBoxAllowedUsers.addValue('*');
+                          } else {
+                            // If '*' is already present, remove it before adding others
+                            const existingTags = bootstrapTagInputBoxAllowedUsers.getValues();
+                            if (existingTags.includes('*')) {
+                              bootstrapTagInputBoxAllowedUsers.removeValue('*');
+                            }
+                            // Add the selected user
+                            bootstrapTagInputBoxAllowedUsers.addValue(selectedUser);
+                          }
+                        });
+                        document.getElementById('add_group_btn').addEventListener('click', function () {
+                          const select = document.getElementById('group_select');
+                          const selectedGroup = select.value.trim();
+                           bootstrapTagInputBoxAllowedGroups.addValue(selectedGroup);
+                    
+                        });
                     </script>
+
                 </div>
             </div>
         </div>
     </div>
 </div>
+
 </body>
 </html>

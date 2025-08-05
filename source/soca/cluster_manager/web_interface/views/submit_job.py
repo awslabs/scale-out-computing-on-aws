@@ -13,17 +13,19 @@
 
 import logging
 import config
-from decorators import login_required
+from decorators import login_required, feature_flag
 from flask import render_template, request, redirect, session, flash, Blueprint
 from cryptography.fernet import Fernet, InvalidToken, InvalidSignature
 import json
 import base64
 from requests import post
-from views.my_files import decrypt, user_has_permission
+from views.my_files import decrypt
 from models import ApplicationProfiles
 from collections import OrderedDict
 import re
 import math
+from utils.jinjanizer import SocaJinja2Renderer
+from utils.http_client import SocaHttpClient
 
 logger = logging.getLogger("soca_logger")
 submit_job = Blueprint("submit_job", __name__, template_folder="templates")
@@ -35,6 +37,7 @@ MULTI_SELECT_DELIMITER = ","
 
 @submit_job.route("/submit_job", methods=["GET"])
 @login_required
+@feature_flag(flag_name="HPC", mode="view")
 def index():
     input_file = request.args.get("input_file", None)
     if input_file is None or input_file == "":
@@ -45,36 +48,62 @@ def index():
         )
         return redirect("/my_files")
 
-    application_profiles = {}
-    get_all_application_profiles = ApplicationProfiles.query.all()
-    for profile in get_all_application_profiles:
-        application_profiles[profile.id] = {
-            "profile_name": profile.profile_name,
-            "profile_thumbnail": profile.profile_thumbnail,
-        }
+    _get_authorized_application_profiles = SocaHttpClient(
+        endpoint=f"/api/user/resources_permissions",
+        headers={
+            "X-SOCA-USER": session["user"],
+            "X-SOCA-TOKEN": session["api_key"],
+        },
+    ).get(params={"application_profiles": "all"})
+
+    if _get_authorized_application_profiles.get("success") is False:
+        flash(
+            f"Unable to list software stack for this user because of {_get_authorized_application_profiles.get('message')}",
+            "error",
+        )
+        _application_profiles = {}
+    else:
+        _application_profiles = _get_authorized_application_profiles.get("message").get(
+            "application_profiles"
+        )
 
     return render_template(
         "submit_job.html",
-        user=session["user"],
-        application_profiles=OrderedDict(
-            sorted(
-                application_profiles.items(), key=lambda x: x[1]["profile_name"].lower()
-            )
-        ),
+        application_profiles=_application_profiles,
         input_file=False if input_file is None else input_file,
     )
 
 
 @submit_job.route("/submit_job", methods=["POST"])
 @login_required
+@feature_flag(flag_name="HPC", mode="view")
 def job_submission():
     if "app" not in request.form or "input_file" not in request.form:
         flash("Missing required parameters.", "error")
         return redirect("/submit_job")
 
     app = request.form["app"]
+
+    _get_authorized_application_profiles = SocaHttpClient(
+        endpoint=f"/api/user/resources_permissions",
+        headers={
+            "X-SOCA-USER": session["user"],
+            "X-SOCA-TOKEN": session["api_key"],
+        },
+    ).get(params={"application_profiles": f"{app}"})
+
+    if _get_authorized_application_profiles.get("success") is False:
+        flash(
+            f"Unable to list software stack for this user because of {_get_authorized_application_profiles.get('message')}",
+            "error",
+        )
+        return redirect("/submit_job")
+    else:
+        get_application_profile = _get_authorized_application_profiles.get(
+            "message"
+        ).get("application_profiles")
+
     input_file_info = request.form["input_file"]
-    get_application_profile = ApplicationProfiles.query.filter_by(id=app).first()
     if get_application_profile:
         file_info = decrypt(input_file_info)
         if file_info["success"] is not True:
@@ -84,20 +113,22 @@ def job_submission():
                 "error",
             )
             return redirect("/submit_job")
-        profile_form = base64.b64decode(get_application_profile.profile_form).decode()
-        profile_interpreter = get_application_profile.profile_interpreter
+        profile_form = base64.b64decode(
+            get_application_profile[0].get("profile_form")
+        ).decode()
+        profile_interpreter = get_application_profile[0].get("profile_interpreter")
         if profile_interpreter == "qsub":
             profile_interpreter = config.Config.PBS_QSUB
 
-        profile_job = get_application_profile.profile_job
-
+        profile_job = get_application_profile[0].get("profile_job")
+        profile_name = get_application_profile[0].get("profile_name")
         input_path = json.loads(file_info["message"])["file_path"]
         input_name = input_path.split("/")[-1]
         input_file_path = "/".join(input_path.split("/")[:-1])
 
         return render_template(
             "submit_job_selected_application.html",
-            profile_name=get_application_profile.profile_name,
+            profile_name=profile_name,
             user=session["user"],
             profile_form=profile_form,
             profile_job=profile_job,
@@ -110,12 +141,13 @@ def job_submission():
         )
 
     else:
-        flash("Application not found.", "error")
+        flash("Application not found or user is not authorized.", "error")
         return redirect("/submit_job")
 
 
 @submit_job.route("/submit_job/send", methods=["POST"])
 @login_required
+@feature_flag(flag_name="HPC", mode="view")
 def send_job():
     try:
         job_to_submit = base64.b64decode(request.form["job_script"]).decode()
@@ -183,6 +215,7 @@ def send_job():
                     + job_to_submit
                 )
 
+    params = {}
     for param_name in request.form:
         param_value = request.form.get(param_name)
 
@@ -198,20 +231,24 @@ def send_job():
 
         if param_name != "csrf_token":
             if param_name.lower() == "user":
-                job_to_submit = job_to_submit.replace(
-                    "%" + param_name + "%", session["user"]
-                )
+                params[param_name] = session["user"]
             elif param_name == "HOME":
-                job_to_submit = job_to_submit.replace(
-                    "%" + param_name + "%",
-                    config.Config.USER_HOME + "/" + session["user"],
-                )
+                params[param_name] = config.Config.USER_HOME + "/" + session["user"]
             else:
-                job_to_submit = job_to_submit.replace(
-                    "%" + param_name + "%", param_value
-                )
+                params[param_name] = param_value
 
-    payload = base64.b64encode(job_to_submit.encode()).decode()
+    soca_result = SocaJinja2Renderer().from_string(data=job_to_submit, variables=params)
+
+    if (soca_result).get("success") is True:
+        rendered_template = soca_result.get("message")
+    else:
+        flash(
+            "Error during job submission: " + str(soca_result.get("message")),
+            "error",
+        )
+        return redirect("/my_jobs")
+
+    payload = base64.b64encode(rendered_template.encode()).decode()
     send_to_to_queue = post(
         config.Config.FLASK_ENDPOINT + "/api/scheduler/job",
         headers={"X-SOCA-TOKEN": session["api_key"], "X-SOCA-USER": session["user"]},

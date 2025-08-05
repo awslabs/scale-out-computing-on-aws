@@ -15,7 +15,7 @@ import logging
 import config
 from flask import render_template, Blueprint, request, redirect, session, flash
 from requests import get, delete
-from decorators import login_required
+from decorators import login_required, feature_flag
 
 logger = logging.getLogger("soca_logger")
 my_api_key = Blueprint("my_api_key", __name__, template_folder="templates")
@@ -23,6 +23,7 @@ my_api_key = Blueprint("my_api_key", __name__, template_folder="templates")
 
 @my_api_key.route("/my_api_key", methods=["GET"])
 @login_required
+@feature_flag(flag_name="MY_API_KEY_MANAGEMENT", mode="view")
 def index():
     check_user_key = get(
         config.Config.FLASK_ENDPOINT + "/api/user/api_key",
@@ -38,7 +39,6 @@ def index():
 
     return render_template(
         "my_api_key.html",
-        user=session["user"],
         user_token=user_token,
         scheduler_host=request.host_url,
     )
@@ -46,6 +46,7 @@ def index():
 
 @my_api_key.route("/reset_api_key", methods=["POST"])
 @login_required
+@feature_flag(flag_name="MY_API_KEY_MANAGEMENT", mode="view")
 def reset_key():
     user = request.form.get("user", None)
     if user is not None:

@@ -51,7 +51,6 @@ def index():
 
     return render_template(
         "admin/virtual_desktops/list_all_virtual_desktops.html",
-        user=session["user"],
         virtual_desktops=_get_all_sessions.get("message"),
         page="admin_virtual_desktop_list_all",
     )

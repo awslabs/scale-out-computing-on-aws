@@ -2,6 +2,8 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import logging
+from typing import Optional
+import random
 from utils.aws.ssm_parameter_store import SocaConfig
 import utils.aws.boto3_wrapper as utils_boto3
 from botocore.exceptions import ClientError
@@ -67,3 +69,53 @@ def get_instance_types_by_architecture(instance_type_pattern: list) -> dict:
         )
 
     return SocaResponse(success=True, message=_matching_instances)
+
+
+def create_capacity_dry_run(launch_parameters: dict) -> SocaResponse:
+    """
+    Run EC2 RunInstance DryRun to validate basic parameter config
+    """
+    try:
+        logger.debug(f"Trying to perform DryRun with {launch_parameters}")
+        if launch_parameters["base_os"] in {"amazonlinux2", "amazonlinux2023"}:
+            _ebs_device_name = "/dev/xvda"
+        else:
+            _ebs_device_name = "/dev/sda1"
+
+        client_ec2.run_instances(
+            BlockDeviceMappings=[
+                {
+                    "DeviceName": _ebs_device_name,
+                    "Ebs": {
+                        "DeleteOnTermination": True,
+                        "VolumeSize": launch_parameters.get("disk_size"),
+                        "VolumeType": launch_parameters.get("VolumeType", "gp3"),
+                        "Encrypted": True,
+                    },
+                },
+            ],
+            MaxCount=1,
+            MinCount=1,
+            SecurityGroupIds=[launch_parameters["security_group_id"]],
+            InstanceType=launch_parameters["instance_type"],
+            IamInstanceProfile={"Arn": launch_parameters["instance_profile"]},
+            SubnetId=(
+                random.choice(launch_parameters["soca_private_subnets"])
+                if not launch_parameters["subnet_id"]
+                else launch_parameters["subnet_id"]
+            ),
+            Placement={"Tenancy": launch_parameters["tenancy"]},
+            UserData=launch_parameters["user_data"],
+            ImageId=launch_parameters["image_id"],
+            DryRun=True,
+            HibernationOptions={"Configured": launch_parameters["hibernate"]},
+        )
+
+    except ClientError as err:
+        if err.response["Error"].get("Code") == "DryRunOperation":
+            SocaResponse(success=True, message=None)
+        else:
+            return SocaError.AWS_API_ERROR(
+                service_name="ec2",
+                helper=f"Unable to launch capacity: {err.response['Error']}",
+            )

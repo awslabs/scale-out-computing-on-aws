@@ -7,6 +7,9 @@
 ############
 {% include "templates/linux/common.sh.j2" %}
 
+# Validate umask
+{% include "templates/linux/umask.sh.j2" %}
+
 log_info "Setup Start Date: $(date)"
 
 # Install Required System library/packages

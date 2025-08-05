@@ -11,107 +11,268 @@
 #  and limitations under the License.                                                                                #
 ######################################################################################################################
 
-import config
-import ldap
+from flask import request
 from flask_restful import Resource, reqparse
 import logging
-from decorators import admin_api, restricted_api, private_api
-import re
+from decorators import admin_api, restricted_api, private_api, feature_flag
 import os
 import sys
 import base64
 import binascii
 from utils.error import SocaError
 from utils.response import SocaResponse
+from helpers.user_acls import check_user_permission, Permissions
+from pathlib import Path
+import config
 
 logger = logging.getLogger("soca_logger")
 
 
 class Files(Resource):
-    @admin_api
+    @private_api
+    @feature_flag(flag_name="FILE_BROWSER", mode="api")
     def get(self):
         """
         Retrieve content of a file
         ---
+        openapi: 3.1.0
+        operationId: getFileContent
         tags:
-          - System
+          - System Files
+        parameters:
+          - name: X-SOCA-USER
+            in: header
+            schema:
+              type: string
+              minLength: 1
+            required: true
+            description: SOCA username for authentication
+            example: admin
+          - name: X-SOCA-TOKEN
+            in: header
+            schema:
+              type: string
+              minLength: 1
+            required: true
+            description: SOCA authentication token
+            example: abc123token
+          - name: file
+            in: query
+            schema:
+              type: string
+              pattern: '^/[a-zA-Z0-9_./\-]+$'
+              minLength: 1
+            required: true
+            description: Full path to the file to read
+            example: /home/user/config.txt
         responses:
-          200:
-            description: Pair of user/token is valid
-          203:
-            description: Invalid user/token pair
-          400:
-            description: Malformed client input
+          '200':
+            description: File content retrieved successfully
+            content:
+              application/json:
+                schema:
+                  type: object
+                  properties:
+                    success:
+                      type: boolean
+                      example: true
+                    message:
+                      type: string
+                      example: "File content here..."
+          '400':
+            description: Missing file parameter or file not found
+          '401':
+            description: Authentication required
+          '403':
+            description: Permission denied or restricted path
         """
         parser = reqparse.RequestParser()
         parser.add_argument("file", type=str, location="args")
         args = parser.parse_args()
-        file_to_read = args["file"]
+        _generic_error_message = (
+            "Unable to retrieve file content. Check logs for additional details."
+        )
 
-        if file_to_read is None:
+        if not args.get("file", ""):
             return SocaError.CLIENT_MISSING_PARAMETER(parameter="file").as_flask()
         try:
-            with open(file_to_read) as file:
-                return SocaResponse(success=True, message=file.read()).as_flask()
+            file_to_read = Path(args["file"])
+            if not file_to_read.is_file():
+                logger.error(f"{file_to_read} is not a file")
+                return SocaError.GENERIC_ERROR(helper=_generic_error_message).as_flask()
 
-        except IsADirectoryError:
-            return SocaError.GENERIC_ERROR(helper=f"{file_to_read} is a directory. Specify a file instead").as_flask()
+            if not file_to_read.is_file():
+                return SocaError.GENERIC_ERROR(helper=_generic_error_message).as_flask()
 
-        except FileNotFoundError:
-            return SocaError.GENERIC_ERROR(helper=f"{file_to_read} does not exist.").as_flask()
+            folder_location = Path(file_to_read).parent
+            if folder_location.resolve in config.Config.PATH_TO_RESTRICT:
+                logger.error(
+                    f"{file_to_read=} is in restricted path {config.Config.PATH_TO_RESTRICT}"
+                )
+                return SocaError.GENERIC_ERROR(helper=_generic_error_message).as_flask()
+
+            if (
+                check_user_permission(
+                    user=request.headers.get("X-SOCA-USER"),
+                    permissions=Permissions.READ,
+                    path=file_to_read,
+                )
+                is True
+            ):
+                try:
+                    with open(file_to_read) as file:
+                        return SocaResponse(
+                            success=True, message=file.read()
+                        ).as_flask()
+                except Exception as err:
+                    logger.error(f"Unable to read {file_to_read} due to {err}")
+                    return SocaError.GENERIC_ERROR(
+                        helper=_generic_error_message
+                    ).as_flask()
+            else:
+                logger.error("User does not have the permission to read this file.")
+                return SocaError.GENERIC_ERROR(helper=_generic_error_message).as_flask()
 
         except UnicodeDecodeError:
-            return SocaError.GENERIC_ERROR(helper=f"{file_to_read} is not readable (this is probably not a valid text format)").as_flask()
+            return SocaError.GENERIC_ERROR(
+                helper=f"{args['file']} is not readable (this is probably not a valid text format)"
+            ).as_flask()
 
         except Exception as err:
             exc_type, exc_obj, exc_tb = sys.exc_info()
             fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
-            return SocaError.GENERIC_ERROR(helper=f"{err}, {exc_type}, {fname}, {exc_tb.tb_lineno}").as_flask()
+            logger.error(f"{err}, {exc_type}, {fname}, {exc_tb.tb_lineno}")
+            return SocaError.GENERIC_ERROR(helper=_generic_error_message).as_flask()
 
-    @admin_api
+    @private_api
+    @feature_flag(flag_name="FILE_BROWSER", mode="api")
     def post(self):
         """
-        Create a new file
+        Create or update a file
         ---
+        openapi: 3.1.0
+        operationId: createOrUpdateFile
         tags:
-          - System
+          - System Files
+        parameters:
+          - name: X-SOCA-USER
+            in: header
+            schema:
+              type: string
+              minLength: 1
+            required: true
+            description: SOCA username for authentication
+            example: admin
+          - name: X-SOCA-TOKEN
+            in: header
+            schema:
+              type: string
+              minLength: 1
+            required: true
+            description: SOCA authentication token
+            example: abc123token
+        requestBody:
+          required: true
+          content:
+            application/x-www-form-urlencoded:
+              schema:
+                type: object
+                required:
+                  - file_name
+                  - file_content
+                properties:
+                  file_name:
+                    type: string
+                    format: base64
+                    minLength: 1
+                    description: Base64 encoded file path
+                    example: L2hvbWUvdXNlci9jb25maWcudHh0
+                  file_content:
+                    type: string
+                    format: base64
+                    minLength: 1
+                    description: Base64 encoded file content
+                    example: SGVsbG8gV29ybGQ=
         responses:
-          200:
-            description: Pair of user/token is valid
-          203:
-            description: Invalid user/token pair
-          400:
-            description: Malformed client input
+          '200':
+            description: File created/updated successfully
+            content:
+              application/json:
+                schema:
+                  type: object
+                  properties:
+                    success:
+                      type: boolean
+                      example: true
+                    message:
+                      type: string
+                      example: File Updated.
+          '400':
+            description: Missing parameters or invalid base64 encoding
+          '401':
+            description: Authentication required
+          '403':
+            description: Permission denied to write file
         """
         parser = reqparse.RequestParser()
         parser.add_argument("file_name", type=str, location="form")
         parser.add_argument("file_content", type=str, location="form")
         args = parser.parse_args()
-
-        if args["file_name"] is None:
+        _generic_error_message = "Unable to create file. Check logs for additional info"
+        if not args.get("file_name", ""):
             return SocaError.CLIENT_MISSING_PARAMETER(parameter="file_name").as_flask()
-        if args["file_content"] is None:
-            return SocaError.CLIENT_MISSING_PARAMETER(parameter="file_content").as_flask()
+        if not args.get("file_content", ""):
+            return SocaError.CLIENT_MISSING_PARAMETER(
+                parameter="file_content"
+            ).as_flask()
 
         try:
-            file_name = base64.b64decode(args["file_name"]).decode("utf-8")
+            file_name = Path(base64.b64decode(args["file_name"]).decode("utf-8"))
             file_content = base64.b64decode(args["file_content"]).decode("utf-8")
         except binascii.Error:
-            return SocaError.GENERIC_ERROR(
-                helper=f"Unable to decode payload. Make sure you have encoded the data with b64").as_flask()
+            logger.error(
+                f"Unable to decode payload. Make sure you have encoded the data with b64"
+            )
+            return SocaError.GENERIC_ERROR(helper=_generic_error_message).as_flask()
+        except Exception as err:
+            logger.error(f"Unable to decode payload due to {err}")
+            return SocaError.GENERIC_ERROR(helper=_generic_error_message)
+
+        logger.info(f"Receive file Update request for _{file_name}_")
 
         try:
-            with open(file_name, "w") as file:
-                file.write(file_content)
-            return SocaResponse(success=True, message="File Updated.").as_flask()
+            if not file_name.is_file():
+                return SocaError.GENERIC_ERROR(
+                    helper=f"{file_name} does not sems to be a file."
+                ).as_flask()
 
-        except IsADirectoryError:
-            return SocaError.GENERIC_ERROR(helper=f"{file_name} is a directory. Specify a file instead").as_flask()
-
-        except FileNotFoundError:
-            return SocaError.GENERIC_ERROR(helper=f"{file_name} does not exist.").as_flask()
+            if (
+                check_user_permission(
+                    user=request.headers.get("X-SOCA-USER"),
+                    permissions=Permissions.WRITE,
+                    path=file_name.parent,  # validate if user has write permission to the folder where the file will be created/updated
+                )
+                is True
+            ):
+                try:
+                    with open(file_name, "w") as file:
+                        file.write(file_content)
+                    return SocaResponse(
+                        success=True, message="File Updated."
+                    ).as_flask()
+                except Exception as err:
+                    logger.error(f"Unable to create {file_name} due to {err}")
+                    return SocaError.GENERIC_ERROR(
+                        helper=f"Unable to create file"
+                    ).as_flask()
+            else:
+                return SocaError.GENERIC_ERROR(
+                    helper="You do not have permission to update this file"
+                ).as_flask()
 
         except Exception as err:
             exc_type, exc_obj, exc_tb = sys.exc_info()
             fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
-            return SocaError.GENERIC_ERROR(helper=f"Unable to update {file_name}: {err}, {exc_type}, {fname}, {exc_tb.tb_lineno}").as_flask()
+            return SocaError.GENERIC_ERROR(
+                helper=f"Unable to update {file_name}: {err}, {exc_type}, {fname}, {exc_tb.tb_lineno}"
+            ).as_flask()

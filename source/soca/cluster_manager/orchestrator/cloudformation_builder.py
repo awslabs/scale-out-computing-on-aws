@@ -41,6 +41,7 @@ from troposphere.ec2 import (
     SpotOptions,
     CpuOptions,
     LaunchTemplateBlockDeviceMapping,
+    Tag
 )
 
 from troposphere.fsx import FileSystem, LustreConfiguration
@@ -162,7 +163,7 @@ def main(**params):
         t = Template()
         t.set_version("2010-09-09")
         t.set_description(
-            "(SOCA) - Base template to deploy compute nodes. Version 25.5.0"
+            "(SOCA) - Base template to deploy compute nodes. Version 25.8.0"
         )
 
         _cluster_id: str = params.get("ClusterId", "unknown-cluster")
@@ -173,7 +174,6 @@ def main(**params):
         # ex: c5.xlarge+c6.xlarge
         instances_list = params["InstanceType"]
 
-        asg_lt = asg_LaunchTemplate()
         ltd = LaunchTemplateData("NodeLaunchTemplateData")
         mip = MixedInstancesPolicy()
         stack_name = Ref("AWS::StackName")
@@ -273,6 +273,31 @@ def main(**params):
                     message=f"Unable to generate {_t}.sh.j2 Jinja2 template because of {_render_bootstrap_setup_template.get('message')}",
                 )
 
+        # Base tags
+        _base_tags = {
+            "Name": f"{params['ClusterId']}-compute-job-{params['JobId']}",
+            "soca:JobId": str(params["JobId"]),
+            "soca:JobName": str(params["JobName"]),
+            "soca:JobQueue": str(params["JobQueue"]),
+            "soca:StackId": stack_name,
+            "soca:JobOwner": str(params["JobOwner"]),
+            "soca:NodeType": "compute_node",
+            "soca:JobProject": str(params["JobProject"]),
+            "soca:ClusterId": str(params["ClusterId"]),
+            "soca:TerminateWhenIdle": str(params["TerminateWhenIdle"]),
+            "soca:KeepForever": str(params["KeepForever"]),
+        }
+        
+        if params.get("CustomTags"):
+            for tag in params.get("CustomTags").values():
+                if tag.get("Enabled", ""):
+                    if tag["Key"] in _base_tags.keys():
+                        logger.warning(f"Specified custom tags {tag.get('Key')} is already defined in tag list, skipping ...")
+                    else:
+                        _base_tags[tag["Key"]] = tag["Value"]
+                else:
+                    logger.warning(f"{tag} does not have Enabled key or Enabled is False.") 
+        
         # Specify the security groups to assign to the compute nodes. Max 5 per instance
         # TODO - the length vs. maxlength should be checked
         security_groups = [params["SecurityGroupId"]]
@@ -336,6 +361,7 @@ def main(**params):
                 DeleteOnTermination=True,
                 DeviceIndex=0,
                 Groups=security_groups,
+                AssociatePublicIpAddress=False,
             )
         ]
         if params.get("Efa", False) is not False:
@@ -398,26 +424,15 @@ def main(**params):
                     ),
                 )
             )
+            
         ltd.TagSpecifications = [
             ec2.TagSpecifications(
                 ResourceType="instance",
-                Tags=base_Tags(
-                    Name=str(params["ClusterId"])
-                    + "-compute-job-"
-                    + str(params["JobId"]),
-                    _soca_JobId=str(params["JobId"]),
-                    _soca_JobName=str(params["JobName"]),
-                    _soca_JobQueue=str(params["JobQueue"]),
-                    _soca_StackId=stack_name,
-                    _soca_JobOwner=str(params["JobOwner"]),
-                    _soca_JobProject=str(params["JobProject"]),
-                    _soca_TerminateWhenIdle=str(params["TerminateWhenIdle"]),
-                    _soca_KeepForever=str(params["KeepForever"]).lower(),
-                    _soca_ClusterId=str(params["ClusterId"]),
-                    _soca_NodeType="compute_node",
-                ),
+                Tags=[Tag(Key=k, Value=v) for k, v in _base_tags.items()],
             )
         ]
+        
+        
         ltd.MetadataOptions = MetadataOptions(
             HttpEndpoint="enabled", HttpTokens=params["MetadataHttpTokens"]
         )
@@ -480,24 +495,6 @@ def main(**params):
                             )
                         )
             sfrcd.LaunchTemplateConfigs = [sfltc]
-            TagSpecifications = ec2.SpotFleetTagSpecification(
-                ResourceType="spot-fleet-request",
-                Tags=base_Tags(
-                    Name=str(params["ClusterId"])
-                    + "-compute-job-"
-                    + str(params["JobId"]),
-                    _soca_JobId=str(params["JobId"]),
-                    _soca_JobName=str(params["JobName"]),
-                    _soca_JobQueue=str(params["JobQueue"]),
-                    _soca_StackId=stack_name,
-                    _soca_JobOwner=str(params["JobOwner"]),
-                    _soca_JobProject=str(params["JobProject"]),
-                    _soca_TerminateWhenIdle=str(params["TerminateWhenIdle"]),
-                    _soca_KeepForever=str(params["KeepForever"]).lower(),
-                    _soca_ClusterId=str(params["ClusterId"]),
-                    _soca_NodeType="compute_node",
-                ),
-            )
             # End SpotFleetRequestConfigData Resource
 
             # Begin SpotFleet Resource
@@ -506,25 +503,6 @@ def main(**params):
             t.add_resource(spotfleet)
             # End SpotFleet Resource
         else:
-            asg_lt.LaunchTemplateSpecification = LaunchTemplateSpecification(
-                LaunchTemplateId=Ref(lt), Version=GetAtt(lt, "LatestVersionNumber")
-            )
-
-            asg_lt.Overrides = []
-            for index, instance in enumerate(instances_list):
-                if params["WeightedCapacity"] is not False:
-                    mip_usage = True
-                    asg_lt.Overrides.append(
-                        LaunchTemplateOverrides(
-                            InstanceType=instance,
-                            WeightedCapacity=str(params["WeightedCapacity"][index]),
-                        )
-                    )
-                else:
-                    asg_lt.Overrides.append(
-                        LaunchTemplateOverrides(InstanceType=instance)
-                    )
-
             # Begin InstancesDistribution
             if (
                 params["SpotPrice"] is not False
@@ -555,44 +533,7 @@ def main(**params):
 
             # End MixedPolicyInstance
 
-            # HPCJobDeploymentMethod selection
-
-            # _soca_cluster_configuration: dict = get_soca_configuration(clusterid=)
-
-            # Begin AutoScalingGroup Resource
-            asg = AutoScalingGroup("AutoScalingComputeGroup")
-            asg.DependsOn = "NodeLaunchTemplate"
-            if mip_usage is True or len(instances_list) > 1:
-                mip.LaunchTemplate = asg_lt
-                asg.MixedInstancesPolicy = mip
-
-            else:
-                asg.LaunchTemplate = LaunchTemplateSpecification(
-                    LaunchTemplateId=Ref(lt), Version=GetAtt(lt, "LatestVersionNumber")
-                )
-
-            asg.MinSize = int(params["DesiredCapacity"])
-            asg.MaxSize = int(params["DesiredCapacity"])
-            asg.VPCZoneIdentifier = params["SubnetId"]
-            asg.CapacityRebalance = False
-            asg.Tags = Tags(
-                Name=str(params["ClusterId"]) + "-compute-job-" + str(params["JobId"]),
-                _soca_JobId=str(params["JobId"]),
-                _soca_JobName=str(params["JobName"]),
-                _soca_JobQueue=str(params["JobQueue"]),
-                _soca_StackId=stack_name,
-                _soca_JobOwner=str(params["JobOwner"]),
-                _soca_JobProject=str(params["JobProject"]),
-                _soca_TerminateWhenIdle=str(params["TerminateWhenIdle"]),
-                _soca_KeepForever=str(params["KeepForever"]).lower(),
-                _soca_ClusterId=str(params["ClusterId"]),
-                _soca_NodeType="compute_node",
-            )
-
-            # t.add_resource(asg)
-
             # HPC Fleet
-
             _fleet_overrides: list = []
             for _subnet in params["SubnetId"]:
                 for _index, _instance in enumerate(instances_list):
@@ -704,21 +645,7 @@ def main(**params):
                     )
 
                 fsx_lustre.LustreConfiguration = fsx_lustre_configuration
-                fsx_lustre.Tags = base_Tags(
-                    # False disable PropagateAtLaunch
-                    Name=str(params["ClusterId"] + "-compute-job-" + params["JobId"]),
-                    _soca_JobId=str(params["JobId"]),
-                    _soca_JobName=str(params["JobName"]),
-                    _soca_JobQueue=str(params["JobQueue"]),
-                    _soca_TerminateWhenIdle=str(params["TerminateWhenIdle"]),
-                    _soca_StackId=stack_name,
-                    _soca_JobOwner=str(params["JobOwner"]),
-                    _soca_JobProject=str(params["JobProject"]),
-                    _soca_KeepForever=str(params["KeepForever"]).lower(),
-                    _soca_NodeType="compute_node",
-                    _soca_FSx="true",
-                    _soca_ClusterId=str(params["ClusterId"]),
-                )
+                fsx_lustre.Tags = [base_Tags(Key=k, Value=v) for k, v in _base_tags.items()] + [base_Tags(Key="soca:FSX", Value="true")]
                 t.add_resource(fsx_lustre)
         # End FSx For Lustre
 
@@ -771,7 +698,7 @@ def main(**params):
             print(t.to_json())
 
         # Tags must use "soca:<Key>" syntax
-        template_output = t.to_yaml().replace("_soca_", "soca:")
+        template_output = t.to_yaml()
         return {"success": True, "output": template_output}
 
     except Exception as e:

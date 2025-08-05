@@ -30,17 +30,88 @@ class Groups(Resource):
     @private_api
     def get(self):
         """
-        List all LDAP groups
+        Retrieve all LDAP groups
         ---
+        openapi: 3.1.0
+        operationId: getAllLdapGroups
         tags:
           - Group Management
+        summary: Retrieve all LDAP groups
+        description: Returns a list of all groups from the configured LDAP directory with their members
+        security:
+          - socaAuth: []
         responses:
-          200:
-            description: Group info
-          400:
+          '200':
+            description: Successfully retrieved all LDAP groups
+            content:
+              application/json:
+                schema:
+                  type: object
+                  properties:
+                    success:
+                      type: boolean
+                      example: true
+                    message:
+                      type: object
+                      description: Dictionary of group names to group information
+                      additionalProperties:
+                        type: object
+                        properties:
+                          group_dn:
+                            type: string
+                            description: LDAP Distinguished Name of the group
+                            example: "cn=developers,ou=group,dc=soca,dc=local"
+                          members:
+                            type: array
+                            items:
+                              type: string
+                            description: List of group members
+                            example: ["john.doe", "jane.smith"]
+                      example:
+                        "developers":
+                          group_dn: "cn=developers,ou=group,dc=soca,dc=local"
+                          members: ["john.doe", "jane.smith"]
+                        "admins":
+                          group_dn: "cn=admins,ou=group,dc=soca,dc=local"
+                          members: ["admin"]
+          '400':
             description: Malformed client input
-          500:
-            description: Backend issue
+            content:
+              application/json:
+                schema:
+                  type: object
+                  properties:
+                    success:
+                      type: boolean
+                      example: false
+                    message:
+                      type: string
+                      example: "Bad request parameters"
+          '500':
+            description: Unable to connect to LDAP server
+            content:
+              application/json:
+                schema:
+                  type: object
+                  properties:
+                    success:
+                      type: boolean
+                      example: false
+                    message:
+                      type: string
+                      example: "Unable to list all groups"
+        components:
+          securitySchemes:
+            socaAuth:
+              type: apiKey
+              in: header
+              name: X-SOCA-USER
+              description: SOCA username for authentication
+            socaToken:
+              type: apiKey
+              in: header
+              name: X-SOCA-TOKEN
+              description: SOCA authentication token
         """
         # List all LDAP users
         if config.Config.DIRECTORY_AUTH_PROVIDER in ["openldap", "existing_openldap"]:
@@ -55,19 +126,29 @@ class Groups(Resource):
             _soca_identity_client = SocaIdentityProviderClient()
             _soca_identity_client.initialize()
             _soca_identity_client.bind_as_service_account()
-            _groups = _soca_identity_client.search(base=config.Config.DIRECTORY_GROUP_SEARCH_BASE,
-                                                   scope=ldap.SCOPE_SUBTREE,
-                                                   filter=_filter,
-                                                   attr_list=_attr_list)
+            _groups = _soca_identity_client.search(
+                base=config.Config.DIRECTORY_GROUP_SEARCH_BASE,
+                scope=ldap.SCOPE_SUBTREE,
+                filter=_filter,
+                attr_list=_attr_list,
+            )
             if _groups.success:
                 # ex: ('cn=socaadminsocagroup,ou=group,dc=soca-dev200,dc=local', {'cn': [b'socaadminsocagroup'], 'memberUid': [b'socaadmin']})
                 for group in _groups.message:
                     group_base = group[0]
-                    group_name = group[1]["cn"][0].decode("utf-8") if isinstance(group[1]["cn"][0], bytes) else group[1]["cn"][0]
+                    group_name = (
+                        group[1]["cn"][0].decode("utf-8")
+                        if isinstance(group[1]["cn"][0], bytes)
+                        else group[1]["cn"][0]
+                    )
                     members = []
                     if _attr_list[1] in group[1].keys():
                         for member in group[1][_attr_list[1]]:
-                            members.append(member.decode("utf-8") if isinstance(member, bytes) else member)
+                            members.append(
+                                member.decode("utf-8")
+                                if isinstance(member, bytes)
+                                else member
+                            )
 
                     all_ldap_groups[group_name] = {
                         "group_dn": group_base,
@@ -75,7 +156,9 @@ class Groups(Resource):
                     }
                 return SocaResponse(success=True, message=all_ldap_groups).as_flask()
             else:
-                return SocaError.IDENTITY_PROVIDER_ERROR(helper=f"Unable to list all groups because of {_groups.message}").as_flask()
+                return SocaError.IDENTITY_PROVIDER_ERROR(
+                    helper=f"Unable to list all groups because of {_groups.message}"
+                ).as_flask()
 
         except Exception as err:
             exc_type, exc_obj, exc_tb = sys.exc_info()

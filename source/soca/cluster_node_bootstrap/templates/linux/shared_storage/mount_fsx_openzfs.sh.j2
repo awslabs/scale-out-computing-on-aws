@@ -44,7 +44,7 @@
     fi
 
     if [[ -z ${MOUNT_OPTIONS} ]]; then
-      MOUNT_OPTIONS="nfsvers=4.1,rsize=1048576,wsize=1048576,hard,timeo=600,retrans=2,noresvport"
+      MOUNT_OPTIONS="noatime,nfsvers=4.2,sync,nconnect=16,rsize=1048576,wsize=1048576"
       log_warning "--mount-options not specified, default to ${MOUNT_OPTIONS}"
     fi
 
@@ -52,9 +52,10 @@
       if [[ -z "${MOUNT_TARGET}" ]]; then
         exit_fail "--mount-target not set for mount_fsx_openzfs"
       else
-        local DNS_NAME=$(aws_cli fsx describe-file-systems --file-system-id ${MOUNT_TARGET} --query 'FileSystems[0].DNSName')
+        local MOUNT_TARGET_ID=$(echo ${MOUNT_TARGET} | cut -d'.' -f1)
+        local DNS_NAME=$(aws_cli fsx describe-file-systems --file-system-id ${MOUNT_TARGET_ID} --output text --query 'FileSystems[0].DNSName')
         if [[ -z ${DNS_NAME} ]]; then
-          exit_fail "Unable to find FileSystems[0].DNSName of ${MOUNT_TARGET}. API Result: ${DNS_NAME}"
+          exit_fail "Unable to find FileSystems[0].DNSName of ${MOUNT_TARGET_ID}. API Result: ${DNS_NAME}"
         fi
           ENDPOINT="${DNS_NAME}:/fsx"
       fi

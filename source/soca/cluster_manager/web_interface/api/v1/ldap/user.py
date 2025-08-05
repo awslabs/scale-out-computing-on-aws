@@ -21,7 +21,7 @@ import config
 from flask_restful import Resource, reqparse
 import logging
 from flask import request
-from decorators import private_api, admin_api
+from decorators import private_api, admin_api, feature_flag
 import sys
 import shutil
 from datetime import datetime, timezone
@@ -106,9 +106,7 @@ def populate_ssh_keys(username: str, user_path: str) -> bool:
             )
             continue
         finally:
-            logger.debug(
-                f"ssh_key_result for type {_ssh_key_type}"
-            )
+            logger.debug(f"ssh_key_result for type {_ssh_key_type}")
 
     # Did we generate all the desired keypair types?
     if _ssh_keys_generated == len(_ssh_key_dict):
@@ -227,31 +225,97 @@ def create_home(username: str, group: str):
 
 
 class User(Resource):
-    @admin_api
+    @private_api
     def get(self):
         """
-        Retrieve information for a specific user
+        Get user information
         ---
+        openapi: 3.1.0
+        operationId: getLdapUser
         tags:
           - User Management
+        summary: Get user information
+        description: Retrieve detailed information for a specific LDAP user by username or DN
+        security:
+          - socaAuth: []
         parameters:
-          - in: body
-            name: body
+          - name: user
+            in: query
+            required: true
             schema:
-              required:
-                - user
-              properties:
-                user:
-                  type: string
-                  description: user of the SOCA user
-
+              type: string
+              minLength: 1
+              maxLength: 256
+              example: "john.doe"
+            description: Username or DN of the user to retrieve
         responses:
-          200:
-            description: Return user information
-          203:
-            description: Unknown user
-          400:
-            description: Malformed client input
+          '200':
+            description: Successfully retrieved user information
+            content:
+              application/json:
+                schema:
+                  type: object
+                  properties:
+                    success:
+                      type: boolean
+                      example: true
+                    message:
+                      type: array
+                      items:
+                        type: array
+                        description: LDAP entry data
+                      example: [["cn=john.doe,ou=people,dc=soca,dc=local", {"uid": ["john.doe"]}]]
+          '203':
+            description: User not found
+            content:
+              application/json:
+                schema:
+                  type: object
+                  properties:
+                    success:
+                      type: boolean
+                      example: false
+                    message:
+                      type: string
+                      example: "User not found"
+          '400':
+            description: Missing required parameter
+            content:
+              application/json:
+                schema:
+                  type: object
+                  properties:
+                    success:
+                      type: boolean
+                      example: false
+                    message:
+                      type: string
+                      example: "Missing required parameter: user"
+          '500':
+            description: Internal server error
+            content:
+              application/json:
+                schema:
+                  type: object
+                  properties:
+                    success:
+                      type: boolean
+                      example: false
+                    message:
+                      type: string
+                      example: "Unable to connect to LDAP server"
+        components:
+          securitySchemes:
+            socaAuth:
+              type: apiKey
+              in: header
+              name: X-SOCA-USER
+              description: SOCA username for authentication
+            socaToken:
+              type: apiKey
+              in: header
+              name: X-SOCA-TOKEN
+              description: SOCA authentication token
         """
         parser = reqparse.RequestParser()
         parser.add_argument("user", type=str, location="args")
@@ -302,50 +366,126 @@ class User(Resource):
             ).as_flask()
 
     @admin_api
+    @feature_flag(flag_name="USERS_GROUPS_MANAGEMENT", mode="api")
     def post(self):
         """
-        Create a new LDAP user
+        Create new user
         ---
+        openapi: 3.1.0
+        operationId: createLdapUser
         tags:
           - User Management
-        parameters:
-          - in: body
-            name: body
-            schema:
-              required:
-                - user
-                - password
-                - sudoers
-                - email
-              optional:
-                - uid
-                - gid
-              properties:
-                user:
-                  type: string
-                  description: user you want to create
-                password:
-                  type: string
-                  description: Password for the new user
-                sudoers:
-                  type: boolean
-                  description: True (give user SUDO permissions) or False
-                email:
-                  type: string
-                  description: Email address associated to the user
-                uid:
-                  type: integer
-                  description: Linux UID to be associated to the user
-                gid:
-                  type: integer
-                  description: Linux GID to be associated to user's group
+        summary: Create new user
+        description: Create a new LDAP user with home directory, SSH keys, and group membership
+        security:
+          - socaAuth: []
+        requestBody:
+          required: true
+          content:
+            application/x-www-form-urlencoded:
+              schema:
+                type: object
+                required:
+                  - user
+                  - password
+                  - sudoers
+                  - email
+                properties:
+                  user:
+                    type: string
+                    description: Username for the new user (alphanumeric, _, -, . allowed, max 31 chars)
+                    minLength: 1
+                    maxLength: 31
+                    pattern: '^[a-zA-Z0-9][a-zA-Z0-9_.-]*$'
+                    example: "john.doe"
+                  password:
+                    type: string
+                    description: Password for the new user
+                    minLength: 1
+                    format: password
+                    example: "SecurePass123!"
+                  sudoers:
+                    type: integer
+                    description: Grant sudo permissions (1 = yes, 0 = no)
+                    enum: [0, 1]
+                    example: 0
+                  email:
+                    type: string
+                    description: Email address for the user
+                    format: email
+                    example: "john.doe@company.com"
+                  shell:
+                    type: string
+                    description: Login shell for the user
+                    default: "/bin/bash"
+                    example: "/bin/bash"
+                  uid:
+                    type: integer
+                    description: Linux UID (0 = auto-assign)
+                    minimum: 0
+                    maximum: 65535
+                    default: 0
+                    example: 1001
+                  gid:
+                    type: integer
+                    description: Linux GID (0 = auto-assign)
+                    minimum: 0
+                    maximum: 65535
+                    default: 0
+                    example: 1001
         responses:
-          200:
-            description: User created
-          203:
-            description: User already exist
-          400:
-            description: Malformed client input
+          '200':
+            description: User created successfully
+            content:
+              application/json:
+                schema:
+                  type: object
+                  properties:
+                    success:
+                      type: boolean
+                      example: true
+                    message:
+                      type: string
+                      example: "User created"
+          '203':
+            description: User already exists
+            content:
+              application/json:
+                schema:
+                  type: object
+                  properties:
+                    success:
+                      type: boolean
+                      example: false
+                    message:
+                      type: string
+                      example: "Unable to create user, john.doe already exist"
+          '400':
+            description: Invalid input parameters
+            content:
+              application/json:
+                schema:
+                  type: object
+                  properties:
+                    success:
+                      type: boolean
+                      example: false
+                    message:
+                      type: string
+                      example: "Missing required parameter: user"
+          '500':
+            description: Internal server error
+            content:
+              application/json:
+                schema:
+                  type: object
+                  properties:
+                    success:
+                      type: boolean
+                      example: false
+                    message:
+                      type: string
+                      example: "Unable to create user due to LDAP error"
         """
         parser = reqparse.RequestParser()
         parser.add_argument("user", type=str, location="form")
@@ -360,12 +500,15 @@ class User(Resource):
             "gid", type=int, location="form"
         )  # 0 = no value specified, use default one
         args = parser.parse_args()
-        _user_regex_pattern = r"^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,31}$"
-        if re.match(_user_regex_pattern, args["user"]):
+        
+        if args.get("user", None) is None:
+            return SocaError.CLIENT_MISSING_PARAMETER(parameter="user").as_flask()
+
+        if re.match(config.Config.USER_REGEX_PATTERN, args["user"]):
             user = args["user"].lower()
         else:
             return SocaError.IDENTITY_PROVIDER_ERROR(
-                helper=f"User {args['user']} is not valid, must match {_user_regex_pattern} (contains -and start with- only alpha-numerical characters plus _ . - and must be 31 chars max"
+                helper=f"User {args['user']} is not valid, must match {config.Config.USER_REGEX_PATTERN} (contains -and start with- only alpha-numerical characters plus _ . - and must be 31 chars max"
             ).as_flask()
 
         password = args["password"]
@@ -380,12 +523,9 @@ class User(Resource):
 
         if shell is None:
             logger.warning(
-                f"shell not specified for new user creation, default to /bin/bash"
+                "shell not specified for new user creation, default to /bin/bash"
             )
             shell = "/bin/bash"
-
-        if user is None:
-            return SocaError.CLIENT_MISSING_PARAMETER(parameter="user").as_flask()
 
         if password is None:
             return SocaError.CLIENT_MISSING_PARAMETER(parameter="password").as_flask()
@@ -672,32 +812,88 @@ class User(Resource):
             ).as_flask()
 
     @admin_api
+    @feature_flag(flag_name="USERS_GROUPS_MANAGEMENT", mode="api")
     def delete(self):
         """
-        Delete a LDAP user ($HOME is preserved on EFS)
+        Delete user
         ---
+        openapi: 3.1.0
+        operationId: deleteLdapUser
         tags:
           - User Management
-        parameters:
-          - in: body
-            name: body
-            schema:
-              required:
-                - user
-              properties:
-                user:
-                  type: string
-                  description: user of the SOCA user
-
+        summary: Delete user
+        description: Delete a LDAP user and associated group. Home directory is backed up with timestamp suffix.
+        security:
+          - socaAuth: []
+        requestBody:
+          required: true
+          content:
+            application/x-www-form-urlencoded:
+              schema:
+                type: object
+                required:
+                  - user
+                properties:
+                  user:
+                    type: string
+                    description: Username of the user to delete
+                    minLength: 1
+                    maxLength: 31
+                    pattern: '^[a-zA-Z0-9][a-zA-Z0-9_.-]*$'
+                    example: "john.doe"
         responses:
-          200:
-            description: Deleted user
-          203:
-            description: Unknown user
-          204:
-            description: User deleted but API still active
-          400:
-            description: Malformed client input
+          '200':
+            description: User deleted successfully
+            content:
+              application/json:
+                schema:
+                  type: object
+                  properties:
+                    success:
+                      type: boolean
+                      example: true
+                    message:
+                      type: string
+                      example: "Deleted user"
+          '203':
+            description: User not found
+            content:
+              application/json:
+                schema:
+                  type: object
+                  properties:
+                    success:
+                      type: boolean
+                      example: false
+                    message:
+                      type: string
+                      example: "Unable to delete user, john.doe does not seem to exist"
+          '400':
+            description: Invalid request or self-deletion attempt
+            content:
+              application/json:
+                schema:
+                  type: object
+                  properties:
+                    success:
+                      type: boolean
+                      example: false
+                    message:
+                      type: string
+                      example: "You cannot request to delete your own account"
+          '500':
+            description: Internal server error
+            content:
+              application/json:
+                schema:
+                  type: object
+                  properties:
+                    success:
+                      type: boolean
+                      example: false
+                    message:
+                      type: string
+                      example: "Unable to delete user due to LDAP error"
         """
         parser = reqparse.RequestParser()
         parser.add_argument("user", type=str, location="form")

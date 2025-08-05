@@ -6,6 +6,7 @@ from extensions import db
 from models import VirtualDesktopSessions
 import utils.aws.boto3_wrapper as utils_boto3
 from utils.aws.ssm_parameter_store import SocaConfig
+import utils.aws.cloudformation_helper as cloudformation_helper
 from utils.http_client import SocaHttpClient
 from utils.response import SocaResponse
 from botocore.exceptions import ClientError
@@ -22,11 +23,12 @@ from itertools import islice
 import time
 from flask import Flask
 
+
 logger = logging.getLogger("scheduled_tasks_virtual_desktops_session_state_watcher")
 
 client_ec2 = utils_boto3.get_boto(service_name="ec2").message
-client_cfn = utils_boto3.get_boto(service_name="cloudformation").message
 client_ssm = utils_boto3.get_boto(service_name="ssm").message
+client_cfn = utils_boto3.get_boto(service_name="cloudformation").message
 
 
 def chunked_iterable(iterable: Iterable[TypeVar], chunk_size: int) -> Iterator[List]:
@@ -149,27 +151,32 @@ def process_chunk(
             )
             for _session in _sync_running_sessions:
                 _dcv_https_url = f"https://{_soca_parameters.get('/configuration/DCVEntryPointDNSName')}/{_session.instance_private_dns}/"
-                _check_dcv_state = SocaHttpClient(
-                    endpoint=_dcv_https_url, allow_redirects=False, timeout=5
-                ).get()
-                logger.debug(
-                    f"LoadBalancer Result {_dcv_https_url} -> {_check_dcv_state}"
-                )
-                # We change status to 200 only if DCVEntryPointDNSName returns 200 and if we can get `dcv` as part of  returned headers
-                if _check_dcv_state.get("status_code") == 200:
-                    _response_headers = _check_dcv_state.get("request").headers
+                try:
+                    _check_dcv_state = SocaHttpClient(
+                        endpoint=_dcv_https_url, allow_redirects=False, timeout=5
+                    ).get()
                     logger.debug(
-                        f"Headers response for {_session.id=} {_session.session_uuid=}: {_response_headers}"
+                        f"LoadBalancer Result {_dcv_https_url} -> {_check_dcv_state}"
                     )
-                    if "Server" in _response_headers:
-                        if _response_headers.get("Server") == "dcv":
-                            # We will also validate if DCV is responding correctly before changing the status to running
-                            _running_sessions_to_validate.append(_session)
-                else:
-                    update_virtual_desktop_state(
-                        sessions=[_session],
-                        new_state="pending",
-                        db_scoped_session=_db_scoped_session,
+                    # We change status to 200 only if DCVEntryPointDNSName returns 200 and if we can get `dcv` as part of  returned headers
+                    if _check_dcv_state.get("status_code") == 200:
+                        _response_headers = _check_dcv_state.get("request").headers
+                        logger.debug(
+                            f"Headers response for {_session.id=} {_session.session_uuid=}: {_response_headers}"
+                        )
+                        if "Server" in _response_headers:
+                            if _response_headers.get("Server") == "dcv":
+                                # We will also validate if DCV is responding correctly before changing the status to running
+                                _running_sessions_to_validate.append(_session)
+                    else:
+                        update_virtual_desktop_state(
+                            sessions=[_session],
+                            new_state="pending",
+                            db_scoped_session=_db_scoped_session,
+                        )
+                except Exception as err:
+                    logger.warning(
+                        f"Unable to query {_dcv_https_url} due to {err}. This is normal is the session is still being provisioned"
                     )
         else:
             logger.info("No VDI sessions to be changed to running")
@@ -734,12 +741,14 @@ def delete_inactive_instances(
             logger.info(
                 f"{_session_instance_id=} is terminated, deleting stack if it exist"
             )
-            try:
-                client_cfn.delete_stack(StackName=_stack_name)
+            _delete_stack = cloudformation_helper.delete_stack(stack_name=_stack_name)
+            if _delete_stack.get("success") is False:
+                logger.error(
+                    f"Unable to delete stack {_stack_name}: {_delete_stack.get('message')}"
+                )
+            else:
                 logger.info(f"{_stack_name=} deleted")
                 _stack_deleted = True
-            except Exception as e:
-                logger.error(f"Unable to delete stack {_stack_name}: {e}")
         else:
             logger.info(
                 f"{_session_instance_id=} exist {_session.id=} {_session.session_uuid=}, checking CFN stack status, ensuring it's still being provisioned"
@@ -764,12 +773,18 @@ def delete_inactive_instances(
                 logger.info(
                     f"CloudFormation Stack associated does not exist or is being deleted, removing this session from the database"
                 )
-                try:
-                    client_cfn.delete_stack(StackName=_stack_name)
+
+                _delete_stack = cloudformation_helper.delete_stack(
+                    stack_name=_stack_name
+                )
+                if _delete_stack.get("success") is False:
+                    logger.error(
+                        f"Unable to delete stack {_stack_name}: {_delete_stack.get('message')}"
+                    )
+                else:
                     logger.info(f"{_stack_name=} deleted")
                     _stack_deleted = True
-                except Exception as e:
-                    logger.error(f"Unable to delete {_stack_name=}: {e}")
+
             else:
                 logger.info(
                     f"CloudFormation Stack exist and is in valid state, capacity will be provisioned soon ... "

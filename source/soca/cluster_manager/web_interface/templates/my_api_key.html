@@ -41,13 +41,12 @@
                                 <div class="alert alert-warning"><strong>API Documentation</strong><br>
                                     You can interact with your SOCA cluster (create users, groups, queue, submit jobs,
                                     view jobs etc.) via a simple REST interface. <br>
-                                    Documentation and examples can be found on <a href="{{ scheduler_host }}api/doc"
-                                                                                  target="_blank"
-                                                                                  rel="noopener,noreferrer">{{ scheduler_host }}api/doc</a>
-                                    (note: you must have <a
-                                            href="https://awslabs.github.io/scale-out-computing-on-aws-documentation/documentation/security/update-soca-dns-ssl-certificate/"
-                                            target="_blank" rel="noopener,noreferrer"> a valid SSL certificate installed
-                                        on SOCA</a>)
+                                    Documentation and examples can be found here:
+                                    <ul>
+                                        <li><a href="{{ scheduler_host }}api/doc?ui=swagger" target="_blank" rel="noopener,noreferrer">{{ scheduler_host }}api/doc?ui=swagger (Swagger UI)</a></li>
+                                        <li><a href="{{ scheduler_host }}api/doc?ui=rapidoc" target="_blank" rel="noopener,noreferrer">{{ scheduler_host }}api/doc?ui=rapidoc (RapiDoc UI)</a></li>
+                                    </li> 
+
                                 </div>
 
                                 <h2>Example: How to submit/query and delete a job via HTTP API</h2>

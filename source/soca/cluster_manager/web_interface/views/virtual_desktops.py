@@ -24,7 +24,7 @@ from flask import (
     Response,
 )
 from requests import get, post, put, delete
-from decorators import login_required
+from decorators import login_required, feature_flag
 from models import db, VirtualDesktopSessions, SoftwareStacks
 from datetime import datetime, timezone
 from utils.aws.ssm_parameter_store import SocaConfig
@@ -101,6 +101,7 @@ def get_instance_types_by_architecture() -> dict:
 
 @virtual_desktops.route("/virtual_desktops", methods=["GET"])
 @login_required
+@feature_flag(flag_name="VIRTUAL_DESKTOPS", mode="view")
 def index():
     _get_all_sessions = SocaHttpClient(
         endpoint=f"/api/dcv/virtual_desktops/list",
@@ -125,71 +126,31 @@ def index():
         (datetime.now(timezone.utc)).astimezone(tz).strftime("%Y-%m-%d (%A) %H:%M")
     )
 
-    _get_all_projects_for_user = SocaHttpClient(
-        endpoint=f"/api/projects/by_user",
-        headers={"X-SOCA-USER": session["user"], "X-SOCA-TOKEN": session["api_key"]},
-    ).get(params={"user": session["user"]})
+    # List all VDI stack this user is authorized to launch
+    _get_vdi_software_stacks_for_user = SocaHttpClient(
+        endpoint=f"/api/user/resources_permissions",
+        headers={
+            "X-SOCA-USER": session["user"],
+            "X-SOCA-TOKEN": session["api_key"],
+        },
+    ).get(params={"virtual_desktops": "all"})
 
-    # Get All projects
-    logger.debug(f"get_all_projects_for_user {_get_all_projects_for_user}")
-    _allowed_software_stacks = []
-    if _get_all_projects_for_user.get("success") is False:
+    if _get_vdi_software_stacks_for_user.get("success") is False:
         flash(
-            f"Unable to list projects because of {_get_all_projects_for_user.get('message')}",
+            f"Unable to list software stack for this user because of {_get_vdi_software_stacks_for_user.get('message')}",
             "error",
         )
         _software_stacks = {}
     else:
-        for project_id, project_data in _get_all_projects_for_user.get(
-            "message"
-        ).items():
-            _allowed_software_stacks = list(
-                dict.fromkeys(
-                    _allowed_software_stacks + project_data.get("software_stack_ids")
-                )
-            )
-
-    # Get all Software Stack and relevant info
-    _get_software_stacks = (
-        db.session.query(
-            SoftwareStacks,
-            VirtualDesktopProfiles.allowed_subnet_ids,
-            VirtualDesktopProfiles.allowed_instance_types,
-            VirtualDesktopProfiles.max_root_size,
-            VirtualDesktopProfiles.profile_name,
+        _software_stacks = _get_vdi_software_stacks_for_user.get("message").get(
+            "software_stacks"
         )
-        .join(
-            VirtualDesktopProfiles,
-            SoftwareStacks.virtual_desktop_profile_id == VirtualDesktopProfiles.id,
-        )
-        .filter(
-            SoftwareStacks.is_active == True,
-            SoftwareStacks.id.in_(_allowed_software_stacks),
-        )
-        .all()
-    )
 
-    _software_stacks = {
-        s[0].id: {
-            **s[0].as_dict(),  # Convert SoftwareStacks object to dictionary
-            "allowed_subnet_ids": [
-                item.strip() for item in s.allowed_subnet_ids.split(",")
-            ],
-            "allowed_instance_types": json.loads(s.allowed_instance_types).get(
-                s[0].ami_arch, []
-            ),  # extract list of allowed instance type based on the AMI Architecture
-            "max_root_size": s.max_root_size,
-            "profile_name": s.profile_name,
-        }
-        for s in _get_software_stacks
-    }
-
-    _allowed_dcv_session_types = config.Config.DCV_ALLOWED_SESSION_TYPES
+    logger.debug(f"Authorized Software Stack: {_software_stacks}")
 
     return render_template(
         "virtual_desktops.html",
-        allowed_dcv_session_types=_allowed_dcv_session_types,
-        user=session["user"],
+        allowed_dcv_session_types=config.Config.DCV_ALLOWED_SESSION_TYPES,
         software_stacks=_software_stacks,
         base_os_labels=config.Config.DCV_BASE_OS,
         user_sessions=_get_all_sessions.get("message"),
@@ -208,6 +169,7 @@ def index():
 
 @virtual_desktops.route("/virtual_desktops/get_session_state", methods=["GET"])
 @login_required
+@feature_flag(flag_name="VIRTUAL_DESKTOPS", mode="view")
 def get_session_state():
     logger.info(
         f"Received following parameters {request.args} for new virtual desktops"
@@ -221,6 +183,7 @@ def get_session_state():
 
 @virtual_desktops.route("/virtual_desktops/create", methods=["POST"])
 @login_required
+@feature_flag(flag_name="VIRTUAL_DESKTOPS", mode="view")
 def create():
     logger.info(
         f"Received following parameters {request.form} for new virtual desktops"
@@ -247,6 +210,7 @@ def create():
 
 @virtual_desktops.route("/virtual_desktops/delete", methods=["POST"])
 @login_required
+@feature_flag(flag_name="VIRTUAL_DESKTOPS", mode="view")
 def delete():
     _session_uuid = request.form.get("session_uuid", None)
     logger.info(f"Received following parameters {request.form} to delete DCV Session")
@@ -273,6 +237,7 @@ def delete():
 
 @virtual_desktops.route("/virtual_desktops/stop", methods=["POST"])
 @login_required
+@feature_flag(flag_name="VIRTUAL_DESKTOPS", mode="view")
 def stop():
     _session_uuid = request.form.get("session_uuid", None)
     logger.info(f"Received following parameters {request.form} to stop DCV Session")
@@ -299,6 +264,7 @@ def stop():
 
 @virtual_desktops.route("/virtual_desktops/start", methods=["GET"])
 @login_required
+@feature_flag(flag_name="VIRTUAL_DESKTOPS", mode="view")
 def start():
     _session_uuid = request.args.get("session_uuid", None)
     logger.info(f"Received following parameters {request.args} to start DCV Session")
@@ -325,6 +291,7 @@ def start():
 
 @virtual_desktops.route("/virtual_desktops/schedule", methods=["POST"])
 @login_required
+@feature_flag(flag_name="VIRTUAL_DESKTOPS", mode="view")
 def schedule():
     _session_uuid = request.form.get("session_uuid", None)
     _schedule = request.form.get("schedule", None)
@@ -354,6 +321,7 @@ def schedule():
 
 @virtual_desktops.route("/virtual_desktops/resize", methods=["POST"])
 @login_required
+@feature_flag(flag_name="VIRTUAL_DESKTOPS", mode="view")
 def resize():
     _session_uuid = request.form.get("session_uuid", None)
     _instance_type = request.form.get("instance_type", None)
@@ -373,7 +341,7 @@ def resize():
         flash(f"Your virtual desktop is now using {_instance_type}", "success")
     else:
         flash(
-            f"Unable to update hardware size: {_resize_desktop_request.get('message')} ",
+            f"{_resize_desktop_request.get('message')} ",
             "error",
         )
 
@@ -382,6 +350,7 @@ def resize():
 
 @virtual_desktops.route("/virtual_desktops/client", methods=["GET"])
 @login_required
+@feature_flag(flag_name="VIRTUAL_DESKTOPS", mode="view")
 def generate_client():
     _session_uuid = request.args.get("session_uuid", None)
     if _session_uuid is None:
@@ -399,7 +368,7 @@ def generate_client():
         ) in [
             "aws_ds_managed_activedirectory",
             "aws_ds_simple_activedirectory",
-            "existing_activedirectory",
+            "existing_active_directory",
         ]:
             logger.info(
                 "Building DCV Client, AD is enabled, checking if it's a windows session"

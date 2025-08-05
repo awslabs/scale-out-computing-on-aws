@@ -27,7 +27,7 @@ function file_download() {
     esac
   done
 
-  if [[ ${DOWNLOAD_URL} =~ ^s3://$ ]]; then
+  if [[ ${DOWNLOAD_URL} =~ ^s3:// ]]; then
       log_info "${DOWNLOAD_URL} seems to be a S3 URL"
       DOWNLOAD_TYPE="s3"
   else

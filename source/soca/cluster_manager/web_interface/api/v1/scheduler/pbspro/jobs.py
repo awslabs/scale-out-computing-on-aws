@@ -15,7 +15,7 @@ import config
 import re
 from flask_restful import Resource, reqparse
 import logging
-from decorators import private_api
+from decorators import private_api, feature_flag
 from utils.error import SocaError
 from utils.subprocess_client import SocaSubprocessClient
 from utils.response import SocaResponse
@@ -26,17 +26,83 @@ logger = logging.getLogger("soca_logger")
 
 class Jobs(Resource):
     @private_api
+    @feature_flag(flag_name="HPC", mode="api")
     def get(self):
         """
-        List all jobs in the queue
+        List PBS Pro jobs in the queue
         ---
+        openapi: 3.1.0
+        operationId: getJobs
         tags:
-          - Scheduler
+          - PBS Pro Scheduler
+        parameters:
+          - name: X-SOCA-USER
+            in: header
+            schema:
+              type: string
+              minLength: 1
+            required: true
+            description: SOCA username for authentication
+            example: admin
+          - name: X-SOCA-TOKEN
+            in: header
+            schema:
+              type: string
+              minLength: 1
+            required: true
+            description: SOCA authentication token
+            example: abc123token
+          - name: user
+            in: query
+            schema:
+              type: string
+              pattern: '^[a-zA-Z0-9._-]+$'
+              minLength: 1
+            required: false
+            description: Filter jobs by specific user (returns all jobs if not specified)
+            example: john.doe
         responses:
-          200:
-            description: List of all jobs
-          500:
-            description: Backend error
+          '200':
+            description: Jobs retrieved successfully
+            content:
+              application/json:
+                schema:
+                  type: object
+                  properties:
+                    success:
+                      type: boolean
+                      example: true
+                    message:
+                      type: object
+                      description: Job information keyed by job ID
+                      additionalProperties:
+                        type: object
+                        properties:
+                          Job_Name:
+                            type: string
+                            example: my_job
+                          Job_Owner:
+                            type: string
+                            example: john.doe@cluster
+                          job_state:
+                            type: string
+                            enum: [Q, R, H, S, E, F]
+                            example: R
+                          queue:
+                            type: string
+                            example: normal
+                      example: {
+                        "123.scheduler": {
+                          "Job_Name": "my_job",
+                          "Job_Owner": "john.doe@cluster",
+                          "job_state": "R",
+                          "queue": "normal"
+                        }
+                      }
+          '401':
+            description: Authentication required
+          '500':
+            description: PBS scheduler error or JSON parsing failure
         """
         parser = reqparse.RequestParser()
         parser.add_argument("user", type=str, location="args")

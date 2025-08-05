@@ -15,7 +15,7 @@ import re
 import config
 from flask_restful import Resource, reqparse
 import logging
-from decorators import private_api, admin_api
+from decorators import private_api, admin_api, feature_flag
 import json
 import utils.aws.boto3_wrapper as utils_boto3
 import os
@@ -29,35 +29,100 @@ logger = logging.getLogger("soca_logger")
 
 class Reset(Resource):
     @admin_api
+    @feature_flag(flag_name="MY_ACCOUNT_MANAGEMENT", mode="api")
     def post(self):
         """
-        Change password for a given user
+        Reset Active Directory user password
         ---
+        openapi: 3.1.0
+        operationId: resetActiveDirectoryPassword
         tags:
           - User Management
-
-        parameters:
-          - in: body
-            name: body
-            schema:
-              required:
-                - user
-                - password
-              properties:
-                user:
-                  type: string
-                  description: SOCA user
-                password:
-                  type: string
-                  description: New password to configure
-
+        summary: Reset Active Directory user password
+        description: Reset password for a user in AWS Directory Service (Active Directory) with complexity validation
+        security:
+          - socaAuth: []
+        requestBody:
+          required: true
+          content:
+            application/x-www-form-urlencoded:
+              schema:
+                type: object
+                required:
+                  - user
+                  - password
+                properties:
+                  user:
+                    type: string
+                    description: Username of the user whose password will be reset
+                    minLength: 1
+                    maxLength: 64
+                    pattern: '^[a-zA-Z0-9._-]+$'
+                    example: "john.doe"
+                  password:
+                    type: string
+                    description: New password (must meet AD complexity requirements - 8-64 chars with 3 of 4 character types)
+                    minLength: 8
+                    maxLength: 64
+                    format: password
+                    example: "NewSecurePass123!"
+                  directory_id:
+                    type: string
+                    description: AWS Directory Service ID (uses default if not provided)
+                    pattern: f'^d-[0-9a-f]{10}$'
+                    example: "d-1234567890"
         responses:
-          200:
-            description: Pair of username/token is valid
-          203:
-            description: Invalid username/token pair
-          400:
-            description: Malformed client input
+          '200':
+            description: Password successfully updated
+            content:
+              application/json:
+                schema:
+                  type: object
+                  properties:
+                    success:
+                      type: boolean
+                      example: true
+                    message:
+                      type: string
+                      example: "Password updated correctly"
+          '400':
+            description: Invalid password or missing parameters
+            content:
+              application/json:
+                schema:
+                  type: object
+                  properties:
+                    success:
+                      type: boolean
+                      example: false
+                    message:
+                      type: string
+                      example: "Password cannot contain username"
+          '500':
+            description: Failed to update password
+            content:
+              application/json:
+                schema:
+                  type: object
+                  properties:
+                    success:
+                      type: boolean
+                      example: false
+                    message:
+                      type: string
+                      example: "john.doe does not seem to exist in this directory"
+        components:
+          securitySchemes:
+            socaAuth:
+              type: apiKey
+              in: header
+              name: X-SOCA-USER
+              description: SOCA username for authentication
+            socaToken:
+              type: apiKey
+              in: header
+              name: X-SOCA-TOKEN
+              description: SOCA authentication token
         """
         parser = reqparse.RequestParser()
         parser.add_argument("user", type=str, location="form")
@@ -71,12 +136,18 @@ class Reset(Resource):
             logger.info("directory_id not set, defaulting to SOCA DS ID if known.")
             directory_id = config.Config.DIRECTORY_SERVICE_ID
 
-        logger.info(f"Received AWS DS password reset request for {user} for directory service: {config.Config.DIRECTORY_SERVICE_ID}")
+        logger.info(
+            f"Received AWS DS password reset request for {user} for directory service: {config.Config.DIRECTORY_SERVICE_ID}"
+        )
         if user.lower() in password.lower():
-            return SocaError.IDENTITY_PROVIDER_ERROR(helper="Password cannot contain username").as_flask()
+            return SocaError.IDENTITY_PROVIDER_ERROR(
+                helper="Password cannot contain username"
+            ).as_flask()
         ds_password_complexity = r"(?=^.{8,64}$)((?=.*\d)(?=.*[A-Z])(?=.*[a-z])|(?=.*\d)(?=.*[^A-Za-z0-9\s])(?=.*[a-z])|(?=.*[^A-Za-z0-9\s])(?=.*[A-Z])(?=.*[a-z])|(?=.*\d)(?=.*[A-Z])(?=.*[^A-Za-z0-9\s]))^.*"
         if not re.search(ds_password_complexity, password):
-            return SocaError.IDENTITY_PROVIDER_ERROR(helper=f"Password does not meet the required complexity. Regex is {ds_password_complexity}").as_flask()
+            return SocaError.IDENTITY_PROVIDER_ERROR(
+                helper=f"Password does not meet the required complexity. Regex is {ds_password_complexity}"
+            ).as_flask()
 
         if user is None:
             return SocaError.CLIENT_MISSING_PARAMETER(parameter="user").as_flask()
@@ -84,24 +155,29 @@ class Reset(Resource):
         if password is None:
             return SocaError.CLIENT_MISSING_PARAMETER(parameter="password").as_flask()
 
-
-
         _ds_client = utils_boto3.get_boto(service_name="ds").message
 
         try:
             _reset_password = _ds_client.reset_user_password(
-                DirectoryId=directory_id,
-                UserName=user,
-                NewPassword=password)
+                DirectoryId=directory_id, UserName=user, NewPassword=password
+            )
 
             if _reset_password.get("ResponseMetadata").get("HTTPStatusCode") == 200:
-                return SocaResponse(success=True, message="Password updated correctly").as_flask()
+                return SocaResponse(
+                    success=True, message="Password updated correctly"
+                ).as_flask()
             else:
-                return SocaError.IDENTITY_PROVIDER_ERROR(helper=f"Unable to reset password due to {_reset_password}").as_flask()
+                return SocaError.IDENTITY_PROVIDER_ERROR(
+                    helper=f"Unable to reset password due to {_reset_password}"
+                ).as_flask()
         except _ds_client.exceptions.InvalidPasswordException as err:
-            return SocaError.IDENTITY_PROVIDER_ERROR(helper=f"Password is invalid: {err}").as_flask()
+            return SocaError.IDENTITY_PROVIDER_ERROR(
+                helper=f"Password is invalid: {err}"
+            ).as_flask()
         except _ds_client.exceptions.UserDoesNotExistException as err:
-            return SocaError.IDENTITY_PROVIDER_ERROR(helper=f"{user} does not seems to exist in this directory: {err}").as_flask()
+            return SocaError.IDENTITY_PROVIDER_ERROR(
+                helper=f"{user} does not seems to exist in this directory: {err}"
+            ).as_flask()
         except Exception as err:
             exc_type, exc_obj, exc_tb = sys.exc_info()
             fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]

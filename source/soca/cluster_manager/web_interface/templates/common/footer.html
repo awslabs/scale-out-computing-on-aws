@@ -6,10 +6,10 @@
 <script src="{{ url_for('static', filename='js/app.min.js') }}"></script>
 <script src="{{ url_for('static', filename='vendor/js/bootstrap.bundle.min.js') }}"></script>
 
-{% if page == 'admin_virtual_desktop_list_all' %}
+{% if page in ['admin_virtual_desktop_list_all', 'containers_list_images', 'admin_projects_per_user'] %}
     <script src="{{ url_for('static', filename='vendor/datatables-bs/datatables.min.js') }}"></script>
 
-{% elif page in ["admin_profiles", "admin_projects"] %}
+{% elif page in ["admin_profiles", "admin_projects", "admin_target_node_profiles"] %}
     <script src="{{ url_for('static', filename='vendor/use-bootstrap-tag/use-bootstrap-tag.js') }}"></script>
 {% endif %}
 

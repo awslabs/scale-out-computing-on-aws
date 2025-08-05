@@ -16,7 +16,7 @@ import config
 import json
 from flask import render_template, Blueprint, request, redirect, session, flash
 from requests import get, delete
-from decorators import login_required
+from decorators import login_required, feature_flag
 from datetime import datetime, timezone, timedelta
 from utils.aws.ssm_parameter_store import SocaConfig
 
@@ -26,10 +26,19 @@ my_activity = Blueprint("my_activity", __name__, template_folder="templates")
 
 @my_activity.route("/my_activity", methods=["GET"])
 @login_required
+@feature_flag(flag_name="ANALYTICS_COST_MANAGEMENT", mode="view")
 def index():
-    _opensearch_endpoint = SocaConfig(key="/configuration/Analytics/endpoint").get_value().get("message")
-    _opensearch_engine = SocaConfig(key="/configuration/Analytics/engine").get_value().get("message")
-    _opensearch_enabled = SocaConfig(key="/configuration/Analytics/enabled").get_value(return_as=bool).get("message")
+    _opensearch_endpoint = (
+        SocaConfig(key="/configuration/Analytics/endpoint").get_value().get("message")
+    )
+    _opensearch_engine = (
+        SocaConfig(key="/configuration/Analytics/engine").get_value().get("message")
+    )
+    _opensearch_enabled = (
+        SocaConfig(key="/configuration/Analytics/enabled")
+        .get_value(return_as=bool)
+        .get("message")
+    )
     user = session["user"]
     if _opensearch_engine == "opensearch":
         _dashboard_endpoint = f"{_opensearch_endpoint}/_dashboards/"
@@ -41,5 +50,4 @@ def index():
         dashboard_endpoint=_dashboard_endpoint,
         opensearch_engine=_opensearch_engine,
         opensearch_enabled=_opensearch_enabled,
-        user=user
     )

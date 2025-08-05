@@ -18,11 +18,16 @@ import requests
 from flask import session
 from jose import jwt
 from requests import get
+import pwd
+import logging
+from utils.http_client import SocaHttpClient
 
 """
 To enable SSO auth via cognito, update COGNITO section on config.py
 https://awslabs.github.io/scale-out-computing-on-aws-documentation/documentation/security/integrate-cognito-sso/
 """
+
+logger = logging.getLogger("soca_logger")
 
 
 def sso_authorization(code):
@@ -62,29 +67,71 @@ def sso_authorization(code):
         audience=config.Config.COGNITO_APP_ID,
     )
     if claims:
+        logger.info(f"Received SSO claims: {claims}")
         try:
-            user = claims["email"].split("@")[0]
+            _user_claim = config.Config.COGNITO_USER_CLAIM
+            logger.info(
+                f"Trying to retrieve user from SSO claims using claim: {_user_claim=}"
+            )
+            if claims.get(_user_claim, ""):
+                if _user_claim in ["email", "mail"]:
+                    user = claims[_user_claim].strip().split("@")[0]
+                else:
+                    logger.info(
+                        f"user claim found with value {claims.get(_user_claim)}"
+                    )
+                    user = claims.get(_user_claim).strip()
+
+            else:
+                logger.error(
+                    f"User specified claim {_user_claim} not found in received claims {claims}"
+                )
+                return {
+                    "success": False,
+                    "message": f"Unable to retrieve user/username/email from SSO claim {_user_claim}. Udpate config.py to change the user claim.  See logs for all detected claims.",
+                }
+
         except Exception as err:
+            logger.error(f"Unable to read SSO claims details due to {err}")
             return {
                 "success": False,
-                "message": "Error reading SSO claims. "
-                + str(claims)
-                + " Err: "
-                + str(err),
+                "message": "Error reading SSO claims. See logs for more details",
             }
 
-        # Simply check if user exist
-        check_user = get(
-            config.Config.FLASK_ENDPOINT + "/api/ldap/user",
-            headers={"X-SOCA-TOKEN": config.Config.API_ROOT_KEY},
-            params={"user": user},
-            verify=False,
-        )  # nosec
-        if check_user.status_code == 200:
-            session["user"] = user
+        logger.info(
+            f"Retrieved succesfull user {user=} from {claims.get('email')}, checking if user exist in people OU and sssd."
+        )
 
+        check_user = SocaHttpClient(
+            endpoint="/api/ldap/user",
+            headers={
+                "X-SOCA-TOKEN": config.Config.API_ROOT_KEY,
+            },
+        ).get(params={"user": user})
+
+        if check_user.get("success"):
+            logger.info("User exist in specified OU")
+            try:
+                pwd.getpwnam(user)
+                logger.info(f"{user=} exists on this system.")
+            except KeyError:
+                logger.error(
+                    f"{user=} does not exist on this system as pwd.getpwnam() failed. try to run id <user> and verify sssd.conf ."
+                )
+                return {
+                    "success": False,
+                    "message": "User is valid but  does not seems to be available on the SOCA Controller. See log for more details.",
+                }
+
+            session["user"] = user
             return {"success": True, "message": ""}
         else:
-            return {"success": False, "message": "user_not_found"}
+            logger.error(
+                f"Valid credentials but {user} could not be found in the specified OU. Verify specified People Base OU (/configuration/UserDirectory/people_search_base) and update it via cluster_manager/socactl config set --key '/configuration/UserDirectory/people_search_base' --value 'MY_NEW_OU'  if needed. error {check_user.get('message')}"
+            )
+            return {
+                "success": False,
+                "message": "User could not be found in the directory OU. See logs for more details",
+            }
     else:
         return {"success": False, "message": "SSO error. " + str(claims)}

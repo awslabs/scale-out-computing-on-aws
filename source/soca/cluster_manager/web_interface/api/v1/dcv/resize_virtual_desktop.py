@@ -14,12 +14,13 @@
 from flask_restful import Resource, reqparse
 from flask import request
 import logging
-from decorators import private_api
+from decorators import private_api, feature_flag
 from models import db, VirtualDesktopSessions, SoftwareStacks, VirtualDesktopProfiles
 import utils.aws.boto3_wrapper as utils_boto3
 from utils.error import SocaError
 from utils.response import SocaResponse
 import json
+from botocore.exceptions import ClientError
 
 logger = logging.getLogger("soca_logger")
 client_ec2 = utils_boto3.get_boto(service_name="ec2").message
@@ -27,32 +28,129 @@ client_ec2 = utils_boto3.get_boto(service_name="ec2").message
 
 class ResizeVirtualDesktop(Resource):
     @private_api
+    @feature_flag(flag_name="VIRTUAL_DESKTOPS", mode="api")
     def put(self):
         """
-        Modify instance type associated to DCV desktop session
+        Resize DCV virtual desktop instance type
         ---
+        openapi: 3.1.0
+        operationId: resizeVirtualDesktop
         tags:
-          - DCV
-
+          - Virtual Desktops
+        summary: Resize virtual desktop instance type
+        description: Modify the instance type of a DCV desktop session. The session must be in stopped state.
         parameters:
-          - in: body
-            name: body
+          - in: header
+            name: X-SOCA-USER
+            required: true
             schema:
-              required:
-                - os
-                - action
-              properties:
-                os:
-                  type: string
-                  description: DCV session type (Windows or Linux)
-                action:
-                  type: string
-                  description: stop, hibernate or terminate
+              type: string
+              example: "john.doe"
+            description: SOCA username for authentication
+          - in: header
+            name: X-SOCA-TOKEN
+            required: true
+            schema:
+              type: string
+              example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+            description: SOCA authentication token
+        requestBody:
+          required: true
+          content:
+            application/x-www-form-urlencoded:
+              schema:
+                type: object
+                required:
+                  - session_uuid
+                  - instance_type
+                properties:
+                  session_uuid:
+                    type: string
+                    format: uuid
+                    description: UUID of the virtual desktop session to resize
+                    example: "12345678-1234-1234-1234-123456789abc"
+                  instance_type:
+                    type: string
+                    description: New EC2 instance type for the virtual desktop
+                    example: "m5.large"
         responses:
-          200:
-            description: Pair of user/token is valid
-          401:
-            description: Invalid user/token pair
+          '200':
+            description: Virtual desktop successfully resized
+            content:
+              application/json:
+                schema:
+                  type: object
+                  properties:
+                    success:
+                      type: boolean
+                      example: true
+                    message:
+                      type: string
+                      example: "Your virtual desktop has been updated"
+          '400':
+            description: Bad request - missing parameters or invalid instance type
+            content:
+              application/json:
+                schema:
+                  type: object
+                  properties:
+                    success:
+                      type: boolean
+                      example: false
+                    error_code:
+                      type: string
+                      example: "CLIENT_MISSING_PARAMETER"
+                    message:
+                      type: string
+                      example: "Missing required parameter: session_uuid"
+          '401':
+            description: Unauthorized - invalid or missing authentication headers
+            content:
+              application/json:
+                schema:
+                  type: object
+                  properties:
+                    success:
+                      type: boolean
+                      example: false
+                    error_code:
+                      type: string
+                      example: "CLIENT_MISSING_HEADER"
+                    message:
+                      type: string
+                      example: "Missing required header: X-SOCA-USER"
+          '403':
+            description: Forbidden - session not owned by user or session not in stopped state
+            content:
+              application/json:
+                schema:
+                  type: object
+                  properties:
+                    success:
+                      type: boolean
+                      example: false
+                    error_code:
+                      type: string
+                      example: "VIRTUAL_DESKTOP_MODIFY_ERROR"
+                    message:
+                      type: string
+                      example: "This Virtual Desktop is not stopped. You can only modify a stopped desktop."
+          '500':
+            description: Internal server error - AWS API or database error
+            content:
+              application/json:
+                schema:
+                  type: object
+                  properties:
+                    success:
+                      type: boolean
+                      example: false
+                    error_code:
+                      type: string
+                      example: "VIRTUAL_DESKTOP_MODIFY_ERROR"
+                    message:
+                      type: string
+                      example: "Unable to modify this desktop because of AWS error"
         """
         parser = reqparse.RequestParser()
         parser.add_argument("session_uuid", type=str, location="form")
@@ -119,14 +217,13 @@ class ResizeVirtualDesktop(Resource):
                 return SocaError.VIRTUAL_DESKTOP_MODIFY_ERROR(
                     session_number=_session_uuid,
                     session_owner=_user,
-                    helper=f"This Virtual Desktop is not stopped. You can only modify a stopped desktop.",
+                    helper="This Virtual Desktop is not stopped. You can only modify a stopped desktop.",
                 ).as_flask()
             try:
                 client_ec2.modify_instance_attribute(
                     InstanceId=_instance_id,
                     InstanceType={"Value": args["instance_type"].lower()},
                 )
-
                 try:
                     session_info.instance_type = args["instance_type"].lower()
                     db.session.commit()
@@ -135,6 +232,20 @@ class ResizeVirtualDesktop(Resource):
                     return SocaError.DB_ERROR(
                         query=session_info,
                         helper=f"Unable to update instance type on database due to {err}",
+                    ).as_flask()
+
+            except ClientError as error:
+                if "is not in stopped state" in str(error):
+                    return SocaError.VIRTUAL_DESKTOP_MODIFY_ERROR(
+                        session_number=_session_uuid,
+                        session_owner=_user,
+                        helper="The instance is not currently in a stopped state. Please ensure the instance is fully stopped before attempting to resize. If you have just stopped your desktop, please wait a moment and try again.",
+                    ).as_flask()
+                else:
+                    return SocaError.VIRTUAL_DESKTOP_MODIFY_ERROR(
+                        session_number=_session_uuid,
+                        session_owner=_user,
+                        helper=f"Unable to modify this desktop because of {error}.",
                     ).as_flask()
 
             except Exception as err:
@@ -146,7 +257,7 @@ class ResizeVirtualDesktop(Resource):
 
             return SocaResponse(
                 success=True,
-                message=f"Your virtual desktop has been updated",
+                message="Your virtual desktop has been updated",
             ).as_flask()
 
         else:

@@ -26,11 +26,13 @@
 
 <!-- Page Specific -->
 
-{% if page == 'virtual_desktops' %}
+{% if page in ['virtual_desktops', 'target_nodes'] %}
     <script src="{{ url_for('static', filename='vendor/nouislider/nouislider.js') }}"></script>
     <link href="{{ url_for('static', filename='vendor/nouislider/nouislider.css') }}" rel="stylesheet" />
+    <script src="{{ url_for('static', filename='vendor/choices-js/choices.min.js') }}"></script>
+    <link href="{{ url_for('static', filename='vendor/choices-js/choices.min.css') }}" rel="stylesheet" />
 
-{% elif page == 'admin_virtual_desktop_list_all' %}
+{% elif page in ['admin_virtual_desktop_list_all', 'containers_list_images', 'admin_projects_per_user'] %}
     <script src="{{ url_for('static', filename='vendor/datatables-bs/datatables.min.css') }}"></script>
 
 {% elif page == 'my_jobs' %}
@@ -50,7 +52,7 @@
     <script src="{{ url_for('static', filename='vendor/jquery-formbuilder/form-render.min.js') }}"></script>
     <script src="{{ url_for('static', filename='vendor/jquery-ui/jquery-ui.min.js') }}"></script>
 
-{% elif page in ["admin_profiles", "admin_projects"] %}
+{% elif page in ["admin_profiles", "admin_projects", "admin_target_node_profiles"] %}
     <link href="{{ url_for('static', filename='vendor/use-bootstrap-tag/use-bootstrap-tag.css') }}" rel="stylesheet" />
 
 {% else %}

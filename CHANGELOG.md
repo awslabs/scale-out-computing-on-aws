@@ -5,6 +5,43 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [25.8.0] - 2025-08-05
+
+### In Preview
+
+Features in preview can be enabled in `default_config.yml` (or via `socactl` on running environment) via the new Feature Flags framework.
+These features are not yet considered stable but are available for experimental use.
+
+- Capacity Reservation support for Virtual Desktops.
+- Introducing `SOCA Containers` management via Amazon Elastic Container Registry (ECR) and Elastic Kubernetes Services (EKS)
+
+### Features
+
+- Introducing `SOCA Target Nodes`: Manage any AWS AMI directly within SOCA with the ability to create custom User Data for each node
+- Introducing `Feature Flags` and `Web User Personas`. Decide what Web Views and APIs you want to enable/disable per users 
+- SOCA Projects can now control visibility/access for Virtual Desktop Software Stacks, Target Nodes Software Stacks, and Application Profiles
+- Added support for dynamic `CustomTags`. You can now add/remove your own tags to any resources deployed by SOCA
+- AWS Budget can now be assigned to SOCA Projects. 
+- SOCA Installation using `Existing Resources` can now make use of existing `FSx/OpenZFS` during installation.
+  - NOTE - The FSx/OpenZFS filesystem needs to be configured with the `no_root_squash` setting for the `controller` host or globally.
+- Updated APIs spec to OpenAPI 3.1. Documentation is now available for Swagger and RapiDoc
+- Added support for Fractional GPU instances (`g6f`)
+
+### Changed
+
+- Rework how default AMIs are specified between the SOCA revisions and how SOCA Administrators can maintain local configuration files of over-rides. See `installer/region_map.d/README.md` for more information.
+- Endpoint for OpenLDAP now default to the private IP of the SOCA Controller instead of the DNS (handle case where instance has custom DNS)
+- You can now add a description for your Virtual Desktop Profiles
+- Added autocomplete capability for instance type list
+- CustomTags are now propagated to Compute Nodes / VDI Nodes and Target Nodes
+- Instance types are now sorted by generation (newest first) and size (largest first)
+- Automatically install GPU driver on Windows 2025
+- Updated NVIDIA GRID Driver from `18.1` to `18.4` for Linux VDI instances
+
+### Fixes
+- A javascript error prevented application profiles from being saved into the database properly. This would manifest as an empty application once it was saved.
+- A filesystem permissions problem prevented users from navigating into newly created directories.
+
 ## [25.5.0] - 2025-05-13
 
 ### Features

@@ -6,7 +6,7 @@ import logging
 import config
 from requests import get, post, put, delete
 from utils.response import SocaResponse
-from requests.exceptions import Timeout
+from requests.exceptions import Timeout, ConnectionError
 
 logger = logging.getLogger("soca_logger")
 
@@ -95,7 +95,24 @@ class SocaHttpClient:
                 )
             except Timeout:
                 return SocaResponse(
-                    success=False, message="TIMEOUT", status_code=None, request=None
+                    success=False,
+                    message=f"SocaHttpClient.TIMEOUT after {self._timeout} seconds. Endpoint may be down or unreachable.",
+                    status_code=None,
+                    request=None,
+                )
+            except ConnectionError:
+                return SocaResponse(
+                    success=False,
+                    message="SocaHttpClient.CONNECTION_ERROR. Endpoint may be down or unreachable. Verify firewall and/or security groups.",
+                    status_code=None,
+                    request=None,
+                )
+            except Exception as err:
+                return SocaResponse(
+                    success=False,
+                    message=f"SocaHttpClient.ERROR: {err}",
+                    status_code=None,
+                    request=None,
                 )
 
         elif method == "post":
@@ -111,8 +128,25 @@ class SocaHttpClient:
                 )
             except Timeout:
                 return SocaResponse(
-                    success=False, message="TIMEOUT", status_code=None, request=None
+                    success=False,
+                    message=f"SocaHttpClient.TIMEOUT after {self._timeout} seconds. Endpoint may be down or unreachable.",
+                    status_code=None,
+                    request=None,
                 )
+            except ConnectionError:
+                return SocaResponse(
+                    success=False,
+                    message="SocaHttpClient.CONNECTION_ERROR. Endpoint may be down or unreachable. Verify firewall and/or security groups.",
+                    status_code=None,
+                    request=None,
+                )
+            except Exception as err:
+                return SocaResponse(
+                    success=False,
+                    message=f"SocaHttpClient.ERROR: {err}",
+                    status_code=None,
+                    request=None,
+                ) 
 
         elif method == "put":
             try:
@@ -127,7 +161,24 @@ class SocaHttpClient:
                 )
             except Timeout:
                 return SocaResponse(
-                    success=False, message="TIMEOUT", status_code=None, request=None
+                    success=False,
+                    message=f"SocaHttpClient.TIMEOUT after {self._timeout} seconds. Endpoint may be down or unreachable.",
+                    status_code=None,
+                    request=None,
+                )
+            except ConnectionError:
+                return SocaResponse(
+                    success=False,
+                    message="SocaHttpClient.CONNECTION_ERROR. Endpoint may be down or unreachable.",
+                    status_code=None,
+                    request=None,
+                )
+            except Exception as err:
+                return SocaResponse(
+                    success=False,
+                    message=f"SocaHttpClient.ERROR: {err}",
+                    status_code=None,
+                    request=None,
                 )
         elif method == "delete":
             try:
@@ -141,7 +192,24 @@ class SocaHttpClient:
                 )
             except Timeout:
                 return SocaResponse(
-                    success=False, message="TIMEOUT", status_code=None, request=None
+                    success=False,
+                    message=f"SocaHttpClient.TIMEOUT after {self._timeout} seconds. Endpoint may be down or unreachable.",
+                    status_code=None,
+                    request=None,
+                )
+            except ConnectionError:
+                return SocaResponse(
+                    success=False,
+                    message="SocaHttpClient.CONNECTION_ERROR. Endpoint may be down or unreachable.",
+                    status_code=None,
+                    request=None,
+                )
+            except Exception as err:
+                return SocaResponse(
+                    success=False,
+                    message=f"SocaHttpClient.ERROR: {err}",
+                    status_code=None,
+                    request=None,
                 )
         else:
             return SocaResponse(

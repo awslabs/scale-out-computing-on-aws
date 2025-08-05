@@ -18,7 +18,7 @@ from datetime import datetime, timezone
 
 import json
 from utils.aws.ssm_parameter_store import SocaConfig
-from decorators import private_api
+from decorators import private_api, feature_flag
 from flask import request
 import re
 import uuid
@@ -28,6 +28,11 @@ from botocore.exceptions import ClientError
 from models import db, VirtualDesktopSessions, SoftwareStacks
 import dcv_cloudformation_builder
 import utils.aws.boto3_wrapper as utils_boto3
+from utils.aws.odcr_helper import (
+    create_capacity_reservation_vdi,
+    cancel_capacity_reservation,
+)
+import utils.aws.cloudformation_helper as cloudformation_helper
 from utils.error import SocaError
 from utils.cast import SocaCastEngine
 from utils.response import SocaResponse
@@ -41,7 +46,6 @@ import string
 
 logger = logging.getLogger("soca_logger")
 client_ec2 = utils_boto3.get_boto(service_name="ec2").message
-client_cfn = utils_boto3.get_boto(service_name="cloudformation").message
 
 
 def clean_user_data(text_to_remove: list, data: str) -> str:
@@ -63,63 +67,201 @@ def clean_user_data(text_to_remove: list, data: str) -> str:
 
 class CreateVirtualDesktop(Resource):
     @private_api
+    @feature_flag(flag_name="VIRTUAL_DESKTOPS", mode="api")
     def post(self):
         """
-        Create a new DCV desktop session (Linux)
+        Create a new DCV virtual desktop session
         ---
+        openapi: 3.1.0
+        operationId: createVirtualDesktop
         tags:
-          - DCV
-
+          - Virtual Desktops
+        summary: Create new virtual desktop session
+        description: Provisions a new EC2 instance with DCV for remote desktop access
         parameters:
-          - in: body
-            name: body
+          - name: X-SOCA-USER
+            in: header
+            required: true
             schema:
-              required:
-                - instance_type
-                - disk_size
-                - session_number
-                - software_stack_id
-                - subnet_id
-                - hibernate
-              properties:
-                instance_type:
-                  type: string
-                  description: Type of EC2 instance to provision
-                disk_size:
-                  type: string
-                  description: EBS size to provision for root device
-                session_number:
-                  type: string
-                  description: DCV Session Number
-                session_name:
-                  type: string
-                  description: DCV Session Name
-                software_stack_id:
-                  type: string
-                  description: ID of the software stack
-                subnet_id:
-                  type: string
-                  description: Specify a subnet id to launch the EC2
-                hibernate:
-                  type: string
-                  description: True/False.
-                user:
-                  type: string
-                  description: owner of the session
-                tenancy:
-                  type: string
-                  description: EC2 tenancy (default or dedicated)
+              type: string
+              minLength: 1
+              maxLength: 64
+              pattern: '^[a-zA-Z0-9._-]+$'
+            description: SOCA username for authentication
+            example: "john.doe"
+          - name: X-SOCA-TOKEN
+            in: header
+            required: true
+            schema:
+              type: string
+              minLength: 1
+              maxLength: 256
+            description: SOCA authentication token
+            example: "abc123token456"
+        requestBody:
+          required: true
+          content:
+            application/x-www-form-urlencoded:
+              schema:
+                type: object
+                required:
+                  - instance_type
+                  - session_name
+                  - software_stack_id
+                properties:
+                  instance_type:
+                    type: string
+                    pattern: '^[a-z0-9]+\.[a-z0-9]+$'
+                    description: EC2 instance type for the virtual desktop
+                    example: "m5.large"
+                  disk_size:
+                    type: string
+                    pattern: '^[0-9]+$'
+                    description: EBS root volume size in GB
+                    example: "50"
+                  session_name:
+                    type: string
+                    minLength: 1
+                    maxLength: 32
+                    pattern: '^[a-zA-Z0-9]+$'
+                    description: Name for the DCV session (alphanumeric only, max 32 chars)
+                    example: "MyDesktop01"
+                  software_stack_id:
+                    type: string
+                    pattern: '^[0-9]+$'
+                    description: ID of the software stack to use
+                    example: "1"
+                  subnet_id:
+                    type: string
+                    pattern: '^subnet-[a-f0-9]{8,17}$'
+                    description: Subnet ID where to launch the EC2 instance
+                    example: "subnet-12345678"
+                  project:
+                    type: string
+                    minLength: 1
+                    maxLength: 100
+                    pattern: '^[a-zA-Z0-9._-]+$'
+                    description: Project to map the VDI desktop to
+                    example: "myproject"
+                  hibernate:
+                    type: string
+                    enum: ["true", "false"]
+                    description: Enable hibernation support
+                    example: "false"
+                  tenancy:
+                    type: string
+                    enum: ["default", "dedicated"]
+                    description: EC2 tenancy type
+                    example: "default"
+                  session_type:
+                    type: string
+                    enum: ["default", "console", "virtual"]
+                    description: Type of DCV session
+                    example: "default"
         responses:
-          200:
-            description: Pair of user/token is valid
-          401:
-            description: Invalid user/token pair
+          '200':
+            description: Virtual desktop session creation initiated successfully
+            content:
+              application/json:
+                schema:
+                  type: object
+                  required:
+                    - success
+                    - message
+                  properties:
+                    success:
+                      type: boolean
+                      example: true
+                    message:
+                      type: string
+                      example: "Session MyDesktop01 started successfully."
+          '400':
+            description: Invalid request parameters
+            content:
+              application/json:
+                schema:
+                  type: object
+                  required:
+                    - success
+                    - error_code
+                    - message
+                  properties:
+                    success:
+                      type: boolean
+                      example: false
+                    error_code:
+                      type: integer
+                      example: 400
+                    message:
+                      type: string
+                      example: "Missing required parameter: instance_type"
+          '401':
+            description: Authentication failed
+            content:
+              application/json:
+                schema:
+                  type: object
+                  required:
+                    - success
+                    - error_code
+                    - message
+                  properties:
+                    success:
+                      type: boolean
+                      example: false
+                    error_code:
+                      type: integer
+                      example: 401
+                    message:
+                      type: string
+                      example: "Invalid authentication credentials"
+          '403':
+            description: Feature not enabled or insufficient permissions
+            content:
+              application/json:
+                schema:
+                  type: object
+                  required:
+                    - success
+                    - error_code
+                    - message
+                  properties:
+                    success:
+                      type: boolean
+                      example: false
+                    error_code:
+                      type: integer
+                      example: 403
+                    message:
+                      type: string
+                      example: "Virtual desktops feature is not enabled"
+          '500':
+            description: Internal server error during session creation
+            content:
+              application/json:
+                schema:
+                  type: object
+                  required:
+                    - success
+                    - error_code
+                    - message
+                  properties:
+                    success:
+                      type: boolean
+                      example: false
+                    error_code:
+                      type: integer
+                      example: 500
+                    message:
+                      type: string
+                      example: "Failed to create virtual desktop session"
         """
 
         parser = reqparse.RequestParser()
         parser.add_argument("instance_type", type=str, location="form")
         parser.add_argument("disk_size", type=str, location="form")
         parser.add_argument("session_name", type=str, location="form")
+        parser.add_argument("project", type=str, location="form")
         parser.add_argument("software_stack_id", type=str, location="form")
         parser.add_argument("subnet_id", type=str, location="form")
         parser.add_argument("hibernate", type=str, location="form")
@@ -152,12 +294,19 @@ class CreateVirtualDesktop(Resource):
                     string=str(args["session_name"])[:32],
                 )[:32]
 
+            if args["project"] is None:
+                return SocaError.VIRTUAL_DESKTOP_LAUNCH_ERROR(
+                    session_number=_session_uuid,
+                    session_owner=_user,
+                    helpers="project cannot be null",
+                ).as_flask()
+
             logger.debug(f"Session name {_session_name}")
 
             # Retrieve SOCA specific variable from AWS Parameter Store
             _get_soca_parameters = (
                 SocaConfig(
-                    key=f"/",
+                    key="/",
                 )
                 .get_value(return_as=dict)
                 .get("message")
@@ -207,6 +356,7 @@ class CreateVirtualDesktop(Resource):
                         software_stack_id=_software_stack_id.get("message"),
                         is_active=True,
                     )
+
                 else:
                     return SocaError.VIRTUAL_DESKTOP_LAUNCH_ERROR(
                         session_number=_session_uuid,
@@ -215,14 +365,14 @@ class CreateVirtualDesktop(Resource):
                     ).as_flask()
 
             # Validate Software Stack Information
-            _get_software_stack_info = _get_software_stack.list()
+            _get_software_stack_info = _get_software_stack.get_stack_info()
             if _get_software_stack_info.get("success") is True:
                 _software_stack_info = _get_software_stack_info.get("message")
             else:
                 return SocaError.VIRTUAL_DESKTOP_LAUNCH_ERROR(
                     session_number=_session_uuid,
                     session_owner=_user,
-                    helper=f"Unable to get Software Stack Info: {_get_software_stack_info.get('message')}",
+                    helper=f"{_get_software_stack_info.get('message')}",
                 ).as_flask()
 
             _check_disk_size = SocaCastEngine(args["disk_size"]).cast_as(
@@ -263,6 +413,7 @@ class CreateVirtualDesktop(Resource):
                 root_size=args["disk_size"],
                 subnet_id=args["subnet_id"],
                 session_owner=_user,
+                project=args.get("project"),
             )
 
             if _get_software_stack_permissions.get("success") is False:
@@ -341,6 +492,7 @@ class CreateVirtualDesktop(Resource):
             # add custom dcv parameter
             soca_parameters["/job/NodeType"] = "dcv_node"
             soca_parameters["/dcv/SessionOwner"] = _user
+            soca_parameters["/dcv/JobProject"] = args.get("project")
             soca_parameters["/dcv/SessionType"] = _session_type
             if _software_stack_info.get("os_family") == "windows":
                 soca_parameters["/dcv/SessionId"] = "console"
@@ -481,6 +633,18 @@ class CreateVirtualDesktop(Resource):
                         helper=f"Error while checking hibernation support of instance {instance_type} because of {e}",
                     ).as_flask()
 
+            _selected_subnet = (
+                random.choice(
+                    SocaCastEngine(
+                        _get_soca_parameters.get("/configuration/PrivateSubnets")
+                    )
+                    .cast_as(expected_type=list)
+                    .get("message")
+                )
+                if not args["subnet_id"]
+                else args["subnet_id"]
+            )
+
             launch_parameters = {
                 "security_group_id": _get_soca_parameters.get(
                     "/configuration/ComputeNodeSecurityGroup"
@@ -489,13 +653,9 @@ class CreateVirtualDesktop(Resource):
                     "/configuration/ComputeNodeInstanceProfileArn"
                 ),
                 "instance_type": instance_type,
-                "soca_private_subnets": SocaCastEngine(
-                    _get_soca_parameters.get("/configuration/PrivateSubnets")
-                )
-                .cast_as(expected_type=list)
-                .get("message"),
-                "subnet_id": args["subnet_id"],
+                "subnet_id": _selected_subnet,
                 "tenancy": args["tenancy"],
+                "project": args.get("project"),
                 "image_id": _software_stack_info.get("ami_id"),
                 "session_name": _session_name,
                 "session_uuid": _session_uuid,
@@ -526,8 +686,32 @@ class CreateVirtualDesktop(Resource):
                 "user_data": base64.b64encode(user_data.encode("utf-8")).decode(
                     "utf-8"
                 ),
+                "capacity_reservation_id": "",
+                "custom_tags": {}
             }
-
+            
+            logger.info("Checking if custom tags exist")
+             
+             # Get custom tags if specified
+            _tags_allowed = SocaConfig(key="/configuration/FeatureFlags/AllowCustomTagsVDI").get_value(return_as=bool)
+            if _tags_allowed.get("success") is True:
+                if _tags_allowed.get("message") is True:
+                    _get_tags = SocaConfig(key="/configuration/CustomTags/").get_value(allow_unknown_key=True)
+                    if _get_tags.get("success") is True:
+                        _tag_dict = SocaCastEngine(data=_get_tags.get("message")).autocast(preserve_key_name=True)
+                        if _tag_dict.get("success") is True:
+                            logger.info(f"Adding new tags: {_tag_dict.get('message')}")
+                            launch_parameters["custom_tags"] = _tag_dict.get("message")
+                        else:
+                            logger.error(f"Unable to autocast custom tags {_tag_dict=} ")
+                    else:
+                        logger.warning("/configuration/CustomTags/ does not exist in this environment, ignoring ...")
+                else:
+                    logger.warning(f"Unable to determine if tags are allowed because of: {_tags_allowed=} ")
+                     
+            else:
+                logger.warning("Custom tags are not allowed. AllowCustomTagsVDI is set to false")
+                        
             logger.debug(f"Launch parameters for DCV: {launch_parameters}")
 
             dry_run_launch = remote_desktop_common.can_launch_instance(
@@ -535,12 +719,47 @@ class CreateVirtualDesktop(Resource):
             )
 
             if dry_run_launch.get("success"):
+                _stack_name = f"{launch_parameters['cluster_id']}-{launch_parameters['session_name']}-{launch_parameters['user']}"
+                # Request On-Demand Capacity Reservation
+                # This is to ensure capacity is available on the selected subnet.
+                if (
+                    SocaConfig(key="/configuration/FeatureFlags/EnableCapacityReservation")
+                    .get_value(return_as=bool)
+                    .get("message")
+                    is False
+                ):
+                    logger.info(
+                        "/configuration/FeatureFlags/EnableCapacityReservation flag is set to False, SOCA will not request a new capacity reservation"
+                    )
+                else:
+                    logger.info(
+                        f"Requesting ODCR for {launch_parameters['instance_type']=}, instance_count=1, capacity_reservation_name={_stack_name}, subnet_ids={[_selected_subnet]}, {launch_parameters["image_id"]}"
+                    )
+                    _request_on_demand_capacity_reservation = (
+                        create_capacity_reservation_vdi(
+                            instance_type=launch_parameters["instance_type"],
+                            capacity_reservation_name=_stack_name,
+                            subnet_id=_selected_subnet,
+                            instance_ami=launch_parameters["image_id"],
+                            tenancy=launch_parameters["tenancy"],
+                        )
+                    )
+                    if _request_on_demand_capacity_reservation.get("success") is True:
+                        launch_parameters["capacity_reservation_id"] = (
+                            _request_on_demand_capacity_reservation.get("message")
+                        )
+
+                    else:
+                        return SocaError.GENERIC_ERROR(
+                            helper=f"Unable to create capacity reservation due to {_request_on_demand_capacity_reservation.message}"
+                        ).as_flask()
+
                 launch_template = dcv_cloudformation_builder.main(**launch_parameters)
-                if launch_template["success"] is True:
+                if launch_template.get("success") is True:
                     _cfn_stack_name = re.sub(
                         r"[^a-zA-Z0-9\-]",
                         "",
-                        f"{launch_parameters['cluster_id']}-{launch_parameters['session_name']}-{ launch_parameters['user']}",
+                        _stack_name,
                     )
 
                     _cfn_stack_tags = [
@@ -554,42 +773,38 @@ class CreateVirtualDesktop(Resource):
                             "Key": "soca:ClusterId",
                             "Value": str(launch_parameters["cluster_id"]),
                         },
+                        {"Key": "soca:JobProject", "Value": args.get("project")},
                         {"Key": "soca:NodeType", "Value": "dcv_node"},
                         {
                             "Key": "soca:BaseOS",
                             "Value": _software_stack_info.get("ami_base_os"),
                         },
                     ]
-                    try:
-                        client_cfn.create_stack(
-                            StackName=_cfn_stack_name,
-                            TemplateBody=launch_template["output"],
-                            Tags=_cfn_stack_tags,
-                        )
-                    except botocore.exceptions.ClientError as e:
-                        if e.response["Error"]["Code"] == "AlreadyExistsException":
-                            return SocaError.VIRTUAL_DESKTOP_LAUNCH_ERROR(
-                                session_number=_session_name,
-                                session_owner=_user,
-                                helper=f"This virtual desktop name is already taken. Please pick a different name for your Virtual Desktop",
-                            ).as_flask()
-                        else:
-                            return SocaError.AWS_API_ERROR(
-                                service_name="cloudformation",
-                                helper=f"Error while trying to provision {_cfn_stack_name} because of {e}",
-                            ).as_flask()
 
-                    except Exception as e:
-                        return SocaError.AWS_API_ERROR(
-                            service_name="cloudformation",
-                            helper=f"Error while trying to provision {_cfn_stack_name} because of {e}",
+                    _create_stack = cloudformation_helper.create_stack(
+                        stack_name=_cfn_stack_name,
+                        template_body=launch_template.get("message"),
+                        tags=_cfn_stack_tags,
+                    )
+                    if _create_stack.get("success") is True:
+                        logger.info(
+                            f"CloudFormation stack {_cfn_stack_name} successfully created"
+                        )
+
+                    else:
+                        return SocaError.GENERIC_ERROR(
+                            helper=f"{_create_stack.get('message')}"
                         ).as_flask()
 
                 else:
+                    for _reservation_id in launch_parameters[
+                        "capacity_reservation_id"
+                    ].split(","):
+                        cancel_capacity_reservation(reservation_id=_reservation_id)
                     return SocaError.VIRTUAL_DESKTOP_LAUNCH_ERROR(
                         session_number=_session_name,
                         session_owner=_user,
-                        helper=f"Unable to launch CloudFormation stack because of {launch_template['output']}.",
+                        helper=f"{launch_template.get('message')}.",
                     ).as_flask()
             else:
                 return SocaError.AWS_API_ERROR(
@@ -610,6 +825,7 @@ class CreateVirtualDesktop(Resource):
                 deactivated_on=None,
                 session_owner=_user,
                 session_uuid=_session_uuid,
+                session_project=args.get("project"),
                 session_id=soca_parameters["/dcv/SessionId"],
                 session_name=_session_name,
                 stack_name=_cfn_stack_name,
@@ -638,12 +854,13 @@ class CreateVirtualDesktop(Resource):
                 logger.error(
                     "Cloudformation stack created but DB error, deleting cloudformation stack"
                 )
-                try:
-                    client_cfn.delete_stack(StackName=_cfn_stack_name)
-                except Exception as e:
+                _delete_stack = cloudformation_helper.delete_stack(
+                    stack_name=_cfn_stack_name
+                )
+                if _delete_stack.get("success") is False:
                     return SocaError.AWS_API_ERROR(
                         service_name="cloudformation",
-                        helper=f"Unable to delete CloudFormation stack {_cfn_stack_name} due to {e}",
+                        helper=f"Unable to delete CloudFormation stack {_cfn_stack_name} due to {_delete_stack.get("success")}",
                     ).as_flask()
 
                 return SocaError.DB_ERROR(

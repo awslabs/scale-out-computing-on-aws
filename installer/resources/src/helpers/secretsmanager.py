@@ -24,7 +24,7 @@ def create_secret(
     construct_id: str,
     secret_name: str,
     secret_string_template: str,
-    exclude_characters: str = "!\"#$%&'()*+,-./:;<=>?@[\]^_`{|}~",
+    exclude_characters: str = "!\"#$%&'()*+,-./\\:;<=>?@[]^_`{|}~",
     exclude_punctuation: bool = True,
     exclude_numbers: bool = False,
     exclude_lowercase: bool = False,

@@ -15,7 +15,7 @@
 from flask_restful import Resource, reqparse
 from flask import request
 import logging
-from decorators import private_api
+from decorators import private_api, feature_flag
 import errors
 import utils.aws.boto3_wrapper as utils_boto3
 from utils.aws.ssm_parameter_store import SocaConfig
@@ -27,18 +27,75 @@ client_ec2 = utils_boto3.get_boto(service_name="ec2").message
 
 class ListLoginNodes(Resource):
     @private_api
+    @feature_flag(flag_name="LOGIN_NODES", mode="api")
     def get(self):
         """
-        List all Login Nodes IP
+        List all login node IP addresses
         ---
+        openapi: 3.1.0
+        operationId: getLoginNodeIPs
         tags:
-          - LoginNodes
-
+          - Login Nodes
+        summary: List all login node IP addresses
+        description: Retrieve IP addresses of all running login nodes in the SOCA cluster
+        security:
+          - socaAuth: []
         responses:
-          200:
-            description: Pair of user/token is valid
-          401:
-            description: Invalid user/token pair
+          '200':
+            description: Login node IPs retrieved successfully
+            content:
+              application/json:
+                schema:
+                  type: object
+                  properties:
+                    success:
+                      type: boolean
+                      example: true
+                    message:
+                      type: array
+                      items:
+                        type: string
+                        format: ipv4
+                        description: IP address of login node (public IP preferred, private IP as fallback)
+                      example: ["10.0.1.100", "52.123.45.67"]
+          '401':
+            description: Authentication required
+            content:
+              application/json:
+                schema:
+                  type: object
+                  properties:
+                    success:
+                      type: boolean
+                      example: false
+                    message:
+                      type: string
+                      example: "Authentication required"
+          '500':
+            description: AWS API error
+            content:
+              application/json:
+                schema:
+                  type: object
+                  properties:
+                    success:
+                      type: boolean
+                      example: false
+                    message:
+                      type: string
+                      example: "AWS API error"
+        components:
+          securitySchemes:
+            socaAuth:
+              type: apiKey
+              in: header
+              name: X-SOCA-USER
+              description: SOCA username for authentication
+            socaToken:
+              type: apiKey
+              in: header
+              name: X-SOCA-TOKEN
+              description: SOCA authentication token
         """
         logger.debug("Fetching all Login Nodes IPs for your SOCA environment")
         user = request.headers.get("X-SOCA-USER")
@@ -50,7 +107,7 @@ class ListLoginNodes(Resource):
         ec2_paginator = client_ec2.get_paginator("describe_instances")
         ec2_iterator = ec2_paginator.paginate(
             Filters=[
-                {"Name": "tag:soca:NodeType", "Values": ["LoginNode"]},
+                {"Name": "tag:soca:NodeType", "Values": ["login_node"]},
                 {"Name": "instance-state-name", "Values": ["running"]},
                 {
                     "Name": "tag:soca:ClusterId",

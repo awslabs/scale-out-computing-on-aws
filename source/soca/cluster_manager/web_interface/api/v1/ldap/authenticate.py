@@ -19,9 +19,13 @@ import logging
 from utils.error import SocaError
 from utils.identity_provider_client import SocaIdentityProviderClient
 from utils.response import SocaResponse
+from utils.http_client import SocaHttpClient
 import pathlib
 import config
+import re
 from api.v1.ldap.user import create_home
+from flask import request
+import pwd
 
 logger = logging.getLogger("soca_logger")
 
@@ -30,71 +34,195 @@ class Authenticate(Resource):
     @private_api
     def post(self):
         """
-        Validate an LDAP user/password
+        Authenticate user credentials
         ---
+        openapi: 3.1.0
+        operationId: authenticateLdapUser
         tags:
           - LDAP management
-
-        parameters:
-          - in: body
-            name: body
-            schema:
-              required:
-                - user
-                - password
-              properties:
-                user:
-                  type: string
-                  description: SOCA user
-                token:
-                  type: string
-                  description: Token associated to the user
-
+        summary: Authenticate user credentials
+        description: Validate LDAP user credentials and create home directory if needed
+        security:
+          - socaAuth: []
+        requestBody:
+          required: true
+          content:
+            application/x-www-form-urlencoded:
+              schema:
+                type: object
+                required:
+                  - user
+                  - password
+                properties:
+                  user:
+                    type: string
+                    description: Username or DN to authenticate
+                    minLength: 1
+                    maxLength: 256
+                    example: "john.doe"
+                  password:
+                    type: string
+                    description: Password for authentication
+                    minLength: 1
+                    format: password
+                    example: "userPassword123!"
         responses:
-          200:
-            description: The Pair of user/token is valid
-          210:
-            description: Invalid user/token pair
-          400:
-            description: Client error
-          401:
-            description: Un-authorized
-          500:
-            description: Backend error
+          '200':
+            description: Authentication successful
+            content:
+              application/json:
+                schema:
+                  type: object
+                  properties:
+                    success:
+                      type: boolean
+                      example: true
+                    message:
+                      type: string
+                      example: "Authentication successful"
+          '210':
+            description: Invalid credentials
+            content:
+              application/json:
+                schema:
+                  type: object
+                  properties:
+                    success:
+                      type: boolean
+                      example: false
+                    message:
+                      type: string
+                      example: "Invalid username or password"
+          '400':
+            description: Missing required parameters
+            content:
+              application/json:
+                schema:
+                  type: object
+                  properties:
+                    success:
+                      type: boolean
+                      example: false
+                    message:
+                      type: string
+                      example: "Missing required parameter: user"
+          '401':
+            description: Unauthorized access
+            content:
+              application/json:
+                schema:
+                  type: object
+                  properties:
+                    success:
+                      type: boolean
+                      example: false
+                    message:
+                      type: string
+                      example: "Unauthorized"
+          '500':
+            description: Backend error during authentication
+            content:
+              application/json:
+                schema:
+                  type: object
+                  properties:
+                    success:
+                      type: boolean
+                      example: false
+                    message:
+                      type: string
+                      example: "Unable to connect to LDAP server"
+        components:
+          securitySchemes:
+            socaAuth:
+              type: apiKey
+              in: header
+              name: X-SOCA-USER
+              description: SOCA username for authentication
+            socaToken:
+              type: apiKey
+              in: header
+              name: X-SOCA-TOKEN
+              description: SOCA authentication token
         """
         parser = reqparse.RequestParser()
         parser.add_argument("user", type=str, location="form")
         parser.add_argument("password", type=str, location="form")
         args = parser.parse_args()
-        user = args["user"]
-        password = args["password"]
 
-        if user is None:
+        if args.get("user", None) is None:
             return SocaError.CLIENT_MISSING_PARAMETER(parameter="user").as_flask()
+        
+        if re.match(config.Config.USER_REGEX_PATTERN, args["user"]):
+            user = args["user"].lower()
+        else:
+            return SocaError.IDENTITY_PROVIDER_ERROR(
+                helper=f"User {args['user']} is not valid, must match {config.Config.USER_REGEX_PATTERN} (contains -and start with- only alpha-numerical characters plus _ . - and must be 31 chars max"
+            ).as_flask()
 
-        if password is None:
+        password = args.get("password", "")
+        if not password:
             return SocaError.CLIENT_MISSING_PARAMETER(parameter="password").as_flask()
 
         try:
             _soca_identity_client = SocaIdentityProviderClient()
             _soca_identity_client.initialize()
+
             # note: we can pass user as just username or entire base_dn. SocaIdentityProvider will automatically update it
             _user_bind = _soca_identity_client.bind_as_user(dn=user, password=password)
             if _user_bind.success:
-                logger.info(f"Successful Login for {user}, checking if user has a valid SOCA home ...")
+                logger.info(
+                    f"Successful Login for {user}, validating wheter user also exist in people OU"
+                )
+                check_user = SocaHttpClient(
+                    endpoint="/api/ldap/user",
+                    headers={
+                        "X-SOCA-USER": request.headers.get("X-SOCA-USER"),
+                        "X-SOCA-TOKEN": request.headers.get("X-SOCA-TOKEN"),
+                    },
+                ).get(params={"user": user})
+
+                if check_user.get("success") is False:
+                    logger.error(
+                        f"Valid credentials but {user} could not be found in the specified OU. Verify specified People Base OU (/configuration/UserDirectory/people_search_base) and update it via cluster_manager/socactl config set --key '/configuration/UserDirectory/people_search_base' --value 'MY_NEW_OU'  if needed. error {check_user.get('message')}"
+                    )
+                    return SocaError.IDENTITY_PROVIDER_ERROR(
+                        helper="User could not be found in the directory OU. See logs for more details."
+                    ).as_flask()
+
+                logger.info(
+                    f"{user=} exist in OU, doing a final test to see if the user available on the current system via sssd"
+                )
+
+                try:
+                    pwd.getpwnam(user)
+                    logger.info(f"{user=} exists on this system.")
+                except KeyError:
+                    logger.error(
+                        f"{user=} does not exist on this system as pwd.getpwnam() failed. try to run id <user> and verify sssd.conf ."
+                    )
+                    return SocaError.IDENTITY_PROVIDER_ERROR(
+                        helper="User is valid but does not seems to be available on the SOCA Controller. See log for more details."
+                    ).as_flask()
+
+                logger.info(
+                    f"Successful Login for {user} and user exist in OU, checking if user has a valid SOCA home ..."
+                )
                 _home_dir = pathlib.Path(f"{config.Config.USER_HOME}/{user}")
                 if _home_dir.exists():
                     logger.info(f"{_home_dir} already exist.")
                 else:
-                    # Handle case where user login from external AD/LDAP and user was not specifically created by SOCA
+                    # Handle case where user login from external AD/LDAP and user was not specifically created by SOCA or if $HOME has been deleted
                     logger.info(f"{_home_dir} does not already exist, creating it ...")
                     # Search for the pattern in the provided DN
-                    create_home(username=user.split(",")[0].split("=")[-1], group=f"{user}{config.Config.DIRECTORY_GROUP_NAME_SUFFIX}")
+                    create_home(
+                        username=user,
+                        group=f"{user}{config.Config.DIRECTORY_GROUP_NAME_SUFFIX}",
+                    )
 
             return SocaResponse(
                 success=_user_bind.success, message=_user_bind.message
             ).as_flask()
-
 
         except Exception as err:
             exc_type, exc_obj, exc_tb = sys.exc_info()
