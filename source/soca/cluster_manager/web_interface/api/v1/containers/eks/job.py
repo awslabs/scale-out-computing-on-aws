@@ -563,7 +563,7 @@ class EKSJob(Resource):
             ).as_flask()
 
         _node_selector = {}
-        if _instance_type is not None:
+        if _instance_type:
             _node_selector["node.kubernetes.io/instance-type"] = _instance_type
 
         try:
