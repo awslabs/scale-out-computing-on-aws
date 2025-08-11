@@ -5,7 +5,7 @@
             "Action": [
                 "logs:CreateLogGroup"
             ],
-            "Resource": "arn:%%AWS_PARTITION%%:logs:%%AWS_REGION%%:%%AWS_ACCOUNT_ID%%:log-group:/aws/lambda/%%CLUSTER_ID%%",
+            "Resource": "arn:%%AWS_PARTITION%%:logs:%%AWS_REGION%%:%%AWS_ACCOUNT_ID%%:log-group:/aws/lambda/%%CLUSTER_ID%%*",
             "Effect": "Allow",
             "Sid": "CloudWatchLogsPermissions"
         },
