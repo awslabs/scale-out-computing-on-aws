@@ -5,7 +5,11 @@
 function install_sqlite () {
   log_info "Begin: Install SQLite"
   local SQLITE_VERSION="{{ context.get("/system/sqlite/version") }}"
-  local SQLITE_URL="https://aws-gcr-industry-assets.s3.cn-northwest-1.amazonaws.com.cn/soca/sqlite-src-3490100.zip"
+  {% if context.get("/configuration/Region") in ("cn-north-1", "cn-northwest-1") %}
+    local SQLITE_URL="https://aws-gcr-industry-assets.s3.cn-northwest-1.amazonaws.com.cn/soca/sqlite-src-3490100.zip"
+  {% else %}
+    local SQLITE_URL="{{ context.get("/system/sqlite/url") }}"
+  {% endif %}
   local SQLITE_SHA256="{{ context.get("/system/sqlite/sha256") }}"
   local SQLITE_INSTALL_PREFIX="/opt/soca/{{ context.get('/configuration/ClusterId') }}/packages/sqlite"
   chmod +x "${SQLITE_INSTALL_PREFIX}/bin/sqlite3"

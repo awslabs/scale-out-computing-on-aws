@@ -47,15 +47,18 @@ function install_python_dependencies() {
     log_info "Continuing with Python installation attempt..."
   fi
 }
-install_python_dependencies
+# install_python_dependencies
 
 function install_soca_python () {
   log_info "Installing SOCA Python"
-
   mkdir -p "${SOCA_BOOTSTRAP_ASSETS_FOLDER}/soca_python"
   pushd "${SOCA_BOOTSTRAP_ASSETS_FOLDER}/soca_python"
   local PYTHON_VERSION="{{ context.get("/system/python/version") }}"
-  local PYTHON_URL="https://aws-gcr-industry-assets.s3.cn-northwest-1.amazonaws.com.cn/soca/Python-3.13.2.tgz"
+  {% if context.get("/configuration/Region") in ("cn-north-1", "cn-northwest-1") %}
+    local PYTHON_URL="https://aws-gcr-industry-assets.s3.cn-northwest-1.amazonaws.com.cn/soca/Python-3.13.2.tgz"
+  {% else %}
+    local PYTHON_URL="{{ context.get("/system/python/url") }}"
+  {% endif %}    
   local PYTHON_SHA256="{{ context.get("/system/python/sha256") }}"
   local SOCA_PYTHON_LOCAL_INSTALL_PREFIX="/opt/soca/{{ context.get("/configuration/ClusterId") }}/python/${PYTHON_VERSION}/$(uname -m)/{{ context.get('/configuration/BaseOS') }}"
   local SOCA_PYTHON_VENV="${SOCA_PYTHON_LOCAL_INSTALL_PREFIX}/soca-python-virtual-env"
@@ -68,7 +71,6 @@ function install_soca_python () {
   if [[ $(${SOCA_PYTHON_LOCAL_INSTALL_PREFIX}/bin/python3 --version | awk {'print $NF'}) == "${PYTHON_VERSION}" ]]; then
     log_info "Local SOCA_PYTHON ${SOCA_PYTHON_LOCAL_INSTALL_PREFIX} found and at correct version, skipping SOCA_PYTHON Install"
   else
-
     {% if context.get("/configuration/BaseOS") == "amazonlinux2" %}
        log_info "AmazonLinux2 ships with OpenSSL 1.0.x, bumping to openssl11"
        if ! verify_package_installed openssl11; then
@@ -134,11 +136,14 @@ function install_soca_python () {
       PYTHON_CONFIGURE_CMD+=" --enable-loadable-sqlite-extensions"
       PYTHON_CONFIGURE_CMD+=" --prefix=\"${SOCA_PYTHON_LOCAL_INSTALL_PREFIX}\""
       PYTHON_CONFIGURE_CMD+=" --enable-shared"
-      # PYTHON_CONFIGURE_CMD+=" --enable-optimizations"
-      # PYTHON_CONFIGURE_CMD+=" --with-lto"
+      {% if context.get("/configuration/Region") in ("cn-north-1", "cn-northwest-1") %}
+        PYTHON_CONFIGURE_CMD+=" --build=\$(uname -m)-linux-gnu"
+        PYTHON_CONFIGURE_CMD+=" --host=\$(uname -m)-linux-gnu"
+      {% else %}
+        PYTHON_CONFIGURE_CMD+=" --enable-optimizations"
+        PYTHON_CONFIGURE_CMD+=" --with-lto"
+      {% endif %}
       PYTHON_CONFIGURE_CMD+=" --with-ensurepip=install"
-      PYTHON_CONFIGURE_CMD+=" --build=\$(uname -m)-linux-gnu"
-      PYTHON_CONFIGURE_CMD+=" --host=\$(uname -m)-linux-gnu"
       PYTHON_CONFIGURE_CMD+=" ${ADDITIONAL_ARGS}"
 
       if ! eval ${PYTHON_CONFIGURE_CMD}; then
@@ -212,7 +217,11 @@ export PYTHONEXECUTABLE=${SOCA_PYTHON_LOCAL_INSTALL_PREFIX}/bin/python3
     source ${SOCA_PYTHON_LOCAL_INSTALL_PREFIX}/soca_python.env
 
     # --user to make sure python libs are installed in the SOCA_PYTHON path only (we don't touch system python)
-    if ! ${SOCA_PYTHON_LOCAL_INSTALL_PREFIX}/bin/pip3 install --user -i https://pypi.tuna.tsinghua.edu.cn/simple -r requirements.txt; then
+    local pip_index=""
+    {% if context.get("/configuration/Region") in ("cn-north-1", "cn-northwest-1") %}
+      pip_index="-i https://pypi.tuna.tsinghua.edu.cn/simple"
+    {% endif %}
+    if ! ${SOCA_PYTHON_LOCAL_INSTALL_PREFIX}/bin/pip3 install --user ${pip_index} -r requirements.txt; then
         exit_fail "Unable to install SOCA Python requirements (see templates/linux/soca_python_requirements.txt.j2)"
     fi
 

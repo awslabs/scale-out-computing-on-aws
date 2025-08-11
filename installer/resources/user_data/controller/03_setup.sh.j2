@@ -159,8 +159,10 @@ openssl req -new -newkey rsa:4096 -days 3650 -nodes -x509 \
 IFS="-" read name sanitized_cluster_name <<< "echo {{ context.get("/configuration/ClusterId") }}"
 sed -i "s/__SOCA_CLUSTER__NAME__/${sanitized_cluster_name}/g" /opt/soca/{{ context.get("/configuration/ClusterId") }}/cluster_manager/web_interface/templates/common/horizontal_menu_bar.html
 
-# Fix permissions for uwsgi binary and start Web UI
-chmod +x /opt/soca/{{ context.get("/configuration/ClusterId") }}/python/latest/bin/uwsgi
+# Start Web UI
+{% if context.get("/configuration/Region") in ("cn-north-1", "cn-northwest-1") %}
+  chmod +x /opt/soca/{{ context.get("/configuration/ClusterId") }}/python/latest/bin/uwsgi
+{% endif %}
 chmod +x /opt/soca/{{ context.get("/configuration/ClusterId") }}/cluster_manager/web_interface/socawebui.sh
 ./socawebui.sh start
 

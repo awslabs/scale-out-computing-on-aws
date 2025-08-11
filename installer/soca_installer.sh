@@ -15,6 +15,11 @@ shopt -s extglob
 #  and limitations under the License.                                                                                #
 ######################################################################################################################
 
+# Set default region while respecting existing environment, fallback to Virginia if not defined (Used by install_soca.py)
+export AWS_DEFAULT_REGION=${AWS_DEFAULT_REGION:-$(grep region <"${HOME}/.aws/config" | head -n 1 | awk '{print $3}')}
+if [[ $AWS_DEFAULT_REGION == "" ]]; then
+  export AWS_DEFAULT_REGION="us-east-1"
+fi
 
 if [[ ! "$BASH_VERSION" ]] ; then
     exec /bin/bash "$0" "$@"
@@ -25,13 +30,21 @@ function realpath() {
 }
 
 function run_pip() {
-  if [[ "$QUIET_MODE" = "true" ]]; then
-    pip3 install --upgrade pip --quiet -i https://pypi.tuna.tsinghua.edu.cn/simple
-    pip3 install -r resources/src/requirements.txt --quiet -i https://pypi.tuna.tsinghua.edu.cn/simple
-  else
-    pip3 install --upgrade pip -i https://pypi.tuna.tsinghua.edu.cn/simple
-    pip3 install -r resources/src/requirements.txt -i https://pypi.tuna.tsinghua.edu.cn/simple
+  local pip_index=""
+  local quiet_flag=""
+  
+  if [[ $AWS_DEFAULT_REGION == "cn-north-1" ]] || [[ $AWS_DEFAULT_REGION == "cn-northwest-1" ]]; then
+    pip_index="-i https://pypi.tuna.tsinghua.edu.cn/simple"
   fi
+  
+  # Set quiet flag if quiet mode is enabled
+  if [[ "$QUIET_MODE" = "true" ]]; then
+    quiet_flag="--quiet"
+  fi
+  
+  # Run pip commands with the appropriate flags
+  pip3 install --upgrade pip $quiet_flag $pip_index
+  pip3 install -r resources/src/requirements.txt $quiet_flag $pip_index
 }
 
 function log_success() { echo -e "${GREEN}${1}${NC}" ;}
@@ -105,12 +118,6 @@ if [[ "$CHECK_GLIBC" = true ]]; then
   esac
   log_success "System GLIBC version is ${SYSTEM_GLIBC_VERSION} / Selected Node version: ${SOCA_NODE_VERSION}"
 
-fi
-
-# Set default region while respecting existing environment, fallback to Virginia if not defined (Used by install_soca.py)
-export AWS_DEFAULT_REGION=${AWS_DEFAULT_REGION:-$(grep region <"${HOME}/.aws/config" | head -n 1 | awk '{print $3}')}
-if [[ $AWS_DEFAULT_REGION == "" ]]; then
-  export AWS_DEFAULT_REGION="us-east-1"
 fi
 
 # Python3 must be available to build python dependencies on Lambda
@@ -210,19 +217,27 @@ else
             exit 1 ;;
           esac
 
-          log_warning "Primary PyEnv URL failed, trying China mirror..."
-          # For China mirror, we need to clone the repo and run the installer
-          git clone --depth=1 $PYENV_URL_CHINA "$HOME/.pyenv"
-          if [[ $? -eq 0 ]]; then
-            log_success "PyEnv cloned successfully from China mirror"
-            # Add pyenv to path
-            export PYENV_ROOT="$HOME/.pyenv"
-            export PATH="$PYENV_ROOT/bin:$PATH"
-            # Initialize pyenv
-            eval "$(pyenv init -)"
+          if [[ $AWS_DEFAULT_REGION == "cn-north-1" ]] || [[ $AWS_DEFAULT_REGION == "cn-northwest-1" ]]; then
+            log_warning "Primary PyEnv URL failed, trying China mirror..."
+            # For China mirror, we need to clone the repo and run the installer
+            git clone --depth=1 $PYENV_URL_CHINA "$HOME/.pyenv"
+            if [[ $? -eq 0 ]]; then
+              log_success "PyEnv cloned successfully from China mirror"
+              # Add pyenv to path
+              export PYENV_ROOT="$HOME/.pyenv"
+              export PATH="$PYENV_ROOT/bin:$PATH"
+              # Initialize pyenv
+              eval "$(pyenv init -)"
+            else
+              log_error "Unable to access PyEnv from any source. Please check your network connection."
+              exit 1
+            fi
           else
-            log_error "Unable to access PyEnv from any source. Please check your network connection."
-            exit 1
+            curl --silent $PYENV_URL | bash
+            if [[ $? -ne 0 ]]; then
+              log_error "Unable to access PyEnv, fix errors above"
+              exit 1
+            fi
           fi
         
           export PYENV_ROOT="$HOME/.pyenv"
