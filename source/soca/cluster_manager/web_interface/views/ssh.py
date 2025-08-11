@@ -12,7 +12,7 @@
 ######################################################################################################################
 
 import logging
-from decorators import login_required
+from decorators import login_required, feature_flag
 import config
 import subprocess
 from datetime import datetime, timezone
@@ -39,19 +39,19 @@ ssh = Blueprint("ssh", __name__, template_folder="templates")
 
 @ssh.route("/ssh", methods=["GET"])
 @login_required
+@feature_flag(flag_name="LOGIN_NODES", mode="view")
 def home():
     _login_nodes_endpoint = (
         SocaConfig(key="/configuration/NLBLoadBalancerDNSName")
         .get_value()
         .get("message")
     )
-    return render_template(
-        "ssh.html", user=session["user"], login_nodes_endpoint=_login_nodes_endpoint
-    )
+    return render_template("ssh.html", login_nodes_endpoint=_login_nodes_endpoint)
 
 
 @ssh.route("/ssh/get_key", methods=["GET"])
 @login_required
+@feature_flag(flag_name="LOGIN_NODES", mode="view")
 def get_key():
     user = session["user"]
     # these are the keys generated when you create a new user

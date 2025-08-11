@@ -14,7 +14,7 @@
 import config
 from flask_restful import Resource
 import logging
-from decorators import private_api
+from decorators import private_api, feature_flag
 from utils.error import SocaError
 from utils.subprocess_client import SocaSubprocessClient
 from utils.response import SocaResponse
@@ -25,17 +25,53 @@ logger = logging.getLogger("soca_logger")
 
 class Queues(Resource):
     @private_api
+    @feature_flag(flag_name="HPC", mode="api")
     def get(self):
         """
-        List all queues
+        List all PBS Pro queues
         ---
+        openapi: 3.1.0
+        operationId: getQueues
         tags:
-          - Scheduler
+          - PBS Pro Scheduler
+        parameters:
+          - name: X-SOCA-USER
+            in: header
+            schema:
+              type: string
+              minLength: 1
+            required: true
+            description: SOCA username for authentication
+            example: admin
+          - name: X-SOCA-TOKEN
+            in: header
+            schema:
+              type: string
+              minLength: 1
+            required: true
+            description: SOCA authentication token
+            example: abc123token
         responses:
-          200:
-            description: List of queues
-          500:
-            description: Backend error
+          '200':
+            description: List of queues retrieved successfully
+            content:
+              application/json:
+                schema:
+                  type: object
+                  properties:
+                    success:
+                      type: boolean
+                      example: true
+                    message:
+                      type: array
+                      items:
+                        type: string
+                        pattern: '^[a-zA-Z0-9_-]+$'
+                      example: ["normal", "high", "low", "gpu"]
+          '401':
+            description: Authentication required
+          '500':
+            description: PBS scheduler error or backend failure
         """
         logger.debug("Get all queues")
         _get_all_queues = SocaSubprocessClient(

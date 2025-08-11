@@ -33,366 +33,240 @@
 
 <body id="page-top">
 
-<div id="wrapper">
-    {% include 'common/vertical_menu_bar.html' %}
-    <div id="content-wrapper" class="d-flex flex-column">
+    <div id="wrapper">
+        {% include 'common/vertical_menu_bar.html' %}
+        <div id="content-wrapper" class="d-flex flex-column">
 
-        <div id="content">
-            <br>
-            <div class="container-fluid">
-                {% include 'common/horizontal_menu_bar.html' %}
+            <div id="content">
+                <br>
+                <div class="container-fluid">
+                    {% include 'common/horizontal_menu_bar.html' %}
 
-                {% with messages = get_flashed_messages(with_categories=true) %}
+                    {% with messages = get_flashed_messages(with_categories=true) %}
                     {% if messages %}
-                        {% for category, message in messages %}
-                            <br>
-                            {% if category == "success" %}
-                                <div class="alert alert-success">
-                                    <strong>{{ message | safe }} </strong>
-                                </div>
-                            {% else %}
-                                <div class="alert alert-danger">
-                                    <strong>{{ message | safe }} </strong>
-                                </div>
-                            {% endif %}
-                        {% endfor %}
+                    {% for category, message in messages %}
+                    <br>
+                    {% if category == "success" %}
+                    <div class="alert alert-success">
+                        <strong>{{ message | safe }} </strong>
+                    </div>
+                    {% else %}
+                    <div class="alert alert-danger">
+                        <strong>{{ message | safe }} </strong>
+                    </div>
                     {% endif %}
-                {% endwith %}
-                <div class="col-md-12">
-                    <nav>
-                        <div class="nav nav-tabs" id="nav-tab" role="tablist">
-                            <a class="nav-item nav-link active" id="nav-home-tab" data-bs-toggle="tab" href="#nav-add"
-                               role="tab" aria-controls="nav-home" aria-selected="true">Create new application
-                                profile</a>
-                            <a class="nav-item nav-link" id="nav-contact-tab" data-bs-toggle="tab" href="#nav-edit"
-                               role="tab" aria-controls="nav-contact" aria-selected="false">Edit application profile</a>
-                            <a class="nav-item nav-link" id="nav-contact-tab" data-bs-toggle="tab" href="#nav-delete"
-                               role="tab" aria-controls="nav-delete" aria-selected="false">Delete application
-                                profile</a>
-                            <a class="nav-item nav-link" id="nav-contact-tab" data-bs-toggle="tab"
-                               href="#nav-importexport" role="tab" aria-controls="nav-delete" aria-selected="false">Import/Export</a>
+                    {% endfor %}
+                    {% endif %}
+                    {% endwith %}
+                    <div class="col-md-12">
+                        <nav>
+                            <div class="nav nav-tabs" id="nav-tab" role="tablist">
+                                <a class="nav-item nav-link active" id="nav-home-tab" data-bs-toggle="tab"
+                                    href="#nav-add" role="tab" aria-controls="nav-home" aria-selected="true">Create new
+                                    application
+                                    profile</a>
+                                <a class="nav-item nav-link" id="nav-contact-tab" data-bs-toggle="tab" href="#nav-edit"
+                                    role="tab" aria-controls="nav-contact" aria-selected="false">Edit application
+                                    profile</a>
+                                <a class="nav-item nav-link" id="nav-contact-tab" data-bs-toggle="tab"
+                                    href="#nav-delete" role="tab" aria-controls="nav-delete"
+                                    aria-selected="false">Delete application
+                                    profile</a>
+                                <a class="nav-item nav-link" id="nav-contact-tab" data-bs-toggle="tab"
+                                    href="#nav-importexport" role="tab" aria-controls="nav-delete"
+                                    aria-selected="false">Import/Export</a>
 
-                        </div>
-                    </nav>
+                            </div>
+                        </nav>
 
-                    <div class="tab-content" id="nav-tabContent">
-                        <div class="tab-pane fade show active" id="nav-add" role="tabpanel"
-                             aria-labelledby="nav-home-tab">
-                            <br>
-                            <div class="card shadow mb-4">
-                                <div class="card-header py-3">
-                                    <h6 class="m-0 font-weight-bold text-primary">Create a new application profile</h6>
-                                </div>
-                                <div class="card-body">
-                                    <nav>
-                                        <div class="nav nav-tabs" id="nav-tab" role="tablist">
-                                            <a class="nav-item nav-link active" id="nav-home-tab" data-bs-toggle="tab"
-                                               href="#nav-designform" role="tab" aria-controls="nav-designform"
-                                               aria-selected="true">Step1: Design the form</a>
-                                            <a class="nav-item nav-link" id="nav-contact-tab" data-bs-toggle="tab"
-                                               href="#nav-designscript" role="tab" aria-controls="nav-designscript"
-                                               aria-selected="false">Step2: Design the job script</a>
-                                            {% if action == "edit" %}
+                        <div class="tab-content" id="nav-tabContent">
+                            <div class="tab-pane fade show active" id="nav-add" role="tabpanel"
+                                aria-labelledby="nav-home-tab">
+                                <br>
+                                <div class="card shadow mb-4">
+                                    <div class="card-header py-3">
+                                        <h6 class="m-0 font-weight-bold text-primary">Create a new application profile
+                                        </h6>
+                                    </div>
+                                    <div class="card-body">
+                                        <nav>
+                                            <div class="nav nav-tabs" id="nav-tab" role="tablist">
+                                                <a class="nav-item nav-link active" id="nav-home-tab"
+                                                    data-bs-toggle="tab" href="#nav-designform" role="tab"
+                                                    aria-controls="nav-designform" aria-selected="true">Step1: Design
+                                                    the form</a>
                                                 <a class="nav-item nav-link" id="nav-contact-tab" data-bs-toggle="tab"
-                                                   href="#nav-save" role="tab" aria-controls="nav-sav"
-                                                   aria-selected="false">Step3: Update the profile</a>
-                                            {% else %}
+                                                    href="#nav-designscript" role="tab" aria-controls="nav-designscript"
+                                                    aria-selected="false">Step2: Design the job script</a>
+                                                {% if action == "edit" %}
                                                 <a class="nav-item nav-link" id="nav-contact-tab" data-bs-toggle="tab"
-                                                   href="#nav-save" role="tab" aria-controls="nav-sav"
-                                                   aria-selected="false">Step3: Create the profile</a>
-                                            {% endif %}
+                                                    href="#nav-save" role="tab" aria-controls="nav-sav"
+                                                    aria-selected="false">Step3: Update the profile</a>
+                                                {% else %}
+                                                <a class="nav-item nav-link" id="nav-contact-tab" data-bs-toggle="tab"
+                                                    href="#nav-save" role="tab" aria-controls="nav-sav"
+                                                    aria-selected="false">Step3: Create the profile</a>
+                                                {% endif %}
 
-                                        </div>
-                                    </nav>
+                                            </div>
+                                        </nav>
+                                        <br>
+                                          <div class="alert alert-warning">
+                                              <strong>Once you have created your Application Profile, please ensure that it is <a href="/admin/projects" target="_blank">assigned to at least one SOCA Project.</a></strong> Failure to do so will result in your profile remaining hidden from users.</strong>
+                                          </div>
 
-                                    <div class="tab-content" id="nav-tabContent">
-                                        <div class="tab-pane fade show active" id="nav-designform" role="tabpanel"
-                                             aria-labelledby="nav-designform">
-                                            <br>
-                                            <div class="alert alert-info alert-dismissible fade show" role="alert">
-                                                <button type="button" class="close" data-bs-dismiss="alert"
+                                        <div class="tab-content" id="nav-tabContent2">
+                                            <div class="tab-pane fade show active" id="nav-designform" role="tabpanel"
+                                                aria-labelledby="nav-designform">
+                                                <br>
+                                                <div class="alert alert-info alert-dismissible fade show" role="alert">
+                                                    <button type="button" class="close" data-bs-dismiss="alert"
                                                         aria-label="Close">
-                                                    <span aria-hidden="true">&times;</span>
-                                                </button>
-                                                Drag & Drop form components based on your own requirements. <br>
-                                                We have generated a test template for you, customize it as needed or
-                                                <strong><a style="cursor:pointer;color: #ff5252" id="clear-all-fields">click
-                                                    here to start from scratch.</a></strong>
-                                                <hr>
-                                                <div class="accordion" id="accordionExample">
+                                                        <span aria-hidden="true">&times;</span>
+                                                    </button>
+                                                    Drag & Drop form components based on your own requirements. <br>
+                                                    We have generated a test template for you, customize it as needed or
+                                                    <strong><a style="cursor:pointer;color: #ff5252"
+                                                            id="clear-all-fields">click
+                                                            here to start from scratch.</a></strong>
+                                                    <hr>                                         
+                                                    
+                                                    <!-- Toggle: SOCA Reserved Variables -->
                                                     <div>
-                                                        <div>
-                                                            <div id="HeadProtectedVariable">
-                                                                <h2 class="mb-0">
-                                                                    <button class="btn btn-link" type="button"
-                                                                            data-bs-toggle="collapse"
-                                                                            data-target="#collapseProtectedVariable"
-                                                                            aria-expanded="true"
-                                                                            aria-controls="collapseOne">SOCA reserved
-                                                                        variables
-                                                                    </button>
-                                                                </h2>
-                                                            </div>
-                                                            <div id="collapseProtectedVariable" class="collapse show"
-                                                                 aria-labelledby="headingOne"
-                                                                 data-parent="#accordionExample">
-                                                                <div class="card-body">
-                                                                    You can use your own variable names, however note
-                                                                    <strong>some automation are pre-configured for you
-                                                                        when you use the following variables</strong>:
-                                                                    <br>
-                                                                    <ul>
-                                                                        <li><code>job_name</code>: If present, will be
-                                                                            automatically populated with the input file
-                                                                            name
-                                                                        </li>
-                                                                        <li><code>input_name</code>: If present, will be
-                                                                            automatically populated with the input file
-                                                                            path
-                                                                        </li>
-                                                                        <li><code>instance_type</code>: Used to
-                                                                            calculate the number of node to provision
-                                                                        </li>
-                                                                        <li><code>cpus</code>: Used to calculate the
-                                                                            number of node(s) to provision
-                                                                        </li>
-                                                                        <li><code>scratch_size</code>: Used to estimate
-                                                                            the cost of your simulation
-                                                                        </li>
-                                                                        <li><code>root_size</code>: Used to estimate the
-                                                                            cost of your simulation
-                                                                        </li>
-                                                                        <li><code>fsx_size</code>: Used to estimate the
-                                                                            cost of your simulation
-                                                                        </li>
-                                                                        <li><code>wall_time</code>: Used to estimate the
-                                                                            cost of your simulation
-                                                                        </li>
+                                                            <h2 class="mb-0">
+                                                                <button class="btn btn-link" type="button" data-bs-toggle="collapse" data-bs-target="#collapseProtectedVariable" aria-expanded="true" aria-controls="collapseProtectedVariable">
+                                                                    SOCA reserved variables
+                                                                </button>
+                                                            </h2>
+                                                            <div id="collapseProtectedVariable" class="collapse show">
+                                                                <div class="card card-body">
+                                                                    <p>You can use your own variable names, however note <strong>some automation are pre-configured for you when you use the following variables:</strong>
+                                                                    </p>
+                                                                        <ul>
+                                                                        <li><code>job_name</code>: If present, auto-filled with the input file name</li>
+                                                                        <li><code>input_name</code>: Auto-filled with the input file path</li>
+                                                                        <li><code>instance_type</code>: Used to calculate the number of nodes to provision</li>
+                                                                        <li><code>cpus</code>: Used to calculate the number of node(s) to provision</li>
+                                                                        <li><code>scratch_size</code>, <code>root_size</code>, <code>fsx_size</code>, <code>wall_time</code>: Used to estimate cost</li>
                                                                     </ul>
                                                                 </div>
                                                             </div>
                                                         </div>
 
-                                                        <div id="headingOne">
+                                                        <!-- Toggle: Node Provision Calculation -->
+                                                        <div class="mt-3">
                                                             <h2 class="mb-0">
-                                                                <button class="btn btn-link" type="button"
-                                                                        data-bs-toggle="collapse"
-                                                                        data-target="#collapseOne" aria-expanded="true"
-                                                                        aria-controls="collapseOne">
+                                                                <button class="btn btn-link" type="button" data-bs-toggle="collapse" data-bs-target="#collapseNodes" aria-expanded="false" aria-controls="collapseNodes">
                                                                     Calculate number of nodes to provision automatically
                                                                 </button>
                                                             </h2>
-                                                        </div>
-
-                                                        <div id="collapseOne" class="collapse"
-                                                             aria-labelledby="headingOne"
-                                                             data-parent="#accordionExample">
-                                                            <div class="card-body">
-                                                                If <code>instance_type</code> and <code>cpus</code>
-                                                                parameters are specified, SOCA will automatically
-                                                                calculate the number of node(s) to provision. If not
-                                                                set, you will need to find a way to specify
-                                                                <code>nodes</code> resource.
+                                                            <div id="collapseNodes" class="collapse">
+                                                                <div class="card card-body">
+                                                                    <p>
+                                                                    If <code>instance_type</code> and <code>cpus</code> parameters are specified, SOCA will automatically
+                                                                    calculate the number of node(s) to provision. Otherwise, you must define the <code>nodes</code> resource manually.
+                                                                    </p>
+                                                                </div>
                                                             </div>
                                                         </div>
-                                                    </div>
-                                                    <div>
-                                                        <div id="headingTwo">
+
+                                                        <!-- Toggle: Job Cost Estimate -->
+                                                        <div class="mt-3">
                                                             <h2 class="mb-0">
-                                                                <button class="btn btn-link collapsed" type="button"
-                                                                        data-bs-toggle="collapse"
-                                                                        data-target="#collapseTwo" aria-expanded="false"
-                                                                        aria-controls="collapseTwo">
+                                                                <button class="btn btn-link" type="button" data-bs-toggle="collapse" data-bs-target="#collapseCost" aria-expanded="false" aria-controls="collapseCost">
                                                                     Configure Job Cost Estimate automatically
                                                                 </button>
                                                             </h2>
-                                                        </div>
-                                                        <div id="collapseTwo" class="collapse"
-                                                             aria-labelledby="headingTwo"
-                                                             data-parent="#accordionExample">
-                                                            <div class="card-body">
-                                                                Parameters below will be used to estimate the price of a
-                                                                simulation:
-                                                                <ul>
-                                                                    <li><code>instance_type</code>: Type of instance to
-                                                                        provision, default to c5.large
-                                                                    </li>
-                                                                    <li><code>cpus</code>: Number of CPUs to allocate,
-                                                                        default to 1
-                                                                    </li>
-                                                                    <li><code>scratch_size</code>: Size of /scratch
-                                                                        partition in GB, default to 0 GB
-                                                                    </li>
-                                                                    <li><code>root_size</code>: Size of /root partition
-                                                                        in GB, default to 10 GB
-                                                                    </li>
-                                                                    <li><code>fsx_size</code>: Size of FSx for Lustre
-                                                                        partition in GB, default to 0 GB
-                                                                    </li>
-                                                                    <li><code>wall_time</code>: Maximum simulation time
-                                                                        (format is HH:MM:SS), default to 60 minutes
-                                                                        (01:00:00 or 00:60:00) runtime
-                                                                    </li>
-                                                                </ul>
-                                                                <br>
-                                                                Use <code>hidden</code> fields if you want to hardcode
-                                                                the values and prevent user to change them. If not set,
-                                                                SOCA will use the default value to estimate your
-                                                                simulation cost.
+                                                            <div id="collapseCost" class="collapse">
+                                                                <div class="card card-body">
+                                                                    Parameters used to estimate the simulation cost:
+                                                                    <ul>
+                                                                        <li><code>instance_type</code>: Instance type (default: c5.large)</li>
+                                                                        <li><code>cpus</code>: Number of CPUs (default: 1)</li>
+                                                                        <li><code>scratch_size</code>: /scratch size in GB (default: 0)</li>
+                                                                        <li><code>root_size</code>: /root size in GB (default: 10)</li>
+                                                                        <li><code>fsx_size</code>: FSx for Lustre size in GB (default: 0)</li>
+                                                                        <li><code>wall_time</code>: Max runtime (default: 01:00:00)</li>
+                                                                    </ul>
+                                                                    <p>
+                                                                    Use <code>hidden</code> fields to hardcode values. Otherwise, defaults will be applied.</p>
+                                                                </div>
                                                             </div>
                                                         </div>
                                                     </div>
-                                                </div>
+                                                    <!-- Form Builder -->
+                                            
+                                                    <div class="form-build"></div>
+                                            
+                                                    <!-- Form Builder -->
+                                        
+                                                </div> <!-- nav form -->
 
-                                            </div>
-                                            <!-- Form Builder -->
-                                            <div class="form-build"></div>
-                                            <!-- Form Builder -->
-                                        </div> <!-- nav form -->
-
-                                        <div class="tab-pane fade show" id="nav-designscript" role="tabpanel"
-                                             aria-labelledby="nav-designscript">
-                                            <br>
-                                            <div class="alert alert-info">
-                                                Edit the test template below to match the variables you have created on
-                                                your form or simply write code that cannot be changed by the user. To
-                                                read values from your form, simply reference the component name between
-                                                <kbd>%</kbd>(e.g. if your form input name is <code>my_param</code>,
-                                                retrieve the value via <kbd>%my_param%</kbd>)
-                                            </div>
-                                            Choose what interpreter you want to use:
-                                            <select class="form-control" name="interpreter" id="interpreter">
-                                                {% if profile_interpreter == "qsub" %}
-                                                    <option value="qsub" selected>This is a PBS job script (will use
-                                                        qsub)
-                                                    </option>
-                                                    <option value="/bin/bash">This is a Linux script (will use
-                                                        /bin/bash)
-                                                    </option>
-                                                {% else %}
-                                                    <option value="qsub">This is a PBS job script (will use qsub)
-                                                    </option>
-                                                    <option value="/bin/bash" selected>This is a Linux script (will use
-                                                        /bin/bash)
-                                                    </option>
-                                                {% endif %}
-
-                                            </select>
-                                            <textarea class="form-control job_preview " id="job-script" rows="30">
-{% if action == "edit" %}
-    {{ profile_job | safe }}
-{% else %}
-    #!/bin/bash
-
-    #PBS -q %queue_name%
-    #PBS -N %job_name%
-    #PBS -P %project_name%
-    # https://awslabs.github.io/scale-out-computing-on-aws-documentation/tutorials/integration-ec2-job-parameters/
-    #PBS -l instance_type=%instance_type%
-    #PBS -l walltime=%wall_time%
-    #PBS -l force_ri=%force_ri%
-
-    ## [Begin: Commands to be added before the solver. This cannot be changed by the users]
-    # export custom path such as (PATH, LD_LIBRARY_PATH), configure license server variables etc ...
-    ## [End: Commands to be added before the solver. This cannot be changed by the users]
-
-    # Change path to current working directory
-    cd $PBS_O_WORKDIR
-
-    %user_pre_exec%
-
-    ## [Begin: Actual solver command]
-    %binary_location% %input_file% \
-    --param1 %param1% \
-    --param2 %param2% \
-    --param3 %param3% \
-    # Enter  here any command to be added to the solver command that changed be edited by the users #
-    ## [End: Actual solver command]
-
-
-    %user_post_exec%
-
-    ## [Begin: Commands to be added after the solver. This cannot be changed by the users]
-    # Compress output, send output to S3 etc ...
-    ## [End: Commands to be added after the solver. This cannot be changed by the users]
-{% endif %}</textarea>
-                                            <div class="alert alert-primary">
-                                                PBS parameters are optional. If not set, your job will use the default
-                                                settings configured for your queue (if no queue is specified, the job
-                                                will use <code>normal</code> queue). Refer to <a
-                                                    href="https://awslabs.github.io/scale-out-computing-on-aws-documentation/documentation/web-interface/create-your-own-queue/#option1-i-want-to-use-the-same-settings-as-an-existing-queue"
-                                                    target="_blank" rel="noopener,noreferrer"> this link for more.</a>
-                                            </div>
-                                        </div> <!-- nav script -->
-
-                                        <div class="tab-pane fade show" id="nav-save" role="tabpanel"
-                                             aria-labelledby="nav-save">
-                                            <br>
-                                            {% if action == "edit" %}
-                                                <form name="manageprofile" id="manageprofile" method="post"
-                                                      action="/admin/applications/create">
-                                                    <div class="form-group">
-                                                        <label for="profile_name">How do you want to name this
-                                                            application profile?</label>
-                                                        <input type="text" class="form-control" name="profile_name"
-                                                               required value="{{ profile_name }}">
+                                        
+                                                <div class="tab-pane fade" id="nav-designscript" role="tabpanel"
+                                                    aria-labelledby="nav-designscript">
+                                                    <br>
+                                                    <div class="alert alert-info">
+                                                        Edit the test template below to match the variables you have created
+                                                        on
+                                                        your form or simply write code that cannot be changed by the user.
+                                                        To read values from your form, use <a href="https://jinja.palletsprojects.com/en/stable/" target="_blank">Jinja2 templating</a> syntax
+                                                        (e.g. if your form input name is <code>my_param</code>,
+                                                        retrieve the value via <kbd>{% raw %}{{my_param}}{% endraw %}</kbd>)
                                                     </div>
-                                                    <div class="input-group">
-                                                        <div class="custom-file">
-                                                            <input type="file" class="custom-file-input" id="thumbnail"
-                                                                   accept="image/png, image/jpeg, image/jpg">
-                                                            <label class="custom-file-label" for="thumbnail">Select an
-                                                                image (jpg or png) to use as thumbnail. Leave blank to
-                                                                use the existing thumbnail</label>
+                                                    Choose what interpreter you want to use:
+                                                    <div class="form-group">
+                                                        <select class="form-control" name="interpreter" id="interpreter">
+                                                            {% if profile_interpreter == "qsub" %}
+                                                            <option value="qsub" selected>This is a PBS job script (will use
+                                                                qsub)
+                                                            </option>
+                                                            <option value="/bin/bash">This is a Linux script (will use
+                                                                /bin/bash)
+                                                            </option>
+                                                            {% else %}
+                                                            <option value="qsub">This is a PBS job script (will use qsub)
+                                                            </option>
+                                                            <option value="/bin/bash" selected>This is a Linux script (will use
+                                                                /bin/bash)
+                                                            </option>
+                                                            {% endif %}
+
+                                                        </select>
+                                                    </div>
+                                                    <div id="text-editor"
+                                                        style="width:100%;height:600px;padding-bottom: 50px;"></div>
+                                                    <div class="alert alert-primary">
+                                                        PBS parameters are optional. If not set, your job will use the
+                                                        default
+                                                        settings configured for your queue (if no queue is specified, the
+                                                        job
+                                                        will use <code>normal</code> queue). Refer to <a
+                                                            href="https://awslabs.github.io/scale-out-computing-on-aws-documentation/documentation/web-interface/create-your-own-queue/#option1-i-want-to-use-the-same-settings-as-an-existing-queue"
+                                                            target="_blank" rel="noopener,noreferrer"> this link for
+                                                            more.</a>
+                                                    </div>
+                                                </div> <!-- nav script -->
+
+                                                <div class="tab-pane fade" id="nav-save" role="tabpanel"
+                                                    aria-labelledby="nav-save">
+                                                    <br>
+                                                    {% if action == "edit" %}
+                                                    <form name="manageprofile_edit" id="manageprofile_edit" method="post"
+                                                        action="/admin/applications/create">
+                                                        <div class="form-group">
+                                                            <label for="profile_name">How do you want to name this
+                                                                application profile?</label>
+                                                            <input type="text" class="form-control" name="profile_name"
+                                                                required value="{{ profile_name }}">
                                                         </div>
-                                                        <script>
-                                                            $(".custom-file-input").on("change", function () {
-                                                                let fileName = $(this).val().split("\\").pop();
-                                                                $(this).siblings(".custom-file-label").addClass("selected").html(fileName);
-                                                            });
-                                                        </script>
-                                                    </div>
-
-                                                    <input type="hidden" value="{{ csrf_token() }}" name="csrf_token">
-                                                    <input type="hidden" value="" id="submit_job_script"
-                                                           name="submit_job_script">
-                                                    <input type="hidden" value="" id="submit_job_form"
-                                                           name="submit_job_form">
-                                                    <input type="hidden" value="" id="submit_job_interpreter"
-                                                           name="submit_job_interpreter">
-                                                    <input type="hidden" value="{{ app_id }}" id="app_id" name="app_id">
-                                                    <input type="hidden" value="" id="thumbnail_b64"
-                                                           name="thumbnail_b64">
-                                                    <input type="hidden" value="edit" id="action" name="action">
-
-                                                    <div>
-                                                        <br>
-                                                        <button type="submit" class="btn btn-success">Update this
-                                                            application
-                                                        </button>
-                                                    </div>
-                                                </form>
-
-
-                                            {% else %}
-                                                <form id="manageprofile" name="manageprofile" method="post"
-                                                      action="/admin/applications/create" enctype="multipart/form-data">
-                                                    <div class="form-group">
-                                                        <label for="profile_name">How do you want to name this
-                                                            application profile?</label>
-                                                        <input type="text" class="form-control" name="profile_name"
-                                                               required>
-                                                    </div>
-                                                    <div class="form-group">
-                                                        <label for="profile_name">Do you want to specify a thumbnail
-                                                            (this will be scaled to 150*150px)?</label>
                                                         <div class="input-group">
                                                             <div class="custom-file">
-                                                                <input type="file" class="custom-file-input"
-                                                                       id="thumbnail"
-                                                                       accept="image/png, image/jpeg, image/jpg">
-                                                                <label class="custom-file-label" for="thumbnail">Select
-                                                                    an image (jpg or png) to use as thumbnail</label>
+                                                                <input type="file" class="custom-file-input" id="thumbnail"
+                                                                    accept="image/png, image/jpeg, image/jpg">
+                                                                <label class="custom-file-label" for="thumbnail">Select an
+                                                                    image (jpg or png) to use as thumbnail. Leave blank to
+                                                                    use the existing thumbnail</label>
                                                             </div>
                                                             <script>
                                                                 $(".custom-file-input").on("change", function () {
@@ -402,70 +276,124 @@
                                                             </script>
                                                         </div>
 
-                                                    </div>
-                                                    <input type="hidden" value="{{ csrf_token() }}" name="csrf_token">
-                                                    <input type="hidden" value="" id="submit_job_script"
-                                                           name="submit_job_script">
-                                                    <input type="hidden" value="" id="submit_job_form"
-                                                           name="submit_job_form">
-                                                    <input type="hidden" value="" id="submit_job_interpreter"
-                                                           name="submit_job_interpreter">
-                                                    <input type="hidden" value="create" id="action" name="action">
-                                                    <input type="hidden" value="" id="thumbnail_b64"
-                                                           name="thumbnail_b64">
+                                                        <input type="hidden" value="{{ csrf_token() }}" name="csrf_token">
+                                                        <input type="hidden" value="" id="submit_job_script"
+                                                            name="submit_job_script">
+                                                        <input type="hidden" value="" id="submit_job_form"
+                                                            name="submit_job_form">
+                                                        <input type="hidden" value="" id="submit_job_interpreter"
+                                                            name="submit_job_interpreter">
+                                                        <input type="hidden" value="{{ app_id }}" id="app_id" name="app_id">
+                                                        <input type="hidden" value="" id="thumbnail_b64"
+                                                            name="thumbnail_b64">
+                                                        <input type="hidden" value="edit" id="action" name="action">
+
+                                                        <div>
+                                                            <br>
+                                                            <button type="submit" class="btn btn-success">Update this
+                                                                application
+                                                            </button>
+                                                        </div>
+                                                    </form>
 
 
-                                                    <div>
-                                                        <button type="submit" class="btn btn-success">Create this
-                                                            application
-                                                        </button>
-                                                    </div>
-                                                </form>
-                                            {% endif %}
-                                        </div> <!-- nav save -->
+                                                    {% else %}
+                                                    <form id="manageprofile_new" name="manageprofile_new" method="post"
+                                                        action="/admin/applications/create" enctype="multipart/form-data">
+                                                        <div class="form-group">
+                                                            <label for="profile_name">How do you want to name this
+                                                                application profile?</label>
+                                                            <input type="text" class="form-control" name="profile_name"
+                                                                required>
+                                                        </div>
+                                                        <div class="form-group">
+                                                            <label for="profile_name">Do you want to specify a thumbnail
+                                                                (this will be scaled to 150*150px)?</label>
+                                                            <div class="input-group">
+                                                                <div class="custom-file">
+                                                                    <input type="file" class="custom-file-input"
+                                                                        id="thumbnail"
+                                                                        accept="image/png, image/jpeg, image/jpg">
+                                                                    <label class="custom-file-label" for="thumbnail">Select
+                                                                        an image (jpg or png) to use as thumbnail</label>
+                                                                </div>
+                                                                <script>
+                                                                    $(".custom-file-input").on("change", function () {
+                                                                        let fileName = $(this).val().split("\\").pop();
+                                                                        $(this).siblings(".custom-file-label").addClass("selected").html(fileName);
+                                                                    });
+                                                                </script>
+                                                            </div>
 
+                                                        </div>
+                                                        <input type="hidden" value="{{ csrf_token() }}" name="csrf_token">
+                                                        <input type="hidden" value="" id="submit_job_script"
+                                                            name="submit_job_script">
+                                                        <input type="hidden" value="" id="submit_job_form"
+                                                            name="submit_job_form">
+                                                        <input type="hidden" value="" id="submit_job_interpreter"
+                                                            name="submit_job_interpreter">
+                                                        <input type="hidden" value="create" id="action" name="action">
+                                                        <input type="hidden" value="" id="thumbnail_b64"
+                                                            name="thumbnail_b64">
+
+
+                                                        <div>
+                                                            <button type="submit" class="btn btn-success">Create this
+                                                                application
+                                                            </button>
+                                                        </div>
+                                                    </form>
+                                                    {% endif %}
+                                                </div> <!-- nav save -->
+                                        </div>
                                     </div>
                                 </div>
                             </div>
-                        </div> <!-- add -->
+                           
 
-                        <div class="tab-pane fade show" id="nav-edit" role="tabpanel" aria-labelledby="nav-home-tab">
-                            <div class="card shadow mb-4">
-                                <div class="card-header py-3">
-                                    <h6 class="m-0 font-weight-bold text-primary">Edit an existing application</h6>
-                                </div>
-                                <div class="card-body">
-                                    <form action="/admin/applications/edit" method="post">
-                                        <div class="form-group col-md-6">
-                                            <label for="walltime"> Select the application to edit</label>
-                                            <select class="form-control" name='app' id="app">
-                                                {% for app_id, app_data in application_profiles.items() %}
+                            <div class="tab-pane fade" id="nav-edit" role="tabpanel"
+                                aria-labelledby="nav-home-tab">
+                                <br>
+                                <div class="card shadow mb-4">
+                                    <div class="card-header py-3">
+                                        <h6 class="m-0 font-weight-bold text-primary">Edit an existing application</h6>
+                                    </div>
+                                    <div class="card-body">
+                                        <form action="/admin/applications/edit" method="post">
+                                            <div class="form-group col-md-6">
+                                                <label for="walltime"> Select the application to edit</label>
+                                                <select class="form-control" name='app' id="app">
+                                                    {% for app_id, app_data in application_profiles.items() %}
                                                     <option value="{{ app_id }}">{{ app_data.profile_name }}</option>
-                                                {% endfor %}
-                                            </select>
-                                        </div>
-                                        <div>
-                                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                                            <button type="submit" class="btn btn-primary">Edit</button>
-                                        </div>
-                                    </form>
+                                                    {% endfor %}
+                                                </select>
+                                            </div>
+                                            <div>
+                                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                                <button type="submit" class="btn btn-primary">Edit</button>
+                                            </div>
+                                        </form>
+                                    </div>
                                 </div>
                             </div>
-                        </div>
 
-                        <div class="tab-pane fade show" id="nav-delete" role="tabpanel" aria-labelledby="nav-home-tab">
-                            <div class="card shadow mb-4">
-                                <div class="card-header py-3">
-                                    <h6 class="m-0 font-weight-bold text-primary">Delete an existing application</h6>
-                                </div>
-                                <div class="card-body">
-                                    {% if application_profiles %}
+                            <div class="tab-pane fade" id="nav-delete" role="tabpanel"
+                                aria-labelledby="nav-home-tab">
+                                <br>
+                                <div class="card shadow mb-4">
+                                    <div class="card-header py-3">
+                                        <h6 class="m-0 font-weight-bold text-primary">Delete an existing application
+                                        </h6>
+                                    </div>
+                                    <div class="card-body">
+                                        {% if application_profiles %}
                                         <form action="/admin/applications/delete" method="post">
                                             <div class="form-group col-md-6">
                                                 <label for="walltime"> Select the application to delete</label>
                                                 <select class="form-control" name='app' id="app">
                                                     {% for app_id, app_data in application_profiles.items() %}
-                                                        <option value="{{ app_id }}">{{ app_data.profile_name }}</option>
+                                                    <option value="{{ app_id }}">{{ app_data.profile_name }}</option>
                                                     {% endfor %}
                                                 </select>
                                             </div>
@@ -479,374 +407,420 @@
                                                 <button type="submit" class="btn btn-danger">Delete</button>
                                             </div>
                                         </form>
-                                    {% else %}
+                                        {% else %}
                                         No application profiles found. Create one first
-                                    {% endif %}
+                                        {% endif %}
+                                    </div>
                                 </div>
                             </div>
-                        </div>
-
-                        <div class="tab-pane fade show" id="nav-importexport" role="tabpanel"
-                             aria-labelledby="nav-home-tab">
-                            <div class="card shadow mb-4">
-                                <div class="card-header py-3">
-                                    <h6 class="m-0 font-weight-bold text-primary">Import/Export existing SOCA
-                                        Application Profiles</h6>
-                                </div>
-                                <div class="card-body">
-                                    <div class="alert alert-warning">
-                                        <a target="_blank" rel="noopener,noreferrer"
-                                           href="https://awslabs.github.io/scale-out-computing-on-aws-documentation/documentation/web-interface/import-export-application-profiles">Click
-                                            here to learn how to Import/Export your profiles</a>
+                      
+                            <div class="tab-pane fade" id="nav-importexport" role="tabpanel"
+                                aria-labelledby="nav-home-tab">
+                                <br>
+                                <div class="card shadow mb-4">
+                                    <div class="card-header py-3">
+                                        <h6 class="m-0 font-weight-bold text-primary">Import/Export existing SOCA
+                                            Application Profiles</h6>
                                     </div>
-                                    <div class="row">
-                                        <div class="col-md-6">
-                                            <h5>Export existing application profile</h5>
-                                            {% if application_profiles %}
+                                    <div class="card-body">
+                                        <div class="alert alert-warning">
+                                            <a target="_blank" rel="noopener,noreferrer"
+                                                href="https://awslabs.github.io/scale-out-computing-on-aws-documentation/documentation/web-interface/import-export-application-profiles">Click
+                                                here to learn how to Import/Export your profiles</a>
+                                        </div>
+                                        <div class="row">
+                                            <div class="col-md-6">
+                                                <h5>Export existing application profile</h5>
+                                                {% if application_profiles %}
                                                 <form action="/admin/applications/export" method="post">
                                                     <div class="form-group">
                                                         <select class="form-control" name='app' id="app">
                                                             {% for app_id, app_data in application_profiles.items() %}
-                                                                <option value="{{ app_id }}">{{ app_data.profile_name }}</option>
+                                                            <option value="{{ app_id }}">{{ app_data.profile_name }}
+                                                            </option>
                                                             {% endfor %}
                                                         </select>
                                                     </div>
                                                     <div>
                                                         <input type="hidden" name="csrf_token"
-                                                               value="{{ csrf_token() }}">
+                                                            value="{{ csrf_token() }}">
                                                         <button type="submit" class="btn btn-primary">Export</button>
                                                     </div>
                                                 </form>
-                                            {% else %}
+                                                {% else %}
                                                 No application profiles found. Create one first
-                                            {% endif %}
+                                                {% endif %}
+                                            </div>
+
+                                            <div class="col-md-6">
+                                                <h5>Import application profile</h5>
+
+                                                <form action="/admin/applications/import" method="post"
+                                                    enctype="multipart/form-data">
+                                                    <div class="form-group">
+                                                        <input type="text" class="form-control" name="name" id="name"
+                                                            placeholder="Application name" required>
+                                                    </div>
+                                                    <div class="form-group">
+                                                        <label>Application input file (JSON)</label>
+                                                        <input type="file" class="form-control-file" name="app_profile"
+                                                            id="app_profile" required>
+                                                    </div>
+
+                                                    <div>
+                                                        <br>
+                                                        <input type="hidden" name="csrf_token"
+                                                            value="{{ csrf_token() }}">
+                                                        <button type="submit" class="btn btn-primary">Import</button>
+                                                    </div>
+                                                </form>
+                                            </div>
                                         </div>
-
-                                        <div class="col-md-6">
-                                            <h5>Import application profile</h5>
-
-                                            <form action="/admin/applications/import" method="post"
-                                                  enctype="multipart/form-data">
-                                                <div class="form-group">
-                                                    <input type="text" class="form-control" name="name" id="name"
-                                                           placeholder="Application name" required>
-                                                </div>
-                                                <div class="form-group">
-                                                    <label>Application input file (JSON)</label>
-                                                    <input type="file" class="form-control-file" name="app_profile"
-                                                           id="app_profile" required>
-                                                </div>
-
-                                                <div>
-                                                    <br>
-                                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                                                    <button type="submit" class="btn btn-primary">Import</button>
-                                                </div>
-                                            </form>
-                                        </div>
-
                                     </div>
-
-
                                 </div>
                             </div>
-                        </div>
 
 
-                        <a class="scroll-to-top rounded" href="#page-top">
-                            <i class="fas fa-angle-up"></i>
-                        </a>
+                            <a class="scroll-to-top rounded" href="#page-top">
+                                <i class="fas fa-angle-up"></i>
+                            </a>
 
 
-                        {% include 'common/footer.html' %}
+                            {% include 'common/footer.html' %}
 
-                        <script>
-                            $('#manageprofile').submit(function (event) {
-                                let getJobScriptData = btoa(unescape(encodeURIComponent($('#job-script').val())));
-                                let getInterpreterValue = $('#interpreter').val();
-                                let getFormBuilderData = btoa(formBuilder.actions.getData('json', true));
-                                console.log(getJobScriptData);
-                                console.log(getInterpreterValue);
-                                console.log(getFormBuilderData);
-
-                                document.getElementById("submit_job_script").value = getJobScriptData;
-                                document.getElementById("submit_job_form").value = getFormBuilderData;
-                                document.getElementById("submit_job_interpreter").value = getInterpreterValue;
-                            });
-
-                            function ConvertImageToB64() {
-                                if (this.files && this.files[0]) {
-                                    const FR = new FileReader();
-                                    FR.addEventListener("load", function (e) {
-                                        document.getElementById("thumbnail").src = e.target.result;
-                                        document.getElementById("thumbnail_b64").value = e.target.result;
-                                    });
-                                    FR.readAsDataURL(this.files[0]);
+                            <script>
+                                function ConvertImageToB64() {
+                                    if (this.files && this.files[0]) {
+                                        const FR = new FileReader();
+                                        FR.addEventListener("load", function (e) {
+                                            document.getElementById("thumbnail").src = e.target.result;
+                                            document.getElementById("thumbnail_b64").value = e.target.result;
+                                        });
+                                        FR.readAsDataURL(this.files[0]);
+                                    }
                                 }
-                            }
 
-                            document.getElementById("thumbnail").addEventListener("change", ConvertImageToB64);
+                                document.getElementById("thumbnail").addEventListener("change", ConvertImageToB64);
 
 
-                            jQuery($ => {
+                                jQuery($ => {
+                                    const options = {
+                                        dataType: 'json',
+                                        editOnAdd: true,
+                                        fieldRemoveWarn: true,
+                                        disableFields: ['date', 'file'],
+                                        disabledActionButtons: ['save', 'clear', 'data'],
+                                        disabledAttrs: ['access', 'className', 'multiple'], // https://github.com/kevinchappell/formBuilder/issues/1030
+                                        defaultFields:
+                                            {% if action == "edit" %}
+                                    {{ profile_form | safe }}
+                                    {% else %}
+                                    [
+                                        {
+                                            "type": "header",
+                                            "subtype": "h4",
+                                            "label": "Recommended Parameters"
+                                        },
+                                        {
+                                            "type": "select",
+                                            "required": true,
+                                            "label": "What type of instance do you want to use? (instance_type)",
+                                            "className": "form-control",
+                                            "description": "EC2 instance type to provision. This will be used along with cpus to calculate the number of nodes to provision",
 
-                                const options = {
-                                    dataType: 'json',
-                                    editOnAdd: true,
-                                    fieldRemoveWarn: true,
-                                    disableFields: ['date', 'file'],
-                                    disabledActionButtons: ['save', 'clear', 'data'],
-                                    disabledAttrs: ['access', 'className', 'multiple'], // https://github.com/kevinchappell/formBuilder/issues/1030
-                                    defaultFields:
-                                        {% if action == "edit" %}
-                                            {{ profile_form | safe  }}
-                                                {% else %}
-                                                [
+                                            "name": "instance_type",
+                                            "multiple": false,
+                                            "values": [
                                                 {
-                                                    "type": "header",
-                                                    "subtype": "h4",
-                                                    "label": "Recommended Parameters"
+                                                    "label": "Small ( 1 CPUs, 8GB RAM)",
+                                                    "value": "m6i.large"
                                                 },
-                                                    {
-                                                        "type": "select",
-                                                        "required": true,
-                                                        "label": "What type of instance do you want to use? (instance_type)",
-                                                        "className": "form-control",
-                                                        "description": "EC2 instance type to provision. This will be used along with cpus to calculate the number of nodes to provision",
+                                                {
+                                                    "label": "Medium ( 2 CPUs, 16 GB RAM)",
+                                                    "value": "m6i.xlarge"
+                                                },
+                                                {
+                                                    "label": "Large ( 4 CPUs, 32 GB RAM)",
+                                                    "value": "m6i.2xlarge"
+                                                }
+                                            ]
+                                        },
+                                        {
+                                            "type": "select",
+                                            "required": true,
+                                            "label": "Do you want to limit your job to Reserved Instance only? (force_ri)",
+                                            "className": "form-control",
+                                            "name": "force_ri",
+                                            "description": "If force_ri is True, the job must ONLY run on Reserved Instance. If there is not enough RI, job will stay in the queue. Parameter is ignored if you use Spot",
+                                            "multiple": false,
+                                            "values": [
+                                                {
+                                                    "label": "No",
+                                                    "value": "False"
+                                                },
+                                                {
+                                                    "label": "Yes",
+                                                    "value": "True"
+                                                }
+                                            ]
+                                        },
+                                        {
+                                            "type": "text",
+                                            "required": true,
+                                            "label": "How many CPUs do you want ? (cpus)",
+                                            "placeholder": "Number of EC2 instance will automatically be calculated based on Instance Type and CPUs count",
+                                            "className": "form-control",
+                                            "description": "Number of CPUs to allocate to the simulation. This will be used along with instance_type to calculate the number of nodes to provision",
 
-                                                        "name": "instance_type",
-                                                        "multiple": false,
-                                                        "values": [
-                                                            {
-                                                                "label": "Small ( 1 CPUs, 8GB RAM)",
-                                                                "value": "m6i.large"
-                                                            },
-                                                            {
-                                                                "label": "Medium ( 2 CPUs, 16 GB RAM)",
-                                                                "value": "m6i.xlarge"
-                                                            },
-                                                            {
-                                                                "label": "Large ( 4 CPUs, 32 GB RAM)",
-                                                                "value": "m6i.2xlarge"
-                                                            }
-                                                        ]
-                                                    },
-                                                    {
-                                                        "type": "select",
-                                                        "required": true,
-                                                        "label": "Do you want to limit your job to Reserved Instance only? (force_ri)",
-                                                        "className": "form-control",
-                                                        "name": "force_ri",
-                                                        "description": "If force_ri is True, the job must ONLY run on Reserved Instance. If there is not enough RI, job will stay in the queue. Parameter is ignored if you use Spot",
-                                                        "multiple": false,
-                                                        "values": [
-                                                            {
-                                                                "label": "No",
-                                                                "value": "False"
-                                                            },
-                                                            {
-                                                                "label": "Yes",
-                                                                "value": "True"
-                                                            }
-                                                        ]
-                                                    },
-                                                    {
-                                                        "type": "text",
-                                                        "required": true,
-                                                        "label": "How many CPUs do you want ? (cpus)",
-                                                        "placeholder": "Number of EC2 instance will automatically be calculated based on Instance Type and CPUs count",
-                                                        "className": "form-control",
-                                                        "description": "Number of CPUs to allocate to the simulation. This will be used along with instance_type to calculate the number of nodes to provision",
+                                            "name": "cpus",
+                                            "subtype": "text",
+                                            "maxlength": 255
+                                        },
+                                        {
+                                            "type": "text",
+                                            "required": true,
+                                            "label": "Job Name (job_name)",
+                                            "className": "form-control",
+                                            "name": "job_name",
+                                            "subtype": "text",
+                                            "placeholder": "Do not use spaces",
+                                            "maxlength": 255
+                                        },
+                                        {
+                                            "type": "text",
+                                            "required": true,
+                                            "label": "Input location (input_file)",
+                                            "placeholder": "(Do not delete) This entry will automatically be pre-populated with the absolute path of the input file.",
+                                            "className": "form-control",
+                                            "name": "input_file",
+                                            "description": "input_file is a reserved name on SOCA. The value will automatically be replaced by the input location provided by the user. You MUST have it and parameter name MUST be input_name",
+                                            "subtype": "text",
+                                            "maxlength": 255
+                                        },
 
-                                                        "name": "cpus",
-                                                        "subtype": "text",
-                                                        "maxlength": 255
-                                                    },
-                                                    {
-                                                        "type": "text",
-                                                        "required": true,
-                                                        "label": "Job Name (job_name)",
-                                                        "className": "form-control",
-                                                        "name": "job_name",
-                                                        "subtype": "text",
-                                                        "placeholder": "Do not use spaces",
-                                                        "maxlength": 255
-                                                    },
-                                                    {
-                                                        "type": "text",
-                                                        "required": true,
-                                                        "label": "Input location (input_file)",
-                                                        "placeholder": "(Do not delete) This entry will automatically be pre-populated with the absolute path of the input file.",
-                                                        "className": "form-control",
-                                                        "name": "input_file",
-                                                        "description": "input_file is a reserved name on SOCA. The value will automatically be replaced by the input location provided by the user. You MUST have it and parameter name MUST be input_name",
-                                                        "subtype": "text",
-                                                        "maxlength": 255
-                                                    },
-
-                                                    {
-                                                        "type": "select",
-                                                        "required": true,
-                                                        "label": "Do you want to limit how long the job will be running? (wall_time)",
-                                                        "className": "form-control",
-                                                        "name": "wall_time",
-                                                        "description": "Use HH:MM:SS format (hours:minutes:seconds). For example 90 minutes is 00:90:00 or 01:30:00",
-                                                        "multiple": false,
-                                                        "values": [
-                                                            {
-                                                                "label": "No more than 1 hour",
-                                                                "value": "01:00:00",
-                                                                "selected": true
-                                                            },
-                                                            {
-                                                                "label": "No more than 5 hours",
-                                                                "value": "05:00:00"
-                                                            },
-                                                            {
-                                                                "label": "No more than 1 day",
-                                                                "value": "24:00:00"
-                                                            },
-                                                            {
-                                                                "label": "No more than 1 month",
-                                                                "value": "740:00:00"
-                                                            }
-                                                        ]
-                                                    },
-                                                    {
-                                                        "type": "select",
-                                                        "required": true,
-                                                        "label": "How much storage do you want (SSD under /scratch)",
-                                                        "className": "form-control",
-                                                        "name": "scratch_size",
-                                                        "multiple": false,
-                                                        "values": [
-                                                            {
-                                                                "label": "10 GB",
-                                                                "value": "10"
-                                                            },
-                                                            {
-                                                                "label": "50 GB",
-                                                                "value": "50"
-                                                            },
-                                                            {
-                                                                "label": "150 GB",
-                                                                "value": "150"
-                                                            }
-                                                        ]
-                                                    },
-                                                    {
-                                                        "type": "select",
-                                                        "required": true,
-                                                        "label": "What queue do you want to use? (queue_name)",
-                                                        "className": "form-control",
-                                                        "name": "queue_name",
-                                                        "multiple": false,
-                                                        "values": [
-                                                            {
-                                                                "label": "Queue 1 (Low Priority)",
-                                                                "value": "low",
-                                                                "selected": true
-                                                            },
-                                                            {
-                                                                "label": "Queue 2 (High Priority)",
-                                                                "value": "high"
-                                                            }
-                                                        ]
-                                                    },
-                                                    {
-                                                        "type": "header",
-                                                        "subtype": "h4",
-                                                        "label": "Application parameters"
-                                                    },
-                                                    {
-                                                        "type": "select",
-                                                        "required": true,
-                                                        "label": "What version of the solver do you want to use ? (binary_location)",
-                                                        "description": "Path to the solver executable/binary. It's usually located within the \"bin\" folder of your installation directory",
-                                                        "className": "form-control",
-                                                        "name": "binary_location",
-                                                        "multiple": false,
-                                                        "values": [
-                                                            {
-                                                                "label": "Version 2024",
-                                                                "value": "/apps/software/version2024/bin/solver.exe"
-                                                            },
-                                                            {
-                                                                "label": "Version 2023",
-                                                                "value": "/apps/software/version2023/bin/solver.exe"
-                                                            },
-                                                            {
-                                                                "label": "BETA",
-                                                                "value": "/apps/software/versionBETA/bin/solver.exe"
-                                                            }
-                                                        ]
-                                                    },
-                                                    {
-                                                        "type": "paragraph",
-                                                        "subtype": "p",
-                                                        "label": "For documentation, please refer to <a href='#'>wiki.mycompany.tld/documentation/how-to-launch-this-application</a>"
-                                                    },
-                                                    {
-                                                        "type": "text",
-                                                        "required": true,
-                                                        "label": "--param1",
-                                                        "placeholder": "Enter value for param1",
-                                                        "className": "form-control",
-                                                        "name": "param1",
-                                                        "subtype": "text"
-                                                    },
-                                                    {
-                                                        "type": "text",
-                                                        "required": true,
-                                                        "label": "--param2",
-                                                        "placeholder": "Enter value for param2",
-                                                        "className": "form-control",
-                                                        "name": "param2",
-                                                        "subtype": "text"
-                                                    },
-                                                    {
-                                                        "type": "text",
-                                                        "required": true,
-                                                        "label": "--param3",
-                                                        "placeholder": "Enter value for param3",
-                                                        "className": "form-control",
-                                                        "name": "param3",
-                                                        "subtype": "text"
-                                                    },
-                                                    {
-                                                        "type": "textarea",
-                                                        "required": false,
-                                                        "label": "User code to be executed BEFORE the solver command (user_pre_exec)",
-                                                        "placeholder": "Enter shell code here",
-                                                        "className": "form-control",
-                                                        "name": "user_pre_exec",
-                                                        "subtype": "textarea",
-                                                        "rows": 3
-                                                    },
-                                                    {
-                                                        "type": "textarea",
-                                                        "required": false,
-                                                        "label": "User code to be executed AFTER the solver command (user_post_exec)",
-                                                        "placeholder": "enter shell code here",
-                                                        "className": "form-control",
-                                                        "name": "user_post_exec",
-                                                        "subtype": "textarea",
-                                                        "rows": 3
-                                                    }
-                                                ]
-                                        {% endif %}
+                                        {
+                                            "type": "select",
+                                            "required": true,
+                                            "label": "Do you want to limit how long the job will be running? (wall_time)",
+                                            "className": "form-control",
+                                            "name": "wall_time",
+                                            "description": "Use HH:MM:SS format (hours:minutes:seconds). For example 90 minutes is 00:90:00 or 01:30:00",
+                                            "multiple": false,
+                                            "values": [
+                                                {
+                                                    "label": "No more than 1 hour",
+                                                    "value": "01:00:00",
+                                                    "selected": true
+                                                },
+                                                {
+                                                    "label": "No more than 5 hours",
+                                                    "value": "05:00:00"
+                                                },
+                                                {
+                                                    "label": "No more than 1 day",
+                                                    "value": "24:00:00"
+                                                },
+                                                {
+                                                    "label": "No more than 1 month",
+                                                    "value": "740:00:00"
+                                                }
+                                            ]
+                                        },
+                                        {
+                                            "type": "select",
+                                            "required": true,
+                                            "label": "How much storage do you want (SSD under /scratch)",
+                                            "className": "form-control",
+                                            "name": "scratch_size",
+                                            "multiple": false,
+                                            "values": [
+                                                {
+                                                    "label": "10 GB",
+                                                    "value": "10"
+                                                },
+                                                {
+                                                    "label": "50 GB",
+                                                    "value": "50"
+                                                },
+                                                {
+                                                    "label": "150 GB",
+                                                    "value": "150"
+                                                }
+                                            ]
+                                        },
+                                        {
+                                            "type": "select",
+                                            "required": true,
+                                            "label": "What queue do you want to use? (queue_name)",
+                                            "className": "form-control",
+                                            "name": "queue_name",
+                                            "multiple": false,
+                                            "values": [
+                                                {
+                                                    "label": "Queue 1 (Low Priority)",
+                                                    "value": "low",
+                                                    "selected": true
+                                                },
+                                                {
+                                                    "label": "Queue 2 (High Priority)",
+                                                    "value": "high"
+                                                }
+                                            ]
+                                        },
+                                        {
+                                            "type": "header",
+                                            "subtype": "h4",
+                                            "label": "Application parameters"
+                                        },
+                                        {
+                                            "type": "select",
+                                            "required": true,
+                                            "label": "What version of the solver do you want to use ? (binary_location)",
+                                            "description": "Path to the solver executable/binary. It's usually located within the \"bin\" folder of your installation directory",
+                                            "className": "form-control",
+                                            "name": "binary_location",
+                                            "multiple": false,
+                                            "values": [
+                                                {
+                                                    "label": "Version 2024",
+                                                    "value": "/apps/software/version2024/bin/solver.exe"
+                                                },
+                                                {
+                                                    "label": "Version 2023",
+                                                    "value": "/apps/software/version2023/bin/solver.exe"
+                                                },
+                                                {
+                                                    "label": "BETA",
+                                                    "value": "/apps/software/versionBETA/bin/solver.exe"
+                                                }
+                                            ]
+                                        },
+                                        {
+                                            "type": "paragraph",
+                                            "subtype": "p",
+                                            "label": "For documentation, please refer to <a href='#'>wiki.mycompany.tld/documentation/how-to-launch-this-application</a>"
+                                        },
+                                        {
+                                            "type": "text",
+                                            "required": true,
+                                            "label": "--param1",
+                                            "placeholder": "Enter value for param1",
+                                            "className": "form-control",
+                                            "name": "param1",
+                                            "subtype": "text"
+                                        },
+                                        {
+                                            "type": "text",
+                                            "required": true,
+                                            "label": "--param2",
+                                            "placeholder": "Enter value for param2",
+                                            "className": "form-control",
+                                            "name": "param2",
+                                            "subtype": "text"
+                                        },
+                                        {
+                                            "type": "text",
+                                            "required": true,
+                                            "label": "--param3",
+                                            "placeholder": "Enter value for param3",
+                                            "className": "form-control",
+                                            "name": "param3",
+                                            "subtype": "text"
+                                        },
+                                        {
+                                            "type": "textarea",
+                                            "required": false,
+                                            "label": "User code to be executed BEFORE the solver command (user_pre_exec)",
+                                            "placeholder": "Enter shell code here",
+                                            "className": "form-control",
+                                            "name": "user_pre_exec",
+                                            "subtype": "textarea",
+                                            "rows": 3
+                                        },
+                                        {
+                                            "type": "textarea",
+                                            "required": false,
+                                            "label": "User code to be executed AFTER the solver command (user_post_exec)",
+                                            "placeholder": "enter shell code here",
+                                            "className": "form-control",
+                                            "name": "user_post_exec",
+                                            "subtype": "textarea",
+                                            "rows": 3
+                                        }
+                                    ]
+                                    {% endif %}
 
 
                                 };
-                                formBuilder = $('.form-build').formBuilder(options)
+                                let formBuilder = $('.form-build').formBuilder(options)
                                 document.getElementById('clear-all-fields').onclick = function () {
                                     formBuilder.actions.clearFields();
                                 };
 
+                                function handleSubmit(event) {
+                                    let getJobScriptData = btoa(unescape(encodeURIComponent(window.fileeditor.getValue())));
+                                    document.getElementById("submit_job_script").value = getJobScriptData;
+                                    document.getElementById("submit_job_interpreter").value = $('#interpreter').val();
+                                    document.getElementById("submit_job_form").value = btoa(formBuilder.actions.getData('json', true));
+                                }
+
+                                {% if action == "edit" %}
+                                $('#manageprofile_edit').submit(handleSubmit);
+                                {% else %}
+                                $('#manageprofile_new').submit(handleSubmit);
+                                {% endif %}
                             })
-                        </script>
+                            </script>
+
+                            {% include 'common/monaco_editor.html' %}
+                            <script>
+                                require(["vs/editor/editor.main"], function () {
+
+                                    window.fileeditor = monaco.editor.create(document.getElementById("text-editor"), {
+                                    {% if action == "edit" %}
+                                    value: "{{ profile_job | safe }}",
+                                    {% else %}
+                                    value: `#!/bin/bash
+{% raw %}
+#PBS -q {{queue_name}}
+#PBS -N {{job_name}}
+# https://awslabs.github.io/scale-out-computing-on-aws-documentation/tutorials/integration-ec2-job-parameters/
+#PBS -l instance_type={{instance_type}}
+#PBS -l walltime={{wall_time}}
+#PBS -l force_ri={{force_ri}}
+
+## [Begin: Commands to be added before the solver. This cannot be changed by the users]
+# export custom path such as (PATH, LD_LIBRARY_PATH), configure license server variables etc ...
+## [End: Commands to be added before the solver. This cannot be changed by the users]
+
+# Change path to current working directory
+cd $PBS_O_WORKDIR
+
+{{user_pre_exec}}
+
+## [Begin: Actual solver command]
+{{binary_location}} {{input_file}} \\
+--param1 {{param1}} \\
+--param2 {{param2}} \\
+--param3 {{param3}} \\
+# Enter  here any command to be added to the solver command that changed be edited by the users #
+## [End: Actual solver command]
 
 
+{{user_post_exec}}
+
+## [Begin: Commands to be added after the solver. This cannot be changed by the users]
+# Compress output, send output to S3 etc ...
+## [End: Commands to be added after the solver. This cannot be changed by the users]
+{% endraw %}`,
+                                    {% endif %}
+                                    language: 'shell',
+                                    automaticLayout: true,
+                                    theme: 'vs-dark'
+                                    });
+                                });
+
+                            </script>
 </body>
 
 </html>

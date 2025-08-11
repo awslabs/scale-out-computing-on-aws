@@ -13,6 +13,9 @@
 # Load common function such as logging, awscli wrapper
 {% include "templates/linux/common.sh.j2" %}
 
+# Validate umask
+{% include "templates/linux/umask.sh.j2" %}
+
 # Verify previous SOCA Bootstrap lock presence
 if [[ -f "/root/.soca_bootstrap_controller_{{ context.get('/configuration/ClusterId') }}_completed" ]]; then
   exit_fail "/root/.soca_bootstrap_controller_{{ context.get('/configuration/ClusterId') }}_completed already exist. To prevent configuration overwrite, we exit the script, since this machine seems to be already configured"
@@ -90,7 +93,7 @@ log_info "Generating ${SOCA_BOOTSTRAP_ASSETS_FOLDER}/03_setup.sh from ${SOCA_BOO
     --template-dirs "${SOCA_BOOTSTRAP_ASSETS_FOLDER}"
 
 
-log_info "Generate the final setup scripts for Login Node, this can be done during CDK deployment as not all variables are known"
+log_info "Generate the final setup scripts for Login Node, this cannot be done during CDK deployment as not all variables are known"
 /bin/bash /opt/soca/{{ context.get("/configuration/ClusterId") }}/cluster_manager/tools/j2generator/j2generator.sh --get-template "compute_node/02_setup.sh.j2" \
     --output-file "s3://{{ context.get("/configuration/S3Bucket") }}/{{ context.get("/configuration/ClusterId") }}/config/do_not_delete/bootstrap/login_node/02_setup.sh" \
     --ssm-key "/" \

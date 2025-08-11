@@ -17,7 +17,7 @@ from flask import request
 from flask_restful import Resource, reqparse
 import logging
 import base64
-from decorators import private_api
+from decorators import private_api, feature_flag
 import sys
 import os
 import re
@@ -35,27 +35,74 @@ logger = logging.getLogger("soca_logger")
 
 class Job(Resource):
     @private_api
+    @feature_flag(flag_name="HPC", mode="api")
     def get(self):
         """
-        Return information for a given job
+        Get information for a specific PBS Pro job
         ---
+        openapi: 3.1.0
+        operationId: getJob
         tags:
-          - Scheduler
+          - PBS Pro Scheduler
         parameters:
-          - in: body
-            name: body
+          - name: X-SOCA-USER
+            in: header
             schema:
-              optional:
-                - job_id
-              properties:
-                job_id:
-                   type: string
-                   description: ID of the job
+              type: string
+              minLength: 1
+            required: true
+            description: SOCA username for authentication
+            example: admin
+          - name: X-SOCA-TOKEN
+            in: header
+            schema:
+              type: string
+              minLength: 1
+            required: true
+            description: SOCA authentication token
+            example: abc123token
+          - name: job_id
+            in: query
+            schema:
+              type: string
+              pattern: '^[0-9]+\.[a-zA-Z0-9_.-]+$'
+              minLength: 1
+            required: true
+            description: ID of the job to retrieve
+            example: "123.scheduler"
         responses:
-          200:
-            description: List of all jobs
-          500:
-            description: Backend error
+          '200':
+            description: Job information retrieved successfully
+            content:
+              application/json:
+                schema:
+                  type: object
+                  properties:
+                    success:
+                      type: boolean
+                      example: true
+                    message:
+                      type: object
+                      properties:
+                        Job_Name:
+                          type: string
+                          example: my_job
+                        Job_Owner:
+                          type: string
+                          example: john.doe@cluster
+                        job_state:
+                          type: string
+                          enum: [Q, R, H, S, E, F]
+                          example: R
+                        queue:
+                          type: string
+                          example: normal
+          '400':
+            description: Missing job_id parameter
+          '401':
+            description: Authentication required
+          '210':
+            description: Job may have terminated
         """
         parser = reqparse.RequestParser()
         parser.add_argument("job_id", type=str, location="args")
@@ -95,32 +142,77 @@ class Job(Resource):
             ).as_flask()
 
     @private_api
+    @feature_flag(flag_name="HPC", mode="api")
     def post(self):
         """
-        Submit a job to the queue
+        Submit a job to the PBS Pro queue
         ---
+        openapi: 3.1.0
+        operationId: submitJob
         tags:
-          - Scheduler
+          - PBS Pro Scheduler
         parameters:
-          - in: body
-            name: body
+          - name: X-SOCA-USER
+            in: header
             schema:
-              required:
-                - payload
-              optional:
-                - interpreter
-              properties:
-                payload:
-                  type: string
-                  description: Base 64 encoding of a job submission file
-                interpreter:
-                  type: string
-                  description: Interpreter to use qsub or bash
+              type: string
+              minLength: 1
+            required: true
+            description: SOCA username for authentication
+            example: admin
+          - name: X-SOCA-TOKEN
+            in: header
+            schema:
+              type: string
+              minLength: 1
+            required: true
+            description: SOCA authentication token
+            example: abc123token
+        requestBody:
+          required: true
+          content:
+            application/x-www-form-urlencoded:
+              schema:
+                type: object
+                required:
+                  - payload
+                properties:
+                  payload:
+                    type: string
+                    format: base64
+                    minLength: 1
+                    description: Base64 encoded job submission script
+                    example: IyEvYmluL2Jhc2gKI1BCUyAtTiBteV9qb2IKZWNobyAiSGVsbG8gV29ybGQi
+                  interpreter:
+                    type: string
+                    enum: [qsub, bash]
+                    description: Interpreter to use (qsub or bash)
+                    example: qsub
+                  input_file_path:
+                    type: string
+                    pattern: '^/[a-zA-Z0-9_./\-]+/$'
+                    description: Custom path for job output files
+                    example: /home/user/my_jobs/
         responses:
-          200:
-            description: Job submitted correctly
-          500:
-            description: Backend error
+          '200':
+            description: Job submitted successfully
+            content:
+              application/json:
+                schema:
+                  type: object
+                  properties:
+                    success:
+                      type: boolean
+                      example: true
+                    message:
+                      type: string
+                      example: "123"
+          '400':
+            description: Missing payload or invalid base64 encoding
+          '401':
+            description: Authentication required
+          '500':
+            description: Job submission failed
         """
         parser = reqparse.RequestParser()
         parser.add_argument("payload", type=str, location="form")
@@ -273,27 +365,71 @@ class Job(Resource):
             ).as_flask()
 
     @private_api
+    @feature_flag(flag_name="HPC", mode="api")
     def delete(self):
         """
-        Delete a job from the queue
+        Delete a job from the PBS Pro queue
         ---
+        openapi: 3.1.0
+        operationId: deleteJob
         tags:
-          - Scheduler
+          - PBS Pro Scheduler
         parameters:
-          - in: body
-            name: body
+          - name: X-SOCA-USER
+            in: header
             schema:
-              required:
-                - job_id
-              properties:
-                job_id:
-                  type: string
-                  description: ID of the job to remove
+              type: string
+              minLength: 1
+            required: true
+            description: SOCA username for authentication
+            example: admin
+          - name: X-SOCA-TOKEN
+            in: header
+            schema:
+              type: string
+              minLength: 1
+            required: true
+            description: SOCA authentication token
+            example: abc123token
+        requestBody:
+          required: true
+          content:
+            application/x-www-form-urlencoded:
+              schema:
+                type: object
+                required:
+                  - job_id
+                properties:
+                  job_id:
+                    type: string
+                    pattern: '^[0-9]+\.[a-zA-Z0-9_.-]+$'
+                    minLength: 1
+                    description: ID of the job to delete
+                    example: "123.scheduler"
         responses:
-          200:
-            description: Job submitted correctly
-          500:
-            description: Backend error
+          '200':
+            description: Job deleted successfully
+            content:
+              application/json:
+                schema:
+                  type: object
+                  properties:
+                    success:
+                      type: boolean
+                      example: true
+                    message:
+                      type: string
+                      example: Job deleted successfully
+          '400':
+            description: Missing job_id parameter
+          '401':
+            description: Authentication required
+          '403':
+            description: User is not the job owner
+          '404':
+            description: Job not found or already terminated
+          '500':
+            description: Job deletion failed
         """
         parser = reqparse.RequestParser()
         parser.add_argument("job_id", type=str, location="form")

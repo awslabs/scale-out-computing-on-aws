@@ -40,7 +40,7 @@
                                     <div class="card-body">
                                         <div class="alert alert-primary">
                                             <ul>
-                                                <li>A Virtual Desktop Profile controls the list of EC2 instance types, maximum storage size as well as approved subnet ids for your Software Stack.</li>
+                                                <li>A Virtual Desktop Profile controls the list of EC2 instance types, maximum storage size as well as approved subnet ids for your <a target="_blank" href="/admin/virtual_desktops/software_stacks">Virtual Desktop Software Stack</a></li>
                                                 <li>You can have multiple Software Stacks using the same Virtual Desktop Profile.</li>
                                             </ul>
                                         </div>
@@ -67,12 +67,20 @@
                                                 </small>
                                             </div>
 
+                                            <div class="form-group">
+                                                <label for="description" data-toggle="tooltip" data-placement="top"
+                                                       title="Description of your Virtual Desktop Profile">Description
+                                                </label>
+                                                <textarea id="description" placeholder="(Optional) Description for your Virtual Desktop Profile (maximum 500 characters)."
+                                                          class="form-control" rows="3"  name="description"></textarea>
+                                            </div>
+
                                              <div class="form-group">
                                                 <label data-toggle="tooltip" data-placement="top"
                                                        title="List of allowed instance type/family"
                                                        for="pattern_allowed_instance_types">List of instance type or family allowed</label>
                                                 <input id="pattern_allowed_instance_types" value="{{default_instance_type_pattern}}" data-ub-tag-variant="primary" class="form-control" required name="pattern_allowed_instance_types">
-                                                 <small>Notes:
+                                                 <small>Note:
                                                      <ul>
                                                          <li>Support Exact Instance Type (<code>c6i.xlarge</code>)</li>
                                                          <li>Support Instance Family (<code>c6i.*</code>)</li>
@@ -90,7 +98,7 @@
                                                 <input id="allowed_subnet_ids"
                                                        class="form-control" type="text"
                                                        required name="allowed_subnet_ids" value="{{allowed_subnets}}"  data-ub-tag-variant="primary">
-                                                <small>Notes:
+                                                <small>Note:
                                                     <ul>
                                                         <li>Subnets must be from the list of private subnets configured on SOCA</li>
                                                     </ul>
@@ -133,6 +141,7 @@
                                                                     data-soca-pattern-allowed-instances-types="{{profile_info.pattern_allowed_instance_types}}"
                                                                     data-soca-allowed-subnets="{{profile_info.allowed_subnet_ids}}"
                                                                     data-soca-max-root-size="{{profile_info.max_root_size}}"
+                                                                    data-soca-description="{{profile_info.description}}"
                                                                     data-soca-software-stack-ids="{{profile_info.software_stack_ids}}"
                                                                     data-soca-created-by="{{profile_info.created_by }}"
                                                                     data-soca-created-on="{{profile_info.created_on }}">
@@ -160,7 +169,7 @@
                                             <div class="col-md-7">
                                                  <div id="profileInfo">
                                                      Select a profile to see details.
-                                                    /div>
+                                                    </div>
                                             </div>
                                         {% else %}
                                             No Virtual Desktop Profiles found.
@@ -206,6 +215,7 @@
                             "<br><strong>Allowed Subnets:</strong> " + selectedOption.getAttribute("data-soca-allowed-subnets") +
                             "<br><strong><a href='/admin/virtual_desktops/software_stacks' target='_blank'>Associated Software Stack IDs:</a></strong> " + selectedOption.getAttribute("data-soca-software-stack-ids") +
                             "<br><strong>Max Root disk Size:</strong> " + selectedOption.getAttribute("data-soca-max-root-size")  +
+                            "<br><strong>Description:</strong> " + selectedOption.getAttribute("data-soca-description") +
                             "<br><strong>Created By:</strong> " + selectedOption.getAttribute("data-soca-created-by") +
                             "<br><strong>Created On</strong> " + selectedOption.getAttribute("data-soca-created-on");
                         }

@@ -15,7 +15,7 @@ import logging
 import config
 from flask import render_template, Blueprint, request, redirect, session, flash
 from requests import get, delete
-from decorators import login_required
+from decorators import login_required, feature_flag
 
 logger = logging.getLogger("soca_logger")
 my_jobs = Blueprint("my_jobs", __name__, template_folder="templates")
@@ -23,6 +23,7 @@ my_jobs = Blueprint("my_jobs", __name__, template_folder="templates")
 
 @my_jobs.route("/my_jobs", methods=["GET"])
 @login_required
+@feature_flag(flag_name="HPC", mode="view")
 def index():
     get_job_for_user = get(
         config.Config.FLASK_ENDPOINT + "/api/scheduler/jobs",
@@ -33,7 +34,6 @@ def index():
     if get_job_for_user.status_code == 200:
         return render_template(
             "my_jobs.html",
-            user=session["user"],
             jobs=get_job_for_user.json()["message"],
             page="my_jobs",
         )
@@ -46,6 +46,7 @@ def index():
 
 @my_jobs.route("/my_jobs/delete", methods=["GET"])
 @login_required
+@feature_flag(flag_name="HPC", mode="view")
 def delete_job():
     job_id = request.args.get("job_id", False)
     if job_id is False:

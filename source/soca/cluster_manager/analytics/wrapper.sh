@@ -31,6 +31,10 @@ else
        "/opt/soca/${SOCA_CLUSTER_ID}/python/latest/bin/python3" "/opt/soca/${SOCA_CLUSTER_ID}/cluster_manager/analytics/desktop_hosts_tracking.py"
       ;;
 
+    target_nodes_tracking)
+       "/opt/soca/${SOCA_CLUSTER_ID}/python/latest/bin/python3" "/opt/soca/${SOCA_CLUSTER_ID}/cluster_manager/analytics/target_nodes_tracking.py"
+      ;;
+
     *)
       echo "Invalid argument: ${ANALYTICS_MODE}"
       echo "Usage: $0 {cluster_nodes_tracking|job_tracking|desktop_hosts_tracking}"

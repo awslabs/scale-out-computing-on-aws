@@ -13,7 +13,7 @@
 
 import logging
 from flask import render_template, session, Blueprint, flash
-from decorators import login_required
+from decorators import login_required, feature_flag
 from utils.aws.ssm_parameter_store import SocaConfig
 
 logger = logging.getLogger("soca_logger")
@@ -22,8 +22,9 @@ sftp = Blueprint("sftp", __name__, template_folder="templates")
 
 @sftp.route("/sftp", methods=["GET"])
 @login_required
+@feature_flag(flag_name="SFTP_INSTRUCTIONS", mode="view")
 def home():
-    _login_nodes_endpoint = SocaConfig(key="/configuration/NLBLoadBalancerDNSName").get_value().message
-    return render_template(
-        "sftp.html", login_nodes_endpoint=_login_nodes_endpoint, user=session["user"]
+    _login_nodes_endpoint = (
+        SocaConfig(key="/configuration/NLBLoadBalancerDNSName").get_value().message
     )
+    return render_template("sftp.html", login_nodes_endpoint=_login_nodes_endpoint)

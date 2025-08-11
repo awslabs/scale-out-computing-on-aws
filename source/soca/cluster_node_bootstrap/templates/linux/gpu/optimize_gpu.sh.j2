@@ -17,7 +17,7 @@ function gpu_instance_optimize_gpu_clock_speed_nvidia () {
     nvidia-smi -ac 6250,1710
   elif [[ ${INSTANCE_FAMILY}  == "p2" ]]; then
     nvidia-smi -ac 2505,875
-  elif [[ ${INSTANCE_FAMILY} =~ ^(g6|gr6)$ ]]; then
+  elif [[ ${INSTANCE_FAMILY} =~ ^(g6|gr6|g6f)$ ]]; then
     nvidia-smi -ac 6251,2040
   elif [[ ${INSTANCE_FAMILY}  == "g6e" ]]; then
     nvidia-smi -ac 9001,2520

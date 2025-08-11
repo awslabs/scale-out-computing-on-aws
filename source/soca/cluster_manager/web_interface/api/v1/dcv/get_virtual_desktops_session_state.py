@@ -22,6 +22,107 @@ logger = logging.getLogger("soca_logger")
 
 class GetVirtualDesktopsSessionState(Resource):
     def get(self):
+        """
+        Get virtual desktop session states
+        ---
+        openapi: 3.1.0
+        operationId: getVirtualDesktopSessionStates
+        tags:
+          - Virtual Desktops
+        summary: Get session states for virtual desktops
+        description: Retrieves the current state of one or more DCV virtual desktop sessions
+        parameters:
+          - name: X-SOCA-USER
+            in: header
+            required: true
+            schema:
+              type: string
+              minLength: 1
+              maxLength: 64
+              pattern: '^[a-zA-Z0-9._-]+$'
+            description: SOCA username for authentication
+            example: "john.doe"
+          - name: X-SOCA-TOKEN
+            in: header
+            required: true
+            schema:
+              type: string
+              minLength: 1
+              maxLength: 256
+            description: SOCA authentication token
+            example: "abc123token456"
+          - name: session_uuid
+            in: query
+            required: true
+            schema:
+              type: string
+              pattern: '^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}(,[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})*$'
+            description: Comma-separated list of session UUIDs to check
+            example: "12345678-1234-1234-1234-123456789abc,87654321-4321-4321-4321-cba987654321"
+        responses:
+          '200':
+            description: Session states retrieved successfully
+            content:
+              application/json:
+                schema:
+                  type: object
+                  required:
+                    - success
+                    - message
+                  properties:
+                    success:
+                      type: boolean
+                      example: true
+                    message:
+                      type: object
+                      additionalProperties:
+                        type: string
+                        enum: ["pending", "running", "stopped", "stopping", "terminated"]
+                      description: Dictionary mapping session UUIDs to their states
+                      example:
+                        "12345678-1234-1234-1234-123456789abc": "running"
+                        "87654321-4321-4321-4321-cba987654321": "stopped"
+          '400':
+            description: Missing required parameters
+            content:
+              application/json:
+                schema:
+                  type: object
+                  required:
+                    - success
+                    - error_code
+                    - message
+                  properties:
+                    success:
+                      type: boolean
+                      example: false
+                    error_code:
+                      type: integer
+                      example: 400
+                    message:
+                      type: string
+                      example: "Missing required parameter: session_uuid"
+          '401':
+            description: Authentication failed
+            content:
+              application/json:
+                schema:
+                  type: object
+                  required:
+                    - success
+                    - error_code
+                    - message
+                  properties:
+                    success:
+                      type: boolean
+                      example: false
+                    error_code:
+                      type: integer
+                      example: 401
+                    message:
+                      type: string
+                      example: "Invalid authentication credentials"
+        """
         parser = reqparse.RequestParser()
         parser.add_argument("session_uuid", type=str, location="args")
         args = parser.parse_args()

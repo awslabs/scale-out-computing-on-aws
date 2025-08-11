@@ -46,13 +46,24 @@ class FindExistingResource:
         self.es = session.client("es")
         self.iam = session.client("iam")
         self.pcs = session.client("pcs")
+        self.sts = session.client("sts")
         self.install_parameters = {}
         self.cache = {}
         self.console = Console(record=True)
 
 
 
-    def find_vpc(self):
+    def find_vpc(self, address_families: list[str]):
+        """
+        Find existing VPC in our account and populate some data structures.
+        address_families represents the address families that we are interested in.
+        """
+
+        # Determine our AccountID
+
+        _sts_caller_identity: dict = self.sts.get_caller_identity()
+        _local_account_id: str = _sts_caller_identity.get("Account", "")
+
         vpc_table = Table(title=f"Select the VPC # in {self.region} region for SOCA deployment", show_lines=True, highlight=True)
         for _col_name in ["#", "VPC ID", "VPC Name", "VPC CIDRs", "Information"]:
             vpc_table.add_column(_col_name, justify="center")
@@ -91,9 +102,12 @@ class FindExistingResource:
                 vpc = vpcs_by_name[resource_name]
 
                 _pri_ipv4_cidr: str = vpc.get("CidrBlock", "")
-                # print(f"Primary Pv4 CIDR for VPC: {_pri_ipv4_cidr}")
 
-                _cidr_for_vpc: list = []
+                # Retain our discovered CIDRs by AF for later
+                _cidr_for_vpc_by_af: dict = {
+                    "IP_V4": [],
+                    "IP_V6": []
+                }
 
                 if vpc.get('CidrBlockAssociationSet', {}):
                     for _association in vpc.get('CidrBlockAssociationSet', {}):
@@ -102,18 +116,36 @@ class FindExistingResource:
                                 _cidr_info: str = "(Primary)"
                             else:
                                 _cidr_info: str = ""
-                            _cidr_for_vpc.append(f"{_association.get('CidrBlock')} {_cidr_info}")
+                            _cidr_for_vpc_by_af["IP_V4"].append(_association.get('CidrBlock'))
 
-                if vpc.get('Ipv6CidrBlockAssociationSet', {}):
+                #
+                # This should only be considered when enabled for IPv6
+                #
+                if "ipv6" in address_families and vpc.get('Ipv6CidrBlockAssociationSet', {}):
                     for _association in vpc.get('Ipv6CidrBlockAssociationSet', {}):
                         if _association.get('Ipv6CidrBlockState', {}).get('State', 'unknown-state').lower() == 'associated':
-                            _cidr_for_vpc.append(_association.get('Ipv6CidrBlock'))
+                            _cidr_for_vpc_by_af["IP_V6"].append(_association.get('Ipv6CidrBlock'))
 
-                _cidr_str: str = '\n'.join(_cidr_for_vpc)
+                #
+                # Combine our address-family into a single display
+                # This won't display IPv6 CIDRs if we are not enabled for IPv6 on the command line
+                # This helps to avoid confusion (by showing IPv6 CIDRs if it is disabled)
+                #
+                _cidr_str: str = '\n'.join([*_cidr_for_vpc_by_af["IP_V4"], *_cidr_for_vpc_by_af["IP_V6"]])
 
                 _info_txt_list: list = []
-
+                _vpc_id_str: str = ""
+                if vpc.get("VpcId", ""):
+                    _vpc_id_str = vpc.get("VpcId", "")
                 # Include some VPC information for easier ident of the VPC
+                _vpc_owner_id: str = vpc.get("OwnerId", "")
+
+                # Should we only display this if it is not the account that we are working in?
+                if _vpc_owner_id:
+                    _vpc_id_str = f"{_vpc_id_str}\nOwner ID: {_vpc_owner_id}"
+                    # determine if we are a shared VPC
+                    if _local_account_id != _vpc_owner_id:
+                        _info_txt_list.append(f"[bold yellow]Shared VPC[/]")
                 _vpc_bpa_igw_setting_str: str = vpc.get("BlockPublicAccessStates", {}).get("InternetGatewayBlockMode", "")
                 if _vpc_bpa_igw_setting_str:
                     _info_txt_list.append(f"[bold green]IGW-Block Mode: {_vpc_bpa_igw_setting_str}[/]")
@@ -134,7 +166,6 @@ class FindExistingResource:
                     "enableDnsHostnames": False,
                 }
 
-
                 for _vpc_attribute in _vpc_attributes:
                     _vpc_cap = _vpc_attribute[0].upper() + _vpc_attribute[1:]  # enableDnsSupport -> EnableDnsSupport (to match JSON values)
                     _vpc_attribute_support: dict = self.ec2.describe_vpc_attribute(
@@ -147,17 +178,21 @@ class FindExistingResource:
                         _info_txt_list.append(f"[bold red]Error-{_vpc_attribute} missing[/]")
                         _vpc_allowed = False
 
+                # print(f"DEBUG VPC CIDR BY AF: {_cidr_for_vpc_by_af=}")
+
                 vpcs[count] = {
                     "id": vpc["VpcId"],
                     "description": f"{resource_name if resource_name else ''} {vpc['VpcId']} {vpc['CidrBlock']}",
-                    "cidr": vpc["CidrBlock"],
+                    "cidr": vpc["CidrBlock"],  # This is the primary IP_V4 CIDR only
+                    "cidr_ipv6": str(_cidr_for_vpc_by_af["IP_V6"]),  # FIXME TODO
+                    # "cidr_by_af": _cidr_for_vpc_by_af,
                     "dns_support":  _vpc_attributes["enableDnsSupport"],
                     "dns_hostnames": _vpc_attributes["enableDnsHostnames"],
                 }
 
                 vpc_table.add_row(
         f"[green]{count}[/green]",
-                    f"[cyan]{vpc['VpcId']}[/cyan]",
+                    f"[cyan]{_vpc_id_str}[/cyan]",
                     f"[magenta]{resource_name}[/magenta]",
                     str(_cidr_str),
                     "\n".join(_info_txt_list),
@@ -172,7 +207,7 @@ class FindExistingResource:
 
             # Only allow selection of valid VPCs (that have properly configured VPC attributes)
             if not _vpc_allowed_list:
-                print(f"[red]FATAL ERROR: Unable to location any valid VPCs in region {self.region}. Please see the VPC Table for specific errors.[default]")
+                print(f"[red]FATAL ERROR: Unable to locate any valid VPCs in region {self.region}. Please see the VPC Table for specific errors.[default]")
                 sys.exit(1)
 
             allowed_choices = list(_vpc_allowed_list)
@@ -322,7 +357,12 @@ class FindExistingResource:
         except Exception as err:
             return {"success": False, "message": str(err)}
 
-    def get_subnets(self, vpc_id, environment, selected_subnets=None):
+    def get_subnets(self, vpc_id: str, environment: str, selected_subnets=None, address_families=list[str]):
+        """
+        Get the subnets in a given VPC.
+        Can use address_families to filter the display based on the subnet address family
+        """
+
 
         subnet_table = Table(
             title=f"Select Subnet # in {self.region} / VPC {vpc_id} for SOCA deployment",
@@ -353,6 +393,9 @@ class FindExistingResource:
                         "Name": "vpc-id",
                         "Values": [vpc_id],
                     },
+                    #
+                    # Eventually this filter needs to be removed
+                    # for IPv6-only subnets
                     {
                         "Name": "ipv6-native",
                         "Values": ["false"]
@@ -397,16 +440,20 @@ class FindExistingResource:
 
                     # Collect IPv6 CIDR
                     _ipv6_cidrs: list = []
-                    for association in subnet.get("Ipv6CidrBlockAssociationSet", []):
-                        if association.get("Ipv6CidrBlockState", {}).get("State", "unknown") != "associated":
-                            continue
-                        _ipv6_cidrs.append(association['Ipv6CidrBlock'])
+                    if "ipv6" in address_families:
+                        for association in subnet.get("Ipv6CidrBlockAssociationSet", []):
+                            if association.get("Ipv6CidrBlockState", {}).get("State", "unknown") != "associated":
+                                continue
+                            _ipv6_cidrs.append(association['Ipv6CidrBlock'])
 
+                    #
+                    # Join the string
+                    # Without IPv6 enabled - do not display the IPv6 CIDRs to avoid confusion
+                    #
                     _ipv6_cidr = "\n".join(_ipv6_cidrs) if len(_ipv6_cidrs) else ""
                     _cidr_str = f"{subnet['CidrBlock']} ({_available_ips} free)\n{_ipv6_cidr}"
 
                     _owner_str: str = subnet['OwnerId']
-
                     _az_str: str = f"AZ: {subnet['AvailabilityZone']}\nAZ-ID: {subnet['AvailabilityZoneId']}"
                     subnet_description = f"{resource_name if resource_name else ''} {_cidr_str}, AZ: {_az_str} {outpost_str}"
 
@@ -551,10 +598,10 @@ class FindExistingResource:
 
             allowed_choices = list(filesystems.keys())
             choice = get_input(
-                f"Choose the filesystem to use for {environment}?",
-                None,
-                allowed_choices,
-                int,
+                prompt=f"Choose the filesystem to use for {environment}?",
+                specified_value=None,
+                expected_answers=allowed_choices,
+                expected_type=int,
             )
 
             # Use fully qualified name when we can
@@ -569,48 +616,95 @@ class FindExistingResource:
         except Exception as err:
             return {"success": False, "message": str(err)}
 
-    def get_security_groups(self, vpc_id, environment, scheduler_sg=None):
-        if scheduler_sg is None:
+    def get_security_groups(self, vpc_id: str, environment: str, scheduler_sg=None):
+        """
+        Present the user with a list of security groups to be used for a particular SOCA role in the cluster.
+        """
+
+        _sg_table = Table(title=f"Select the Security Group # in {self.region} region for {environment} role", show_lines=True, highlight=True)
+        for _col_name in ["#", "Security Group ID", "Name", "Information"]:
+            _sg_table.add_column(_col_name, justify="center")
+
+        if not scheduler_sg:
             scheduler_sg = []
+
         try:
-            print(
-                f"\n====== Choose the [misty_rose3]security group to use for the {environment.upper()}[default] [region: {self.region}, vpc: {vpc_id}] ======\n"
+            # print(
+            #     f"\n====== Choose the [misty_rose3]security group to use for the {environment}[default] (Region: {self.region}, VPC {vpc_id}) ======\n"
+            # )
+
+            sgs_by_name: dict = {}
+            _sg_paginator = self.ec2.get_paginator("describe_security_groups")
+            _sg_iterator = _sg_paginator.paginate(
+                Filters=[
+                    {
+                        "Name": "vpc-id",
+                        "Values": [vpc_id],
+                    },
+                ]
             )
-            sgs_by_name = {}
-            sg_paginator = self.ec2.get_paginator("describe_security_groups")
-            sg_iterator = sg_paginator.paginate()
 
-            for page in sg_iterator:
-                for sg in page["SecurityGroups"]:
-                    resource_name = False
-                    if "Tags" in sg.keys():
-                        for tag in sg["Tags"]:
-                            if tag["Key"] == "Name":
-                                resource_name = tag["Value"]
-                    if not resource_name:
-                        continue
-                    sgs_by_name[resource_name] = sg
-            sgs = {}
-            count = 1
+            for _page in _sg_iterator:
+                for _sg in _page.get("SecurityGroups", []):
+                    # This is very noisy
+                    # print(f"DEBUG - Considering SG: {_sg=}")
+                    _resource_name: str = ""
+                    if "Tags" in _sg.keys():
+                        for _tag in _sg.get("Tags", []):
+                            if _tag["Key"] == "Name":
+                                _resource_name = _tag.get("Value", "")
+                    if not _resource_name:
+                        # This simply means there is no Name tag. Default to the ID
+                        # so the user can still select it
+                        _resource_name = _sg.get('GroupId', "unknown-group-ID")
+                        # continue
+                    sgs_by_name[_resource_name] = _sg
 
-            for resource_name in sorted(sgs_by_name):
-                sg = sgs_by_name[resource_name]
-                if sg["GroupId"] not in scheduler_sg:
+
+            # Build up the Table display
+
+            sgs: dict = {}
+            count: int = 1
+            for _resource_name in sorted(sgs_by_name):
+                _sg = sgs_by_name[_resource_name]
+                if _sg["GroupId"] not in scheduler_sg:
+
                     sgs[count] = {
-                        "id": f"{sg['GroupId']}",
-                        "description": f"{resource_name if resource_name else ''} {sg['GroupId']} {sg['GroupName']}",
+                        "id": f"{_sg['GroupId']}",
+                        # "description": f"{_resource_name if _resource_name else ''} {_sg['GroupId']} {_sg['GroupName']}",
                     }
+
                     count += 1
-            [
-                print("    {:2} > {}".format(key, sgs[key]["description"]))
-                for key in sorted(sgs)
-            ]
+                    _sg_info_list: list = []
+
+                    _sg_descr_list: list = [_sg.get("GroupName", "")]
+
+                    if _sg.get("Description", ""):
+                        _sg_descr_list.append(f" ({_sg.get('Description', '')})")
+
+                    # See if we see a prior SOCA cluster via our Tags
+                    for _tag in _sg.get("Tags", []):
+                        if _tag.get("Key", "") == "soca:ClusterId":
+                            if _tag.get("Value", ""):
+                                _sg_info_list.append(f"[green]SOCA\n{_tag.get('Value', '')}[default]")
+
+                    _sg_table.add_row(
+                        f"[green]{count}[/green]",
+                        f"[cyan]{_sg['GroupId']}[/cyan]",
+                        f"[magenta]{''.join(_sg_descr_list) if _sg_descr_list else _sg['GroupId']}[/magenta]",
+                        "\n".join(_sg_info_list),
+                    )
+
+
+            print(_sg_table)
+
             allowed_choices = list(sgs.keys())
+
             choice = get_input(
-                f"What security group for you want to use for {environment.upper()}",
-                None,
-                allowed_choices,
-                int,
+                prompt=f"What security group do you want to use for {environment.upper()}",
+                specified_value=None,
+                expected_answers=allowed_choices,
+                expected_type=int,
             )
             return {"success": True, "message": sgs[choice]["id"]}
 

@@ -89,17 +89,256 @@ class AwsPrice(Resource):
     @staticmethod
     def get():
         """
-        Return RI/OD price based on compute/storage inputs
+        Calculate AWS pricing for compute and storage resources
         ---
+        openapi: 3.1.0
+        operationId: calculateAwsPricing
         tags:
-          - AWS
+          - Cost Management
+        summary: Calculate AWS pricing for compute and storage resources
+        description: Estimates the cost of running a job with specified compute and storage requirements
+        parameters:
+          - name: X-SOCA-USER
+            in: header
+            required: true
+            schema:
+              type: string
+              minLength: 1
+              maxLength: 64
+              pattern: '^[a-zA-Z0-9._-]+$'
+            description: SOCA username for authentication
+            example: "john.doe"
+          - name: X-SOCA-TOKEN
+            in: header
+            required: true
+            schema:
+              type: string
+              minLength: 1
+              maxLength: 256
+            description: SOCA authentication token
+            example: "abc123token456"
+          - name: instance_type
+            in: query
+            required: true
+            schema:
+              type: string
+              pattern: '^[a-z0-9]+\.[a-z0-9]+$'
+            description: EC2 instance type
+            example: "m5.large"
+          - name: wall_time
+            in: query
+            required: false
+            schema:
+              type: string
+              pattern: f'^([0-9]{1,2}):([0-5][0-9]):([0-5][0-9])$'
+              default: "01:00:00"
+            description: Job duration in HH:MM:SS format
+            example: "02:30:00"
+          - name: cpus
+            in: query
+            required: false
+            schema:
+              type: integer
+              minimum: 1
+              maximum: 1000
+            description: Number of CPUs to allocate
+            example: 4
+          - name: scratch_size
+            in: query
+            required: false
+            schema:
+              type: integer
+              minimum: 0
+              maximum: 10000
+              default: 0
+            description: Scratch storage size in GB
+            example: 100
+          - name: root_size
+            in: query
+            required: false
+            schema:
+              type: integer
+              minimum: 8
+              maximum: 1000
+              default: 40
+            description: Root disk size in GB
+            example: 50
+          - name: fsx_capacity
+            in: query
+            required: false
+            schema:
+              type: integer
+              minimum: 0
+              maximum: 100000
+              default: 0
+            description: FSx storage capacity in GB
+            example: 1200
+          - name: fsx_type
+            in: query
+            required: false
+            schema:
+              type: string
+              enum: ["SCRATCH_1", "SCRATCH_2", "PERSISTENT_1", "PERSISTENT_2"]
+              default: "SCRATCH_2"
+            description: FSx storage type
+            example: "SCRATCH_2"
         responses:
-          200:
-            description: The Pair of user/token is valid
-          203:
-            description: Invalid user/token pair
-          400:
-            description: Malformed client input
+          '200':
+            description: Pricing calculation successful
+            content:
+              application/json:
+                schema:
+                  type: object
+                  required:
+                    - success
+                    - message
+                  properties:
+                    success:
+                      type: boolean
+                      example: true
+                    message:
+                      type: object
+                      required:
+                        - compute
+                        - estimated_total_cost
+                        - estimated_hourly_cost
+                        - estimated_storage_cost
+                      properties:
+                        compute:
+                          type: object
+                          required:
+                            - on_demand_hourly_rate
+                            - reserved_hourly_rate
+                            - estimated_on_demand_cost
+                            - estimated_reserved_cost
+                            - nodes
+                            - walltime
+                            - instance_type
+                          properties:
+                            on_demand_hourly_rate:
+                              type: number
+                              minimum: 0
+                              example: 0.096
+                            reserved_hourly_rate:
+                              type: number
+                              minimum: 0
+                              example: 0.058
+                            estimated_on_demand_cost:
+                              type: number
+                              minimum: 0
+                              example: 0.192
+                            estimated_reserved_cost:
+                              type: number
+                              minimum: 0
+                              example: 0.116
+                            nodes:
+                              type: integer
+                              minimum: 1
+                              example: 1
+                            walltime:
+                              type: number
+                              minimum: 0
+                              example: 2.5
+                            instance_type:
+                              type: string
+                              example: "m5.large"
+                            cpus:
+                              type: integer
+                              nullable: true
+                              example: 4
+                        estimated_total_cost:
+                          type: number
+                          minimum: 0
+                          example: 0.205
+                        estimated_hourly_cost:
+                          type: number
+                          minimum: 0
+                          example: 0.103
+                        estimated_storage_cost:
+                          type: number
+                          minimum: 0
+                          example: 0.013
+                        scratch_size:
+                          type: string
+                          example: "0.007"
+                        root_size:
+                          type: string
+                          example: "0.003"
+                        fsx_capacity:
+                          type: string
+                          example: "0.003"
+                        storage_pct:
+                          type: number
+                          minimum: 0
+                          maximum: 100
+                          example: 6.34
+                        compute_pct:
+                          type: string
+                          example: "93.66"
+          '400':
+            description: Invalid parameters or wall_time format
+            content:
+              application/json:
+                schema:
+                  type: object
+                  required:
+                    - success
+                    - message
+                  properties:
+                    success:
+                      type: boolean
+                      example: false
+                    message:
+                      type: string
+                      example: "wall_time must use HH:MM:SS format and only use valid numbers"
+          '401':
+            description: Unauthorized - invalid authentication
+            content:
+              application/json:
+                schema:
+                  type: object
+                  required:
+                    - success
+                    - message
+                  properties:
+                    success:
+                      type: boolean
+                      example: false
+                    message:
+                      type: string
+                      example: "Authentication failed"
+          '404':
+            description: Instance type pricing not found
+            content:
+              application/json:
+                schema:
+                  type: object
+                  required:
+                    - success
+                    - message
+                  properties:
+                    success:
+                      type: boolean
+                      example: false
+                    message:
+                      type: string
+                      example: "Unable to retrieve price for m5.large"
+          '500':
+            description: Internal server error
+            content:
+              application/json:
+                schema:
+                  type: object
+                  required:
+                    - success
+                    - message
+                  properties:
+                    success:
+                      type: boolean
+                      example: false
+                    message:
+                      type: string
+                      example: "Unable to get compute price. Instance type may be incorrect or region name not tracked correctly?"
         """
         parser = reqparse.RequestParser()
         parser.add_argument("instance_type", type=str, location="args")

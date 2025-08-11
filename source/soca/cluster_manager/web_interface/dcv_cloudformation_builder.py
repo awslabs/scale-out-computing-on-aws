@@ -27,10 +27,14 @@ from troposphere.ec2 import (
     IamInstanceProfile,
     LaunchTemplateBlockDeviceMapping,
     Placement,
+    Tag,
 )
 import troposphere.ec2 as ec2
 import logging
 from utils.aws.ssm_parameter_store import SocaConfig
+from utils.response import SocaResponse
+from utils.error import SocaError
+
 logger = logging.getLogger("soca_logger")
 
 
@@ -63,7 +67,7 @@ def main(**launch_parameters):
         t = Template()
         t.set_version("2010-09-09")
         t.set_description(
-            "(SOCA) - Base template to deploy DCV nodes version 25.5.0"
+            "(SOCA) - Base template to deploy DCV nodes version 25.8.0"
         )
         allow_anonymous_data_collection = launch_parameters["DefaultMetricCollection"]
         # Launch Actual Capacity
@@ -73,6 +77,29 @@ def main(**launch_parameters):
         else:
             _ebs_device_name = "/dev/sda1"
 
+        # Base tags
+        _base_tags = {
+            "Name": f"{launch_parameters['cluster_id']}-{launch_parameters['session_name']}-{launch_parameters['user']}",
+            "soca:JobName": str(launch_parameters["session_name"]),
+            "soca:JobOwner": str(launch_parameters["user"]),
+            "soca:NodeType": "dcv_node",
+            "soca:JobProject": str(launch_parameters["project"]),
+            "soca:DCVSupportHibernate": str(launch_parameters["hibernate"]).lower(),
+            "soca:ClusterId": str(launch_parameters["cluster_id"]),
+            "soca:DCVSessionUUID": str(launch_parameters["session_uuid"]),
+            "soca:DCVSystem": str(launch_parameters["base_os"]),
+        }
+        
+        if launch_parameters.get("custom_tags"):
+            for tag in launch_parameters["custom_tags"].values():
+                if tag.get("Enabled", ""):
+                    if tag["Key"] in _base_tags.keys():
+                        logger.warning(f"Specified custom tags {tag.get('Key')} is already defined in tag list, skipping ...")
+                    else:
+                        _base_tags[tag["Key"]] = tag["Value"]
+                else:
+                    logger.warning(f"{tag} does not have Enabled key or Enabled is False.")
+        
         # Make sure that the requested disk size is proper
         # This allows the admin to define an min size for DCV sessions
         # and register this size as part of the AMI registration process.
@@ -88,18 +115,15 @@ def main(**launch_parameters):
         else:
             _root_size_gb_list.append(int(launch_parameters["disk_size"]))
 
-        # What does the SOCA image require?
-
-        # What does the AMI require?
-        # launch_parameters["image_id"]
-
         ltd.BlockDeviceMappings = [
             LaunchTemplateBlockDeviceMapping(
                 DeviceName=_ebs_device_name,
                 Ebs=EBSBlockDevice(
-                    VolumeSize=40
-                    if launch_parameters["disk_size"] is False
-                    else int(launch_parameters["disk_size"]),
+                    VolumeSize=(
+                        40
+                        if launch_parameters["disk_size"] is False
+                        else int(launch_parameters["disk_size"])
+                    ),
                     VolumeType=launch_parameters.get("volume_type", "gp2"),
                     DeleteOnTermination=True,
                     Encrypted=True,
@@ -114,32 +138,13 @@ def main(**launch_parameters):
         ltd.IamInstanceProfile = IamInstanceProfile(
             Arn=launch_parameters["ComputeNodeInstanceProfileArn"]
         )
-        # ltd.IamInstanceProfile = launch_parameters[
-        #    "ComputeNodeInstanceProfileArn"
-        # ].split("instance-profile/")[-1]
-        ltd.UserData = launch_parameters["user_data"] # expects b64
+
+        ltd.UserData = launch_parameters["user_data"]  # expects b64
+
         ltd.TagSpecifications = [
             ec2.TagSpecifications(
                 ResourceType="instance",
-                Tags=base_Tags(
-                    Name=str(
-                        launch_parameters["cluster_id"]
-                        + "-"
-                        + launch_parameters["session_name"]
-                        + "-"
-                        + launch_parameters["user"]
-                    ),
-                    _soca_JobName=str(launch_parameters["session_name"]),
-                    _soca_JobOwner=str(launch_parameters["user"]),
-                    _soca_NodeType="dcv_node",
-                    _soca_JobProject="desktop",
-                    _soca_DCVSupportHibernate=str(
-                        launch_parameters["hibernate"]
-                    ).lower(),
-                    _soca_ClusterId=str(launch_parameters["cluster_id"]),
-                    _soca_DCVSessionUUID=str(launch_parameters["session_uuid"]),
-                    _soca_DCVSystem=str(launch_parameters["base_os"]),
-                ),
+                Tags=[Tag(Key=k, Value=v) for k, v in _base_tags.items()],
             )
         ]
 
@@ -149,7 +154,7 @@ def main(**launch_parameters):
 
         # Instance Launch Tenancy in the Launch Template
         _desired_tenancy: str = (
-            str(launch_parameters["tenancy"]).lower()
+            launch_parameters["tenancy"].lower()
             if "tenancy" in launch_parameters
             else "default"
         )
@@ -167,10 +172,9 @@ def main(**launch_parameters):
 
         lt = LaunchTemplate("DesktopLaunchTemplate")
         lt.LaunchTemplateName = (
-            launch_parameters["cluster_id"]
-            + "-"
-            + str(launch_parameters["session_uuid"])
+            f"{launch_parameters['cluster_id']}-{launch_parameters['session_uuid']}"
         )
+
         lt.LaunchTemplateData = ltd
         t.add_resource(lt)
 
@@ -185,16 +189,12 @@ def main(**launch_parameters):
 
         instance = ec2.Instance(_session_name)
 
-        instance.SubnetId = (
-            random.choice(launch_parameters["soca_private_subnets"])
-            if not launch_parameters["subnet_id"]
-            else launch_parameters["subnet_id"]
-        )
-
+        instance.SubnetId = launch_parameters["subnet_id"]
         instance.Tenancy = launch_parameters["tenancy"]
         instance.LaunchTemplate = ec2.LaunchTemplateSpecification(
             LaunchTemplateId=Ref(lt), Version=GetAtt(lt, "LatestVersionNumber")
         )
+
         t.add_resource(instance)
 
         # Begin Custom Resource
@@ -207,7 +207,7 @@ def main(**launch_parameters):
             metrics.Efa = "false"
             metrics.ScratchSize = "0"
             metrics.RootSize = str(launch_parameters["disk_size"])
-            metrics.VolumeType = launch_parameters.get("volume_type", "gp2")
+            metrics.VolumeType = launch_parameters.get("volume_type", "gp3")
             metrics.SpotPrice = "false"
             metrics.BaseOS = str(launch_parameters["base_os"])
             metrics.StackUUID = str(launch_parameters["session_uuid"])
@@ -233,8 +233,8 @@ def main(**launch_parameters):
         # End Custom Resource
 
         # Tags must use "soca:<Key>" syntax
-        template_output = t.to_yaml().replace("_soca_", "soca:")
-        return {"success": True, "output": template_output}
+        template_output = t.to_yaml()
+        return SocaResponse(success=True, message=template_output)
 
     except Exception as e:
         exc_type, exc_obj, exc_tb = sys.exc_info()
@@ -242,7 +242,6 @@ def main(**launch_parameters):
         logger.error(
             f"Unable to generate CloudFormation for DCV because of {e} {exc_type} {fname} {exc_tb.tb_lineno}"
         )
-        return {
-            "success": False,
-            "output": f"Unable to generate CloudFormation for DCV because of {e}",
-        }
+        return SocaError.GENERIC_ERROR(
+            helper=f"Unable to generate CloudFormation for DCV because of {e}"
+        )

@@ -15,7 +15,7 @@ from flask_restful import Resource, reqparse
 from flask import request
 import logging
 import json
-from decorators import private_api
+from decorators import private_api, feature_flag
 import os
 import sys
 from models import db, VirtualDesktopSessions, SoftwareStacks, VirtualDesktopProfiles
@@ -34,39 +34,180 @@ client_ssm = utils_boto3.get_boto(service_name="ssm").message
 
 class ListVirtualDesktops(Resource):
     @private_api
+    @feature_flag(flag_name="VIRTUAL_DESKTOPS", mode="api")
     def get(self):
         """
         List DCV desktop sessions for a given user
         ---
+        openapi: 3.1.0
+        operationId: listVirtualDesktops
         tags:
-          - DCV
-
+          - Virtual Desktops
+        summary: List user's virtual desktop sessions
+        description: Retrieves DCV desktop sessions for the authenticated user with optional filtering
         parameters:
-          - in: body
-            name: body
+          - name: X-SOCA-USER
+            in: header
+            required: true
             schema:
-              required:
-                - os
-                - state
-              properties:
-                session_number:
-                  type: string
-                  description: Session Number
-                os:
-                  type: string
-                  description: DCV session type (Windows or Linux)
-                state:
-                  type: string
-                  description: active or inactive
-
-                run_state:
-                  type: string
-                  description: The state of the desktop (running, pending, stopped ..)
+              type: string
+              minLength: 1
+              maxLength: 64
+              pattern: '^[a-zA-Z0-9._-]+$'
+            description: SOCA username for authentication
+            example: "john.doe"
+          - name: X-SOCA-TOKEN
+            in: header
+            required: true
+            schema:
+              type: string
+              minLength: 1
+              maxLength: 256
+            description: SOCA authentication token
+            example: "abc123token456"
+          - name: is_active
+            in: query
+            required: true
+            schema:
+              type: string
+              enum: ["true", "false"]
+            description: Filter sessions by active status
+            example: "true"
+          - name: session_uuid
+            in: query
+            required: false
+            schema:
+              type: string
+              format: uuid
+            description: Filter by specific session UUID
+            example: "550e8400-e29b-41d4-a716-446655440000"
+          - name: state
+            in: query
+            required: false
+            schema:
+              type: string
+              enum: ["pending", "running", "stopped", "stopping", "terminated"]
+            description: Filter by session state
+            example: "running"
         responses:
-          200:
-            description: Pair of user/token is valid
-          401:
-            description: Invalid user/token pair
+          '200':
+            description: Successfully retrieved virtual desktop sessions
+            content:
+              application/json:
+                schema:
+                  type: object
+                  required:
+                    - success
+                    - message
+                  properties:
+                    success:
+                      type: boolean
+                      example: true
+                    message:
+                      type: object
+                      additionalProperties:
+                        type: object
+                        required:
+                          - session_uuid
+                          - session_name
+                          - session_state
+                          - instance_type
+                          - connection_string
+                        properties:
+                          session_uuid:
+                            type: string
+                            format: uuid
+                            example: "550e8400-e29b-41d4-a716-446655440000"
+                          session_name:
+                            type: string
+                            example: "my-desktop"
+                          session_state:
+                            type: string
+                            enum: ["pending", "running", "stopped", "stopping", "terminated"]
+                            example: "running"
+                          instance_type:
+                            type: string
+                            example: "m5.large"
+                          connection_string:
+                            type: string
+                            format: uri
+                            example: "https://dcv.example.com/ip-10-0-1-100/?authToken=token123#session1"
+                          session_owner:
+                            type: string
+                            example: "john.doe"
+                          os_family:
+                            type: string
+                            enum: ["linux", "windows"]
+                            example: "linux"
+                          instance_private_ip:
+                            type: string
+                            format: ipv4
+                            nullable: true
+                            example: "10.0.1.100"
+                          url:
+                            type: string
+                            format: uri
+                            example: "https://dcv.example.com/ip-10-0-1-100/"
+          '400':
+            description: Bad request - missing or invalid parameters
+            content:
+              application/json:
+                schema:
+                  type: object
+                  required:
+                    - success
+                    - error_code
+                    - message
+                  properties:
+                    success:
+                      type: boolean
+                      example: false
+                    error_code:
+                      type: integer
+                      example: 400
+                    message:
+                      type: string
+                      example: "Missing required parameter: is_active"
+          '401':
+            description: Unauthorized - invalid user/token pair
+            content:
+              application/json:
+                schema:
+                  type: object
+                  required:
+                    - success
+                    - error_code
+                    - message
+                  properties:
+                    success:
+                      type: boolean
+                      example: false
+                    error_code:
+                      type: integer
+                      example: 401
+                    message:
+                      type: string
+                      example: "Missing required header: X-SOCA-USER"
+          '500':
+            description: Internal server error
+            content:
+              application/json:
+                schema:
+                  type: object
+                  required:
+                    - success
+                    - error_code
+                    - message
+                  properties:
+                    success:
+                      type: boolean
+                      example: false
+                    error_code:
+                      type: integer
+                      example: 500
+                    message:
+                      type: string
+                      example: "Unable to retrieve SOCA Parameters"
         """
         parser = reqparse.RequestParser()
         parser.add_argument("is_active", type=str, location="args")
@@ -150,7 +291,7 @@ class ListVirtualDesktops(Resource):
                 # console session Windows -> do not user external authenticator and rely on DCV login page
                 # Linux -> use external authenticator
                 if _soca_parameters.get("/configuration/UserDirectory/provider") in [
-                    "existing_activedirectory",
+                    "existing_active_directory",
                     "aws_ds_managed_activedirectory",
                     "aws_ds_simple_activedirectory",
                 ]:
@@ -174,6 +315,7 @@ class ListVirtualDesktops(Resource):
                     "session_name": session_info.session_name,
                     "session_owner": session_info.session_owner,
                     "session_state": session_info.session_state,
+                    "session_project": session_info.session_project,
                     "session_type": session_info.session_type,
                     "session_state_latest_change_time": session_info.session_state_latest_change_time,
                     "session_local_admin_password": session_info.session_local_admin_password,

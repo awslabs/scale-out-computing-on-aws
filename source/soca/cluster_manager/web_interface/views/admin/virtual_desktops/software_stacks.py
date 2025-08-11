@@ -50,7 +50,6 @@ def index():
     if _list_software_stacks.get("success") is True:
         return render_template(
             "admin/virtual_desktops/software_stacks.html",
-            user=session["user"],
             profiles=_list_profiles.get("message"),
             supported_base_os=config.Config.DCV_BASE_OS.keys(),
             software_stacks=_list_software_stacks.get("message"),
@@ -165,7 +164,6 @@ def software_stack_edit():
     if _get_software_stack_info.get("success") is True:
         return render_template(
             "admin/virtual_desktops/software_stacks_edit.html",
-            user=session["user"],
             profiles=_list_profiles.get("message"),
             supported_base_os=config.Config.DCV_BASE_OS.keys(),
             software_stack_info=_get_software_stack_info.get("message").get(

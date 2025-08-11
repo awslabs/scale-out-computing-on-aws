@@ -64,7 +64,7 @@ function system_packages_install {
     # Add distro specific packages and ensure uniqueness
     SYSTEM_PKGS=($(printf '%s\n' "${SYSTEM_PKGS[@]}" "${ADD_PKGS[@]}" | sort | uniq))
 
-    # Avoid kernel update is Lustre is on the mount table as lustre-client is kernel specific.
+    # Avoid kernel update if Lustre is on the mount table as lustre-client is kernel specific.
     if cat /etc/fstab | grep -q lustre; then
       log_info "Lustre filesystem found in /etc/fstab. Removing kernel from package update to avoid version mismatch with lustre-client version"
       REMOVE_PKGS+=(kernel)

@@ -25,7 +25,7 @@
             "Resource": "arn:aws-cn:elasticloadbalancing:%%AWS_REGION%%:%%AWS_ACCOUNT_ID%%:targetgroup/soca*/*",
             "Effect": "Allow"
         },
-      {
+        {
             "Action": [
                 "pricing:GetProducts",
                 "budgets:ViewBudget",
@@ -39,6 +39,7 @@
                 "ec2:DescribeInstanceAttribute",
                 "ec2:DescribeInstanceTypes",
                 "ec2:DescribeInstanceStatus",
+                "ec2:DescribeCapacityReservations",
                 "ec2:DescribeReservedInstances",
                 "ec2:DescribeSpotInstanceRequests",
                 "ec2:DescribeVpcClassicLink",
@@ -81,7 +82,7 @@
             "Resource": "*",
             "Effect": "Allow"
         },
-       {
+        {
             "Condition": {
                 "StringLikeIfExists": {
                     "autoscaling:LaunchConfigurationName": "%%CLUSTER_ID%%*"
@@ -104,10 +105,11 @@
                 "ec2:CreateTags"
             ],
             "Resource": [
-                "arn:aws-cn:ec2:*:%%AWS_ACCOUNT_ID%%:volume/*",
-                "arn:aws-cn:ec2:*:%%AWS_ACCOUNT_ID%%:network-interface/*",
-                "arn:aws-cn:ec2:*:%%AWS_ACCOUNT_ID%%:instance/*",
-                "arn:aws-cn:ec2:*:%%AWS_ACCOUNT_ID%%:fleet/*"
+                "arn:%%AWS_PARTITION%%:ec2:*:%%AWS_ACCOUNT_ID%%:volume/*",
+                "arn:%%AWS_PARTITION%%:ec2:*:%%AWS_ACCOUNT_ID%%:network-interface/*",
+                "arn:%%AWS_PARTITION%%:ec2:*:%%AWS_ACCOUNT_ID%%:instance/*",
+                "arn:%%AWS_PARTITION%%:ec2:*:%%AWS_ACCOUNT_ID%%:fleet/*",
+                "arn:%%AWS_PARTITION%%:ec2:*:%%AWS_ACCOUNT_ID%%:capacity-reservation/*"
             ],
             "Effect": "Allow"
         },
@@ -133,22 +135,36 @@
                 "ec2:StopInstances",
                 "ec2:StartInstances",
                 "ec2:TerminateInstances",
+                "ec2:CreateCapacityReservation",
+                "ec2:CancelCapacityReservation",
+                "ec2:DescribeCapacityReservations",
                 "ec2:CreatePlacementGroup",
                 "ec2:DeletePlacementGroup",
-                "ec2:ModifyInstanceAttribute"
+                "ec2:ModifyInstanceAttribute",
+                "ec2:ModifyInstanceCapacityReservationAttributes"
             ],
             "Resource": [
-                "arn:aws-cn:ec2:*:*:subnet/*",
-                "arn:aws-cn:ec2:*:%%AWS_ACCOUNT_ID%%:key-pair/*",
-                "arn:aws-cn:ec2:*:%%AWS_ACCOUNT_ID%%:instance/*",
-                "arn:aws-cn:ec2:*::snapshot/*",
-                "arn:aws-cn:ec2:*:%%AWS_ACCOUNT_ID%%:launch-template/*",
-                "arn:aws-cn:ec2:*:%%AWS_ACCOUNT_ID%%:volume/*",
-                "arn:aws-cn:ec2:*:%%AWS_ACCOUNT_ID%%:security-group/*",
-                "arn:aws-cn:ec2:*:%%AWS_ACCOUNT_ID%%:placement-group/*",
-                "arn:aws-cn:ec2:*:%%AWS_ACCOUNT_ID%%:network-interface/*",
-                "arn:aws-cn:ec2:*::image/*"
+                "arn:%%AWS_PARTITION%%:ec2:*:*:subnet/*",
+                "arn:%%AWS_PARTITION%%:ec2:*:%%AWS_ACCOUNT_ID%%:key-pair/*",
+                "arn:%%AWS_PARTITION%%:ec2:*:%%AWS_ACCOUNT_ID%%:instance/*",
+                "arn:%%AWS_PARTITION%%:ec2:*::snapshot/*",
+                "arn:%%AWS_PARTITION%%:ec2:*:%%AWS_ACCOUNT_ID%%:launch-template/*",
+                "arn:%%AWS_PARTITION%%:ec2:*:%%AWS_ACCOUNT_ID%%:volume/*",
+                "arn:%%AWS_PARTITION%%:ec2:*:%%AWS_ACCOUNT_ID%%:security-group/*",
+                "arn:%%AWS_PARTITION%%:ec2:*:%%AWS_ACCOUNT_ID%%:placement-group/*",
+                "arn:%%AWS_PARTITION%%:ec2:*:%%AWS_ACCOUNT_ID%%:network-interface/*",
+                "arn:%%AWS_PARTITION%%:ec2:*:%%AWS_ACCOUNT_ID%%:capacity-reservation/*",
+                "arn:%%AWS_PARTITION%%:ec2:*::image/*"
             ],
+            "Effect": "Allow"
+        },
+        {
+            "Action": [
+                "ec2:CreateCapacityReservation",
+                "ec2:CancelCapacityReservation",
+                "ec2:DescribeCapacityReservations"
+            ],
+            "Resource": "*",
             "Effect": "Allow"
         },
         {
@@ -269,7 +285,6 @@
                 "s3:ListBucket",
                 "s3:PutObject",
                 "s3:GetBucketLocation"
-
             ],
             "Resource": [
                 "arn:aws-cn:s3:::%%BUCKET%%/*",
@@ -289,7 +304,8 @@
             ],
             "Resource": [
                 "%%COMPUTE_NODE_ROLE_ARN%%",
-                "%%SPOTFLEET_ROLE_ARN%%"
+                "%%SPOTFLEET_ROLE_ARN%%",
+                "%%TARGET_NODE_ROLE_ARN%%"
             ],
             "Effect": "Allow"
         },
@@ -300,6 +316,21 @@
                 "logs:CreateLogStream",
                 "logs:PutLogEvents",
                 "logs:DescribeLogStreams"
+            ],
+            "Resource": "*"
+        },
+        {
+            "Sid": "ContainersPermissions",
+            "Effect": "Allow",
+            "Action": [
+                "ecr:DescribeImages",
+                "ecr:DescribeRepositories",
+                "ecr:ListTagsForResource",
+                "ecr:ListImages",
+                "eks:DescribeCluster",
+                "eks:ListClusters",
+                "eks:ListTagsForResource",
+                "tag:GetResources"
             ],
             "Resource": "*"
         }

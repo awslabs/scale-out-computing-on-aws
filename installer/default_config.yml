@@ -4,14 +4,13 @@
 # SPDX-License-Identifier: Apache-2.0
 
 Config:
-  version: "25.5.0"  # version automatically populated as part of RELEASE-PIPELINE.sh (see github_release.py)
+  version: "25.8.0"  # version automatically populated as part of RELEASE-PIPELINE.sh (see github_release.py)
   termination_protection: true  # Enable (recommended) or Disable Cloudformation Stack termination protection
   entry_points_subnets: "Public"  # Public (recommended) or Private. In public mode the scheduler and ELB are deployed on PublicSubnets and assigned Public IPS. In Private mode scheduler and ELB are deployed in private subnets. In both case compute nodes and OpenSearch/EFS/FSxL are deployed in private subnets. Public does not means your cluster will be accessible to everyone by default, access to your cluster is still protected by security groups
-  skip_quotas: false  # Enable (True) or Disable (False) AWS Service quotas check. It's recommended to disable this setting only when the AWS Service Quotas API is not accessible (e.g: isolated subnets)
   admin_user_name: "socaadmin"  # The name of the default admin username that will be created.
   metadata_http_tokens: "required"  # Supported values are "required" for IMDSv2 or "optional" for IMDSv1 (https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-ec2-launchtemplate-launchtemplatedata-metadataoptions.html#cfn-ec2-launchtemplate-launchtemplatedata-metadataoptions-httptokens)
   kms_key_id: ~  # A Global KMS KeyID (ARN) for any encrypted operations. Setting this removes the need to set on a per-resource basis. Note a per-resource key will over-ride this setting.
-  # Uncomment section below if you want to add additional tags to the resources created by SOCA
+  # Uncomment section below if you want to add additional tags to the resources created by SOCA. You can add additional tags post-deployment via `socactl`
   # custom_tags:
   #  - Key: 'example:custom:Tag1Name'
   #    Value: 'Tag1Value'
@@ -184,7 +183,7 @@ Config:
 
   scheduler:
     scheduler_engine: "openpbs"
-    deployment_type: "git"  # tgz (supported), git (supported) or s3_tgz (experimental). on see Parameters.scheduler section below for more info
+    deployment_type: "git" # tgz or git. See Parameters.scheduler section below for more info
 
   # Configure your EC2 instance used as controller host below
   controller:
@@ -205,7 +204,7 @@ Config:
       standby_replicas: "DISABLED"  #  ENABLED (HA) or DISABLED (non-HA)
       public_access: false  # Deploy the serverless cache with public reachability or in-VPC reachability (default)
     data_node_instance_type: "m6g.large.search"  # instance type for analytics data nodes
-    data_nodes: 2  # number of data nodes for analytics
+    data_nodes: ~  # number of data nodes for analytics (default is automatic based on the private AZ/subnet count).
     ebs_volume_size: 100  # EBS volume size attached to data nodes in GB
     deletion_policy: "NO_RETAIN"  # RETAIN will preserve the ES even if you delete the stack. Any other value will delete OS if you delete the CFN stack
 
@@ -225,7 +224,7 @@ Config:
     #   - "arn:aws:backup:us-east-1:123456789012:backup-vault:backupvaultname"
 
   dcv:
-    allowed_instances: ["m7i-flex.*", "m7i.*", "c6i.*", "c7g.*", "m5.*", "g6.*", "gr6.*", "g5.*", "g5g.*", "g4dn.*", "g4ad.*"]  # Which instances should be displayed for the user?
+    allowed_instances: ["m7i-flex.*", "m7i.*", "c6i.*", "c7g.*", "m5.*", "g6.*", "g6f.*", "gr6.*", "g5.*", "g5g.*", "g4dn.*", "g4ad.*"]  # Which instances should be displayed for the user?
     allow_metal_instances: true  # Should the user be presented with metal instances?
     version: "2023.1.16388"
     high_scale: false  # Should DCV be configured to support HA and high scale?
@@ -343,6 +342,28 @@ Config:
       #    - Save, Copy the "Secret ARN" below (Important: copy "Secret ARN", not "Secret Name")
       service_account_secret_name_arn: ~
 
+  # Enable/Disable specific Web APIs and Views.
+  # Feature can be enabled/disabled post-deployment via `socactl`
+  # List of allowed/denied users can also be managed post-deployment via `socactl`
+  feature_flags:
+    Networking:
+      EnableIPv6: false  # [PREVIEW FEATURE] - Enable IPv6 CIDRs, SG rules. MPLs for newly created VPCs/Subnets
+      AutoManagedPrefixList: false  # [PREVIEW FEATURE] - Automatically create and use EC2 Managed Prefix Lists instead of CIDRs
+    WebInterface:
+      VirtualDesktops: true
+      TargetNodes: true
+      LoginNodes: true
+      Hpc: true
+      FileBrowser: true
+      UsersGroupsManagement: true
+      MyApiKeyManagement: true
+      SftpInstructions: true
+      MyAccountManagement: true
+      AnalyticsCostManagement: true
+      ContainersManagement: false # [PREVIEW FEATURE] 
+    EnableCapacityReservation: false # [PREVIEW FEATURE] When false, SOCA will try to provision EC2 capacity and ignore capacity reservation request.
+    EnableAWSQuotaChecks: true # # When false, SOCA will ignore AWS Quotas when provisioning EC2 capacity. It's recommended to enable this setting only when the AWS Service Quotas API is not accessible (e.g: isolated subnets)
+
 
 # Parameters below will be stored on AWS Parameter Store via /soca/<cluster_id/<root>/<key>
 # ex: /soca/soca-mycluster/system/awscliv2/x86_64
@@ -406,9 +427,6 @@ Parameters:
           repo: "https://gitee.com/fctestbot/openpbs.git"  # Repo to clone from, e.g https://github.com/openpbs/openpbs.git
           branch: "master"  # (Optional: Specify the branch if you do not want to use the default)
           commit_id: "b22e67ed4709cd952fc166ba599de9a20a3d9b02"  # (Optional: Specify the commit id if you do not want to use the default)
-        s3_tgz:
-          version: ~  # Version to install (this can be anything, it's just used to avoid re-installation if the same version is already detected)
-          s3_uri: ~  # Full name of your file archive on S3 (e.g: s3://mcrozes-soca-test-bucket/tarball/openpbs-23.06.06.tar.gz)
 
         compatibility_packages:
           # Package installed/replaced on older distro (RHEL8, Rocky8 ..) to enable OpenPBS compilation for python3.13
@@ -425,7 +443,8 @@ Parameters:
             sha256: "6fc69c01688c9458a57eb9a1664c9aba372ccda420a02bf4429fe610e7e7d591"
           # Dependency when compiling OpenPBS from source
           cjson:
-            url: "https://gitee.com/mirrors/cJSON.git"
+            url: "https://aws-gcr-industry-assets.s3.cn-northwest-1.amazonaws.com.cn/soca/cJSON-1.7.18.tar.gz"
+            sha256: "3aa806844a03442c00769b83e99970be70fbef03735ff898f4811dd03b9f5ee5"
 
     cache_client:
       valkey:
@@ -461,19 +480,17 @@ Parameters:
         url: "https://s3.amazonaws.com/mountpoint-s3-release/1.14.0/arm64/mount-s3-1.14.0-arm64.rpm"
         sha256: "5c13de3fa0a8fd884444c5bf149cc4c3967aadad5c6fc4925df2529d4a83a5dd"
 
-    # NVM is installed only on the controller host and is required to install some required library on the SOCA Web Interface
-    nvm:
-      node_version: "20.9.0"  # Note:  Older distro (ALI2, centos7, rhel7 ... ) will use 17.9.0 as GLIBC on these distro are not compatible with Node18+
-      # url: "https://gitee.com/mirrors/nvm/raw/v0.39.7/install.sh"
-      url: "https://aws-gcr-industry-assets.s3.cn-northwest-1.amazonaws.com.cn/soca/nvm-sh/nvm/v0.40.1/install_gcr.sh"
-      sha256: "8e45fa547f428e9196a5613efad3bfa4d4608b74ca870f930090598f5af5f643"
+
+    nodejs:
+      url: "https://aws-gcr-industry-assets.s3.cn-northwest-1.amazonaws.com.cn/soca/node-v22.16.0-linux-x64.tar.xz"
+      sha256: "f4cb75bb036f0d0eddf6b79d9596df1aaab9ddccd6a20bf489be5abe9467e84e"
 
     # EFA Drivers installed on all HPC Compute node when efa_support=True is specified
     # https://aws.amazon.com/hpc/efa/
     efa:
-      version: "1.38.0"
-      url: "https://efa-installer.amazonaws.com/aws-efa-installer-1.38.0.tar.gz"
-      sha256: "4f436954f35ad53754b4d005fd8d0be63de3b4184de41a695b504bdce0fecb22"
+      version: "1.42.0"
+      url: "https://efa-installer.amazonaws.com/aws-efa-installer-1.42.0.tar.gz"
+      sha256: "4114fe612905ee05083ae5cb391a00a012510f3abfecc642d86c9a5ae4be9008"
 
     # SQLite is installed on the controller host and is the primary DB for SOCA Web UI
     sqlite:

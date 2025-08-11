@@ -56,7 +56,9 @@ subnet_id type=string
 system_metrics type=string
 EOF
     systemctl enable pbs
-    systemctl start pbs
+    if ! systemctl start pbs; then
+      exit_fail "Unable to start OpenPBS"
+    fi
     sleep 30
 
     # Create Default PBS hooks

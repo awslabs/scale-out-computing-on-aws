@@ -1,0 +1,42 @@
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Action": [
+                        "logs:CreateLogGroup",
+                        "logs:CreateLogStream",
+                        "logs:PutLogEvents"
+                    ],
+            "Resource": "arn:%%AWS_PARTITION%%:logs:%%AWS_REGION%%:%%AWS_ACCOUNT_ID%%:log-group:/aws/lambda/%%CLUSTER_ID%%*ODCR*",
+            "Effect": "Allow",
+            "Sid": "CloudWatchLogsPermissions"
+        },
+        {
+            "Action": [
+                "cloudwatch:GetMetricStatistics"
+            ],
+            "Resource": "*",
+            "Effect": "Allow",
+            "Sid": "CloudWatchMetricsPermissions"
+        },
+        {
+            "Action": [
+                "ec2:CancelCapacityReservation"
+            ],
+            "Resource": "arn:%%AWS_PARTITION%%:ec2:*:%%AWS_ACCOUNT_ID%%:capacity-reservation/*",
+            "Effect": "Allow",
+            "Sid": "CancelCapacityReservation"
+        },
+        {
+            "Action": [
+                "cloudformation:DescribeStacks",
+                "ec2:DescribeCapacityReservations"
+            ],
+            "Resource": "*",
+
+            "Effect": "Allow",
+            "Sid": "ReadOnlyPermissions"
+        }
+    ]
+}
+

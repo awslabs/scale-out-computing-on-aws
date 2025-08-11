@@ -30,55 +30,112 @@
                                 </div>
                                     <div class="card-body">
                                         <div class="row">
-                                        <div class="col-md-4">
-                                        <form action="/admin/projects/by_user" method="get">
-                                            <div class="form-group">
-                                                <select class="form-control"  id="user_to_check" name="user">
-                                                    {% for user in all_soca_users %}
-                                                    <option value="{{user}}"> {{user}} </option>
-                                                    {% endfor %}
-                                                </select>
+                                            <div class="col-md-4">
+                                                <form action="/admin/projects/by_user" method="POST">
+                                                    <div class="form-group">
+                                                        <select class="form-control"  id="user" name="user">
+                                                            {% for user in all_soca_users %}
+                                                            <option value="{{user}}"> {{user}} </option>
+                                                            {% endfor %}
+                                                        </select>
+                                                    </div>
+                                                    <div>
+                                                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                                        <button type="submit" class="btn btn-primary btn-lg">Check Project Membership</button>
+                                                    </div>
+                                                </form>
                                             </div>
-                                            <div>
-                                                <button type="submit" class="btn btn-primary btn-lg">Check Project Membership</button>
-                                            </div>
-                                        </form>
                                         </div>
 
                                         {% if projects %}
-                                        <div class="col-md-8">
-                                            <h3>Project membership for {{ user_to_check }}:</h3>
-                                            <ul>
-                                                {% for project_id, project_data in projects.items() %}
-                                                <li>ID {{project_id}} - {{project_data.project_name}}</li>
-                                                {% endfor %}
-                                            </ul>
-                                        </div>
+                                         <br> <br>
+                                         <div class="col-md-12">
+                                            <h3>Project Information for {{ user_to_check }}:</h3>
+                                            <table id="PermissionInfo" class="display" style="width:100%">
+                                            <thead>
+                                                <tr>
+                                                    <th>Stack Type</th>
+                                                    <th>Stack Info</th>
+                                                    <th>Associated Profile</th>
+                                                    <th>Associated Budgets</th>
+                                                    <th>Associated Projects</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                            {% for entry in projects.software_stacks %}
+                                            <tr>
+                                                <td>Virtual Desktop</td>
+                                                <td>{{ entry.stack_name }} (ID: {{ entry.id }})</td>
+                                                <td> {{ entry.profile.profile_name }} (ID: {{ entry.profile.id }})</td>
+                                                <td>
+                                                    <ul>
+                                                    {% for budget in entry.allowed_aws_budgets %}
+                                                      <li>{{ budget }}</li>
+                                                    {% endfor %}
+                                                  </ul>
+                                                </td>
+                                                <td>
+                                                     <ul>
+                                                    {% for project_name in entry.allowed_projects %}
+                                                      <li>{{ project_name }}</li>
+                                                    {% endfor %}
+                                                  </ul>
+                                                </td>
+                                            </tr>
+                                            {% endfor %}
+
+                                            {% for entry in projects.target_node_software_stacks %}
+                                            <tr>
+                                                <td>Target Nodes</td>
+                                                <td>{{ entry.stack_name }} (ID: {{ entry.id }})</td>
+                                                <td> {{ entry.profile.profile_name }} (ID: {{ entry.profile.id }})</td>
+                                                <td>
+                                                    <ul>
+                                                    {% for budget in entry.allowed_aws_budgets %}
+                                                      <li>{{ budget }}</li>
+                                                    {% endfor %}
+                                                  </ul>
+                                                </td>
+                                                <td>
+                                                     <ul>
+                                                    {% for project in entry.allowed_projects %}
+                                                      <li>{{ project.project_name }} (ID: {{ project.id }})</li>
+                                                    {% endfor %}
+                                                  </ul>
+                                                </td>
+                                            </tr>
+                                            {% endfor %}
+
+
+                                            </tbody>
+                                        </table>
+
+                                            <script>
+                                                document.addEventListener("DOMContentLoaded", function() {
+                                                    new DataTable("#PermissionInfo");
+                                                });
+                                            </script>
+                                         </div>
                                         {% endif %}
-                                            </div>
-
-
                                     </div>
-                                </div>
                             </div>
                         </div>
-                    <a class="scroll-to-top rounded" href="#page-top">
-                        <i class="fas fa-angle-up"></i>
-                    </a>
-
-                {% include 'common/footer.html' %}
-                <script>
-                    $(document).ready(function () {
-                        // enable tooltip
-                        $(function () {
-                            $('[data-toggle="tooltip"]').tooltip()
-                        })
-                    })
-                </script>
-                </div>
+                    </div>
             </div>
+            <a class="scroll-to-top rounded" href="#page-top">
+                <i class="fas fa-angle-up"></i>
+            </a>
         </div>
+        {% include 'common/footer.html' %}
     </div>
 </div>
+<script>
+    $(document).ready(function () {
+        // enable tooltip
+        $(function () {
+            $('[data-toggle="tooltip"]').tooltip()
+        })
+    })
+</script>
 </body>
 </html>

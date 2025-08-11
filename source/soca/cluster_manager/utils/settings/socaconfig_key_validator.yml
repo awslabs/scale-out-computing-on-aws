@@ -13,6 +13,7 @@ ValidationFunctions:
   EXPECT_LIST_OF_EC2_INSTANCES: &list_of_ec2_instances 'list_of_ec2_instance' # Verify if list provides contains only EC2 instance type
   EXPECT_LIST_OF_EC2_SUBNET_IDS: &list_of_ec2_subnet_ids 'list_of_ec2_subnet_ids' # Verify if list provides contains only EC2 subnet IDs
   EXPECT_VALID_SSH_KEYPAIR: &valid_ssh_keypair 'valid_ssh_keypair'
+  VALIDATE_FEATURE_FLAGS: &validate_feature_flags 'validate_feature_flags'
 
 configuration:
   ComputeNodeInstanceProfileArn: '^arn:(aws|aws-us-gov|aws-cn):iam::\d{12}:instance-profile/.+$'
@@ -20,18 +21,38 @@ configuration:
   CustomAMIMap: *immutable_key ## to review when we have a better check
   DCVAllowedInstances: *list_of_ec2_instances
   DCVDeniedInstances: *list_of_ec2_instances
+  DCVEntryPointDNSName: *str
   LoadBalancerArn: '^arn:(aws|aws-us-gov|aws-cn):elasticloadbalancing:.*:\d{12}:loadbalancer/.+$'
   Region: *immutable_key
   SSHKeyPair: *valid_ssh_keypair
   SolutionMetricsLambda: *immutable_key
   CustomAMI: '^ami-[0-9a-f]{8,17}$'
+  FeatureFlags:
+    EnableCapacityReservation: *bool
+    EnableAWSQuotaChecks: *bool
+    Networking:
+      EnableIPv6: *bool
+      AutoManagedPrefixList: *bool
+    WebInterface:
+      VirtualDesktops: *validate_feature_flags
+      TargetNodes: *validate_feature_flags
+      LoginNodes: *validate_feature_flags
+      Hpc: *validate_feature_flags
+      FileBrowser: *validate_feature_flags
+      UsersGroupsManagement: *validate_feature_flags
+      ContainersManagement: *validate_feature_flags
+      MyApiKeyManagement: *validate_feature_flags
+      SftpInstructions: *validate_feature_flags
+      MyAccountManagement: *validate_feature_flags
+      AnalyticsCostManagement: *validate_feature_flags
+    
+
   FileSystemDataProvider: '^(efs|fsx_lustre)$'
   LdapBase: *str
   LdapHost: *str
   PrivateSubnets: *list_of_ec2_subnet_ids
   S3Bucket: *valid_s3_bucket
   S3InstallFolder: *str
-  SkipQuotas: *bool
   SpotFleetIAMRoleArn: '^arn:(aws|aws-us-gov|aws-cn)$:iam::\d{12}:role/.+$'
   Version: *immutable_key
   BaseOS: '^(amazonlinux2|amazonlinux2023|rhel7|rhel8|rhel9|rocky8|rocky9|centos7)$'

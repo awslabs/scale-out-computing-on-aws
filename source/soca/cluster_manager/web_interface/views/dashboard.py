@@ -30,4 +30,4 @@ def index():
     _user = session.get("user", "unknown-user")
 
     kibana_url = "https://" + loadbalancer_dns_name + "/_dashboards/"
-    return render_template("dashboard.html", kibana_url=kibana_url, user=_user)
+    return render_template("dashboard.html", kibana_url=kibana_url)

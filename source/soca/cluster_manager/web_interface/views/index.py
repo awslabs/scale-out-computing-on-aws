@@ -22,6 +22,7 @@ from flask import (
     flash,
     Blueprint,
     current_app,
+    send_from_directory,
 )
 from requests import post, get
 from utils.http_client import SocaHttpClient
@@ -36,12 +37,27 @@ def ping():
     return "Alive", 200
 
 
+@index.route("/api/api.json", methods=["GET"])
+def api_json():
+    return send_from_directory("api/v1", "api.json")
+
+
+@index.route("/api/doc", methods=["GET"])
+def api_docs():
+    _default_api_doc_provider = "rapidoc"
+    api_doc_provider = request.args.get("ui", _default_api_doc_provider) 
+    if api_doc_provider not in ["rapidoc", "swagger"]:
+        api_doc_provider = _default_api_doc_provider
+   
+    return render_template("api_doc.html", api_doc_provider=api_doc_provider)
+
+
 @index.route("/", methods=["GET"])
 @login_required
 def home():
     user = session["user"]
     sudoers = session["sudoers"]
-    return render_template("index.html", user=user, sudoers=sudoers)
+    return render_template("index.html", sudoers=sudoers)
 
 
 @index.route("/login", methods=["GET"])
@@ -127,9 +143,5 @@ def oauth():
         else:
             return redirect(cognito_root_url)
     else:
-        # TODO - This should be made generic to avoid user enumeration
-        if sso_auth["message"] == "user_not_found":
-            flash("This user does not seem to have an account in SOCA", "error")
-        else:
-            flash(str(sso_auth["message"]), "error")
+        flash(str(sso_auth["message"]), "error")
         return redirect("/login")

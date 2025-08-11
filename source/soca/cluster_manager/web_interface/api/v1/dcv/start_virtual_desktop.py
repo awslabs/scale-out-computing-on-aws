@@ -14,45 +14,115 @@
 from flask_restful import Resource, reqparse
 from flask import request
 import logging
-from decorators import private_api
+from decorators import private_api, feature_flag
 from botocore.exceptions import ClientError
 from models import db, VirtualDesktopSessions
 import utils.aws.boto3_wrapper as utils_boto3
 from utils.error import SocaError
 from utils.response import SocaResponse
 from datetime import datetime, timezone
+import utils.aws.odcr_helper as odcr_helper
+from utils.aws.ssm_parameter_store import SocaConfig
+
 logger = logging.getLogger("soca_logger")
 client_ec2 = utils_boto3.get_boto(service_name="ec2").message
 
 
 class StartVirtualDesktop(Resource):
     @private_api
+    @feature_flag(flag_name="VIRTUAL_DESKTOPS", mode="api")
     def put(self):
         """
         Start a DCV desktop session
         ---
+        openapi: 3.1.0
+        operationId: startVirtualDesktop
         tags:
-          - DCV
-
+          - Virtual Desktops
+        summary: Start virtual desktop
+        description: Start a stopped DCV virtual desktop session with automatic ODCR (On-Demand Capacity Reservation) management
         parameters:
-          - in: body
-            name: body
+          - in: header
+            name: X-SOCA-USER
+            required: true
             schema:
-              required:
-                - os
-                - action
-              properties:
-                os:
-                  type: string
-                  description: DCV session type (Windows or Linux)
-                action:
-                  type: string
-                  description: stop, hibernate or terminate
+              type: string
+              example: "john.doe"
+            description: SOCA username for authentication
+          - in: header
+            name: X-SOCA-TOKEN
+            required: true
+            schema:
+              type: string
+              example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+            description: SOCA authentication token
+        requestBody:
+          required: true
+          content:
+            application/x-www-form-urlencoded:
+              schema:
+                type: object
+                required:
+                  - session_uuid
+                properties:
+                  session_uuid:
+                    type: string
+                    format: uuid
+                    description: UUID of the virtual desktop session to start
+                    example: "12345678-1234-1234-1234-123456789012"
         responses:
-          200:
-            description: Pair of user/token is valid
-          401:
-            description: Invalid user/token pair
+          '200':
+            description: Desktop start initiated successfully
+            content:
+              application/json:
+                schema:
+                  type: object
+                  properties:
+                    success:
+                      type: boolean
+                      example: true
+                    message:
+                      type: string
+                      example: "Your virtual desktop is starting"
+          '400':
+            description: Missing parameter or invalid session state
+            content:
+              application/json:
+                schema:
+                  type: object
+                  properties:
+                    success:
+                      type: boolean
+                      example: false
+                    message:
+                      type: string
+                      example: "This virtual desktop seems to be already running."
+          '401':
+            description: Session not found or unauthorized
+            content:
+              application/json:
+                schema:
+                  type: object
+                  properties:
+                    success:
+                      type: boolean
+                      example: false
+                    message:
+                      type: string
+                      example: "Unable to find this session"
+          '500':
+            description: Failed to start desktop or capacity reservation error
+            content:
+              application/json:
+                schema:
+                  type: object
+                  properties:
+                    success:
+                      type: boolean
+                      example: false
+                    message:
+                      type: string
+                      example: "Unable to create capacity reservation"
         """
         parser = reqparse.RequestParser()
         parser.add_argument("session_uuid", type=str, location="form")
@@ -93,11 +163,66 @@ class StartVirtualDesktop(Resource):
                 ).as_flask()
 
             try:
-                client_ec2.start_instances(InstanceIds=[_instance_id])
+                if (
+                    SocaConfig(key="/configuration/FeatureFlags/EnableCapacityReservation")
+                    .get_value(return_as=bool)
+                    .get("message")
+                    is True
+                ):
+                    logging.info("Retrieving instance information for new ODCR")
+                    _describe_instance = client_ec2.describe_instances(
+                        InstanceIds=[_instance_id]
+                    )
+                    _instance_info = _describe_instance["Reservations"][0]["Instances"][
+                        0
+                    ]
+                    logging.info("Requesting new ODCR for this EC2 instance")
+                    _request_on_demand_capacity_reservation = (
+                        odcr_helper.create_capacity_reservation_vdi(
+                            instance_type=_instance_info.get("InstanceType"),
+                            capacity_reservation_name=_check_session.stack_name,
+                            subnet_id=_instance_info.get("SubnetId"),
+                            instance_ami=_instance_info.get("ImageId"),
+                            tenancy=_instance_info.get("Placement").get("Tenancy"),
+                        )
+                    )
+                    if _request_on_demand_capacity_reservation.get("success") is False:
+                        return SocaError.GENERIC_ERROR(
+                            helper=f"Unable to create capacity reservation due to {_request_on_demand_capacity_reservation.message}. Please try again later."
+                        ).as_flask()
+                    else:
+                        logger.info(
+                            f"ODCR successfully created {_request_on_demand_capacity_reservation.get('message')}"
+                        )
 
+                        _new_reservation_id = (
+                            _request_on_demand_capacity_reservation.get("message")
+                        )
+                        logger.info(f"Applying {_new_reservation_id=} to the instance")
+                        _modify_odcr = (
+                            odcr_helper.modify_instance_capacity_reservation_attributes(
+                                instance_id=_instance_id,
+                                reservation_id=_new_reservation_id,
+                            )
+                        )
+                        if _modify_odcr.get("success") is False:
+                            logger.error(
+                                f"Unable to apply new ODCR to the instance due to {_modify_odcr.get('message')}, canceling all ODCR for this job"
+                            )
+                            odcr_helper.cancel_capacity_reservation(
+                                reservation_id=_new_reservation_id
+                            )
+
+                            return SocaError.GENERIC_ERROR(
+                                helper=f"Unable to re-assign a new capacity reservation when trying to restart your desktop due to {_modify_odcr.get('message')}"
+                            )
+
+                client_ec2.start_instances(InstanceIds=[_instance_id])
                 try:
                     _check_session.session_state = "pending"
-                    _check_session.session_state_latest_change_time = datetime.now(timezone.utc)
+                    _check_session.session_state_latest_change_time = datetime.now(
+                        timezone.utc
+                    )
                     db.session.commit()
                 except Exception as err:
                     return SocaError.DB_ERROR(

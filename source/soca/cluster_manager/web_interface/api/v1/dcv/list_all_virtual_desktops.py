@@ -14,7 +14,7 @@
 from flask_restful import Resource, reqparse
 from flask import request
 import logging
-from decorators import admin_api
+from decorators import admin_api, feature_flag
 import os
 import sys
 from models import db, VirtualDesktopSessions, SoftwareStacks, VirtualDesktopProfiles
@@ -33,9 +33,173 @@ client_ssm = utils_boto3.get_boto(service_name="ssm").message
 
 class ListAllVirtualDesktops(Resource):
     @admin_api
+    @feature_flag(flag_name="VIRTUAL_DESKTOPS", mode="api")
     def get(self):
         """
-        List all virtual desktops
+        List all virtual desktop sessions (Admin only)
+        ---
+        openapi: 3.1.0
+        operationId: listAllVirtualDesktops
+        tags:
+          - Virtual Desktops
+        summary: List all virtual desktop sessions
+        description: Retrieves detailed information about all active DCV virtual desktop sessions (admin access required)
+        parameters:
+          - name: X-SOCA-USER
+            in: header
+            required: true
+            schema:
+              type: string
+              minLength: 1
+              maxLength: 64
+              pattern: '^[a-zA-Z0-9._-]+$'
+            description: SOCA username for authentication (must be admin)
+            example: "admin.user"
+          - name: X-SOCA-TOKEN
+            in: header
+            required: true
+            schema:
+              type: string
+              minLength: 1
+              maxLength: 256
+            description: SOCA authentication token
+            example: "abc123token456"
+        responses:
+          '200':
+            description: All virtual desktop sessions retrieved successfully
+            content:
+              application/json:
+                schema:
+                  type: object
+                  required:
+                    - success
+                    - message
+                  properties:
+                    success:
+                      type: boolean
+                      example: true
+                    message:
+                      type: object
+                      additionalProperties:
+                        type: object
+                        required:
+                          - id
+                          - session_uuid
+                          - session_owner
+                          - session_name
+                          - session_state
+                          - instance_type
+                          - os_family
+                        properties:
+                          id:
+                            type: integer
+                            minimum: 1
+                            example: 1
+                          session_uuid:
+                            type: string
+                            format: uuid
+                            example: "12345678-1234-1234-1234-123456789abc"
+                          session_owner:
+                            type: string
+                            example: "john.doe"
+                          session_name:
+                            type: string
+                            example: "MyDesktop01"
+                          session_state:
+                            type: string
+                            enum: ["pending", "running", "stopped", "stopping", "terminated"]
+                            example: "running"
+                          instance_type:
+                            type: string
+                            example: "m5.large"
+                          instance_id:
+                            type: string
+                            nullable: true
+                            pattern: '^i-[a-f0-9]{8,17}$'
+                            example: "i-1234567890abcdef0"
+                          instance_private_ip:
+                            type: string
+                            nullable: true
+                            format: ipv4
+                            example: "10.0.1.100"
+                          os_family:
+                            type: string
+                            enum: ["linux", "windows"]
+                            example: "linux"
+                          software_stack:
+                            type: string
+                            example: "Ubuntu Desktop (id: 1)"
+                          vdi_profile:
+                            type: string
+                            example: "Standard Profile (id: 1)"
+                          created_on:
+                            type: string
+                            format: date-time
+                            nullable: true
+                          is_active:
+                            type: boolean
+                            example: true
+                      description: Dictionary of session UUIDs mapped to session details
+          '401':
+            description: Authentication failed
+            content:
+              application/json:
+                schema:
+                  type: object
+                  required:
+                    - success
+                    - error_code
+                    - message
+                  properties:
+                    success:
+                      type: boolean
+                      example: false
+                    error_code:
+                      type: integer
+                      example: 401
+                    message:
+                      type: string
+                      example: "Missing required header: X-SOCA-USER"
+          '403':
+            description: Insufficient permissions or feature not enabled
+            content:
+              application/json:
+                schema:
+                  type: object
+                  required:
+                    - success
+                    - error_code
+                    - message
+                  properties:
+                    success:
+                      type: boolean
+                      example: false
+                    error_code:
+                      type: integer
+                      example: 403
+                    message:
+                      type: string
+                      example: "Admin access required"
+          '500':
+            description: Internal server error
+            content:
+              application/json:
+                schema:
+                  type: object
+                  required:
+                    - success
+                    - error_code
+                    - message
+                  properties:
+                    success:
+                      type: boolean
+                      example: false
+                    error_code:
+                      type: integer
+                      example: 500
+                    message:
+                      type: string
+                      example: "Unable to retrieve SOCA Parameters"
         """
         parser = reqparse.RequestParser()
         args = parser.parse_args()

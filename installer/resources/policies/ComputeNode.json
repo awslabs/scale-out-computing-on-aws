@@ -60,7 +60,21 @@
                 "logs:PutLogEvents",
                 "logs:DescribeLogStreams"
             ],
-            "Resource": "*"
+            "Resource": "arn:%%AWS_PARTITION%%:logs:%%AWS_REGION%%:*"
+        },
+        {
+            "Sid": "AllowSerialConsoleAccess",
+            "Action": [
+                "ec2-instance-connect:SendSerialConsoleSSHPublicKey",
+                "ec2-instance-connect:StartSerialConsoleSession"
+            ],
+            "Resource": "arn:%%AWS_PARTITION%%:ec2:*:%%AWS_ACCOUNT_ID%%:instance/*",
+            "Effect": "Allow",
+            "Condition": {
+                "StringEquals": {
+                    "ec2:ResourceTag/soca:ClusterId": "%%CLUSTER_ID%%"
+                }
+            }
         }
     ]
 }

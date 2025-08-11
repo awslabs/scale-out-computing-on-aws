@@ -96,7 +96,8 @@
 
     if [[ "${ENABLED}" == "true" ]]; then
 
-      local FSX_LUSTRE_INFO=$(aws_cli fsx describe-file-systems --file-system-ids "${MOUNT_TARGET}")
+      local MOUNT_TARGET_ID=$(echo ${MOUNT_TARGET} | cut -d'.' -f1)
+      local FSX_LUSTRE_INFO=$(aws_cli fsx describe-file-systems --file-system-ids "${MOUNT_TARGET_ID}")
       local FSX_LUSTRE_DNS=$(echo ${FSX_LUSTRE_INFO} | jq -r '.FileSystems[].DNSName // "NO_VALUE"')
       local FSX_LUSTRE_MOUNT_NAME=$(echo ${FSX_LUSTRE_INFO} | jq -r '.FileSystems[].LustreConfiguration.MountName // "NO_VALUE"')
 
@@ -114,7 +115,7 @@
 
       for ((LIFECYCLE_VERIFICATION=1; LIFECYCLE_VERIFICATION<=30; LIFECYCLE_VERIFICATION++)); do
           log_info "Verifying if ${MOUNT_TARGET} is in AVAILABLE state ..."
-          if [[ $(aws_cli fsx describe-file-systems --file-system-ids "${MOUNT_TARGET}" --query FileSystems[].Lifecycle --output text) == "AVAILABLE" ]]; then
+          if [[ $(aws_cli fsx describe-file-systems --file-system-ids "${MOUNT_TARGET_ID}" --query FileSystems[].Lifecycle --output text) == "AVAILABLE" ]]; then
             break
           else
             log_warning "FSx Lustre Not available yet .. trying again in 60 seconds, attempt ${LIFECYCLE_VERIFICATION}"
@@ -169,12 +170,12 @@
               *"5.14.0-70"*) rhel_driver_install 9 's#9#9.0#' ;;
               *) log_error "Can't install FSx for Lustre client as kernel version $KERNEL isn't matching expected versions for EL9";;
             esac
-        {% elif context.get("/configuration/BaseOS") == "ubuntu2204" %}
+        {% elif context.get("/configuration/BaseOS") in ("ubuntu2204", "ubuntu2404") %}
             file_download --download-url="https://fsx-lustre-client-repo-public-keys.s3.amazonaws.com/fsx-ubuntu-public-key.asc" --save-as="${SOCA_BOOTSTRAP_ASSETS_FOLDER}/fsx-ubuntu-public-key.asc"
             gpg --dearmor < ${SOCA_BOOTSTRAP_ASSETS_FOLDER}/fsx-ubuntu-public-key.asc | sudo tee /usr/share/keyrings/fsx-ubuntu-public-key.gpg >/dev/null
             echo "deb [signed-by=/usr/share/keyrings/fsx-ubuntu-public-key.gpg] https://fsx-lustre-client-repo.s3.amazonaws.com/ubuntu jammy main" > /etc/apt/sources.list.d/fsxlustreclientrepo.list
             packages_generic_command update
-            packages_install linux-aws lustre-client-modules-aws
+            packages_install lustre-client-modules-${KERNEL}
         {% endif %}
       else
         log_info "FSx Lustre Driver already installed ..."

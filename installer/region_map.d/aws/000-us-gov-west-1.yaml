@@ -1,0 +1,22 @@
+---
+# SOCA AMI List for govcloud partition generated 2025-06-05 15:24:16 UTC
+us-gov-west-1:
+  x86_64:
+    amazonlinux2: ami-00fd714e3562b85b3
+    amazonlinux2023: ami-0b42cfaf93bb657e3
+    rhel7: ami-0f89fe9d39cd3e03a
+    rhel8: ami-063afa08f07cbad67
+    rhel9: ami-06546a8879859039a
+    ubuntu2204: ami-090a044b76cb8851d
+    ubuntu2404: ami-069f2315dfb43f4a8
+    windows2019: ami-0aa372b169a0354d2
+    windows2022: ami-03868a1f1f3af1bfa
+    windows2025: ami-0560d2e0aa8b388fe
+  arm64:
+    amazonlinux2: ami-06bc587fb1e1d6d9d
+    amazonlinux2023: ami-0c56cd68585e5ee6a
+    rhel8: ami-058d6aa244c9c9e20
+    rhel9: ami-0ddf794f6407372e6
+    ubuntu2204: ami-02e892824f44c957a
+    ubuntu2404: ami-0bf2261cbe476a33d
+# SOCA AMI List for govcloud partition generated 2025-06-05 15:24:16 UTC

@@ -14,7 +14,7 @@
 import config
 from flask_restful import Resource, reqparse
 import logging
-from decorators import private_api, admin_api
+from decorators import private_api, admin_api, feature_flag
 from utils.error import SocaError
 from utils.subprocess_client import SocaSubprocessClient
 from utils.http_client import SocaHttpClient
@@ -27,17 +27,78 @@ logger = logging.getLogger("soca_logger")
 
 class Queue(Resource):
     @admin_api
+    @feature_flag(flag_name="HPC", mode="api")
     def post(self):
         """
-        Create a new queue
+        Create a new PBS Pro queue
         ---
+        openapi: 3.1.0
+        operationId: createQueue
         tags:
-          - Scheduler
+          - PBS Pro Scheduler
+        parameters:
+          - name: X-SOCA-USER
+            in: header
+            schema:
+              type: string
+              minLength: 1
+            required: true
+            description: SOCA username for authentication
+            example: admin
+          - name: X-SOCA-TOKEN
+            in: header
+            schema:
+              type: string
+              minLength: 1
+            required: true
+            description: SOCA authentication token
+            example: abc123token
+        requestBody:
+          required: true
+          content:
+            application/x-www-form-urlencoded:
+              schema:
+                type: object
+                required:
+                  - name
+                  - type
+                properties:
+                  name:
+                    type: string
+                    pattern: '^[a-zA-Z0-9_-]+$'
+                    minLength: 1
+                    maxLength: 50
+                    description: Name of the queue to create
+                    example: my-queue
+                  type:
+                    type: string
+                    enum: [ondemand, alwayson]
+                    description: Type of queue (ondemand or alwayson)
+                    example: ondemand
         responses:
-          200:
-            description: List of queues
-          500:
-            description: Backend error
+          '200':
+            description: Queue created successfully
+            content:
+              application/json:
+                schema:
+                  type: object
+                  properties:
+                    success:
+                      type: boolean
+                      example: true
+                    message:
+                      type: string
+                      example: Queue my-queue created
+          '400':
+            description: Missing parameters or invalid queue type
+          '401':
+            description: Authentication required
+          '403':
+            description: Admin access required
+          '409':
+            description: Queue already exists
+          '500':
+            description: PBS scheduler error
         """
         parser = reqparse.RequestParser()
         parser.add_argument("type", type=str, location="form")
@@ -63,7 +124,9 @@ class Queue(Resource):
         if get_all_queues.success:
             all_queues = get_all_queues.message
         else:
-            return SocaError.PBS_QUEUE(helper="Unable to retrieve all queues").as_flask()
+            return SocaError.PBS_QUEUE(
+                helper="Unable to retrieve all queues"
+            ).as_flask()
 
         if queue_name in all_queues:
             return SocaError.PBS_QUEUE(
@@ -103,7 +166,9 @@ class Queue(Resource):
                         helper="Unable to execute command, check SubProcess error"
                     ).as_flask()
 
-            return SocaResponse(success=True, message=f"Queue {queue_name} created").as_flask()
+            return SocaResponse(
+                success=True, message=f"Queue {queue_name} created"
+            ).as_flask()
         except Exception as err:
             exc_type, exc_obj, exc_tb = sys.exc_info()
             fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
@@ -112,17 +177,72 @@ class Queue(Resource):
             )
 
     @admin_api
+    @feature_flag(flag_name="HPC", mode="api")
     def delete(self):
         """
-        Delete a queue
+        Delete a PBS Pro queue
         ---
+        openapi: 3.1.0
+        operationId: deleteQueue
         tags:
-          - Scheduler
+          - PBS Pro Scheduler
+        parameters:
+          - name: X-SOCA-USER
+            in: header
+            schema:
+              type: string
+              minLength: 1
+            required: true
+            description: SOCA username for authentication
+            example: admin
+          - name: X-SOCA-TOKEN
+            in: header
+            schema:
+              type: string
+              minLength: 1
+            required: true
+            description: SOCA authentication token
+            example: abc123token
+        requestBody:
+          required: true
+          content:
+            application/x-www-form-urlencoded:
+              schema:
+                type: object
+                required:
+                  - name
+                properties:
+                  name:
+                    type: string
+                    pattern: '^[a-zA-Z0-9_-]+$'
+                    minLength: 1
+                    maxLength: 50
+                    description: Name of the queue to delete
+                    example: my-queue
         responses:
-          200:
-            description: List of queue
-          500:
-            description: Backend error
+          '200':
+            description: Queue deleted successfully
+            content:
+              application/json:
+                schema:
+                  type: object
+                  properties:
+                    success:
+                      type: boolean
+                      example: true
+                    message:
+                      type: string
+                      example: Queue my-queue deleted
+          '400':
+            description: Missing queue name parameter
+          '401':
+            description: Authentication required
+          '403':
+            description: Admin access required
+          '404':
+            description: Queue does not exist
+          '500':
+            description: PBS scheduler error
         """
         parser = reqparse.RequestParser()
         parser.add_argument("name", type=str, location="form")
@@ -139,7 +259,9 @@ class Queue(Resource):
         if get_all_queues.success:
             all_queues = get_all_queues.message
         else:
-            return SocaError.PBS_QUEUE(helper="Unable to retrieve all queues").as_flask()
+            return SocaError.PBS_QUEUE(
+                helper="Unable to retrieve all queues"
+            ).as_flask()
 
         if queue_name not in all_queues:
             return SocaError.PBS_QUEUE(
@@ -154,4 +276,6 @@ class Queue(Resource):
                 helper="Unable to execute command, check SubProcess error"
             ).as_flask()
         else:
-            return SocaResponse(success=True, message=f"Queue {queue_name} deleted").as_flask()
+            return SocaResponse(
+                success=True, message=f"Queue {queue_name} deleted"
+            ).as_flask()

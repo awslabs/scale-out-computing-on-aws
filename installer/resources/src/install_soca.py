@@ -37,6 +37,8 @@ import base64
 import yaml
 import json
 import ast
+import ipaddress
+from typing import Literal
 from yaml.scanner import ScannerError
 from types import SimpleNamespace
 from rich import print
@@ -61,6 +63,8 @@ import logging
 from rich.logging import RichHandler
 import subprocess
 import shlex
+
+import glob
 
 
 class CustomFormatter(logging.Formatter):
@@ -245,16 +249,80 @@ def get_install_properties(pathname: str) -> dict:
         return {}
         # sys.exit("No parameters were found in configuration file.")
 
+def is_valid_address(address_family: Literal["ipv4", "ipv6"], address: str) -> bool:
+    """
+    Determine if an address (String) is a valid member of the desired address-family.
+    """
+    logger.debug(f"Determining if {address=} is valid for {address_family=}")
 
-def detect_customer_ip() -> str:
+    try:
+        _ip_object = ipaddress.IPv4Network(address) if address_family == "ipv4" else ipaddress.IPv6Network(address)
+        return True
+    except ipaddress.AddressValueError as _e:
+        # We dont care about the details - just that it failed
+        logger.debug(f"Exception in IP validation: {_e}")
+        return False
+
+
+def aggregate_address(address_family: Literal["ipv4", "ipv6"], address: str, mask: int) -> str:
+    """
+    Aggregate an IPv4 or IPv6 address to a given mask.
+    """
+    logger.debug(f"aggregate_address - {address_family=} / {address=}  to {mask=} boundary")
+    try:
+        _addr_tuple: str = f"{address}/{mask}"
+        _ip_object = ipaddress.IPv4Network(address=f"{_addr_tuple}", strict=False) if address_family == "ipv4" else ipaddress.IPv6Network(address=f"{_addr_tuple}", strict=False)
+        # Now that we have constructed the _ip_object - it will have our network address and prefixlen
+        return f"{_ip_object.network_address}/{_ip_object.prefixlen}"
+    except ipaddress.AddressValueError:
+        # We dont care about the details - just that it failed
+        return ""
+
+
+def detect_customer_ip(address_family: Literal["ipv4", "ipv6"]) -> str:
     """
     Try to determine the customer IP address by using the checkip.amazonaws.com service.
     """
+    logger.debug(f"Determine source IP address - {address_family=}")
 
-    check_url = "https://checkip.amazonaws.com/"
+    #
+    # Our _check_url_by_af contains important configuration items for IP probes.
+    #
+    # enabled - if we should probe this address-family or not
+    # url - the destination we should connect to
+    # aggregate_mask_bits - the number of bits that we aggregate.
+    # E.g. 32 for IPv4 'host' address (192.0.2.1 - > 192.0.2.1/32)
+    # 64 to aggregate IPv6 to the /64 - (2001:db8:26e0:991e:1014:2412:530a:cafe -> 2001:db8:26e0:991e::/64)
+    #
+    _check_url_by_af: dict = {
+        "ipv4": {
+            "enabled": True,
+            "url": "https://checkip.amazonaws.com/",
+            "aggregate_mask_bits": 32,
+        },
+        "ipv6": {
+            "enabled": True if args.ipv6 else False,
+            "url": "https://icanhazip.com",
+            "aggregate_mask_bits": 64,
+        },
+    }
+
+    check_url = _check_url_by_af.get(address_family, {}).get("url", "")
+    _mask_bits = _check_url_by_af.get(address_family, {}).get("aggregate_mask_bits", 32 if address_family == "ipv4" else 64)
+    _af_is_enabled: bool = _check_url_by_af.get(address_family, {}).get("enabled", False)
+
+    _formal_af_name: str = str(address_family[:2].upper() + address_family[2:])  # IPv4 , IPv6
+
+    if not _af_is_enabled:
+        logger.warning(f"Address-family {_formal_af_name} is disabled. Skipping.")
+        return ""
+
+    if not check_url:
+        logger.fatal(f"Unable to determine probe address for address-family: {address_family} . Exiting.")
+        exit(1)
 
     logger.info(
-        f"\n====== Trying to detect your IPv4 address via {check_url} . Use --client-ip to specify it manually if needed ======\n"
+        f"\n====== Trying to detect your {_formal_af_name} address via {check_url} . Use --client-{address_family} to specify manually if needed ======\n"
     )
 
     client_ip: str = ""
@@ -262,19 +330,32 @@ def detect_customer_ip() -> str:
         get_client_ip = get(url=check_url, timeout=15)
         if get_client_ip.status_code == 200:
             # Should return a clean string. May still need sanity check
-            client_ip = f"{str(get_client_ip.text).strip()}/32"
+
+            client_ip = f"{str(get_client_ip.text).strip()}"
+
+            _is_valid_address: bool = is_valid_address(address_family=address_family, address=client_ip)
+
+            if not _is_valid_address:
+                logger.fatal(f"Unable to determine validity of address {client_ip} for {_formal_af_name}. Exiting")
+
+
+            logger.debug(f"Is Valid {_formal_af_name} Address?: {_is_valid_address}")
+
+            # Now that we know it is valid - lets aggregate it
+            _agg_address: str = aggregate_address(address_family=address_family, address=client_ip, mask=_mask_bits)
+            logger.debug(f"Aggregate {_formal_af_name} address: {_agg_address=}")
 
         else:
             logger.warning(
-                f"Unable to automatically determine client IP via {check_url} . Error: {get_client_ip}"
+                f"Unable to automatically determine {_formal_af_name} client via {check_url} . Error: {get_client_ip}"
             )
 
     except RequestException as _e:
         logger.warning(
-            f"Unable to automatically determine client IP via {check_url} . Error: {_e}"
+            f"Unable to automatically determine client {_formal_af_name} via {check_url} . Error: {_e}"
         )
 
-    return client_ip
+    return _agg_address
 
 
 def build_lambda_dependency(install_directory: str):
@@ -374,7 +455,7 @@ def accepted_aws_resources(region: str) -> dict:
     logger.debug(f"Retrieving accepted AWS resources in region {region}")
     accepted_values = {}
     try:
-        # TODO describe_key_pairs does not have pagination support as of 12 Dec 2023
+        # TODO describe_key_pairs does not have pagination support as of 23 July 2025
         # So while this looks bad - it works
         accepted_values["accepted_keypairs"] = {}
         for key in ec2.describe_key_pairs().get("KeyPairs", []):
@@ -699,7 +780,7 @@ def _get_filesystems_by_vpc(region: str, vpc_id: str) -> dict:
                     if mount_target["VpcId"] == vpc_id:
                         verified_vpc = True
 
-                if verified_vpc is True:
+                if verified_vpc:
                     _fs_name: str = (
                         filesystem["Name"] if "Name" in filesystem.keys() else "EFS: "
                     )
@@ -743,7 +824,8 @@ def _get_filesystems_by_vpc(region: str, vpc_id: str) -> dict:
                     if filesystem["FileSystemId"]:
                         filesystems[count] = {
                             "id": _fs_id,
-                            "name": _fs_id_fqdn,
+                            "dns_name": _fs_id_fqdn,
+                            "name": _fs_name,
                             "size": _fs_size_str,
                             "fs_type": "efs",
                             "description": f"{_fs_name} {_fs_id_fqdn}",
@@ -753,442 +835,501 @@ def _get_filesystems_by_vpc(region: str, vpc_id: str) -> dict:
 
         # efs_count = count - 1
 
-        progress.console.log(
-            f"[bold green]Retrieving FSx Filesystems from {region}/{vpc_id} ...[/bold green]"
-        )
-        progress.start_task(fsx_task)
-        fsx_paginator = fsx.get_paginator("describe_file_systems")
-        fsx_iterator = fsx_paginator.paginate()
+        # progress.console.log(f"[bold green]Retrieving FSx File Caches from {region}/{vpc_id}[/bold green]")
 
-        for page in fsx_iterator:
-            for filesystem in page.get("FileSystems", []):
-                _fs_id: str = filesystem.get("FileSystemId", "")
+        # We probe two different, but closely related areas of file systems. FSx and File Caches
+        # The APIs are nearly identical - but just slightly different enough that we need to do a few things.
+        _fsx_probe_config_dict: dict = {
+            # FSx "classic"
+            "fsx": {
+                "friendly_name": "FSx Filesystems",
+                "short_name": "FSx",
+                "api_pagination": True,
+                "api_call_name": "describe_file_systems",
+                "api_key_name": "FileSystems",
+                "api_id_key_name": "FileSystemId",
+                "api_type_key_name": "FileSystemType",
+                "api_version_key_name": "FileSystemTypeVersion",
 
-                if not _fs_id:
-                    continue
 
-                # Check for proper Lifecycle
+            },
+            # File Caches - slightly different APIs
+            "fsx_cache": {
+                "friendly_name": "File Cache Filesystems",
+                "short_name": "File Cache",
+                "api_pagination": False,  # As of July-2025 - does not support pagination for describe_file_caches()
+                "api_call_name": "describe_file_caches",
+                "api_key_name": "FileCaches",
+                "api_id_key_name": "FileCacheId",
+                "api_type_key_name": "FileCacheType",
+                "api_version_key_name": "FileCacheTypeVersion",
 
-                _fs_lifecycle: str = filesystem.get("Lifecycle", "unknown-lifecycle")
-                if _fs_lifecycle.upper() not in {
-                    "AVAILABLE",
-                    "UPDATING",
-                }:
-                    progress.console.log(
-                        f"[yellow]Skipping FSx filesystem {filesystem['FileSystemId']} ({fsx_type}) - filesystem Lifecycle is not ready (status {_fs_lifecycle})[/yellow]"
-                    )
-                    continue
+            }
+        }
 
-                _fs_features_list: list = []
+        logger.debug(f"FSx probe starting with {_fsx_probe_config_dict=}")
 
-                fsx_type = filesystem.get("FileSystemType", "unknown-type")
+        for _fsx_probe_name, _fsx_probe_config in _fsx_probe_config_dict.items():
+            _api_call_name: str = _fsx_probe_config.get("api_call_name")
+            _api_key_name: str = _fsx_probe_config.get("api_key_name")
+            _api_id_key_name: str = _fsx_probe_config.get("api_id_key_name")
+            _friendly_name: str = _fsx_probe_config.get("friendly_name")
+            _api_type_key_name: str = _fsx_probe_config.get("api_type_key_name")
+            _short_name: str = _fsx_probe_config.get("short_name")
+            _version_key_name: str = _fsx_probe_config.get("api_version_key_name")
 
-                # TODO - Add more FSx support here
-                # if fsx_type.upper() not in {'WINDOWS', 'LUSTRE', 'ONTAP', 'OPENZFS'}:
-                if fsx_type.upper() not in {"LUSTRE"}:
-                    progress.console.log(
-                        f"[yellow]Skipping unsupported FSx type ({fsx_type}) for {filesystem['FileSystemId']}[/yellow]"
-                    )
-                    continue
+            if not _fsx_probe_config.get("api_pagination", False):
+                logger.debug(f"Skipping {_friendly_name} due to no API pagination support for {_api_call_name}")
+                continue
 
-                # Skip filesystems we have selected and ones that do not match our VPC
-                if filesystem.get("VpcId", "") != vpc_id:
-                    progress.console.log(
-                        f"[yellow]Skipping FSx {filesystem['FileSystemId']} - not in our VPC[/yellow]"
-                    )
-                    continue
+            logger.debug(f"Processing {_short_name=} / {_friendly_name=} / {_fsx_probe_name=} / {_api_call_name=} / {_api_key_name=}")
 
-                _fs_size_str: str = format_byte_size(
-                    num=filesystem.get("StorageCapacity", 0) * 1024 * 1024 * 1024
-                )
+            progress.console.log(
+                f"[bold green]Retrieving {_friendly_name} from {region}/{vpc_id} ...[/bold green]"
+            )
+            progress.start_task(fsx_task)
+            fsx_paginator = fsx.get_paginator(_api_call_name)
+            fsx_iterator = fsx_paginator.paginate()
 
-                resource_name: str = ""
-                for tag in filesystem.get("Tags", []):
-                    if tag.get("Key", "") == "Name":
-                        resource_name = tag.get("Value", "unnamed")
+            for page in fsx_iterator:
+                for filesystem in page.get(_api_key_name, []):
+                    _fs_id: str = filesystem.get(_api_id_key_name, "")
 
-                progress.console.log(
-                    f"[cyan]Discovered FSx/{fsx_type.capitalize()} filesystem {filesystem['FileSystemId']} ({resource_name}) ({_fs_size_str})[/cyan]"
-                )
-
-                #
-                _dns_name: str = filesystem.get("DNSName", "UnknownDNS")
-
-                match fsx_type:
-
-                    case "ONTAP":
-                        _key: str = "OntapConfiguration"
-
-                    case "LUSTRE":
-                        _key: str = "LustreConfiguration"
-
-                    case "WINDOWS":
-                        _key: str = "WindowsConfiguration"
-
-                    case "OPENZFS":
-                        _key: str = "OpenZFSConfiguration"
-
-                    case _:
+                    if not _fs_id:
                         continue
 
-                # Read our specific deployment type from our FSx config portion
-                _deployment_type: str = filesystem.get(_key, {}).get(
-                    "DeploymentType", ""
-                )
+                    # Determine the type
+                    fsx_type = filesystem.get(_api_type_key_name, "unknown-type")
 
-                if _deployment_type:
+                    # Check for proper Lifecycle
+
+                    _fs_lifecycle: str = filesystem.get("Lifecycle", "unknown-lifecycle")
+                    if _fs_lifecycle.upper() not in {
+                        "AVAILABLE",
+                        "UPDATING",
+                    }:
+                        progress.console.log(
+                            f"[yellow]Skipping {_short_name} {_fs_id} ({fsx_type}) - Lifecycle is not ready (status {_fs_lifecycle})[/yellow]"
+                        )
+                        continue
+
+                    _fs_features_list: list = []
+
+                    # TODO - Add more FSx support here
+                    # Note we are executing in a loop of the _fsx_probe_name. So make sure to
+                    # guard anything that doesnt belong in both. File Caches appear as LUSTRE in their API responses.
+                    # if fsx_type.upper() not in {'WINDOWS', 'LUSTRE', 'ONTAP', 'OPENZFS'}:
+                    if fsx_type.upper() not in {"LUSTRE", "OPENZFS"}:
+                        progress.console.log(
+                            f"[yellow]Skipping unsupported {_short_name} type ({fsx_type}) for {_fs_id}[/yellow]"
+                        )
+                        continue
+
+                    # Skip filesystems we have selected and ones that do not match our VPC
+                    if filesystem.get("VpcId", "") != vpc_id:
+                        progress.console.log(
+                            f"[yellow]Skipping {_short_name} {_fs_id} - not in our VPC[/yellow]"
+                        )
+                        continue
+
+                    _fs_size_str: str = format_byte_size(
+                        num=filesystem.get("StorageCapacity", 0) * 1024 * 1024 * 1024
+                    )
+
+                    resource_name: str = ""
+                    # Tags don't appear in the describe-file-caches API call
+                    # as of July-2025
+                    for tag in filesystem.get("Tags", []):
+                        if tag.get("Key", "") == "Name":
+                            resource_name = tag.get("Value", "unnamed")
+
+                    progress.console.log(
+                        f"[cyan]Discovered FSx/{fsx_type.capitalize()} filesystem {_fs_id} ({resource_name}) ({_fs_size_str})[/cyan]"
+                    )
+
+                    #
+                    _dns_name: str = filesystem.get("DNSName", "UnknownDNS")
+
+                    match fsx_type:
+
+                        case "ONTAP":
+                            _key: str = "OntapConfiguration"
+
+                        # File Caches and FSx/Lustre should land here - depending on the loop we are in
+                        case "LUSTRE":
+                            _key: str = "LustreConfiguration"
+
+                        case "WINDOWS":
+                            _key: str = "WindowsConfiguration"
+
+                        case "OPENZFS":
+                            _key: str = "OpenZFSConfiguration"
+
+                        case _:
+                            progress.console.log(f"[yellow]Unable to handle FSx type {fsx_type} for {_fs_id} - new filesystem type? - Skipping[/yellow]")
+                            continue
+
+                    # Read our specific deployment type from our FSx config portion
+                    _deployment_type: str = filesystem.get(_key, {}).get(
+                        "DeploymentType", ""
+                    )
+
+                    if not _deployment_type:
+                        progress.console.log(f"[yellow]Unable to determine deployment type for {_fs_id} - Skipping[/yellow]")
+                        continue
+
                     _fs_features_list.append(_deployment_type)
 
-                # Other filesystems may use this later - for now only Lustre seems to populate this
-                _fs_version: str = filesystem.get("FileSystemTypeVersion", "")
-                if _fs_version:
-                    _fs_features_list.append(f"Version: {_fs_version}")
+                    # Other filesystems may use this later - for now only Lustre seems to populate this
+                    _fs_version: str = filesystem.get(_version_key_name, "")
+                    if _fs_version:
+                        _fs_features_list.append(f"Version: {_fs_version}")
 
-                # For FSx/ONTAP - we need to enumerate the SVMs to properly make the filesystems mountable
-                if fsx_type.upper() == "ONTAP":
-                    logger.debug(
-                        f"Enumerating volumes for FSx/ONTAP filesystem {filesystem.get('FileSystemId')}"
-                    )
-                    progress.console.log(
-                        f"[cyan]Enumerating volumes for FSx/ONTAP filesystem {filesystem.get('FileSystemId')}[/cyan]"
-                    )
-
-                    _volume_paginator = fsx.get_paginator("describe_volumes")
-                    _volume_iterator = _volume_paginator.paginate(
-                        Filters=[
-                            {
-                                "Name": "file-system-id",
-                                "Values": [filesystem.get("FileSystemId")],
-                            }
-                        ],
-                    )
-
-                    # Stage-1 - query the Volumes
-                    _ontap_volumes: dict = {}
-                    _ontap_svms_to_enum: list = []
-                    _ontap_fsids: list = []
-
-                    for _vol_page in _volume_iterator:
-                        for _volume in _vol_page.get("Volumes", []):
-                            # Name is optional?
-                            _vol_name: str = _volume.get("Name", "")
-                            _vol_fsid: str = _volume.get("FileSystemId", "")
-                            _vol_ontap_config: dict = _volume.get(
-                                "OntapConfiguration", {}
-                            )
-
-                            if not _vol_ontap_config:
-                                logger.error(
-                                    f"ONTAP configuration not found - probable defect"
-                                )
-                                sys.exit(1)
-
-                            _vol_id: str = _volume.get("VolumeId", "")
-                            if not _vol_id:
-                                logger.error(f"Volume ID not found - probable defect")
-                                sys.exit(1)
-
-                            if not _vol_fsid or _vol_fsid != filesystem.get(
-                                "FileSystemId"
-                            ):
-                                logger.error(
-                                    f"Volume mismatch for FileSystemId - probable defect"
-                                )
-                                sys.exit(1)
-
-                            _vol_type: str = _volume.get("VolumeType", "")
-                            if not _vol_type or _vol_type != "ONTAP":
-                                logger.error(f"Volume type not found - probable defect")
-                                sys.exit(1)
-
-                            # Ignore the SVM root volume
-                            _vol_is_svm_root: bool = _vol_ontap_config.get(
-                                "StorageVirtualMachineRoot", True
-                            )
-                            if _vol_is_svm_root:
-                                logger.debug(
-                                    f"Skipping volume {_vol_name} - SVM root volume"
-                                )
-                                progress.console.log(
-                                    f"Skipping volume {_vol_name} - SVM root volume"
-                                )
-                                continue
-
-                            _vol_ontap_type: str = _vol_ontap_config.get(
-                                "OntapVolumeType", ""
-                            )
-                            if not _vol_ontap_type:
-                                logger.error(
-                                    f"ONTAP volume type not found - probable defect"
-                                )
-                                continue
-
-                            if _vol_ontap_type.upper() not in {"RW", "LS"}:
-                                logger.debug(
-                                    f"Skipping volume {_vol_name} - not an RW or LS ONTAP volume type"
-                                )
-                                progress.console.log(
-                                    f"Skipping volume {_vol_name} - not an RW or LS ONTAP volume type"
-                                )
-                                continue
-
-                            _volume_id: str = _volume.get("VolumeId", "")
-                            if not _volume_id:
-                                logger.warning(f"Volume ID not found - skipping")
-                                continue
-
-                            _junction_path: str = _vol_ontap_config.get(
-                                "JunctionPath", ""
-                            )
-                            if not _junction_path:
-                                logger.warning(f"Junction path not found - skipping")
-                                continue
-
-                            _volume_size: int = _vol_ontap_config.get("SizeInBytes", 0)
-                            if not _volume_size:
-                                logger.warning(f"Volume size not found - skipping")
-                                continue
-                            _volume_size_str: str = format_byte_size(_volume_size)
-
-                            _vol_svm_id: str = _vol_ontap_config.get(
-                                "StorageVirtualMachineId", ""
-                            )
-                            if not _vol_svm_id:
-                                logger.debug(f"SVM not found - skipping")
-                                progress.console.log(
-                                    f"Skipping {_vol_name} - No SVM record found"
-                                )
-                                continue
-
-                            progress.console.log(
-                                f"[cyan]Discovered volume {_volume_id} ({_junction_path}) ({_volume_size_str})[/cyan]"
-                            )
-                            logger.debug(
-                                f"Discovered volume {_volume_id} ({_junction_path}) ({_volume_size_str})"
-                            )
-
-                            # Store this volume as a possible mount target
-                            if _volume_id not in _ontap_volumes:
-                                _ontap_volumes[_volume_id] = _volume
-                                _ontap_fsids.append(_vol_fsid)
-
-                            # Make sure to query the SVM that is responsible for this volume
-                            if _vol_svm_id not in _ontap_svms_to_enum:
-                                logger.debug(f"SVM {_vol_svm_id} added to be probed)")
-                                progress.console.log(
-                                    f"[cyan]SVM {_vol_svm_id} will be queried[/cyan]"
-                                )
-                                _ontap_svms_to_enum.append(_vol_svm_id)
-                            else:
-                                # Since an SVM can be responsible for multiple volumes - we may have already seen it
-                                progress.console.log(
-                                    f"[cyan]SVM {_vol_svm_id} already planned to be queried[/cyan]"
-                                )
-                                logger.debug(
-                                    f"SVM {_vol_svm_id} is already planned to be probed"
-                                )
-
-                    logger.debug(
-                        f"Stage 1 complete - Collected ONTAP volumes: {_ontap_volumes}"
-                    )
-                    # If we didn't collect any - we shouldn't need to enum the SVMs
-                    # Stage 2 - Now that we have volume information - we need to resolve the SVM information for
-                    # mounting the filesystems
-                    _ontap_svm_count: int = 0
-                    _ontap_svm_dict: dict = {}
-
-                    if _ontap_volumes and _ontap_svms_to_enum:
-
+                    # For FSx/ONTAP - we need to enumerate the SVMs to properly make the filesystems mountable
+                    if fsx_type.upper() == "ONTAP":
                         logger.debug(
-                            f"Enumerating SVMs for FSx/ONTAP filesystem {filesystem.get('FileSystemId')} / {_ontap_svms_to_enum}"
+                            f"Enumerating volumes for FSx/ONTAP filesystem {_fs_id}"
                         )
                         progress.console.log(
-                            f"[cyan]Enumerating SVMs for FSx/ONTAP filesystem {filesystem.get('FileSystemId')}[/cyan]"
+                            f"[cyan]Enumerating volumes for FSx/ONTAP filesystem {_fs_id}[/cyan]"
                         )
 
-                        _ontap_svm_paginator = fsx.get_paginator(
-                            "describe_storage_virtual_machines"
+                        _volume_paginator = fsx.get_paginator("describe_volumes")
+                        _volume_iterator = _volume_paginator.paginate(
+                            Filters=[
+                                {
+                                    "Name": "file-system-id",
+                                    "Values": [_fs_id],
+                                }
+                            ],
                         )
-                        # TODO - validate the max size of the SVM listing that the API call can take and chunk as needed
-                        _ontap_svm_iterator = _ontap_svm_paginator.paginate(
-                            StorageVirtualMachineIds=_ontap_svms_to_enum
-                        )
 
-                        for _svm_page in _ontap_svm_iterator:
-                            for _svm in _svm_page.get("StorageVirtualMachines", []):
+                        # Stage-1 - query the Volumes
+                        _ontap_volumes: dict = {}
+                        _ontap_svms_to_enum: list = []
+                        _ontap_fsids: list = []
 
-                                _svm_name: str = _svm.get("Name", "")
-                                _svm_id: str = _svm.get("StorageVirtualMachineId", "")
-                                _svm_fsid: str = _svm.get("FileSystemId", "")
+                        for _vol_page in _volume_iterator:
+                            for _volume in _vol_page.get("Volumes", []):
+                                # Name is optional?
+                                _vol_name: str = _volume.get("Name", "")
+                                _vol_fsid: str = _volume.get("FileSystemId", "")
+                                _vol_ontap_config: dict = _volume.get(
+                                    "OntapConfiguration", {}
+                                )
 
-                                # SVM name is optional?
+                                if not _vol_ontap_config:
+                                    logger.error(
+                                        f"ONTAP configuration not found - probable defect"
+                                    )
+                                    sys.exit(1)
 
-                                # We must know how to link this SVM to a filesystem ID
-                                if not _svm_fsid:
+                                _vol_id: str = _volume.get("VolumeId", "")
+                                if not _vol_id:
+                                    logger.error(f"Volume ID not found - probable defect")
+                                    sys.exit(1)
+
+                                if not _vol_fsid or _vol_fsid != filesystem.get(
+                                    "FileSystemId"
+                                ):
+                                    logger.error(
+                                        f"Volume mismatch for FileSystemId - probable defect"
+                                    )
+                                    sys.exit(1)
+
+                                _vol_type: str = _volume.get("VolumeType", "")
+                                if not _vol_type or _vol_type != "ONTAP":
+                                    logger.error(f"Volume type not found - probable defect")
+                                    sys.exit(1)
+
+                                # Ignore the SVM root volume
+                                _vol_is_svm_root: bool = _vol_ontap_config.get(
+                                    "StorageVirtualMachineRoot", True
+                                )
+                                if _vol_is_svm_root:
                                     logger.debug(
-                                        f"SVM {_svm_name} has no FSID {_svm_fsid} - skipping"
+                                        f"Skipping volume {_vol_name} - SVM root volume"
+                                    )
+                                    progress.console.log(
+                                        f"Skipping volume {_vol_name} - SVM root volume"
                                     )
                                     continue
 
-                                # We _should_ only see the ones we got from the API call of the interesting SVMs
-                                # , but we check here just in case.
-                                if _svm_fsid not in _ontap_fsids:
+                                _vol_ontap_type: str = _vol_ontap_config.get(
+                                    "OntapVolumeType", ""
+                                )
+                                if not _vol_ontap_type:
+                                    logger.error(
+                                        f"ONTAP volume type not found - probable defect"
+                                    )
+                                    continue
+
+                                if _vol_ontap_type.upper() not in {"RW", "LS"}:
                                     logger.debug(
-                                        f"SVM {_svm_name} has no matching FSID - skipping"
+                                        f"Skipping volume {_vol_name} - not an RW or LS ONTAP volume type"
+                                    )
+                                    progress.console.log(
+                                        f"Skipping volume {_vol_name} - not an RW or LS ONTAP volume type"
+                                    )
+                                    continue
+
+                                _volume_id: str = _volume.get("VolumeId", "")
+                                if not _volume_id:
+                                    logger.warning(f"Volume ID not found - skipping")
+                                    continue
+
+                                _junction_path: str = _vol_ontap_config.get(
+                                    "JunctionPath", ""
+                                )
+                                if not _junction_path:
+                                    logger.warning(f"Junction path not found - skipping")
+                                    continue
+
+                                _volume_size: int = _vol_ontap_config.get("SizeInBytes", 0)
+                                if not _volume_size:
+                                    logger.warning(f"Volume size not found - skipping")
+                                    continue
+                                _volume_size_str: str = format_byte_size(_volume_size)
+
+                                _vol_svm_id: str = _vol_ontap_config.get(
+                                    "StorageVirtualMachineId", ""
+                                )
+                                if not _vol_svm_id:
+                                    logger.debug(f"SVM not found - skipping")
+                                    progress.console.log(
+                                        f"Skipping {_vol_name} - No SVM record found"
                                     )
                                     continue
 
                                 progress.console.log(
-                                    f"[cyan]Discovered SVM {_svm_name} for FSx/ONTAP filesystem {_svm_fsid}[/cyan]"
+                                    f"[cyan]Discovered volume {_volume_id} ({_junction_path}) ({_volume_size_str})[/cyan]"
                                 )
                                 logger.debug(
-                                    f"Discovered SVM {_svm_name} for FSx/ONTAP filesystem {_svm_fsid}"
+                                    f"Discovered volume {_volume_id} ({_junction_path}) ({_volume_size_str})"
                                 )
 
-                                # Only allow full created SVMs
-                                _svm_lifecycle: str = _svm.get("Lifecycle", "")
-                                if _svm_lifecycle.upper() not in {"CREATED"}:
+                                # Store this volume as a possible mount target
+                                if _volume_id not in _ontap_volumes:
+                                    _ontap_volumes[_volume_id] = _volume
+                                    _ontap_fsids.append(_vol_fsid)
+
+                                # Make sure to query the SVM that is responsible for this volume
+                                if _vol_svm_id not in _ontap_svms_to_enum:
+                                    logger.debug(f"SVM {_vol_svm_id} added to be probed)")
                                     progress.console.log(
-                                        f"[yellow]Skipping SVM {_svm_name} - not in CREATED state ({_svm_lifecycle})[/yellow]"
+                                        f"[cyan]SVM {_vol_svm_id} will be queried[/cyan]"
                                     )
-                                    continue
-
-                                # endpoint enum
-                                # TODO - handle list / multiple IP addresses for the SVM
-                                _nfs_ip_address: str = (
-                                    _svm.get("Endpoints", {})
-                                    .get("Nfs", {})
-                                    .get("IpAddresses", "")[0]
-                                )
-
-                                # We add each SVM as technically they are discrete mount targets
-                                if _nfs_ip_address:
+                                    _ontap_svms_to_enum.append(_vol_svm_id)
+                                else:
+                                    # Since an SVM can be responsible for multiple volumes - we may have already seen it
                                     progress.console.log(
-                                        f"Discovered SVM {_svm_name} NFS via {_nfs_ip_address}"
+                                        f"[cyan]SVM {_vol_svm_id} already planned to be queried[/cyan]"
                                     )
                                     logger.debug(
-                                        f"Discovered SVM {_svm_name} NFS via {_nfs_ip_address}"
+                                        f"SVM {_vol_svm_id} is already planned to be probed"
                                     )
-                                    # Add each SVM as a unique filesystem choice
-                                    _ontap_svm_dict[_svm_id] = _svm
-                                    _ontap_svm_count += 1
-                                    continue
-                                else:
-                                    progress.console.log(
-                                        f"Unable to determine NFS endpoint for SVM {_svm_name}"
-                                    )
-                                    logger.warning(
-                                        f"Unable to determine NFS endpoint for SVM {_svm_name}"
-                                    )
-                                    continue
 
                         logger.debug(
-                            f"Total SVMs found: {_ontap_svm_count}: {_ontap_svm_dict}"
+                            f"Stage 1 complete - Collected ONTAP volumes: {_ontap_volumes}"
                         )
+                        # If we didn't collect any - we shouldn't need to enum the SVMs
+                        # Stage 2 - Now that we have volume information - we need to resolve the SVM information for
+                        # mounting the filesystems
+                        _ontap_svm_count: int = 0
+                        _ontap_svm_dict: dict = {}
 
-                        # Now that we are back from SVM polling - assemble the data into
-                        # a selectable menu list compatible with other filesystems
-                        if _ontap_volumes and _ontap_svm_dict:
+                        if _ontap_volumes and _ontap_svms_to_enum:
 
                             logger.debug(
-                                f"Final pass - All FSx/ONTAP volumes: {_ontap_volumes}"
+                                f"Enumerating SVMs for FSx/ONTAP filesystem {_fs_id} / {_ontap_svms_to_enum}"
+                            )
+                            progress.console.log(
+                                f"[cyan]Enumerating SVMs for FSx/ONTAP filesystem {_fs_id}[/cyan]"
                             )
 
-                            # Do an initial copy of our previous / FSx-wide features (deployment type, etc.)
+                            _ontap_svm_paginator = fsx.get_paginator(
+                                "describe_storage_virtual_machines"
+                            )
+                            # TODO - validate the max size of the SVM listing that the API call can take and chunk as needed
+                            _ontap_svm_iterator = _ontap_svm_paginator.paginate(
+                                StorageVirtualMachineIds=_ontap_svms_to_enum
+                            )
 
-                            for _ontap_vol_i in _ontap_volumes:
-                                # Make sure to copy the items - not point to the parent list!
-                                _ontap_fs_features_list: list = [*_fs_features_list]
-                                logger.debug(
-                                    f"Final pass of ONTAP volumes: {_ontap_vol_i} / FS Features now: {_ontap_fs_features_list}"
-                                )
+                            for _svm_page in _ontap_svm_iterator:
+                                for _svm in _svm_page.get("StorageVirtualMachines", []):
 
-                                _vol: dict = _ontap_volumes.get(_ontap_vol_i, {})
-                                _vol_ontap_config: dict = _vol.get(
-                                    "OntapConfiguration", {}
-                                )
+                                    _svm_name: str = _svm.get("Name", "")
+                                    _svm_id: str = _svm.get("StorageVirtualMachineId", "")
+                                    _svm_fsid: str = _svm.get("FileSystemId", "")
 
-                                _vol_name: str = _vol.get("Name", "")
+                                    # SVM name is optional?
 
-                                _vol_fsid: str = _vol.get("FileSystemId", "")
-                                _vol_svmid: str = _vol_ontap_config.get(
-                                    "StorageVirtualMachineId", ""
-                                )
+                                    # We must know how to link this SVM to a filesystem ID
+                                    if not _svm_fsid:
+                                        logger.debug(
+                                            f"SVM {_svm_name} has no FSID {_svm_fsid} - skipping"
+                                        )
+                                        continue
 
-                                logger.debug(
-                                    f"Query SVM details for: {_vol_svmid}: {_ontap_svm_dict.get(_vol_svmid, {})}"
-                                )
+                                    # We _should_ only see the ones we got from the API call of the interesting SVMs
+                                    # , but we check here just in case.
+                                    if _svm_fsid not in _ontap_fsids:
+                                        logger.debug(
+                                            f"SVM {_svm_name} has no matching FSID - skipping"
+                                        )
+                                        continue
 
-                                _svm_name: str = _ontap_svm_dict.get(
-                                    _vol_svmid, {}
-                                ).get("Name", "")
-
-                                _nfs_ip_address_list: list = (
-                                    _ontap_svm_dict.get(_vol_svmid, {})
-                                    .get("Endpoints", {})
-                                    .get("Nfs", {})
-                                    .get("IpAddresses", [])
-                                )
-                                if _nfs_ip_address_list:
+                                    progress.console.log(
+                                        f"[cyan]Discovered SVM {_svm_name} for FSx/ONTAP filesystem {_svm_fsid}[/cyan]"
+                                    )
                                     logger.debug(
-                                        f"SVM: {_svm_name} - NFS IP: {_nfs_ip_address_list} - taking first entry"
+                                        f"Discovered SVM {_svm_name} for FSx/ONTAP filesystem {_svm_fsid}"
                                     )
-                                    _nfs_ip_address: str = (
-                                        _nfs_ip_address_list[0]
-                                        if _nfs_ip_address_list
-                                        else ""
-                                    )
-                                    _ontap_fs_features_list.append(
-                                        f"NFS: {_nfs_ip_address}"
-                                    )
-                                else:
-                                    logger.error(f"Empty NFS IP list for SVM. Exiting")
-                                    sys.exit(1)
 
-                                _fs_size_str: str = format_byte_size(
-                                    int(
-                                        _vol.get("OntapConfiguration", {}).get(
-                                            "SizeInBytes", 0
+                                    # Only allow full created SVMs
+                                    _svm_lifecycle: str = _svm.get("Lifecycle", "")
+                                    if _svm_lifecycle.upper() not in {"CREATED"}:
+                                        progress.console.log(
+                                            f"[yellow]Skipping SVM {_svm_name} - not in CREATED state ({_svm_lifecycle})[/yellow]"
+                                        )
+                                        continue
+
+                                    # endpoint enum
+                                    # TODO - handle list / multiple IP addresses for the SVM
+                                    _nfs_ip_address: str = (
+                                        _svm.get("Endpoints", {})
+                                        .get("Nfs", {})
+                                        .get("IpAddresses", "")[0]
+                                    )
+
+                                    # We add each SVM as technically they are discrete mount targets
+                                    if _nfs_ip_address:
+                                        progress.console.log(
+                                            f"Discovered SVM {_svm_name} NFS via {_nfs_ip_address}"
+                                        )
+                                        logger.debug(
+                                            f"Discovered SVM {_svm_name} NFS via {_nfs_ip_address}"
+                                        )
+                                        # Add each SVM as a unique filesystem choice
+                                        _ontap_svm_dict[_svm_id] = _svm
+                                        _ontap_svm_count += 1
+                                        continue
+                                    else:
+                                        progress.console.log(
+                                            f"Unable to determine NFS endpoint for SVM {_svm_name}"
+                                        )
+                                        logger.warning(
+                                            f"Unable to determine NFS endpoint for SVM {_svm_name}"
+                                        )
+                                        continue
+
+                            logger.debug(
+                                f"Total SVMs found: {_ontap_svm_count}: {_ontap_svm_dict}"
+                            )
+
+                            # Now that we are back from SVM polling - assemble the data into
+                            # a selectable menu list compatible with other filesystems
+                            if _ontap_volumes and _ontap_svm_dict:
+
+                                logger.debug(
+                                    f"Final pass - All FSx/ONTAP volumes: {_ontap_volumes}"
+                                )
+
+                                # Do an initial copy of our previous / FSx-wide features (deployment type, etc.)
+
+                                for _ontap_vol_i in _ontap_volumes:
+                                    # Make sure to copy the items - not point to the parent list!
+                                    _ontap_fs_features_list: list = [*_fs_features_list]
+                                    logger.debug(
+                                        f"Final pass of ONTAP volumes: {_ontap_vol_i} / FS Features now: {_ontap_fs_features_list}"
+                                    )
+
+                                    _vol: dict = _ontap_volumes.get(_ontap_vol_i, {})
+                                    _vol_ontap_config: dict = _vol.get(
+                                        "OntapConfiguration", {}
+                                    )
+
+                                    _vol_name: str = _vol.get("Name", "")
+
+                                    _vol_fsid: str = _vol.get("FileSystemId", "")
+                                    _vol_svmid: str = _vol_ontap_config.get(
+                                        "StorageVirtualMachineId", ""
+                                    )
+
+                                    logger.debug(
+                                        f"Query SVM details for: {_vol_svmid}: {_ontap_svm_dict.get(_vol_svmid, {})}"
+                                    )
+
+                                    _svm_name: str = _ontap_svm_dict.get(
+                                        _vol_svmid, {}
+                                    ).get("Name", "")
+
+                                    _nfs_ip_address_list: list = (
+                                        _ontap_svm_dict.get(_vol_svmid, {})
+                                        .get("Endpoints", {})
+                                        .get("Nfs", {})
+                                        .get("IpAddresses", [])
+                                    )
+                                    if _nfs_ip_address_list:
+                                        logger.debug(
+                                            f"SVM: {_svm_name} - NFS IP: {_nfs_ip_address_list} - taking first entry"
+                                        )
+                                        _nfs_ip_address: str = (
+                                            _nfs_ip_address_list[0]
+                                            if _nfs_ip_address_list
+                                            else ""
+                                        )
+                                        _ontap_fs_features_list.append(
+                                            f"NFS: {_nfs_ip_address}"
+                                        )
+                                    else:
+                                        logger.error(f"Empty NFS IP list for SVM. Exiting")
+                                        sys.exit(1)
+
+                                    _fs_size_str: str = format_byte_size(
+                                        int(
+                                            _vol.get("OntapConfiguration", {}).get(
+                                                "SizeInBytes", 0
+                                            )
                                         )
                                     )
-                                )
 
-                                _fs_junction_path: str = _vol.get(
-                                    "OntapConfiguration", {}
-                                ).get("JunctionPath", "")
+                                    _fs_junction_path: str = _vol.get(
+                                        "OntapConfiguration", {}
+                                    ).get("JunctionPath", "")
 
-                                _fs_security_style: str = _vol.get(
-                                    "OntapConfiguration", {}
-                                ).get("SecurityStyle", "")
-                                _ontap_fs_features_list.append(
-                                    f"Security: {_fs_security_style}"
-                                )
+                                    _fs_security_style: str = _vol.get(
+                                        "OntapConfiguration", {}
+                                    ).get("SecurityStyle", "")
+                                    _ontap_fs_features_list.append(
+                                        f"Security: {_fs_security_style}"
+                                    )
 
-                                # Finally - construct a menu entry/item of a selectable filesystem
-                                filesystems[count] = {
-                                    "id": _ontap_vol_i,
-                                    "name": f"{_vol_name} via SVM {_svm_name} ({_vol_svmid})\nPath: {_fs_junction_path}",
-                                    "dns_name": _nfs_ip_address,
-                                    "size": _fs_size_str,
-                                    "fs_type": "fsx_ontap",
-                                    "description": f"FSx/ONTAP: {_vol_name} via SVM {_svm_name} - {_nfs_ip_address}:{_fs_junction_path}",
-                                    "features": "\n".join(_ontap_fs_features_list),
-                                }
-                                count += 1
-                                continue
+                                    # Finally - construct a menu entry/item of a selectable filesystem
+                                    filesystems[count] = {
+                                        "id": _ontap_vol_i,
+                                        "name": f"{_vol_name} via SVM {_svm_name} ({_vol_svmid})\nPath: {_fs_junction_path}",
+                                        "dns_name": _nfs_ip_address,
+                                        "size": _fs_size_str,
+                                        "fs_type": "fsx_ontap",
+                                        "description": f"FSx/ONTAP: {_vol_name} via SVM {_svm_name} - {_nfs_ip_address}:{_fs_junction_path}",
+                                        "features": "\n".join(_ontap_fs_features_list),
+                                    }
+                                    count += 1
+                                    continue
 
-                else:
-                    # non-FSx/ONTAP
-                    filesystems[count] = {
-                        "id": f"{filesystem['FileSystemId']}",
-                        "name": resource_name,
-                        "dns_name": _dns_name,
-                        "size": _fs_size_str,
-                        "fs_type": f"fsx_{fsx_type.lower()}",
-                        "description": f"FSx/{fsx_type.upper()}: {resource_name if resource_name else f'FSx/{fsx_type.upper()}: '} {_dns_name}",
-                        "features": "\n".join(_fs_features_list),
-                    }
-                    count += 1
+                    else:
+                        # non-FSx/ONTAP
+                        filesystems[count] = {
+                            "id": f"{_fs_id}",
+                            "name": resource_name,
+                            "dns_name": _dns_name,
+                            "size": _fs_size_str,
+                            "fs_type": f"fsx_{fsx_type.lower()}",
+                            "description": f"FSx/{fsx_type.upper()}: {resource_name if resource_name else f'FSx/{fsx_type.upper()}: '} {_dns_name}",
+                            "features": "\n".join(_fs_features_list),
+                        }
+                        count += 1
 
     return filesystems
 
@@ -1240,7 +1381,7 @@ def get_install_parameters():
         show_default_answer=False,
     )
 
-    while check_bucket_name_and_permission(install_parameters["bucket"]) is False:
+    while not check_bucket_name_and_permission(install_parameters["bucket"]):
         install_parameters["bucket"] = get_input(
             prompt=f"{install_phases.get('bucket', 'unk-prompt')}",
             specified_value=None,
@@ -1258,6 +1399,7 @@ def get_install_parameters():
         "rhel7": {"visible": False},
         "rhel8": {"visible": True},
         "rhel9": {"visible": True},
+        "rhel10": {"visible": False},  # Early Access testing 18 June 2025
         "rocky8": {"visible": True},
         "rocky9": {"visible": True},
         "ubuntu2204": {"visible": True},
@@ -1412,9 +1554,32 @@ def get_install_parameters():
             )
             sys.exit(1)
 
+    #
+    # Dupe with v6 above
+    # TODO - merge
+    if args.ipv6 and args.prefix_list_id_ipv6:
+        try:
+            found_prefix_list_id_ipv6 = ec2.describe_managed_prefix_lists(
+                PrefixListIds=[args.prefix_list_id_ipv6]
+            )["PrefixLists"][0]["PrefixListId"]
+            if found_prefix_list_id_ipv6 != args.prefix_list_id_ipv6:
+                raise RuntimeError(
+                    f"Found IPv6 prefix list {found_prefix_list_id_ipv6} does not match {args.prefix_list_id_ipv6}. This is a programming error; please create an issue."
+                )
+            else:
+                install_parameters["prefix_list_id_ipv6"] = args.prefix_list_id_ipv6
+        except Exception as _e:
+            logger.error(
+                f"{args.prefix_list_id_ipv6} not found. Check that it exists and starts with pl-.\nException:\n{_e} "
+            )
+            sys.exit(1)
+
     install_parameters["custom_ami"] = args.custom_ami if args.custom_ami else None
 
+    #
     # Network Configuration
+    # TODO - convert to using ipaddress module for IPv4 and IPv6 validations
+    #
     cidr_regex = r"^(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])(\/([0-9]|[1-2][0-9]|3[0-2]))$"
 
     if not args.vpc_cidr:
@@ -1452,14 +1617,27 @@ def get_install_parameters():
 
         else:
             # List all VPCs running on AWS account
+            _enabled_af_list: list = ["ipv4"]
+
+            if args.ipv6:
+                _enabled_af_list.append("ipv6")
+
             existing_vpc = FindExistingResource(
                 region=install_parameters["region"],
                 client_ip=install_parameters["client_ip"],
-            ).find_vpc()
+            ).find_vpc(
+                address_families=_enabled_af_list
+            )
 
             if existing_vpc.get("success", False):
                 install_parameters["vpc_id"] = existing_vpc["message"]["id"]
                 install_parameters["vpc_cidr"] = existing_vpc["message"]["cidr"]
+                #
+                # Are we configured for IPv6 enablement?
+                #
+                if args.ipv6:
+                    install_parameters["vpc_cidr_ipv6"] = existing_vpc["message"]["cidr_ipv6"]
+                # install_parameters["cidr_by_af"] = existing_vpc["message"]["cidr_by_af"]
             else:
                 logger.error(
                     f"Unable to find VPC in the configured AWS Account - exiting..."
@@ -1476,6 +1654,7 @@ def get_install_parameters():
                     vpc_id=install_parameters["vpc_id"],
                     environment="public",
                     selected_subnets=[],
+                    address_families=_enabled_af_list,
                 )
 
                 if public_subnets.get("success", False):
@@ -1499,6 +1678,7 @@ def get_install_parameters():
                 vpc_id=install_parameters["vpc_id"],
                 environment="private",
                 selected_subnets=[],
+                address_families=_enabled_af_list,
             )
 
             if private_subnets.get("success", False):
@@ -1555,44 +1735,61 @@ def get_install_parameters():
         )
 
         if choice_security_groups == "existing":
-            controller_sg = FindExistingResource(
+            #
+            # This defines the existing SG information that we ask questions about
+            #
+            _sg_role_dict: dict = {
+                "controller": {
+                    "enabled": True,
+                    "environment": "controller",
+                    "install_param_key": "controller_sg",
+                },
+                "compute nodes": {
+                    "enabled": True,
+                    "environment": "compute nodes",
+                    "install_param_key": "compute_node_sg",
+                },
+                "vpc endpoints": {
+                    "enabled": True,
+                    "environment": "VPC Endpoints",
+                    "install_param_key": "vpc_endpoint_sg",
+                },
+                # Test and then enable
+                "target nodes": {
+                    "enabled": False,
+                    "environment": "Target Nodes",
+                    "install_param_key": "target_node_sg",
+                }
+            }
+            for _sg_role_name, _sg_role_data in _sg_role_dict.items():
+                logger.debug(f"Processing Existing SG role: {_sg_role_name=}: {_sg_role_data=}")
+                if not _sg_role_data.get("enabled", False):
+                    logger.debug(f"Skipping SG role: {_sg_role_name} - disabled")
+                    continue
+
+                _sg_env_name: str = _sg_role_data.get("environment", "")
+                _sg_param_key: str = _sg_role_data.get("install_param_key", "")
+
+                # Make sure we have our required items
+                if not _sg_env_name or not _sg_param_key:
+                    logger.debug(f"Existing SG error for {_sg_role_name=}: {_sg_role_data=}  . Skipping")
+                    continue
+
+                _sg_lookup = FindExistingResource(
                 region=install_parameters["region"],
                 client_ip=install_parameters["client_ip"],
-            ).get_security_groups(install_parameters["vpc_id"], "controller", [])
-            if controller_sg.get("success", False):
-                install_parameters["controller_sg"] = controller_sg["message"]
-            else:
-                logger.error(f"{controller_sg.get('message', '')} ")
-                sys.exit(1)
-
-            compute_node_sg = FindExistingResource(
-                install_parameters["region"], install_parameters["client_ip"]
-            ).get_security_groups(
-                install_parameters["vpc_id"],
-                "compute nodes",
-                install_parameters["controller_sg"],
-            )
-            if compute_node_sg["success"] is True:
-                install_parameters["compute_node_sg"] = compute_node_sg["message"]
-            else:
-                logger.error(f"{compute_node_sg['message']} ")
-                sys.exit(1)
-
-            if install_props.Config.network.vpc_interface_endpoints:
-                _vpc_endpoint_sg = FindExistingResource(
-                    install_parameters["region"], install_parameters["client_ip"]
                 ).get_security_groups(
-                    install_parameters["vpc_id"],
-                    "vpc endpoints",
-                    install_parameters["controller_sg"],
+                    vpc_id=install_parameters["vpc_id"],
+                    environment=_sg_env_name,
+                    scheduler_sg=[]
                 )
-                if _vpc_endpoint_sg["success"] is True:
-                    install_parameters["vpc_endpoint_sg"] = _vpc_endpoint_sg["message"]
+
+                if _sg_lookup.get("success", False) and _sg_lookup.get("message", ""):
+                    install_parameters[_sg_param_key] = _sg_lookup.get("message", "")
                 else:
-                    logger.error(f"{_vpc_endpoint_sg['message']} ")
+                    logger.error(f"{_sg_lookup.get('message', '')} ")
                     sys.exit(1)
-            else:
-                _vpc_endpoint_sg = None
+
 
     # AWS PCS (only possible if a user installs to an existing VPC / cluster)
     if install_parameters.get("vpc_id", ""):
@@ -1730,14 +1927,15 @@ def get_install_parameters():
             if fs_data.get("success", False):
                 install_parameters["fs_data_provider"] = fs_data["provider"]
                 install_parameters["fs_data"] = fs_data["message"]
+
                 # TODO - this should no longer be possible?
                 if install_parameters["fs_data"] == install_parameters["fs_apps"]:
                     logger.error(
-                        f"Filesystem choice for /apps and /data must be different "
+                        f"Filesystem choice for /apps and /data must be different ({install_parameters['fs_data']} == {install_parameters['fs_apps']})"
                     )
                     sys.exit(1)
             else:
-                logger.error(f"{fs_data['message']} ")
+                logger.error(f"{fs_data['message']}")
                 sys.exit(1)
 
             # Verify SG permissions
@@ -1996,38 +2194,38 @@ def validate_soca_config(user_specified_inputs, install_properties):
         public_subnet_azs = [k.split(",")[1] for k in public_subnets]
 
     # if AZ is = 2, check if ES data nodes is 1,2 or a multiple. No restriction when using > 3 AZs
-    if not user_specified_inputs["es_domain"]:
-        if user_specified_inputs["vpc_id"]:
-            max_azs = len(list(dict.fromkeys(private_subnet_azs)))
-        else:
-            max_azs = install_properties.Config.network.max_azs
-
-        if max_azs == 2:
-            # No limitation when using 3 or more AZs. 1 is not an option here
-            data_nodes = install_properties.Config.analytics.data_nodes
-            if (data_nodes % 2) == 0 or data_nodes <= 2:
-                pass
-            else:
-                errors.append(
-                    "Config > OpenSearch > data_nodes must be 1,2 or a multiple of 2."
-                )
-                exit_installer = True
-
-    if user_specified_inputs["vpc_id"]:
-        # Validate network configuration when using a custom VPC
-        if len(list(dict.fromkeys(private_subnet_azs))) == 1:
-            errors.append(
-                f"Your private subnets are only configured to use a single AZ ({private_subnet_azs}). You must use at least 2 AZs for HA"
-            )
-        if len(list(dict.fromkeys(public_subnet_azs))) == 1:
-            errors.append(
-                f"Your public subnets are only configured to use a single AZ ({public_subnet_azs}). You must use at least 2 AZs for HA"
-            )
-    else:
-        # check if az is min 2
-        if install_properties.Config.network.max_azs < 2:
-            errors.append("Config > Network > max_azs must be at least 2")
-            exit_installer = True
+    # if not user_specified_inputs["es_domain"]:
+    #     if user_specified_inputs["vpc_id"]:
+    #         max_azs = len(list(dict.fromkeys(private_subnet_azs)))
+    #     else:
+    #         max_azs = install_properties.Config.network.max_azs
+    #
+    #     if max_azs == 2:
+    #         # No limitation when using 3 or more AZs. 1 is not an option here
+    #         data_nodes = install_properties.Config.analytics.data_nodes
+    #         if (data_nodes % 2) == 0 or data_nodes <= 2:
+    #             pass
+    #         else:
+    #             errors.append(
+    #                 "Config > OpenSearch > data_nodes must be 1,2 or a multiple of 2."
+    #             )
+    #             exit_installer = True
+    #
+    # if user_specified_inputs["vpc_id"]:
+    #     # Validate network configuration when using a custom VPC
+    #     if len(list(dict.fromkeys(private_subnet_azs))) == 1:
+    #         errors.append(
+    #             f"Your private subnets are only configured to use a single AZ ({private_subnet_azs}). You must use at least 2 AZs for HA"
+    #         )
+    #     if len(list(dict.fromkeys(public_subnet_azs))) == 1:
+    #         errors.append(
+    #             f"Your public subnets are only configured to use a single AZ ({public_subnet_azs}). You must use at least 2 AZs for HA"
+    #         )
+    # else:
+    #     # check if az is min 2
+    #     if install_properties.Config.network.max_azs < 2:
+    #         errors.append("Config > Network > max_azs must be at least 2")
+    #         exit_installer = True
 
     if not errors:
         logger.info(f"[green]Configuration is valid. ")
@@ -2039,7 +2237,7 @@ def validate_soca_config(user_specified_inputs, install_properties):
         logger.error(
             f"!! Unable to validate configuration. Please fix the errors listed above and try again. "
         )
-        if exit_installer is True:
+        if exit_installer:
             sys.exit(1)
         else:
             return False
@@ -2050,9 +2248,9 @@ def override_keys(keys_to_override, install_properties):
     _config_table = Table(
         title=f"Detected CLI Configuration Overrides", show_lines=True, highlight=True
     )
-    _config_table.add_column(header="Key", justify="left", width=40, no_wrap=True)
-    _config_table.add_column(header="Type", justify="left", width=10, no_wrap=True)
-    _config_table.add_column(header="Value", justify="left", width=25, no_wrap=True)
+    _config_table.add_column(header="Key", justify="left", width=50, no_wrap=False, overflow='fold')
+    _config_table.add_column(header="Type", justify="left", width=10, no_wrap=True, overflow='fold')
+    _config_table.add_column(header="Value", justify="left", width=35, no_wrap=False, overflow='fold')
 
     for key in keys_to_override:
         # print(f"Detected Key Override: {key}")
@@ -2181,28 +2379,61 @@ if __name__ == "__main__":
             f"{os.path.dirname(os.path.realpath(__file__))}/../../region_map_govcloud.yml",
             f"{os.path.dirname(os.path.realpath(__file__))}/../../region_map_local.yml",
         ],
-        help="Path of AMI region mapping files. Defaults to various region_map files.",
+        help="(Deprecated) Path of AMI region mapping files. Defaults to various region_map files. Use --region-map-dir instead!",
+        # 3.13 allows the use of deprecated argument
+        # deprecated=True
     )
+
+    parser.add_argument(
+        "--region-map-dir",
+        type=str,
+        action="append",
+        default=[
+            f"{os.path.dirname(os.path.realpath(__file__))}/../../region_map.d/aws",
+        ],
+        help="Path of AMI region_map.d directory structure",
+    )
+
     parser.add_argument("--bucket", "-b", type=str, help="S3 Bucket to use")
     parser.add_argument("--ssh-keypair", "-ssh", type=str, help="SSH key to use")
     parser.add_argument("--custom-ami", "-ami", type=str, help="Specify a custom image")
+
     parser.add_argument(
         "--vpc-cidr",
+        "--vpc-cidr-ipv4,"
         "-cidr",
         type=str,
-        help="What CIDR do you want to use for your VPC (eg: 10.0.0.0/16)",
+        help="What IPv4 CIDR do you want to use for your VPC (eg: 10.0.0.0/16)",
+    )
+    parser.add_argument(
+        "--vpc-cidr-ipv6",
+        type=str,
+        help="What IPv6 CIDR do you want to use for your VPC (eg: 2001:db8::/56)",
     )
     parser.add_argument(
         "--client-ip",
+        "--client-ipv4",
         "-ip",
         type=str,
-        help="Client IP authorized to access SOCA on TCP ports 22/443",
+        help="Client IPv4 authorized to access SOCA on TCP ports 22/443",
+    )
+    parser.add_argument(
+        "--client-ipv6",
+        type=str,
+        help="Client IPv6 authorized to access SOCA on TCP ports 22/443",
     )
     parser.add_argument(
         "--prefix-list-id",
+        "--prefix-list-id-ipv4",
         "-pl",
         type=str,
-        help="Prefix list ID with IPs authorized to access SOCA on port 22/443",
+        help="Prefix list ID with IPv4 authorized to access SOCA on port 22/443",
+    )
+    parser.add_argument(
+        "--prefix-list-id-ipv6",
+        "-pl-v6",
+        type=str,
+        help="Prefix list ID with IPv6 authorized to access SOCA on port 22/443",
     )
     parser.add_argument(
         "--name",
@@ -2260,6 +2491,13 @@ if __name__ == "__main__":
     )
 
     parser.add_argument(
+        "--ipv6",
+        action="store_const",
+        const=True,
+        default=False,
+        help="Enable IPv6 for client-ipv6 probe (required for all IPv6) (default: False)",
+    )
+    parser.add_argument(
         "--debug",
         action="store_const",
         const=True,
@@ -2304,7 +2542,7 @@ if __name__ == "__main__":
     os.chdir(path=_install_directory)
 
     # Append Solution ID to Boto3 Construct
-    aws_solution_user_agent = {"user_agent_extra": "AwsSolution/SO0072/25.5.0"}
+    aws_solution_user_agent = {"user_agent_extra": "AwsSolution/SO0072/25.8.0"}
     boto_extra_config = config.Config(**aws_solution_user_agent)
 
     splash_info = f"""
@@ -2394,12 +2632,20 @@ if __name__ == "__main__":
 
     # Read in the RegionMap file(s) specified by the user
     logger.debug(
-        f"RegionMap file(s) specified: {type(args.region_map)} / {args.region_map=}"
+        f"RegionMap file(s) specified (OLD METHOD): {type(args.region_map)} / {args.region_map=}"
     )
 
+    logger.debug(
+        f"RegionMap.D specified (NEW METHOD): {type(args.region_map_dir)} / {args.region_map_dir=}"
+    )
+
+
+    # _region_map is our final view after overwrites/appends/etc
     _region_map: dict = {}
 
-    # If we are a string, convert to a list[str] of the single member
+    # Old method to be removed at future date
+    _old_region_map_dict: dict = {}
+
     if isinstance(args.region_map, str):
         logger.info(f"Converting string RegionMap to list member")
         args.region_map = [args.region_map]
@@ -2409,8 +2655,9 @@ if __name__ == "__main__":
         for _file in args.region_map:
             logger.info(f"Reading RegionMap file: {os.path.basename(_file)}")
             if not os.path.isfile(_file):
-                # This isn't an error yet
-                logger.info(f"RegionMap file not found: {_file}")
+                # This is OK as the users transition to region_map.d method
+                # so we don't error/warning them to startle the users
+                logger.debug(f"RegionMap file not found: {_file}")
                 continue
 
             # We specifically look in "RegionMap" to make sure it is well-formed YAML
@@ -2425,13 +2672,101 @@ if __name__ == "__main__":
                 continue
             else:
                 logger.debug(f"Content len {len(_region_map_contents)}")
-                _region_map.update(_region_map_contents)
+                _old_region_map_dict.update(_region_map_contents)
                 logger.debug(f"RegionMap after applying file update: {_region_map}")
     else:
         logger.error(f"RegionMap is not a list. Exiting.")
         sys.exit(1)
 
-    logger.debug(f"RegionMap after all files are read: {_region_map}")
+    logger.debug(f"RegionMap after all files are read: {_old_region_map_dict}")
+
+    # New region_map.d method
+    _region_map_dir_dict: dict = {}
+
+    # This should not happen?
+    if isinstance(args.region_map_dir, str):
+        args.region_map_dir = [args.region_map_dir]
+
+    logger.info(f"Reading {len(args.region_map_dir)} region_map.d directories: {args.region_map_dir=}")
+    for _dir in args.region_map_dir:
+        logger.info(f"Reading region_map.d directory: {_dir}")
+        if not os.path.isdir(_dir):
+            logger.error(f"region_map.d directory not found: {_dir}")
+            exit(1)
+
+        # Read the glob pattern of only YAML files to make sure we exclude README and backup files etc
+        _files = glob.glob(
+            pathname=f"[0-9][0-9][0-9]-*.yaml",
+            recursive=False,
+            root_dir=_dir,
+            include_hidden=False,
+        )
+        _files.sort()
+
+        if not len(_files):
+            logger.warning(f"No files found in for region_map.d: {_dir}")
+            continue
+
+        for _file in _files:
+            logger.info(f"Reading region_map.d file: {_dir}/{_file}")
+
+            if not os.path.isfile(f"{_dir}/{_file}"):
+                # Perhaps the file moved on us?
+                logger.warning(f"region_map.d file not found after directory scan: {_file}")
+                continue
+
+            _file_region_map_contents: dict = get_install_properties(
+                pathname=f"{_dir}/{_file}"
+            )
+
+            # XXX FIXME TODO - Individual files - should they error on malformed?
+            # NOTE - We distribute a template of 999-my-ami-defaults.yaml that seems to land here
+            # but it is not a valid YAML file. So we check for that and not alarm the user
+            if len(_file_region_map_contents) == 0 and _file != "999-my-ami-defaults.yaml":
+                logger.warning(f"region_map.d file is empty or malformed: {_dir}/{_file}")
+                continue
+
+            logger.debug(f"region_map.d ({_dir}/{_file}) contents: {_file_region_map_contents}")
+            # We cannot just merge the dict from the file - as we have to be selective for over-rides/append-behavior
+            # This way the admin can simply specify the specific entries for them and not have to copy the SOCA defaults.
+
+            for _region, _region_data in _file_region_map_contents.items():
+
+                if _region not in _region_map:
+                    _region_map[_region] = {}
+
+                if not isinstance(_region_data, dict):
+                    logger.error(f"region_map.d file has malformed data for {_region}. Aborting.")
+                    exit(1)
+
+                for _arch_name in _region_data:
+
+                    if _arch_name not in _region_map[_region]:
+                        _region_map[_region][_arch_name] = {}
+
+                    _baseos_info: dict = _file_region_map_contents.get(_region, {}).get(_arch_name, {})
+
+                    if not isinstance(_baseos_info, dict):
+                        logger.error(f"region_map.d file has malformed data for {_region} / {_arch_name=} / {_baseos_info=}")
+                        exit(1)
+
+                    for _baseos_name, _baseos_ami in _baseos_info.items():
+
+                        if _baseos_name not in _region_map[_region][_arch_name]:
+                            _region_map[_region][_arch_name][_baseos_name] = _baseos_ami
+                        else:
+                            _previous_value: str = _region_map[_region][_arch_name][_baseos_name]
+                            logger.debug(f"region_map.d over-ride: {_region=} / {_arch_name=} / {_baseos_name=}. Overriding {_previous_value=} with {_baseos_ami=}")
+                            _region_map[_region][_arch_name][_baseos_name] = _baseos_ami
+
+    if len(_region_map) == 0:
+        logger.error(f"RegionMap and/or region_map.d files are empty or malformed. Unable to continue.")
+        exit(1)
+
+    # Do a quick lookup test
+    # Technically this can fail and be OK if the SOCA admin has removed all the SOCA default AMI files
+    # So we don't error on this
+    logger.debug(f"RegionMap lookup test for for amazonlinux2023/x86_64/us-east-1: {_region_map.get('us-east-1', {}).get('x86_64', {}).get('amazonlinux2023', '')} (empty may indicate non-default configuration)")
 
     if args.override:
         overrides: list = [item for sublist in args.override for item in sublist]
@@ -2439,7 +2774,7 @@ if __name__ == "__main__":
 
     _merged_properties: dict = {**install_properties, "RegionMap": _region_map}
 
-    logger.debug(f"Merged properties: {_merged_properties}")
+    logger.debug(f"Merged properties: {_merged_properties=}")
 
     install_parameters["install_properties"] = base64.b64encode(
         json.dumps(_merged_properties).encode("utf-8")
@@ -2455,7 +2790,7 @@ if __name__ == "__main__":
     if not args.skip_config_message:
         if (
             get_input(
-                prompt=f"SOCA will create AWS resources using the default parameters specified on installer/default_config.yml. \n Make sure you have read, reviewed and updated them (if needed). Enter 'yes' to continue ...",
+                prompt=f"SOCA will create AWS resources using the default parameters specified in installer/default_config.yml.\n Make sure you have read, reviewed and updated them (if needed). Enter 'yes' to continue ...",
                 specified_value=None,
                 expected_answers=["yes", "no"],
                 expected_type=str,
@@ -2494,10 +2829,16 @@ if __name__ == "__main__":
 
     # Determine our partition from calling STS client (without any specific region info)
     _sts_client = session.client("sts")
-    _sts_caller_arn: str = _sts_client.get_caller_identity().get("Arn", "")
+    _sts_caller_identity: dict = _sts_client.get_caller_identity()
+    _sts_caller_arn: str = _sts_caller_identity.get("Arn", "")
+    _sts_caller_account: str = _sts_caller_identity.get("Account", "")
 
     if not _sts_caller_arn:
         logger.error("Unable to determine AWS partition via STS. Exiting...")
+        sys.exit(1)
+
+    if not _sts_caller_account:
+        logger.error("Unable to determine AWS AccountID via STS. Exiting...")
         sys.exit(1)
 
     _sts_partition: str = ""
@@ -2510,8 +2851,10 @@ if __name__ == "__main__":
 
     logger.info(f"STS-discovered caller ARN: {_sts_caller_arn}")
     logger.info(f"STS-discovered AWS partition: {_sts_partition}")
+    logger.info(f"STS-discovered AWS account ID: {_sts_caller_account}")
 
     install_parameters["partition"] = _sts_partition
+    install_parameters["account_id"] = _sts_caller_account
 
     # Determine all AWS regions available on the account. We do not display opt-out regions
     # This uses us-east-1 as a default probe destination
@@ -2714,47 +3057,84 @@ if __name__ == "__main__":
         )
         sys.exit(1)
 
-    # Retrieve the AWS Account ID for CDK
-    try:
-        install_parameters["account_id"] = sts.get_caller_identity()["Account"]
-    except Exception as err:
-        logger.error(f"Unable to retrieve the Account ID due to {err}")
-        sys.exit(1)
+    # Automatically detect client ip information if needed
+    # Loops per address-family that is enabled (IPv4 always enabled for now)
 
-    # Automatically detect client ip if needed
+    _af_dict: dict = {
+        "ipv4": {
+            "enabled": True,
+            "name": "IPv4",
+            "args": args.client_ip,
+            "index": "client_ip",
+        },
+        "ipv6": {
+            "enabled": True,
+            "name": "IPv6",
+            "args": args.client_ipv6,
+            "index": "client_ipv6",
+        }
+    }
+
     if not args.client_ip:
-        install_parameters["client_ip"] = detect_customer_ip()
+        install_parameters["client_ip"] = detect_customer_ip(address_family="ipv4")
 
-        if install_parameters["client_ip"]:
+        if install_parameters.get("client_ip", ""):
             logger.warning(
-                f"We determined your IP is {install_parameters['client_ip']}. You can change it later if you are running behind a proxy"
+                f"We determined your IPv4 address is {install_parameters['client_ip']}. You can change it later if you are running behind a proxy"
             )
         else:
             logger.warning(
-                f"Unable to automatically determine your IP address. Manual specification will be required"
+                f"Unable to automatically determine your IPv4 address. Manual specification will be required"
             )
     else:
         install_parameters["client_ip"] = args.client_ip
+        logger.debug(f"Client-IPv4: {args.client_ip}")
 
-    # If we had to auto-probe the IP , give the option to update it before continuing
+    # Repeat for IPv6 if enabled
+    if args.ipv6:
+        if not args.client_ipv6:
+            install_parameters["client_ipv6"] = detect_customer_ip(address_family="ipv6")
+
+            if install_parameters.get("client_ipv6", ""):
+                logger.warning(
+                    f"We determined your IPv6 address is {install_parameters['client_ipv6']}. You can change it later if you are running behind a proxy"
+                )
+            else:
+                logger.warning(
+                    f"Unable to automatically determine your IPv6 address. Manual specification will be required"
+                )
+        else:
+            install_parameters["client_ipv6"] = args.client_ipv6
+            logger.debug(f"Client-IPv6: {args.client_ipv6}")
+
+
+    # If we had to auto-probe the IP, give the option to update it before continuing
     install_parameters["client_ip"] = get_input(
-        "Client IP/CIDR authorized to access SOCA on TCP ports 443/22",
+        prompt="Client IPv4 /CIDR authorized to access SOCA on TCP ports 443/22",
         specified_value=install_parameters["client_ip"],
         expected_answers=None,
         expected_type=str,
     )
 
-    if "/" not in install_parameters["client_ip"]:
-        logger.warning(
-            f"No subnet/CIDR defined for your IP. Adding /32 at the end of {install_parameters['client_ip']}"
+    # Make sure the answer is a valid IP address
+    while not is_valid_address(address_family="ipv4", address=install_parameters["client_ip"]):
+        install_parameters["client_ip"] = get_input(
+            prompt="Client IPv4 /CIDR authorized to access SOCA on TCP ports 443/22",
+            specified_value=None,
+            expected_answers=None,
+            expected_type=str,
         )
-        install_parameters["client_ip"] = f"{install_parameters['client_ip']}/32"
+
+#        install_parameters["client_ip"] = f"{install_parameters['client_ip']}/32"
+
+    # TODO Ask for IPv6 if it is enabled?
+
 
     # Get SOCA parameters
     get_install_parameters()
 
     # Validate Config, relaunch installer if needed
-    while validate_soca_config(install_parameters, install_props) is False:
+    while not validate_soca_config(install_parameters, install_props):
         get_install_parameters()
 
     # Validate CloudFormation stack name

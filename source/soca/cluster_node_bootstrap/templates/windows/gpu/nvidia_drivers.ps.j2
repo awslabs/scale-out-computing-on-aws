@@ -15,7 +15,9 @@ function Install-NvidiaGpuDrivers {
        $GridVersion = "grid-18.1"
     }
     elseif ($operatingSystem -like "*windows server 2025*") {
-        Log-Warning -Message "No NVIDIA driver for Windows 2025, skipping GPU Drivers install ... "
+        Log-Warning -Message "No NVIDIA driver for Windows 2025, using Windows 2022 GPU Drivers install ... "
+        $keyPrefix = "*_grid_*_server2022_*.exe"
+        $GridVersion = "grid-18.1"
     }
     else {
         Log-Warning -Message "BaseOS must be windows2019, windows2022 or windows2025, detected  ${operatingSystem}, skipping GPU Drivers install"

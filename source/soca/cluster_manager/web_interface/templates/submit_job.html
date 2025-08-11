@@ -52,9 +52,9 @@
                                     <hr>
                                     <div class="row">
                                         {% if not application_profiles %}
-                                            No applications found. <a href="/admin/applications">Create one first.</a>
+                                        No applications found. Please verify that you’ve been added to the appropriate <a href="/admin/projects">SOCA projects</a>. If the issue persists, contact your SOCA administrator.
                                         {% else %}
-                                            {% for app_id, app_data in application_profiles.items() %}
+                                            {% for app_data in application_profiles %}
                                                 <div id="{{ application }}" class="col-md-auto"
                                                      style="margin-top: 5px">
                                                     <form action="/submit_job" method="post">
@@ -66,7 +66,7 @@
                                                         <input type="hidden" name="csrf_token"
                                                                value="{{ csrf_token() }}">
                                                         <input type="hidden" name="input_file" value="{{ input_file }}">
-                                                        <input type="hidden" name="app" value="{{ app_id }}">
+                                                        <input type="hidden" name="app" value="{{ app_data.id }}">
                                                     </form>
                                                 </div>
                                             {% endfor %}

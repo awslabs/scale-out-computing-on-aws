@@ -21,7 +21,7 @@ from flask_restful import Resource, reqparse
 from requests import get
 import json
 import logging
-from decorators import private_api, admin_api
+from decorators import private_api, admin_api, feature_flag
 from flask import session
 import ldap.modlist as modlist
 from datetime import datetime
@@ -31,40 +31,100 @@ from utils.response import SocaResponse
 from utils.error import SocaError
 import os
 import sys
+
 logger = logging.getLogger("soca_logger")
 
 
 class Reset(Resource):
     @admin_api
+    @feature_flag(flag_name="MY_ACCOUNT_MANAGEMENT", mode="api")
     def post(self):
         """
-        Change password for a given user
+        Reset user password
         ---
+        openapi: 3.1.0
+        operationId: resetLdapUserPassword
         tags:
           - User Management
-
-        parameters:
-          - in: body
-            name: body
-            schema:
-              required:
-                - user
-                - password
-              properties:
-                user:
-                  type: string
-                  description: SOCA user
-                password:
-                  type: string
-                  description: New password to configure
-
+        summary: Reset user password
+        description: Reset the password for a specific LDAP user using SSHA encryption
+        security:
+          - socaAuth: []
+        requestBody:
+          required: true
+          content:
+            application/x-www-form-urlencoded:
+              schema:
+                type: object
+                required:
+                  - user
+                  - password
+                properties:
+                  user:
+                    type: string
+                    description: Username of the user whose password will be reset
+                    minLength: 1
+                    maxLength: 64
+                    pattern: '^[a-zA-Z0-9._-]+$'
+                    example: "john.doe"
+                  password:
+                    type: string
+                    description: New password for the user
+                    minLength: 1
+                    format: password
+                    example: "NewSecurePass123!"
         responses:
-          200:
-            description: Pair of username/token is valid
-          203:
-            description: Invalid username/token pair
-          400:
-            description: Malformed client input
+          '200':
+            description: Password successfully updated
+            content:
+              application/json:
+                schema:
+                  type: object
+                  properties:
+                    success:
+                      type: boolean
+                      example: true
+                    message:
+                      type: string
+                      example: "Password updated correctly"
+          '400':
+            description: Missing required parameters
+            content:
+              application/json:
+                schema:
+                  type: object
+                  properties:
+                    success:
+                      type: boolean
+                      example: false
+                    message:
+                      type: string
+                      example: "Missing required parameter: user"
+          '500':
+            description: Failed to update password
+            content:
+              application/json:
+                schema:
+                  type: object
+                  properties:
+                    success:
+                      type: boolean
+                      example: false
+                    message:
+                      type: string
+                      example: "Unable to reset password for john.doe"
+        components:
+          securitySchemes:
+            socaAuth:
+              type: apiKey
+              in: header
+              name: X-SOCA-USER
+              description: SOCA username for authentication
+            socaToken:
+              type: apiKey
+              in: header
+              name: X-SOCA-TOKEN
+              description: SOCA authentication token
         """
         parser = reqparse.RequestParser()
         parser.add_argument("user", type=str, location="form")
@@ -94,9 +154,13 @@ class Reset(Resource):
             mod_attrs = [(ldap.MOD_REPLACE, "userPassword", new_value.encode("utf-8"))]
             _update = _soca_identity_client.modify(dn=dn_user, mod_list=mod_attrs)
             if _update.success:
-                return SocaResponse(success=True, message="Password updated correctly").as_flask()
+                return SocaResponse(
+                    success=True, message="Password updated correctly"
+                ).as_flask()
             else:
-                return SocaError.IDENTITY_PROVIDER_ERROR(helper=f"Unable to reset password for {user} because {_update.message}").as_flask()
+                return SocaError.IDENTITY_PROVIDER_ERROR(
+                    helper=f"Unable to reset password for {user} because {_update.message}"
+                ).as_flask()
 
         except Exception as err:
             exc_type, exc_obj, exc_tb = sys.exc_info()

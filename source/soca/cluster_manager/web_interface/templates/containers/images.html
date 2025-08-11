@@ -1,0 +1,392 @@
+<!-- Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+ SPDX-License-Identifier: Apache-2.0 -->
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    {% include 'common/header.html' %}
+</head>
+
+<body id="page-top">
+    <div id="wrapper">
+        {% include 'common/vertical_menu_bar.html' %}
+        <div id="content-wrapper" class="d-flex flex-column">
+            <div id="content">
+                <br>
+                <div class="container-fluid">
+                    {% include 'common/horizontal_menu_bar.html' %}
+                    {% include 'common/flashed_messages.html' %}
+                    <div class="card shadow mb-4">
+                        <div class="card-header py-3 d-flex justify-content-between align-items-center">
+                            <h6 class="m-0 font-weight-bold text-primary">Your Images</h6>
+                        </div>
+
+                        <div class="card-body">
+                            <div class="alert alert-warning">
+                                <h4>Feature in Preview</h4>
+                                <ul>
+                                    <li>SOCA does not manage the compute orchestration of your EKS cluster.</li>
+                                    <li>Only images with tags are displayed in the repository table. Untagged images will not appear.</li>
+                                    <li>
+                                        Add the following tag to onboard your <a href="https://aws.amazon.com/ecr/" target="_blank">Amazon Elastic Container repository (ECR)</a> and <a href="https://aws.amazon.com/eks/" target="_blank">Amazon Elastic Kubernetes Service cluster (EKS)</a> to SOCA:
+                                        <kbd>soca:visibility:{{cluster_id}} = true</kbd>
+                                    </li>
+                                </ul>
+                            </div>
+
+                            <div class="col-md-12">
+                                <input type="text" id="searchImages" class="form-control" placeholder="Search for an image tag, digest ..." aria-controls="allContainerImages">
+                                </div>
+                            <br>
+                            <table id="allContainerImages" class="display stripe" style="width:100%">
+                                <thead>
+                                    <tr>
+                                        <th>Repository Name</th>
+                                        <th>Image Tag</th>
+                                        <th>Image Digest</th>
+                                        <th>Date</th>
+                                        <th>Size (MB)</th>
+                                        <th>Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                {% for repository_name, image_list in container_images.items() %}
+                                    {% if image_list %}
+                                        {% for image_info in image_list %}
+                                            {% if image_info.imageTag %}
+                                                <tr>
+                                                     <td><strong>{{repository_name}}</strong></td>
+                                                    <td> {{image_info.imageTag}}</td>
+                                                    <td>
+                                                         <a style="text-decoration: none;" href="javascript:void(0);" onclick="toggleDigest({{ loop.index }})" id="toggle-link-{{ loop.index }}">
+  <span class="badge badge-secondary" id="digest-short-{{ loop.index }}">{{ image_info.imageDigest[-30:] }} (show more)</span>
+  <span class="badge badge-secondary" id="digest-full-{{ loop.index }}" style="display:none;">{{ image_info.imageDigest }} (show less)</span>
+</a>
+
+                                                      <td>{{image_info.pushedAt }}</td>
+                                                     <td>{{image_info.imageSizeInMB}}</td>
+                                                     <td> <button type="button" class="btn btn-success" data-bs-toggle="modal"
+                                                                 data-image-uri="{{image_info.imageUri }}" data-bs-target="#LaunchJob">Launch Job</button></td>
+                                                 </tr>
+                                            {% endif %}
+                                        {% endfor %}
+                                    {% endif %}
+                                {% endfor %}
+
+                                </tbody>
+                            </table>
+
+                            <!-- Modal Launch Job -->
+                            <div class="modal fade" id="LaunchJob" tabindex="-1"
+                                 role="dialog" aria-labelledby="exampleModalLabel" aria-hidden="true">
+                                <div class="modal-dialog modal-xl" role="document">
+                                    <div class="modal-content">
+                                        <div class="modal-header">
+                                            <h5 class="modal-title">Submit a new EKS job</h5>
+                                            <button type="button" class="close" data-bs-dismiss="modal" aria-label="Close">
+                                                <span aria-hidden="true">×</span>
+                                            </button>
+                                        </div>
+                                        <div class="modal-body container">
+                                            <form action="/containers/submit_job" method="post" id="commandForm">
+                                              <div class="row mb-3 align-items-center">
+                                                <label for="image_uri" class="col-sm-3 col-form-label"  data-toggle="tooltip" data-placement="top"
+                                                       title="URI of the Image to deploy on your pod">Image URI</label>
+                                                <div class="col-sm-9">
+                                                  <input id="image_uri" class="form-control" type="text" disabled>
+                                                  <input type="hidden" name="image_uri" id="image_uri_hidden">
+                                                </div>
+                                              </div>
+
+                                              <div class="row mb-3 align-items-center">
+                                                <label for="eks_cluster" class="col-sm-3 col-form-label"  data-toggle="tooltip" data-placement="top"
+                                                       title="Name of the EKS cluster to use">EKS Cluster</label>
+                                                <div class="col-sm-9">
+                                                  <select required class="form-control" id="eks_cluster" name="eks_cluster">
+                                                    {% for eks_cluster in eks_clusters %}
+                                                    <option value="{{eks_cluster}}">{{eks_cluster}}</option>
+                                                    {% endfor %}
+                                                  </select>
+                                                  <small class="form-text text-muted">Note: EKS clusters must have the tag <kbd>soca:visibility:{{cluster_id}} = true</kbd> to be visible on SOCA</small>
+                                                </div>
+                                              </div>
+
+                                                <div class="row mb-3 align-items-center">
+                                                <label for="job_name" class="col-sm-3 col-form-label"  data-toggle="tooltip" data-placement="top"
+                                                       title="EKS Namespace to launch your job on">EKS Namespace</label>
+                                                <div class="col-sm-9">
+                                                  <input id="namespace" name="namespace" type="text" class="form-control" value="default" required>
+                                                </div>
+                                              </div>
+
+                                              <div class="row mb-3 align-items-center">
+                                                <label for="job_name" class="col-sm-3 col-form-label"  data-toggle="tooltip" data-placement="top"
+                                                       title="Name of your job">Job Name</label>
+                                                <div class="col-sm-9">
+                                                  <input id="job_name" name="job_name" type="text" class="form-control" required>
+                                                </div>
+                                              </div>
+
+                                              <!-- Section 2: Compute Resources -->
+                                              <h5 class="mt-4">Compute Resources</h5>
+                                              <hr>
+
+                                              <div class="row mb-3 align-items-center">
+                                                  <div class="col-sm-3">
+                                                    <label for="cpu" class="form-label"  data-toggle="tooltip" data-placement="top"
+                                                       title="Number of CPUs to request for your job"><i class="fa-solid fa-microchip fa-xl"></i> CPUs</label>
+                                                    <input id="cpu" name="cpu" type="number" class="form-control" step="any" value="1">
+                                                    <small class="form-text text-muted">Partial CPUs allowed (e.g. 0.5 = half a CPU)</small>
+                                                  </div>
+
+                                                  <div class="col-sm-3">
+                                                    <label for="memory" class="form-label"  data-toggle="tooltip" data-placement="top"
+                                                       title="Size of the memory to request for your job"><i class="fa-solid fa-memory fa-xl"></i> Memory (GB)</label>
+                                                    <input id="memory" name="memory" type="number" class="form-control" step="any" value="1">
+                                                    <small class="form-text text-muted">Partial GBs allowed (e.g. 2.5 = 2.5 GB RAM)</small>
+                                                  </div>
+
+                                                  <div class="col-sm-3">
+                                                      <label for="gpu" class="form-label"  data-toggle="tooltip" data-placement="top"
+                                                       title="Specify whether or not your job requires GPUs"><i class="fa-solid fa-bolt fa-xl"></i> GPUs</label>
+                                                      <input id="gpu" name="gpu" type="text" class="form-control" value="0">
+                                                      <small class="form-text text-muted">Number of GPU to allocate</small>
+
+                                                  </div>
+
+                                                  <div class="col-sm-3">
+                                                      <label for="instance_type" class="form-label"  data-toggle="tooltip" data-placement="top"
+                                                       title="Select the instance type to deploy your job on"><i class="fa-brands fa-aws fa-xl"></i> Instance Type <span class="badge bg-info ms-1" style="color: white;font-size:0.7em;">Optional</span></label>
+                                                      <input id="instance_type" name="instance_type" type="text" class="form-control" placeholder="example: c6g.metal">
+                                                      <small class="form-text text-muted">Force your job to run on a specific instance type</small>
+
+                                                  </div>
+                                                </div>
+
+
+                                              <!-- Section 3: Container Command & Arguments -->
+                                              <h5 class="mt-4">Advanced Customizations</h5>
+                                              <hr>
+                                                <div class="row mb-3">
+  <div class="col-md-3">
+    <button class="btn btn-secondary w-100" type="button" data-bs-toggle="collapse" data-bs-target="#collapseEntryPoint" aria-expanded="false" aria-controls="collapseEntryPoint">
+      Override Entry Point <span class="badge bg-info ms-1" style="color: white;font-size:0.7em;">Optional</span>
+    </button>
+  </div>
+  <div class="col-md-3">
+    <button class="btn btn-secondary w-100" type="button" data-bs-toggle="collapse" data-bs-target="#collapseRuntimeArgs" aria-expanded="false" aria-controls="collapseRuntimeArgs">
+      Runtime Arguments <span class="badge bg-info ms-1" style="color: white;font-size:0.7em;">Optional</span>
+    </button>
+  </div>
+</div>
+
+<div class="collapse mb-3" id="collapseEntryPoint">
+  <div class="card card-body">
+    <label class="form-label" data-bs-toggle="tooltip" data-bs-placement="top" title="Override your container entrypoint"></label>
+    <div id="commandInputs">
+      <div class="input-group mb-2">
+        <input type="text" class="form-control" placeholder="e.g. /bin/bash">
+        <button type="button" class="btn btn-danger" onclick="removeInput(this)">Remove</button>
+      </div>
+    </div>
+    <button type="button" class="btn btn-info btn-sm mb-2" onclick="addInput()">Add Argument</button>
+    <input type="hidden" name="command" id="commandArray">
+    <small class="form-text text-muted">
+      Each line is one argument.<br>
+      Example:<br>
+      <code>/bin/bash</code><br>
+      <code>-c</code><br>
+      <code>echo Hello</code>
+    </small>
+  </div>
+</div>
+
+<div class="collapse mb-3" id="collapseRuntimeArgs">
+  <div class="card card-body">
+    <label class="form-label" data-bs-toggle="tooltip" data-bs-placement="top" title="Override your container runtime arguments"></label>
+    <div id="argsInputs">
+      <div class="input-group mb-2">
+        <input type="text" class="form-control" placeholder="e.g. --epochs">
+        <button type="button" class="btn btn-danger" onclick="removeInput(this)">Remove</button>
+      </div>
+    </div>
+    <button type="button" class="btn btn-info btn-sm mb-2" onclick="addArgsInput()">Add Argument</button>
+    <input type="hidden" name="args" id="argsArray">
+    <small class="form-text text-muted">
+      Each line is one argument.<br>
+      Example:<br>
+      <code>--epochs</code><br>
+      <code>10</code>
+    </small>
+  </div>
+</div>
+
+
+
+
+
+
+                                              <!-- Submit -->
+                                              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                              <div class="text-center mt-4">
+                                                <button type="submit" class="btn btn-primary btn-lg px-5 py-3">
+                                                    Submit EKS Job
+                                                </button>
+                                                </div>
+                                            </form>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <!-- End Modal -->
+
+                            <script>
+                                document.addEventListener("DOMContentLoaded", function() {
+                                    // build datatable
+                                    let dtable = $('#allContainerImages').DataTable({
+                                        sorting: true,
+                                        paging: true,
+                                        pagingType: "full_numbers",
+                                        lengthMenu: [[15, 30, 50, -1], [15, 30, 50, "All"]],
+                                        language: {
+                                            emptyTable: "<h4>No Images, verify repository tag configuration</h4>",
+                                        },
+                                        dom: "<'row'<'col-sm-12'tr>>" + "<'row'<'col-sm-4'l><'col-sm-8'p>>",
+                                        fixedColumns: {
+                                            heightMatch: 'none'
+                                        },
+                                    });
+                                    // bind search input
+                                    $('#searchImages').keyup(function () {
+                                        dtable.search($(this).val()).draw();
+                                    })
+                                    $('.dataTables_filter input[type="search"]').css({'display': 'none'});
+                                })
+
+
+                            </script>
+
+
+                        </div>
+                    </div>
+
+
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <a class="scroll-to-top rounded" href="#page-top">
+        <i class="fas fa-angle-up"></i>
+    </a>
+
+        {% include 'common/footer.html' %}
+
+    <script>
+        $(document).ready(function () {
+            // enable tooltip
+            $(function () {
+                $('[data-toggle="tooltip"]').tooltip()
+            })
+        })
+
+         // Listen for all form and disable submit button once clicked
+        document.addEventListener('submit', function (e) {
+            if (e.target.tagName === 'FORM') {
+                e.preventDefault();
+                const submitButton = e.target.querySelector('button[type="submit"]');
+                if (submitButton) {
+                    submitButton.disabled = true;
+                    submitButton.innerHTML = `
+                    <span class="icon text-white-50">
+                        <span class="spinner-border spinner-border-lg" role="status" aria-hidden="true">  </span>
+                     </span>
+                     <span class="text">
+                        Please wait ...
+                     </span>`;
+                }
+                // Trigger form submission manually after processing
+                setTimeout(function () {
+                    e.target.submit(); // Submit the form programmatically
+                }, 500);
+            }
+        });
+    </script>
+
+<script>
+  function toggleDigest(id) {
+    const shortSpan = document.getElementById(`digest-short-${id}`);
+    const fullSpan = document.getElementById(`digest-full-${id}`);
+
+    const isCollapsed = fullSpan.style.display === "none";
+
+    shortSpan.style.display = isCollapsed ? "none" : "inline";
+    fullSpan.style.display = isCollapsed ? "inline" : "none";
+  }
+</script>
+<script>
+  function addInput() {
+    const container = document.getElementById('commandInputs');
+    const div = document.createElement('div');
+    div.className = 'input-group mb-2';
+    div.innerHTML = `
+      <input type="text" class="form-control" placeholder="e.g. argument">
+      <button type="button" class="btn btn-danger" onclick="removeInput(this)">Remove</button>
+    `;
+    container.appendChild(div);
+  }
+
+  function addArgsInput() {
+    const container = document.getElementById('argsInputs');
+    const div = document.createElement('div');
+    div.className = 'input-group mb-2';
+    div.innerHTML = `
+      <input type="text" class="form-control" placeholder="e.g. argument">
+      <button type="button" class="btn btn-danger" onclick="removeInput(this)">Remove</button>
+    `;
+    container.appendChild(div);
+  }
+
+  function removeInput(button) {
+    button.closest('.input-group').remove();
+  }
+
+  document.getElementById('commandForm').addEventListener('submit', function (e) {
+    // Handle command
+    const commandInputs = document.querySelectorAll('#commandInputs input');
+    const commandArray = Array.from(commandInputs)
+      .map(input => input.value.trim())
+      .filter(val => val !== "");
+    document.getElementById('commandArray').value = JSON.stringify(commandArray);
+
+    // Handle args
+    const argsInputs = document.querySelectorAll('#argsInputs input');
+    const argsArray = Array.from(argsInputs)
+      .map(input => input.value.trim())
+      .filter(val => val !== "");
+    document.getElementById('argsArray').value = JSON.stringify(argsArray);
+  });
+</script>
+<script>
+  const launchJobModal = document.getElementById('LaunchJob');
+
+  // Populate when modal is shown
+  launchJobModal.addEventListener('show.bs.modal', function (event) {
+    const button = event.relatedTarget;
+    const uuid = button.getAttribute('data-image-uri');
+
+    // Set values
+    document.getElementById('image_uri').value = uuid;
+    document.getElementById('image_uri_hidden').value = uuid;
+  });
+
+  // Clear fields when modal is hidden
+  launchJobModal.addEventListener('hidden.bs.modal', function () {
+    document.getElementById('image_uri').value = '';
+    document.getElementById('image_uri_hidden').value = '';
+  });
+</script>
+
+</body>
+
+</html>

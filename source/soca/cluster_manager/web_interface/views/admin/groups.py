@@ -16,7 +16,7 @@ import config
 from flask import render_template, Blueprint, request, redirect, session, flash
 from requests import get, post, delete, put
 from models import ApiKeys
-from decorators import login_required, admin_only
+from decorators import login_required, admin_only, feature_flag
 
 logger = logging.getLogger("soca_logger")
 admin_groups = Blueprint("admin_groups", __name__, template_folder="templates")
@@ -25,6 +25,7 @@ admin_groups = Blueprint("admin_groups", __name__, template_folder="templates")
 @admin_groups.route("/admin/groups", methods=["GET"])
 @login_required
 @admin_only
+@feature_flag(flag_name="USERS_GROUPS_MANAGEMENT", mode="view")
 def index():
     get_all_groups = get(
         config.Config.FLASK_ENDPOINT + "/api/ldap/groups",
@@ -52,7 +53,6 @@ def index():
 
     return render_template(
         "admin/groups.html",
-        user=session["user"],
         sudoers=session["sudoers"],
         all_groups=sorted(all_groups),
         all_users=sorted(all_users),
@@ -62,6 +62,7 @@ def index():
 @admin_groups.route("/admin/create_group", methods=["POST"])
 @login_required
 @admin_only
+@feature_flag(flag_name="USERS_GROUPS_MANAGEMENT", mode="view")
 def create_group():
     group_name = request.form.get("group_name")
     members = request.form.getlist("members")
@@ -89,6 +90,7 @@ def create_group():
 @admin_groups.route("/admin/delete_group", methods=["POST"])
 @login_required
 @admin_only
+@feature_flag(flag_name="USERS_GROUPS_MANAGEMENT", mode="view")
 def delete_group():
     group = str(request.form.get("group_to_delete"))
     if session["user"] == group:  # user group name is <username>group
@@ -119,6 +121,7 @@ def delete_group():
 @admin_groups.route("/admin/check_group", methods=["POST"])
 @login_required
 @admin_only
+@feature_flag(flag_name="USERS_GROUPS_MANAGEMENT", mode="view")
 def check_group():
     group = str(request.form.get("group"))
     check_group = get(
@@ -148,6 +151,7 @@ def check_group():
 @admin_groups.route("/admin/manage_group", methods=["POST"])
 @login_required
 @admin_only
+@feature_flag(flag_name="USERS_GROUPS_MANAGEMENT", mode="view")
 def manage_group():
     group = request.form.get("group")
     user = request.form.get("user")

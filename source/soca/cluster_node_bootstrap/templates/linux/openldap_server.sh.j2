@@ -13,20 +13,24 @@ function openldap_server_install () {
       packages_install slapd
     fi
 
-     if ! verify_package_installed ldap-utils; then
+    if ! verify_package_installed ldap-utils; then
       log_info "slapd not installed, installing it "
       packages_install ldap-utils
     fi
   {% else %}
     # RedHat based Distro (up to RHEL8)
-      if ! verify_package_installed openldap-servers; then
-        packages_install openldap-servers
-      fi
+    if ! verify_package_installed openldap-servers; then
+      packages_install openldap-servers
+    fi
   {% endif %}
 
-
   systemctl enable slapd
-  systemctl start slapd
+  if ! systemctl start slapd; then
+    log_error "Unable to start slapd"
+  else
+    log_info "Successfully started slapd"
+  fi
+
   local OPENLDAP_SERVICE_ACCOUNT_SECRET=$(get_secret "{{ context.get("/configuration/UserDirectory/service_account_secret_arn") }}")
   local SOCA_LDAP_DOMAIN_NAME="{{ context.get("/configuration/UserDirectory/domain_name") }}"
   local SOCA_LDAP_BASE="{{ context.get("/configuration/UserDirectory/domain_base") }}"
@@ -46,45 +50,98 @@ function openldap_server_install () {
   local ADMIN_LDAP_SERVICE_ACCOUNT_PASSWORD=$(echo ${OPENLDAP_SERVICE_ACCOUNT_SECRET} | jq -r ". | fromjson.password")
   local ADMIN_LDAP_SERVICE_ACCOUNT_PASSWORD_ENCRYPTED=$(/sbin/slappasswd -s "${ADMIN_LDAP_SERVICE_ACCOUNT_PASSWORD}" -h "{SSHA}")
 
+  local OPENLDAP_PATH_PREFIX
+  {% if context.get("/configuration/BaseOS") in ("ubuntu2204", "ubuntu2404") %}
+    OPENLDAP_PATH_PREFIX="/etc/ldap"
+  {% else %}
+    OPENLDAP_PATH_PREFIX="/etc/openldap"
+  {% endif %}
+
+  log_info "Detected OpenLDAP path prefix: ${OPENLDAP_PATH_PREFIX}"
+
   # Note: you can disable ldap:/// by removing the entry below
   log_info "Preparing ldaps:// listener"
-  cp /etc/sysconfig/slapd /etc/sysconfig/slapd.soca.backup
-  sed -i '/^[[:space:]]*SLAPD_URLS=/d' /etc/sysconfig/slapd
-  echo """SLAPD_URLS="ldapi:/// ldap:/// ldaps:///"""" >> /etc/sysconfig/slapd
+  {% if context.get("/configuration/BaseOS") in ("amazonlinux2023") %}
+    log_info "No SLAPD_SERVICES updates needed on AmazonLinux 2023, services ldap:/// ldapi:/// ldaps:/// managed via /usr/lib/systemd/system/slapd.service"
+  
+  {% elif context.get("/configuration/BaseOS") in ("ubuntu2204", "ubuntu2404") %}
+     ATTEMPT=1
+     while [[ ${ATTEMPT} -le 5 ]]; do
+        if cp /etc/default/slapd /etc/default/slapd.soca.backup; then
+            break
+        else
+            log_warning "Unable to access to /etc/default/slapd. Retrying in 15 seconds..."
+            sleep 15
+            if [[ ${ATTEMPT} == 5 ]]; then
+              exit_fail "OpenLDAP - Unable to copy /etc/default/slapd"
+            fi
+            ${ATTEMPT}=$((attempt + 1))
+          fi
+     done
+     sed -i '/^[[:space:]]*SLAPD_SERVICES=/d' /etc/default/slapd
+     echo """SLAPD_SERVICES=\"ldap:/// ldapi:/// ldaps:///\"""" >> /etc/default/slapd
+
+  {% else %}
+     ATTEMPT=1
+     while [[ ${ATTEMPT} -le 5 ]]; do
+        if cp /etc/sysconfig/slapd /etc/sysconfig/slapd.soca.backup; then
+           break
+        else
+            log_warning "Unable to access toetc/sysconfig/slapd. Retrying in 15 seconds..."
+            sleep 15
+            if [[ ${ATTEMPT} == 5 ]]; then
+              exit_fail "OpenLDAP - Unable to copy etc/sysconfig/slapd"
+            fi
+            ${ATTEMPT}=$((attempt + 1))
+          fi
+     done
+     sed -i '/^[[:space:]]*SLAPD_URLS=/d' /etc/sysconfig/slapd
+     echo """SLAPD_URLS="ldapi:/// ldap:/// ldaps:///"""" >> /etc/sysconfig/slapd
+  {% endif %}
 
   log_info "Generate 10y certificate for LDAPs"
+  mkdir -p ${OPENLDAP_PATH_PREFIX}/certs/
+
   openssl req -new -newkey rsa:2048 -days 3650 -nodes -x509 \
       -subj "/CN=${SOCA_LDAP_DOMAIN_NAME}" \
-      -keyout /etc/openldap/certs/soca.key -out /etc/openldap/certs/soca.crt
+      -keyout ${OPENLDAP_PATH_PREFIX}/certs/soca.key -out ${OPENLDAP_PATH_PREFIX}/certs/soca.crt
 
-  chown ldap:ldap /etc/openldap/certs/soca.key /etc/openldap/certs/soca.crt
-  chmod 600 /etc/openldap/certs/soca.key /etc/openldap/certs/soca.crt
+  {% if context.get("/configuration/BaseOS") in ("ubuntu2204", "ubuntu2404") %}
+    chown openldap:openldap ${OPENLDAP_PATH_PREFIX}/certs/soca.key ${OPENLDAP_PATH_PREFIX}/certs/soca.crt
+    chmod 600 ${OPENLDAP_PATH_PREFIX}/certs/soca.key ${OPENLDAP_PATH_PREFIX}/certs/soca.crt
+  {% else %}
+    chown ldap:ldap ${OPENLDAP_PATH_PREFIX}/certs/soca.key ${OPENLDAP_PATH_PREFIX}/certs/soca.crt
+    chmod 600 ${OPENLDAP_PATH_PREFIX}/certs/soca.key ${OPENLDAP_PATH_PREFIX}/certs/soca.crt
+  {% endif %}
 
   {% if context.get("/configuration/BaseOS") in ("amazonlinux2023", "amazonlinux2","centos7", "rhel7", "rhel8", "rhel9", "rocky8", "rocky9")  %}
       log_info "Adding OpenLDAP self-signed certificate to system CA trust store"
-      cp /etc/openldap/certs/soca.crt /etc/pki/ca-trust/source/anchors/
+      cp ${OPENLDAP_PATH_PREFIX}/certs/soca.crt /etc/pki/ca-trust/source/anchors/
       log_info "Updating system CA Trust Store"
       update-ca-trust
   {% endif %}
-  # Create OpenLDAP config
-  {% if context.get("/configuration/BaseOS") == "amazonlinux2023" %}
-    OPEN_LDAP_CONFIG_KEY="{2}mdb"
-  {% else %}
-    OPEN_LDAP_CONFIG_KEY="{2}hdb"
-  {% endif %}
+
+  # Determine whether openldap is using  Hierarchical DB (hdb) - old distro < RHEL8 - or Memory-Mapped DB (mdb), default for new distro
+  local OPEN_LDAP_CONFIG_KEY
+  OPEN_LDAP_CONFIG_KEY=$(ldapsearch -Q -LLL -Y EXTERNAL -H ldapi:/// -b cn=config "(objectClass=olcMdbConfig)" dn | grep ^dn: | awk '{print $2}')
+  if [[ -z "${OPEN_LDAP_CONFIG_KEY}" ]]; then
+    OPEN_LDAP_CONFIG_KEY=$(ldapsearch -Q -LLL -Y EXTERNAL -H ldapi:/// -b cn=config "(objectClass=olcHdbConfig)" dn | grep ^dn: | awk '{print $2}')
+  fi
+
+  log_info "OPEN_LDAP_CONFIG_KEY is ${OPEN_LDAP_CONFIG_KEY}"
 
   echo -e "
-dn: olcDatabase=${OPEN_LDAP_CONFIG_KEY},cn=config
+dn: ${OPEN_LDAP_CONFIG_KEY}
 changetype: modify
 replace: olcSuffix
 olcSuffix: ${SOCA_LDAP_BASE}
 
-dn: olcDatabase=${OPEN_LDAP_CONFIG_KEY},cn=config
+dn: ${OPEN_LDAP_CONFIG_KEY}
 changetype: modify
 replace: olcRootDN
 olcRootDN: ${ADMIN_LDAP_SERVICE_ACCOUNT_DN}
 
-dn: olcDatabase=${OPEN_LDAP_CONFIG_KEY},cn=config
+dn: ${OPEN_LDAP_CONFIG_KEY}
 changetype: modify
 replace: olcRootPW
 olcRootPW: ${ADMIN_LDAP_SERVICE_ACCOUNT_PASSWORD_ENCRYPTED}" > db.ldif
@@ -93,16 +150,16 @@ olcRootPW: ${ADMIN_LDAP_SERVICE_ACCOUNT_PASSWORD_ENCRYPTED}" > db.ldif
 dn: cn=config
 changetype: modify
 replace: olcTLSCertificateFile
-olcTLSCertificateFile: /etc/openldap/certs/soca.crt
+olcTLSCertificateFile: ${OPENLDAP_PATH_PREFIX}/certs/soca.crt
 -
 replace: olcTLSCertificateKeyFile
-olcTLSCertificateKeyFile: /etc/openldap/certs/soca.key
+olcTLSCertificateKeyFile: ${OPENLDAP_PATH_PREFIX}/certs/soca.key
 -
 replace: olcTLSCACertificateFile
-olcTLSCACertificateFile: /etc/openldap/certs/soca.crt" > add_tls.ldif
+olcTLSCACertificateFile: ${OPENLDAP_PATH_PREFIX}/certs/soca.crt" > add_tls.ldif
 
   echo -e "
-dn: olcDatabase=${OPEN_LDAP_CONFIG_KEY},cn=config
+dn: ${OPEN_LDAP_CONFIG_KEY}
 changetype: modify
 replace: olcAccess
 olcAccess: {0}to attrs=userPassword by self write by anonymous auth by group.exact="ou=admins,${SOCA_LDAP_BASE}" write by * none
@@ -127,9 +184,27 @@ olcObjectClasses: ( 1.3.6.1.4.1.15953.9.2.1 NAME 'sudoRole' SUP top STRUCTURAL D
   /bin/ldapmodify -Y EXTERNAL -H ldapi:/// -f add_tls.ldif
   /bin/ldapmodify -Y EXTERNAL -H ldapi:/// -f change_user_password.ldif
   /bin/ldapadd -Y EXTERNAL -H ldapi:/// -f sudoers.ldif
-  /bin/ldapadd -Y EXTERNAL -H ldapi:/// -f /etc/openldap/schema/cosine.ldif
-  /bin/ldapadd -Y EXTERNAL -H ldapi:/// -f /etc/openldap/schema/nis.ldif
-  /bin/ldapadd -Y EXTERNAL -H ldapi:/// -f /etc/openldap/schema/inetorgperson.ldif
+
+  if ! ldapsearch -Y EXTERNAL -H ldapi:/// -b cn=schema,cn=config -LLL cn | grep -E "cn: \{?[0-9]*\}?cosine"; then
+    log_info "${OPENLDAP_PATH_PREFIX}/schema/cosine.ldif schema not found on openldap, adding it"
+    /bin/ldapadd -Y EXTERNAL -H ldapi:/// -f ${OPENLDAP_PATH_PREFIX}/schema/cosine.ldif
+  else
+    log_info "${OPENLDAP_PATH_PREFIX}/schema/cosine.ldif schema already there, skipping"
+  fi
+
+  if ! ldapsearch -Y EXTERNAL -H ldapi:/// -b cn=schema,cn=config -LLL cn | grep -E "cn: \{?[0-9]*\}?nis"; then
+    log_info "${OPENLDAP_PATH_PREFIX}/schema/nis.ldif schema not found on openldap, adding it"
+    /bin/ldapadd -Y EXTERNAL -H ldapi:/// -f ${OPENLDAP_PATH_PREFIX}/schema/nis.ldif
+  else
+    log_info "${OPENLDAP_PATH_PREFIX}/schema/nis.ldif schema already there, skipping"
+  fi
+
+  if ! ldapsearch -Y EXTERNAL -H ldapi:/// -b cn=schema,cn=config -LLL cn | grep -E "cn: \{?[0-9]*\}?inetorgperson"; then
+    log_info "${OPENLDAP_PATH_PREFIX}/schema/inetorgperson.ldif schema not found on openldap, adding it"
+    /bin/ldapadd -Y EXTERNAL -H ldapi:/// -f ${OPENLDAP_PATH_PREFIX}/schema/inetorgperson.ldif
+  else
+    log_info "${OPENLDAP_PATH_PREFIX}/schema/inetorgperson.ldif schema already there, skipping"
+  fi
 
   log_info "Creating SOCA OpenLDAP base"
   echo -e "
@@ -163,9 +238,26 @@ ou: ${SOCA_LDAP_ADMIN_OU_NAME}
 
   /bin/ldapadd -x -w "${ADMIN_LDAP_SERVICE_ACCOUNT_PASSWORD}" -D "${ADMIN_LDAP_SERVICE_ACCOUNT_DN}" -f base.ldif
 
-  authconfig --enablesssd \
+  log_info "Performing Authconfig adjustments"
+  {% if context.get("/configuration/BaseOS") in ("centos7", "rhel7", "amazonlinux2")  %}
+    authconfig --disablesssd \
+      --disablesssdauth \
+      --disableldap \
+      --disableldapauth \
+      --disablekrb5 \
+      --disablekrb5kdcdns \
+      --disablekrb5realmdns \
+      --disablewinbind \
+      --disablewinbindauth \
+      --disablewinbindkrb5 \
+      --disableldaptls \
+      --disablerfc2307bis \
+      --updateall
+    sss_cache -E
+    authconfig --enablesssd \
       --enablesssdauth \
       --enableldap \
+      --enableldaptls \
       --enableldapauth \
       --ldapserver="${SOCA_LDAP_ENDPOINT}" \
       --ldapbasedn="${SOCA_LDAP_BASE}" \
@@ -173,6 +265,14 @@ ou: ${SOCA_LDAP_ADMIN_OU_NAME}
       --enablemkhomedir \
       --enablecachecreds \
       --updateall
+  {% else %}
+    # It doesn't seem like authselect is necessary on Ubuntu
+    # If it is, TODO: Install authselect from source
+ 
+    # authselect is authconfig replacement for newer distro
+    # mkdir -p /etc/authselect
+    # authselect select sssd with-mkhomedir --force
+  {% endif %}
 
   echo "sudoers: files sss" >> /etc/nsswitch.conf
 
@@ -191,7 +291,7 @@ ldap_sudo_search_base = ${SOCA_LDAP_ADMIN_SEARCH_BASE}
 ldap_uri = ${SOCA_LDAP_ENDPOINT}
 ldap_id_use_start_tls = True
 use_fully_qualified_names = False
-ldap_tls_cacertdir = /etc/openldap/certs/
+ldap_tls_cacertdir = ${OPENLDAP_PATH_PREFIX}/certs/
 ldap_sudo_full_refresh_interval=86400
 ldap_sudo_smart_refresh_interval=3600
 
@@ -220,16 +320,24 @@ homedir_substring = /data/home
   chmod 600 /etc/sssd/sssd.conf
 
   log_info "Disable TLS Cert Checking enforcement to allow self-signed certificate"
-  sed -i '/^[[:space:]]*TLS_REQCERT/d' /etc/openldap/ldap.conf
-  cp /etc/openldap/ldap.conf /etc/openldap/ldap.conf.soca.backup
-  echo "TLS_REQCERT never" >> /etc/openldap/ldap.conf
+  sed -i '/^[[:space:]]*TLS_REQCERT/d' ${OPENLDAP_PATH_PREFIX}/ldap.conf
+  cp ${OPENLDAP_PATH_PREFIX}/ldap.conf ${OPENLDAP_PATH_PREFIX}/ldap.conf.soca.backup
+  echo "TLS_REQCERT never" >> ${OPENLDAP_PATH_PREFIX}/ldap.conf
 
   log_info "Enabling and Restarting sssd/slapd"
   systemctl enable sssd
   systemctl enable slapd
+  systemctl stop sssd
+  systemctl stop slapd
   sleep 5
-  systemctl restart sssd
-  systemctl restart slapd
+  if ! systemctl start slapd; then
+    exit_fail "Unable to start OpenLDAP"
+  fi
+
+  if ! systemctl start sssd; then
+    exit_fail "Unable to start sssd"
+  fi 
+
   popd
 }
 openldap_server_install

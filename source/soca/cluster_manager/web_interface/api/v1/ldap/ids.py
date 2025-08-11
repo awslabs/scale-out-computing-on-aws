@@ -30,17 +30,83 @@ class Ids(Resource):
     @admin_api
     def get(self):
         """
-        Return available Linux UID/GID numbers
+        Get available UID/GID numbers
         ---
+        openapi: 3.1.0
+        operationId: getLdapIds
         tags:
           - LDAP management
+        summary: Get available UID/GID numbers
+        description: Retrieve lists of used UID/GID numbers and get proposed available numbers for new user/group creation
+        security:
+          - socaAuth: []
         responses:
-          200:
-            description: Return list of UID/GID
-          500:
-            description: Unable to contact LDAP server
-          501:
-           description: Unknown error (followed by trace)
+          '200':
+            description: Successfully retrieved UID/GID information
+            content:
+              application/json:
+                schema:
+                  type: object
+                  properties:
+                    success:
+                      type: boolean
+                      example: true
+                    message:
+                      type: object
+                      properties:
+                        proposed_uid:
+                          type: integer
+                          description: Suggested available UID for new user
+                          minimum: 5001
+                          maximum: 65533
+                          example: 5001
+                        proposed_gid:
+                          type: integer
+                          description: Suggested available GID for new group
+                          minimum: 5001
+                          maximum: 65533
+                          example: 5001
+                        uid_in_use:
+                          type: array
+                          items:
+                            type: integer
+                            minimum: 1000
+                            maximum: 65533
+                          description: List of currently used UIDs
+                          example: [1000, 1001, 1002]
+                        gid_in_use:
+                          type: array
+                          items:
+                            type: integer
+                            minimum: 1000
+                            maximum: 65533
+                          description: List of currently used GIDs
+                          example: [1000, 1001, 1002]
+          '500':
+            description: Unable to contact LDAP server or lookup failed
+            content:
+              application/json:
+                schema:
+                  type: object
+                  properties:
+                    success:
+                      type: boolean
+                      example: false
+                    message:
+                      type: string
+                      example: "Unable to lookup uidNumber"
+        components:
+          securitySchemes:
+            socaAuth:
+              type: apiKey
+              in: header
+              name: X-SOCA-USER
+              description: SOCA username for authentication
+            socaToken:
+              type: apiKey
+              in: header
+              name: X-SOCA-TOKEN
+              description: SOCA authentication token
         """
         if config.Config.DIRECTORY_AUTH_PROVIDER in ["openldap", "existing_openldap"]:
             _user_filter = "objectClass=person"

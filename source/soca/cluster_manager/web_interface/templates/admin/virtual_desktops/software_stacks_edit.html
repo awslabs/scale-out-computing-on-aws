@@ -86,7 +86,7 @@
                                                        for="virtual_desktop_profile_id">Profile associated to this stack</label>
                                                 <select class="form-control" required id="virtual_desktop_profile_id" name="virtual_desktop_profile_id">
                                                    {% for profile_id, profile_info in profiles.items() %}
-                                                    <option value="{{profile_id}}" {% if profile_id == software_stack_info.virtual_desktop_profile_id %} selected {% endif %}> {{ profile_info.profile_name }}</option>
+                                                    <option value="{{profile_id}}" {% if profile_id|int == software_stack_info.virtual_desktop_profile_id %} selected {% endif %}> {{ profile_info.profile_name }}</option>
                                                  {% endfor %}
                                                 </select>
                                              </div>

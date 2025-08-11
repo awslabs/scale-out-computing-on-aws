@@ -1,0 +1,253 @@
+<!--
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: Apache-2.0
+-->
+
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    {% include 'common/header.html' %}
+</head>
+<body id="page-top">
+<div id="wrapper">
+    {% include 'common/monaco_editor.html' %}
+    {% include 'common/vertical_menu_bar.html' %}
+    <div id="content-wrapper" class="d-flex flex-column">
+        <div id="content">
+            <br>
+            <div class="container-fluid">
+                {% include 'common/horizontal_menu_bar.html' %}
+                {% include 'common/flashed_messages.html' %}
+
+                <div class="col-md-12">
+                    <nav>
+                        <div class="nav nav-tabs" id="nav-tab" role="tablist">
+                            <a class="nav-item nav-link active" id="nav-home-tab" data-bs-toggle="tab" href="#nav-add"
+                               role="tab" aria-controls="nav-home" aria-selected="true">Create User Data template</a>
+                            <a class="nav-item nav-link" id="nav-profile-tab" data-bs-toggle="tab" href="#nav-manage"
+                               role="tab" aria-controls="nav-delete" aria-selected="false">Manage User Data template</a>
+                        </div>
+                    </nav>
+
+                    <div class="tab-content" id="nav-tabContent">
+                        <div class="tab-pane fade show active" id="nav-add" role="tabpanel"
+                             aria-labelledby="nav-home-tab">
+                            <br>
+                            <div class="card shadow mb-4">
+                                <div class="card-header py-3">
+                                    <h6 class="m-0 font-weight-bold text-primary">Create a new User Data Template</h6>
+                                </div>
+                                    <div class="card-body">
+                                        <div class="alert alert-primary">
+                                           User-Data templates are assigned to SOCA Target Nodes
+                                        </div>
+
+                                        <form id="create-new-template" action="/admin/target_nodes/user_data/create" method="post">
+                                            <div class="form-group">
+                                                <label for="template_name" data-toggle="tooltip" data-placement="top"
+                                                       title="Name for your user data template">User Data Template Name</label>
+                                                <input id="template_name" placeholder="Friendly name for your User Data template"
+                                                       class="form-control"
+                                                       type="text"
+                                                       required name="template_name">
+                                            </div>
+
+                                            <div class="form-group">
+                                                <label for="description" data-toggle="tooltip" data-placement="top"
+                                                       title="Description of your Project"> Description
+                                                </label>
+                                                <textarea id="description" placeholder="(Optional) Description for your template, maximum 500 characters."
+                                                          class="form-control" rows="3"  name="description"></textarea>
+                                            </div>
+
+
+
+                                                <div class="alert alert-warning">
+                                                    <h5> Important Info about your User Data</h5>
+
+                                                    <ul>
+                                                        <li>User data script is operating system-specific: Linux requires a Bash script, while Windows expects a PowerShell script. </li>
+                                                        <li>For Linux user data, we recommend starting the script with: <code>#!/bin/bash</code></li>
+                                                        <li>For Windows user data, we recommend starting the script with: <code>&lt;powershell&gt;</code> and close it with <code>&lt;/powershell&gt;</code></li>
+                                                        <li><a href="https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/user-data.html" target="_blank">User data is limited to 16 KB</a></li>
+                                                        <li>User data supports <a href="https://jinja.palletsprojects.com/en/stable/" target="_blank">Jinja templating</a></li>
+                                                    </ul>
+
+
+                                                    <h5>Supported variables (case-sensitive)</h5>
+                                                    <ul>
+                                                        <li>
+                                                        <kbd>{%raw%}{{ SOCA_USER }}{%endraw%}</kbd> Name of the current SOCA user requesting the target node
+                                                        </li>
+                                                        <li>
+                                                        <kbd>{%raw%}{{ SOCA_USER_PUBLIC_KEYS }}{%endraw%}</kbd> Return a list where each item is the value of one public key assigned to the user (id_rsa.pub, id_edcsa.pub etc ...).
+                                                        </li>
+                                                    </ul>
+                                                    <h5>
+                                                        Additional variables (case-sensitive)
+                                                    </h5>
+                                                    Additional variables can be defined on the <a href="/admin/target_nodes/software_stacks" target="_blank"> Software Stack</a> associated to this user data template. Variables can be retrieved via <kbd>{%raw%}{{ VARIABLE_NAME }}{%endraw%}</kbd> syntax. <br>
+                                                    For example, {%raw%} <code>{{ MY_TEST_VARIABLE }}</code> on your user data {%endraw%} will automatically be replaced with "test123" if you configure <code>MY_TEST_VARIABLE=test123</code> on the Software Stack associated to this User Data.
+
+                                                </div>
+
+                                            <div class="form-group">
+                                                <label for="text-editor" data-toggle="tooltip" data-placement="top"
+                                                       title="User Data to be executed on the EC2 host"> User Data
+                                                </label>
+                                                <div id="text-editor" style="width:100%;height:500px;border:1px solid">
+
+                                                </div>
+                                                <input type="hidden" name="user_data" id="user_data">
+
+                                            </div>
+
+
+                                            <div>
+                                                <input type="hidden" name="csrf_token"
+                                                       value="{{ csrf_token() }}">
+                                                <button type="submit" class="btn btn-primary btn-lg">Create new User Data Template
+                                                </button>
+                                            </div>
+                                        </form>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="tab-pane fade" id="nav-manage" role="tabpanel" aria-labelledby="nav-profile-tab">
+                                <br>
+                                <div class="card shadow mb-4">
+                                    <div class="card-header py-3">
+                                        <h6 class="m-0 font-weight-bold text-primary">Manage User Data Templates</h6>
+                                    </div>
+                                    <div class="card-body">
+                                        <div class="row">
+                                        {% if user_data_templates %}
+                                            <div class="col-md-5">
+                                            <form id="projectForm" action="/admin/target_nodes/user_data/delete" method="post">
+                                                <div class="form-group">
+                                                    <select class="form-control" id="template_id" name="template_id">
+                                                    {% for key, values in user_data_templates.items() %}
+                                                        <option value="{{key}}"
+                                                                data-soca-associated-software-stacks="{{values.target_node_software_stacks | map(attribute='id') | join(',') }}"
+                                                                data-soca-created-on="{{values.created_on}}"
+                                                                data-soca-created-by="{{values.created_by}}"
+                                                                data-soca-description="{{values.description}}"> ID: {{key}} - {{values.template_name}}</option>
+                                                    {% endfor %}
+                                                    </select>
+
+                                                </div>
+                                                <div class="form-group form-check">
+                                                    <input type="checkbox" class="form-check-input" name="verif" id="verif"
+                                                           required>
+                                                    <label class="form-check-label" for="verif">I am sure I want to
+                                                        delete this User Data Template from SOCA</label>
+                                                </div>
+                                                <div class="d-flex justify-content-center">
+                                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                                    <button type="submit" class="btn btn-danger btn-lg mr-2">Delete User Data Template</button>
+                                                    <button type="button" class="btn btn-primary btn-lg" onclick="submitEditForm()">Edit User Data Template</button>
+
+                                                </div>
+                                            </form>
+                                                </div>
+                                            <div class="col-md-7">
+                                                 <div id="UserDataTemplateInfo">
+                                                     Select a User Data Template to see details.
+                                                    </div>
+                                            </div>
+                                        {% else %}
+                                            No User Data Template Found
+                                        {% endif %}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    <a class="scroll-to-top rounded" href="#page-top">
+                        <i class="fas fa-angle-up"></i>
+                    </a>
+
+                {% include 'common/footer.html' %}
+                <script>
+                    $(document).ready(function () {
+                        // enable tooltip
+                        $(function () {
+                            $('[data-toggle="tooltip"]').tooltip()
+                        })
+                    })
+                </script>
+
+
+                    <script>
+
+    require(['vs/editor/editor.main'], function () {
+      window.fileeditor = monaco.editor.create(document.getElementById("text-editor"), {
+    value: `#!/bin/bash
+{% raw %}
+# This template supports Jinja Template - https://jinja.palletsprojects.com/en/stable/
+# See simple example below where we will add a copy of the SOCA user into the remote target node and enable SSH access
+
+echo "Create local SOCA user"
+adduser {{ SOCA_USER }}
+mkdir -p /home/{{SOCA_USER}}/.ssh
+echo "Copy public key from SOCA user to the new host"
+{% for pubkey in SOCA_USER_PUBLIC_KEYS %}
+echo {{pubkey}} >> /home/{{SOCA_USER}}/.ssh/authorized_keys
+{% endfor %}
+
+echo "Apply correct permissions to user's home as well as .sash folder"
+chown -R {{SOCA_USER}}:{{SOCA_USER}} /home/{{SOCA_USER}}
+chmod 700 /home/{{SOCA_USER}}/.ssh/authorized_keys
+chmod 700 /home/{{SOCA_USER}}/.ssh
+
+echo "Granting SOCA user SUDO passwordless on the system"
+echo {{SOCA_USER}} ALL=(ALL) NOPASSWD: ALL
+
+# User can now run 'ssh IP_OF_THE_TARGET_NODE' from a login node / hpc node or virtual desktop node
+
+# You can define your own variables:
+# For example, {{ MY_TEST_VARIABLE }} will automatically be replaced with "test123" if you configure MY_TEST_VARIABLE=test123 on the Software Stack associated to this User Data
+{% endraw %}`,
+    language: "shell"
+});
+         document.getElementById('create-new-template').addEventListener('submit', function () {
+        const userData = window.fileeditor.getValue();
+        document.getElementById('user_data').value = userData;
+    });
+    });
+                    </script>
+
+                    <script>
+                         function submitEditForm() {
+                            let form = document.getElementById('projectForm');
+                            form.action = "/admin/target_nodes/user_data/edit";
+                            form.submit();
+                        }
+
+                        function updateUserDataTemplateInfo() {
+                        var selectElement = document.getElementById("template_id");
+                        var selectedOption = selectElement.options[selectElement.selectedIndex];
+
+                        document.getElementById("UserDataTemplateInfo").innerHTML =
+                            "<h3>User Data Template Details:</h3> <hr>" +
+                            "<strong>Description:</strong> " + selectedOption.getAttribute("data-soca-description") +
+                            "<br><strong>Associated <a href='/admin/target_nodes/software_stacks' target='_blank'>Target Node Software Stacks</a>:</strong> " + selectedOption.getAttribute("data-soca-associated-software-stacks") +
+                            "<br><strong>Created By:</strong> " + selectedOption.getAttribute("data-soca-created-by") +
+                            "<br><strong>Created On</strong> " + selectedOption.getAttribute("data-soca-created-on");
+                        }
+
+                        document.addEventListener("DOMContentLoaded", function() {
+                            updateUserDataTemplateInfo(); // Call the function on page load
+                            document.getElementById("template_id").addEventListener("change", updateUserDataTemplateInfo);
+                        });
+
+                    </script>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+</body>
+</html>

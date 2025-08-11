@@ -15,11 +15,14 @@ from flask_restful import Resource, reqparse
 from flask import request
 import logging
 from datetime import datetime, timezone
-from decorators import private_api
+from decorators import private_api, feature_flag
 from models import db, VirtualDesktopSessions
 import utils.aws.boto3_wrapper as utils_boto3
+import utils.aws.odcr_helper as odcr_helper
 from utils.response import SocaResponse
 from utils.error import SocaError
+from utils.aws.ssm_parameter_store import SocaConfig
+
 
 logger = logging.getLogger("soca_logger")
 client_ec2 = utils_boto3.get_boto(service_name="ec2").message
@@ -28,35 +31,99 @@ client_cfn = utils_boto3.get_boto(service_name="cloudformation").message
 
 class StopVirtualDesktop(Resource):
     @private_api
+    @feature_flag(flag_name="VIRTUAL_DESKTOPS", mode="api")
     def put(self):
         """
         Stop/Hibernate a DCV desktop session
         ---
+        openapi: 3.1.0
+        operationId: stopVirtualDesktop
         tags:
-          - DCV
-
+          - Virtual Desktops
+        summary: Stop virtual desktop
+        description: Stop or hibernate a DCV virtual desktop session, automatically detecting hibernation capability
         parameters:
-          - in: body
-            name: body
+          - in: header
+            name: X-SOCA-USER
+            required: true
             schema:
-              required:
-                - os
-              properties:
-                session_number:
-                  type: string
-                  description: Session Number
-                action:
-                  type: string
-                  description: Stop/Hibernate or Terminate
-                os:
-                  type: string
-                  description: DCV session type (Windows or Linux)
-
+              type: string
+              example: "john.doe"
+            description: SOCA username for authentication
+          - in: header
+            name: X-SOCA-TOKEN
+            required: true
+            schema:
+              type: string
+              example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+            description: SOCA authentication token
+        requestBody:
+          required: true
+          content:
+            application/x-www-form-urlencoded:
+              schema:
+                type: object
+                required:
+                  - session_uuid
+                properties:
+                  session_uuid:
+                    type: string
+                    format: uuid
+                    description: UUID of the virtual desktop session to stop
+                    example: "12345678-1234-1234-1234-123456789012"
         responses:
-          200:
-            description: Pair of user/token is valid
-          401:
-            description: Invalid user/token pair
+          '200':
+            description: Desktop stop/hibernate initiated successfully
+            content:
+              application/json:
+                schema:
+                  type: object
+                  properties:
+                    success:
+                      type: boolean
+                      example: true
+                    message:
+                      type: string
+                      example: "Your desktop will be stopped soon."
+          '400':
+            description: Missing required parameter
+            content:
+              application/json:
+                schema:
+                  type: object
+                  properties:
+                    success:
+                      type: boolean
+                      example: false
+                    message:
+                      type: string
+                      example: "Missing required parameter: session_uuid"
+          '401':
+            description: Session not found or already stopped
+            content:
+              application/json:
+                schema:
+                  type: object
+                  properties:
+                    success:
+                      type: boolean
+                      example: false
+                    message:
+                      type: string
+                      example: "Your desktop is already stopped."
+          '500':
+            description: Failed to stop desktop
+            content:
+              application/json:
+                schema:
+                  type: object
+                  properties:
+                    success:
+                      type: boolean
+                      example: false
+                    message:
+                      type: string
+                      example: "Unable to stop/hibernate instance"
         """
         parser = reqparse.RequestParser()
         parser.add_argument("session_uuid", type=str, location="form")
@@ -110,6 +177,17 @@ class StopVirtualDesktop(Resource):
             logger.info(
                 f"About to stop/hibernate the instance. _hibernate_enabled flag {_hibernate_enabled}"
             )
+            if (
+                SocaConfig(key="/configuration/FeatureFlags/EnableCapacityReservation")
+                .get_value(return_as=bool)
+                .get("message")
+                is True
+            ):
+                logger.info("Releasing ODCR associated to this cloudformation stack")
+                odcr_helper.cancel_capacity_reservation_by_stack(
+                    stack_name=_check_session.stack_name
+                )
+
             try:
                 client_ec2.stop_instances(
                     InstanceIds=[_instance_id], Hibernate=_hibernate_enabled
@@ -123,7 +201,9 @@ class StopVirtualDesktop(Resource):
 
             try:
                 _check_session.session_state = "stopped"
-                _check_session.session_state_latest_change_time = datetime.now(timezone.utc)
+                _check_session.session_state_latest_change_time = datetime.now(
+                    timezone.utc
+                )
                 db.session.commit()
             except Exception as err:
                 return SocaError.DB_ERROR(

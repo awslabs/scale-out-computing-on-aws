@@ -1,0 +1,1257 @@
+<!-- Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+ SPDX-License-Identifier: Apache-2.0 -->
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    {% include 'common/header.html' %}
+</head>
+
+<body id="page-top">
+    <div id="wrapper">
+        {% include 'common/vertical_menu_bar.html' %}
+        <div id="content-wrapper" class="d-flex flex-column">
+            <div id="content">
+                <br>
+                <div class="container-fluid">
+                    {% include 'common/horizontal_menu_bar.html' %}
+                    {% include 'common/flashed_messages.html' %}
+                    <div class="card shadow mb-4">
+                        <div class="card-header py-3 d-flex justify-content-between align-items-center">
+                            <h6 class="m-0 font-weight-bold text-primary">Your Target Nodes</h6>
+
+                            <div class="d-flex ms-auto align-items-center">
+
+                                <div id="selectedCardsToDisplay" class="btn-group btn-group-toggle mr-3" data-toggle="buttons">
+                                    <label class="btn btn-outline-primary active">
+                                        <input type="radio" name="options" id="all" value="all" autocomplete="off" checked onchange="displayCards(this.value)"> All
+                                    </label>
+                                    <label class="btn btn-outline-primary">
+                                        <input type="radio" name="options" id="windows" value="windows" autocomplete="off" onchange="displayCards(this.value)"> Windows
+                                    </label>
+                                    <label class="btn btn-outline-primary">
+                                        <input type="radio" name="options" id="linux" value="linux" autocomplete="off" onchange="displayCards(this.value)"> Linux
+                                    </label>
+                                </div>
+
+                                <button type="button" class="btn btn-success" data-bs-toggle="modal" data-bs-target="#launchNewTargetNodeModal">
+                                    Launch a New Target Node
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="card-body">
+                            {% set CURRENT_SESSION_COUNT = user_sessions | length %}
+                                {% if not user_sessions %}
+                                <p class="card-text">
+                                    <div class="text-center">
+                                        <p class="m-0">
+                                            You do not have a target node yet. Create one by clicking the button above.
+                                        </p>
+                                    </div>
+                                </p>
+                                {% else %}
+                                <div class="row">
+                                    {% for session_data in user_sessions.values() %}
+                                        {% set TARGET_NODE_CARD_UUID = 'TargetNodeUserSessionCard-' ~ session_data.session_uuid ~ '-'%}
+
+                                      <div class="col-sm-4 mb-3" id="{{TARGET_NODE_CARD_UUID}}" data-soca-state="{{session_data.session_state}}" data-soca-uuid="{{session_data.session_uuid}}" data-soca-instance-os-family="{{ session_data.os_family }}">
+                                        <div class="card shadow h-100">
+                                            <!-- card header -->
+                                            {% if session_data.session_state == 'pending' %}
+                                            {% set DISPLAY_MODALS = ["terminate", "details", "schedule"] %}
+                                                <h5 class="card-header d-flex justify-content-between" style="display: flex; align-items: center; justify-content: space-between">
+                                                    {% if session_data.os_family == "windows" %}
+                                                    <i class="fa-brands fa-windows"> </i>
+                                                    {% else %}
+                                                    <i class="fa-brands fa-linux"> </i>
+                                                    {% endif %}
+                                                    {{ session_data.session_name }}
+                                                        <div class="dropdown">
+                                                            <button class="btn dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                                                              <i class="fa-solid fa-bars"></i>
+                                                            </button>
+                                                            <ul class="dropdown-menu">
+                                                              <li>
+                                                                  <a class="dropdown-item" style="color: #b3bcc5 !important;" data-toggle="tooltip" data-placement="top" title="Your target node is being created"><i class="fa-solid fa-play"></i> Start Target Node</a>
+                                                                  <a class="dropdown-item" style="color: #b3bcc5 !important;" data-toggle="tooltip" data-placement="top" title="Your target node is not running yet"><i class="fa-solid fa-pause"></i> Pause Target Node</a>
+                                                                  <a class="dropdown-item" style="color: #b3bcc5 !important;" data-toggle="tooltip" data-placement="top" title="You must first stop your target node"><i class="fa-solid fa-arrows-up-down-left-right"></i> Resize Target Node</a>
+                                                                  <a class="dropdown-item" style="cursor: pointer" data-bs-toggle="modal" data-bs-target="#terminate-{{ TARGET_NODE_CARD_UUID }}"><i class="fa-solid fa-trash-can"></i> Delete Target Node</a>
+                                                                  <li><hr class="dropdown-divider"></li>
+                                                                  <a class="dropdown-item" style="cursor: pointer" data-bs-toggle="modal" data-bs-target="#schedule-{{ TARGET_NODE_CARD_UUID }}"><i class="fa-regular fa-clock"></i> Schedule</a>
+                                                                  <a class="dropdown-item" style="cursor: pointer" data-bs-toggle="modal" data-bs-target="#details-{{ TARGET_NODE_CARD_UUID }}"><i class="fa-solid fa-magnifying-glass"></i> View Details</a>
+                                                              </li>
+                                                            </ul>
+                                                          </div>
+                                                </h5>
+                                            {% elif session_data.session_state == 'stopped' %}
+                                                {% set DISPLAY_MODALS = ["terminate", "details", "start", "modify", "schedule"] %}
+                                                <h5 class="card-header d-flex justify-content-between" style="display: flex; align-items: center; justify-content: space-between">
+                                                    {% if session_data.os_family == "windows" %}
+                                                    <i class="fa-brands fa-windows"> </i>
+                                                    {% else %}
+                                                    <i class="fa-brands fa-linux"> </i>
+                                                    {% endif %}
+                                                    {{ session_data.session_name }}
+                                                    <div class="dropdown">
+                                                        <button class="btn dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                                                          <i class="fa-solid fa-bars"></i>
+                                                        </button>
+                                                        <ul class="dropdown-menu">
+                                                          <li>
+                                                              <a class="dropdown-item" style="cursor: pointer" href="/target_nodes/start?session_uuid={{session_data.session_uuid}}"><i class="fa-solid fa-play"></i> Start Target Node</a>
+                                                              <a class="dropdown-item" style="color: #b3bcc5 !important;" data-toggle="tooltip" data-placement="top" title="Your target node is already stopped"><i class="fa-solid fa-pause"></i> Pause Target Node</a>
+                                                              <a class="dropdown-item" style="cursor: pointer" data-bs-toggle="modal" data-bs-target="#modify-{{ TARGET_NODE_CARD_UUID }}"><i class="fa-solid fa-arrows-up-down-left-right"></i> Resize Target Node Instance</a>
+                                                              <a class="dropdown-item" style="cursor: pointer" data-bs-toggle="modal" data-bs-target="#terminate-{{ TARGET_NODE_CARD_UUID }}"><i class="fa-solid fa-trash-can"></i> Delete Target Node</a>
+                                                              <li><hr class="dropdown-divider"></li>
+                                                              <a class="dropdown-item" style="cursor: pointer" data-bs-toggle="modal" data-bs-target="#schedule-{{ TARGET_NODE_CARD_UUID }}"><i class="fa-regular fa-clock"></i> Schedule</a>
+                                                              <a class="dropdown-item" style="cursor: pointer" data-bs-toggle="modal" data-bs-target="#details-{{ TARGET_NODE_CARD_UUID }}"><i class="fa-solid fa-magnifying-glass"></i> View Details</a>
+                                                          </li>
+                                                        </ul>
+                                                      </div>
+                                                </h5>
+                                            {% elif session_data.session_state in ['error', 'running'] %}
+                                                {% set DISPLAY_MODALS = ["terminate", "details", "stop", "schedule"] %}
+                                                <h5 class="card-header d-flex justify-content-between" style="display: flex;align-items: center;justify-content: space-between">
+                                                    {% if session_data.os_family == "windows" %}
+                                                    <i class="fa-brands fa-windows"> </i>
+                                                    {% else %}
+                                                    <i class="fa-brands fa-linux"> </i>
+                                                    {% endif %}
+                                                    {{ session_data.session_name }}
+                                                    <div class="dropdown">
+                                                        <button class="btn dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                                                          <i class="fa-solid fa-bars"></i>
+                                                        </button>
+                                                        <ul class="dropdown-menu">
+                                                          <li>
+                                                              <a class="dropdown-item" style="color: #b3bcc5 !important;" data-toggle="tooltip" data-placement="top" title="Your target node is already running"><i class="fa-solid fa-play"></i> Start Target Node</a>
+                                                              <a class="dropdown-item" style="cursor: pointer" data-bs-toggle="modal" data-bs-target="#stop-{{ TARGET_NODE_CARD_UUID }}"><i class="fa-solid fa-pause"></i> Pause Target Node</a>
+                                                              <a class="dropdown-item" style="color: #b3bcc5 !important;" data-toggle="tooltip" data-placement="top" title="You must first pause your target node"><i class="fa-solid fa-arrows-up-down-left-right"></i> Resize Target Node Instance</a>
+                                                              <a class="dropdown-item" style="cursor: pointer" data-bs-toggle="modal" data-bs-target="#terminate-{{ TARGET_NODE_CARD_UUID }}"><i class="fa-solid fa-trash-can"></i> Delete Target Node</a>
+                                                              <li><hr class="dropdown-divider"></li>
+                                                              <a class="dropdown-item" style="cursor: pointer" data-bs-toggle="modal" data-bs-target="#schedule-{{ TARGET_NODE_CARD_UUID }}"><i class="fa-regular fa-clock"></i> Schedule</a>
+                                                              <a class="dropdown-item" style="cursor: pointer" data-bs-toggle="modal" data-bs-target="#details-{{ TARGET_NODE_CARD_UUID }}"><i class="fa-solid fa-magnifying-glass"></i> View Details</a>
+                                                          </li>
+                                                        </ul>
+                                                      </div>
+                                                </h5>
+                                            {% endif %}
+
+                                             <div style="display: flex; justify-content: center;">
+                                                 {% if session_data.session_state == 'running' %}
+                                                 <a target="_blank" rel="noopener,noreferrer" href="{{ session_data.connection_string }}">
+                                                    <img src="{{ session_data.session_thumbnail}}" class="card-img-top mb-3" style="height: 150px; object-fit: contain;">
+                                                 </a>
+                                                 {% else %}
+                                                    <img src="{{ session_data.session_thumbnail}}" class="card-img-top mb-3" style="height: 150px; object-fit: contain;">
+                                                 {% endif %}
+
+                                             </div>
+                                            <!-- /card header -->
+
+                                            <!-- card body -->
+                                            {% if session_data.session_state == 'pending' %}
+                                            <div class="card-body p-0">
+                                                <div class="alert alert-warning m-0 rounded-0 w-100 h-100" role="alert">
+                                                    <div class="text-center">
+                                                        <i class="fa-solid fa-3x fa-hourglass-half"></i>
+                                                        <p class="m-0">
+                                                            <br>
+                                                            Please wait, your session is starting and will be ready soon.
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            {% elif session_data.session_state == 'stopped' %}
+                                            <div class="card-body p-0">
+                                                  <div class="alert alert-warning m-0 rounded-0 w-100 h-100" role="alert">
+                                                       <div class="text-center">
+                                                            <i class="fa-solid fa-3x fa-pause"></i>
+                                                            <p class="m-0">
+                                                                <br>
+                                                                Your target node is stopped.
+                                                            </p>
+                                                       </div>
+                                                      <hr>
+                                                      The data remains available on the system without incurring compute charges. Storage fees continue to apply.
+                                                  </div>
+                                            </div>
+
+                                            {% elif session_data.session_state == 'running' %}
+                                            <div class="card-body">
+                                                {% if not session_data.connection_string %}
+                                                No connection information provided for this target node.
+                                                {% else %}
+                                                {{ session_data.connection_string | safe }}
+                                                {% endif %}
+                                            </div>
+
+                                            {% else %}
+                                            <div class="card-body p-0">
+                                                  <div class="alert alert-warning m-0 rounded-0 w-100 h-100" role="alert">
+                                                       <div class="text-center">
+                                                            <i class="fa-solid fa-3x fa-question"></i>
+                                                            <p class="m-0">
+                                                                <br>
+                                                                Unknown session state
+                                                            </p>
+                                                       </div>
+                                                      <hr>
+                                                      Detected Session State {{ session_data.session_state }} is not running / pending / stopped / error.
+                                                  </div>
+                                            </div>
+                                            {% endif %}
+                                            <!-- /card body -->
+
+                                            <!-- card footer-->
+                                            {% if session_data.instance_private_ip %}
+                                            <div class="card-footer">
+                                                <span class="badge rounded-pill bg-secondary" style="color: white">IP: {{ session_data.instance_private_ip }}</span>
+                                                <span class="badge rounded-pill bg-secondary" style="color: white">Instance ID: {{ session_data.instance_id }}</span>
+                                            </div>
+                                            {% endif %}
+                                            <!-- /card footer-->
+                                            
+                                            
+                                            {% if "terminate" in DISPLAY_MODALS %}
+                                                <!-- modal Terminate -->
+                                                <div class="modal fade" id="terminate-{{TARGET_NODE_CARD_UUID}}" tabindex="-1" role="dialog" aria-hidden="true">
+                                                      <div class="modal-dialog modal-lg" role="document">
+                                                          <div class="modal-content">
+                                                              <div class="modal-header">
+                                                                  <h5 class="modal-title">Delete {{ session_data.session_name }}</h5>
+                                                                  <button type="button" class="close" data-bs-dismiss="modal" aria-label="Close">
+                                                                      <span aria-hidden="true">&times;</span>
+                                                                  </button>
+                                                              </div>
+                                                              <div class="modal-body">
+                                                                  <form method="post" action="/target_nodes/delete">
+                                                                      <div class="alert alert-danger">
+                                                                          <strong>Attention</strong> You are about to permanently delete a target note. All data stored on the local partitions will be lost. <br> <br>
+                                                                          <div class="form-group form-check">
+                                                                              <input type="checkbox" class="form-check-input" name="verif" id="verif" required>
+                                                                              <label class="form-check-label" for="verif">I am sure I want to delete this target node</label>
+                                                                          </div>
+                                                                      </div>
+                                                                      <div align="center">
+                                                                          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                                                          <input type="hidden" name="session_uuid" value="{{ session_data.session_uuid }}">
+                                                                          <button type="submit" class="btn btn-danger btn-icon-split">
+                                                                              <span class="icon text-white-50"><i class="fas fa-trash"></i></span>
+                                                                              <span style="margin-top:5px;margin-right:10px; margin-left:10px">Delete {{ session_data.session_name }}</span>
+                                                                          </button>
+                                                                      </div>
+                                                                  </form>
+                                                              </div>
+                                                          </div>
+                                                      </div>
+                                                  </div>
+                                                <!-- /modal Terminate -->
+                                            {% endif %}
+
+                                            {% if "stop" in DISPLAY_MODALS %}
+                                            <!-- modal Stop -->
+                                            <div class="modal fade" id="stop-{{TARGET_NODE_CARD_UUID}}"  tabindex="-1" role="dialog" aria-hidden="true">
+                                                  <div class="modal-dialog modal-lg" role="document">
+                                                      <div class="modal-content">
+                                                          <div class="modal-header">
+                                                              <h5 class="modal-title" id="exampleModalLabel">Stop {{ session_data.session_name }}</h5>
+                                                              <button type="button" class="close" data-bs-dismiss="modal" aria-label="Close">
+                                                                  <span aria-hidden="true">&times;</span>
+                                                              </button>
+                                                          </div>
+                                                          <div class="modal-body">
+                                                              <div class="alert alert-warning">
+                                                                  {% if session_data.support_hibernation %}
+                                                                      Hibernation will not cause any data loss<br>
+                                                                      You won't be charged for the compute time while your session is stopped<br>
+                                                                      Applications are loaded in memory and will restart automatically
+                                                                  {% else %}
+                                                                    Stopping an instance will not cause any data loss<br>
+                                                                    You won't be charged for the compute time while your session is stopped<br>
+                                                                  {% endif %}
+                                                              </div>
+                                                              <div align="center">
+                                                                  <form method="post" action="/target_nodes/stop" >
+                                                                      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                                                      <input type="hidden" name="session_uuid" value="{{ session_data.session_uuid }}">
+                                                                      <button type="submit" class="btn btn-danger btn-icon-split">
+                                                                          <span class="icon text-white-50"><i class="fa-solid fa-pause"></i></span>
+                                                                          <span style="margin-top:5px;margin-right:10px; margin-left:10px">Pause {{ session_data.session_name }}</span>
+                                                                      </button>
+                                                                  </form>
+                                                              </div>
+                                                          </div>
+                                                      </div>
+                                                  </div>
+                                            </div>
+                                            <!-- /modal Stop -->
+                                            {% endif %}
+
+                                            {% if "details" in DISPLAY_MODALS %}
+                                            <!-- modal Details -->
+                                            <div class="modal fade" id="details-{{TARGET_NODE_CARD_UUID}}" tabindex="-1" role="dialog" aria-hidden="true">
+                                                  <div class="modal-dialog modal-lg" role="document">
+                                                      <div class="modal-content">
+                                                          <div class="modal-header">
+                                                              <h5 class="modal-title">Details for {{ session_data.session_name }}</h5>
+                                                              <button type="button" class="close" data-bs-dismiss="modal" aria-label="Close">
+                                                                  <span aria-hidden="true">&times;</span>
+                                                              </button>
+                                                          </div>
+                                                          <div class="modal-body">
+                                                              {% for k,v in user_sessions[session_data.session_uuid].items() %}
+                                                              {% if k not in ["session_thumbnail"] %}
+                                                                <strong>{{k}}</strong>: {{v}} <br>
+                                                              {% endif %}
+                                                              {% endfor %}
+                                                          </div>
+                                                      </div>
+                                                  </div>
+                                              </div>
+                                            <!-- /modal Details -->
+                                            {% endif %}
+                                            
+                                            {% if "modify" in DISPLAY_MODALS %}
+                                            <!-- Modal Modify -->
+                                              <div class="modal fade" id="modify-{{TARGET_NODE_CARD_UUID}}" tabindex="-1" role="dialog" aria-hidden="true">
+                                                  <div class="modal-dialog modal-lg" role="document">
+                                                      <div class="modal-content">
+                                                          <div class="modal-header">
+                                                              <h5 class="modal-title">Resize hardware for {{ session_data.session_name }} </h5>
+                                                              <button type="button" class="close" data-bs-dismiss="modal" aria-label="Close">
+                                                                  <span aria-hidden="true">&times;</span>
+                                                              </button>
+                                                          </div>
+                                                          <div class="modal-body">
+                                                               {% if allow_instance_change %}
+                                                                   <div class="alert alert-warning">
+                                                                       You are currently using <strong>{{ session_data.instance_type }}</strong> <br>
+                                                                       Changing an instance type does not cause data loss.<br>
+                                                                       Your session will use new hardware as soon as you restart it<br>
+                                                                        <strong>Limitations</strong> <br>
+                                                                        You cannot change hardware if you have enabled Hibernation <br>
+                                                                        It's not recommended to upgrade/downgrade between non-GPUs and GPUs instances due to driver incompatibility
+                                                                   </div>
+                                                                   <br>
+                                                                   <form method="post" action="/target_nodes/resize">
+                                                                      <div class="form-group row">
+                                                                          <label for="instance_type" class="col-sm-3 col-form-label">Resize Target Node Instance</label>
+                                                                          <div class="col-sm-9">
+                                                                              <select class="form-control" name='instance_type' id="instance_type">
+                                                                                  {% for instance_type in session_data.allowed_instance_types %}
+                                                                                  <option value="{{instance_type}}">{{instance_type}}</option>
+                                                                                  {% endfor %}
+                                                                              </select>
+                                                                          </div>
+                                                                      </div>
+                                                                      <div align="center">
+                                                                             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                                                             <input type="hidden" id="session_uuid" name="session_uuid" value="{{session_data.session_uuid}}">
+                                                                          <hr>
+                                                                          <button type="submit"  class="btn btn-primary btn-icon-split">
+                                                                             <span class="icon text-white-50">
+                                                                                 <i class="fas fa-info-circle"></i>
+                                                                             </span>
+
+                                                                             <span class="text">Resize Target Node Instance</span>
+                                                                          </button>
+                                                                      </div>
+                                                                  </form>
+                                                               {% else %}
+                                                                   <div class="alert alert-warning">
+                                                                   Your cluster administrator disabled this feature.
+                                                                   </div>
+                                                               {% endif %}
+                                                          </div>
+                                                      </div>
+                                                  </div>
+                                              </div>
+                                            <!-- Modal Modify -->
+                                            {% endif %}
+                                            
+                                            
+                                            {% if "schedule" in DISPLAY_MODALS %}
+                                            <!-- Modal schedule -->
+                                            <div class="modal fade" id="schedule-{{TARGET_NODE_CARD_UUID}}" tabindex="-1" role="dialog" aria-hidden="true">
+                                                        <div class="modal-dialog modal-lg" role="document">
+                                                            <div class="modal-content">
+                                                                <div class="modal-header">
+                                                                    <h5 class="modal-title">Schedule for {{ session_data.session_name }} </h5>
+                                                                    <button type="button" class="close" data-bs-dismiss="modal" aria-label="Close">
+                                                                        <span aria-hidden="true">&times;</span>
+                                                                    </button>
+                                                                </div>
+                                                                <div class="modal-body">
+                                                                    <div class="alert alert-primary">
+                                                                        Automatically start/stop this session based on schedule.<br>
+                                                                    </div>
+
+                                                                    <div class="alert alert-warning">
+                                                                        <strong>Current Server time is {{ server_time }}</strong> <br>
+                                                                        The server is using <strong>{{ server_timezone_human }}</strong> timezone.
+                                                                    </div>
+                                                                    <div class="container">
+                                                                        <style>
+                                                                            .noUi-connect {
+                                                                                background: #16bf9f;
+                                                                            }
+                                                                            .noUi-base {
+                                                                                background: #ff9c91;
+                                                                            }
+                                                                            .noUi-horizontal {
+                                                                                height: 10px;
+                                                                            }
+
+                                                                            .control-select {
+                                                                                margin-left: 10px;
+                                                                            }
+
+                                                                            .slider-legend {
+                                                                                display: flex;
+                                                                                justify-content: space-between;
+                                                                                font-size: 0.9em;
+                                                                                color: #6c757d;
+                                                                                margin-top: 10px;
+                                                                            }
+                                                                        </style>
+                                                                        <form action="/target_nodes/schedule" method="POST">
+                                                                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                                                            <input type="hidden" name="session_uuid" value="{{session_data.session_uuid}}">
+                                                                            <input type="hidden" name="schedule" id="schedule-input-{{TARGET_NODE_CARD_UUID}}">
+
+                                                                            <div class="d-flex align-items-center">
+                                                                                <select class="form-control control-select w-25" id="global-ampm-select-{{TARGET_NODE_CARD_UUID}}">
+                                                                                    <option value="24h">24H</option>
+                                                                                    <option value="12h">AM/PM</option>
+                                                                                </select>
+                                                                            </div>
+
+                                                                            {% set SESSION_SCHEDULE = session_data.schedule | from_json %}
+                                                                            {% for day, times in SESSION_SCHEDULE.items() %}
+                                                                            <div class="row mt-5">
+                                                                                <div class="col-md-4">
+                                                                                    <div class="d-flex align-items-center">
+                                                                                        <h5 class="mb-0 me-2">{{ day | capitalize }}</h5>
+                                                                                        <select class="form-control control-select mode-select" id="mode-{{TARGET_NODE_CARD_UUID}}-{{ day }}">
+                                                                                            <option value="custom">Custom</option>
+                                                                                            <option value="stopped">Stopped All Day</option>
+                                                                                            <option value="run">Run All Day</option>
+                                                                                        </select>
+                                                                                    </div>
+                                                                                </div>
+                                                                                <div class="col-md-8">
+                                                                                    <div id="slider-{{TARGET_NODE_CARD_UUID}}-{{ day }}"></div>
+                                                                                    <div class="slider-legend">
+                                                                                        <span>0</span><span>3</span><span>6</span><span>9</span><span>12</span><span>15</span><span>18</span><span>21</span><span>24</span>
+                                                                                    </div>
+                                                                                </div>
+                                                                            </div>
+                                                                            <hr>
+                                                                            {% endfor %}
+                                                                            <div align="center">
+                                                                                <button type="submit" id="save-schedule-button-{{TARGET_NODE_CARD_UUID}}"  class="btn btn-primary btn-icon-split">
+                                                                                    <span class="icon text-white-50"><i class="far fa-clock"></i></span>
+                                                                                    <span style="margin-top:5px;margin-right:10px; margin-left:10px">Save Schedule</span>
+                                                                                </button>
+                                                                            </div>
+                                                                        </form>
+
+                                                                        <script>
+                                                                            document.addEventListener('DOMContentLoaded', function() {
+                                                                             const modal = document.getElementById('schedule-{{TARGET_NODE_CARD_UUID}}');
+
+                                                                        if (modal) {
+                                                                            modal.addEventListener('shown.bs.modal', function() {
+                                                                                const schedule = JSON.parse({{ session_data.schedule | tojson }});
+                                                                                const globalAmpmSelect = document.getElementById('global-ampm-select-{{TARGET_NODE_CARD_UUID}}');
+                                                                                const scheduleInput = document.getElementById('schedule-input-{{TARGET_NODE_CARD_UUID}}');
+                                                                                const form = modal.querySelector('form');
+                                    
+                                                                                // Time formatting
+                                                                                function formatTime(value, format) {
+                                                                                    let hours = Math.floor(value);
+                                                                                    let minutes = Math.round((value % 1) * 60);
+                                    
+                                                                                    if (value === 24) {
+                                                                                        return format === '12h' ? '12:00 AM (Next Day)' : '24:00';
+                                                                                    }
+                                    
+                                                                                    if (format === '12h') {
+                                                                                        const period = hours >= 12 ? 'PM' : 'AM';
+                                                                                        hours = hours % 12 || 12;
+                                                                                        return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')} ${period}`;
+                                                                                    }
+                                    
+                                                                                    return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
+                                                                                }
+                                    
+                                                                                // Get schedule values in minutes
+                                                                                function getScheduleInMinutes() {
+                                                                                    const result = {};
+                                    
+                                                                                    Object.keys(schedule).forEach(day => {
+                                                                                        const slider = document.getElementById(`slider-{{TARGET_NODE_CARD_UUID}}-${day}`);
+                                                                                        if (slider) {
+                                                                                            const values = slider.noUiSlider.get();
+                                                                                            const startMinutes = Math.round(parseFloat(values[0]) * 60);
+                                                                                            const stopMinutes = Math.round(parseFloat(values[1]) * 60);
+                                    
+                                                                                            result[day] = {
+                                                                                                start: startMinutes,
+                                                                                                stop: stopMinutes
+                                                                                            };
+                                                                                        }
+                                                                                    });
+                                    
+                                                                                    return JSON.stringify(result);
+                                                                                }
+                                    
+                                                                                // Update sliders for time format
+                                                                                function updateAllSliders(format) {
+                                                                                    Object.keys(schedule).forEach(day => {
+                                                                                        const slider = document.getElementById(`slider-{{TARGET_NODE_CARD_UUID}}-${day}`);
+                                                                                        if (slider) {
+                                                                                            slider.noUiSlider.updateOptions({
+                                                                                                tooltips: [
+                                                                                                    { to: value => formatTime(value, format), from: value => value },
+                                                                                                    { to: value => formatTime(value, format), from: value => value }
+                                                                                                ]
+                                                                                            });
+                                                                                        }
+                                                                                    });
+                                                                                }
+                                    
+                                                                                // Time format selector (12h/24h)
+                                                                                if (globalAmpmSelect) {
+                                                                                    globalAmpmSelect.addEventListener('change', function() {
+                                                                                        updateAllSliders(this.value);
+                                                                                    });
+                                                                                }
+                                    
+                                                                                // Initialize sliders
+                                                                                Object.keys(schedule).forEach(day => {
+                                                                                    const slider = document.getElementById(`slider-{{TARGET_NODE_CARD_UUID}}-${day}`);
+                                                                                    if (slider) {
+                                                                                        noUiSlider.create(slider, {
+                                                                                            start: [schedule[day].start / 60, schedule[day].stop / 60],
+                                                                                            connect: true,
+                                                                                            range: { min: 0, max: 24 },
+                                                                                            step: 0.25,
+                                                                                            tooltips: [
+                                                                                                { to: value => formatTime(value, '24h'), from: value => value },
+                                                                                                { to: value => formatTime(value, '24h'), from: value => value }
+                                                                                            ]
+                                                                                        });
+                                    
+                                                                                        const modeSelect = document.getElementById(`mode-{{TARGET_NODE_CARD_UUID}}-${day}`);
+                                                                                        if (modeSelect) {
+                                                                                            modeSelect.addEventListener('change', function() {
+                                                                                                if (this.value === 'stopped') slider.noUiSlider.set([0, 0]);
+                                                                                                if (this.value === 'run') slider.noUiSlider.set([0, 24]);
+                                                                                                if (this.value === 'custom') slider.noUiSlider.set([schedule[day].start / 60, schedule[day].stop / 60]);
+                                                                                            });
+                                                                                        }
+                                                                                    }
+                                                                                });
+                                    
+                                                                                // Update hidden input before form submission
+                                                                                form.addEventListener('submit', function() {
+                                                                                    const scheduleString = getScheduleInMinutes();
+                                                                                    scheduleInput.value = scheduleString;
+                                                                                });
+                                                                            });
+                                                                        }
+                                                                        });
+
+                                                                        </script>
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                    <!--/ Modal schedule -->
+                                                {% endif %}
+                                            
+                                            
+                                        </div>
+                                      </div>
+                                    {% endfor %}
+                                </div>
+                                {% endif %}
+                        </div>
+                    </div>
+
+                        <!-- Begin Create New Desktop Modal + Scripts -->
+                        <div class="modal fade" id="launchNewTargetNodeModal" tabindex="-1" aria-labelledby="launchNewTargetNodeModal" aria-hidden="true">
+                            <div class="modal-dialog modal-xl"  id="modal-dialog-launch">
+                                <div class="modal-content">
+                                    <div class="modal-header">
+                                        <h5 class="modal-title" id="LaunchNewDesktop">Launch new Target Node</h5>
+                                        <button type="button" class="close" data-bs-dismiss="modal" aria-label="Close">
+                                            <span aria-hidden="true">×</span>
+                                        </button>
+                                    </div>
+                                    <div class="modal-body">
+                                        <ul class="nav nav-pills mb-3" id="pills-tab" role="tablist">
+                                            <li class="nav-item" role="presentation">
+                                                <a style="cursor: pointer" class="nav-link active" id="pills-home-tab" data-bs-toggle="pill" data-bs-target="#pills-home" type="button" role="tab" aria-controls="pills-home" aria-selected="true">Standard Launch</a>
+                                            </li>
+                                            <li class="nav-item" role="presentation">
+                                                <a style="cursor: pointer" class="nav-link" id="pills-find-by-ami-tab" data-bs-toggle="pill" data-bs-target="#pills-find-by-ami" type="button" role="tab" aria-controls="pills-profile" aria-selected="false">Browse Software Stacks</a>
+                                            </li>
+                                        </ul>
+                                        <div class="tab-content" id="pills-tabContent">
+                                            <div class="tab-pane fade show active" id="pills-home" role="tabpanel" aria-labelledby="pills-home-tab">
+                                                <form method="POST" action="/target_nodes/create">
+                                                    <div class="form-group row">
+                                                        <label for="session_name" data-toggle="tooltip" data-placement="top" title="Pick a simple name to identify your target node session" class="col-sm-2 col-form-label"><i class="fa-solid fa-tag"></i> Session Name</label>
+                                                        <div class="col-sm-10">
+                                                            <input id="session_name" class="form-control" value="My Target Node #{{ CURRENT_SESSION_COUNT + 1 }}" type="text" name="session_name" required maxlength="30">
+                                                        </div>
+                                                    </div>
+
+                                                    <div class="form-group row">
+                                                        <label for="selectAMI" data-toggle="tooltip" data-placement="top" title="Select an image with pre-installed applications or use the default vanilla image" class="col-sm-2 col-form-label"><i class="fa-solid fa-sliders"></i> Software Stack</label>
+                                                        <div class="col-sm-10" id="divSelectAMI">
+                                                             <select name="software_stack_id" required class="form-control" id="selectAMI" onchange="updateInstanceTypes()">
+                                                                <option value="" selected disabled>Choose your Software Stack</option>
+                                                                {% for stack_info in software_stacks %}
+                                                                    <option value="{{ stack_info.id }}">ID: {{ stack_info.id }} - {{ stack_info.stack_name }} ({{ stack_info.ami_arch}})  - {{ stack_info.ami_id}} - Created on {{ stack_info.created_on}}</option>
+                                                                {% endfor %}
+                                                            </select>
+
+                                                        </div>
+                                                    </div>
+
+                                                    <div class="form-group row">
+                                                        <label for="selectInstanceType" data-toggle="tooltip" data-placement="top" title="Select the instance type to provision" class="col-sm-2 col-form-label"><i class="fa-solid fa-microchip"></i>  Session Type</label>
+                                                        <div class="col-sm-10" id="divSelectInstanceType" style="display: none;">
+                                                            <select name="instance_type" required class="form-control" id="selectInstanceType"></select>
+                                                            <small class="form-text text-muted">EC2 Instance Types you are authorized to deploy for this software stack. Manage list via <a href="/admin/target_nodes/profiles">SOCA Target Nodes Profiles.</a></small>
+                                                        </div>
+                                                    </div>
+
+                                                    <div class="form-group row">
+                                                        <label for="project" data-toggle="tooltip" data-placement="top" title="Select the SOCA Projects and optional AWS Budget for this target node" class="col-sm-2 col-form-label"><i class="fa-solid fa-folder-open"></i> Project</label>
+                                                        <div class="col-sm-10" id="divSelectProject" style="display: none;">
+                                                            <select name="project" required class="form-control" id="project"></select>
+                                                            <small class="form-text text-muted">SOCA projects you are authorized to use for this stack. Resources will use the assigned budget if specified. Manage list via <a href="/admin/projects">SOCA Projects.</a></small>
+                                                        </div>
+                                                    </div>
+
+                                                    <div class="form-group row">
+                                                        <label for="selectReview" data-toggle="tooltip" data-placement="top" title="Review" class="col-sm-2 col-form-label"><i class="fa-solid fa-check"></i> Review</label>
+                                                        <div class="col-sm-10" id="selectReview" style="display: none;">
+                                                            <input required id="disk_size" value="100" min="100" class="form-control" type="number" name="disk_size">
+                                                            <small class="form-text text-muted">Storage Size for your main partition (<kbd>/</kbd> for Linux, <kbd>C:</kbd> for Windows)</small>
+
+                                                            <hr>
+
+                                                            <button class="btn btn-info btn-sm" type="button" data-bs-toggle="collapse" data-bs-target="#advancedOptions" aria-expanded="false">
+                                                                View Advanced Options
+                                                            </button>
+
+                                                            <div class="collapse" id="advancedOptions">
+                                                                <br>
+                                                                <div>
+                                                                    <div class="form-group">
+                                                                         <select name="subnet_id" required class="form-control" id="subnet_id"></select>
+                                                                        <small class="form-text text-muted">Launch your virtual desktop in a specific subnet.</small>
+                                                                    </div>
+                                                                </div>
+                                                                <select class="form-control" name="tenancy">
+                                                                    <option value="default" selected>Default Tenancy</option>
+                                                                    <option value="dedicated">Dedicated Instance Tenancy</option>
+                                                                    <option value="host">Dedicated Host Tenancy</option>
+                                                                </select>
+                                                                <small class="form-text text-muted">Tenancy defines how EC2 instances are distributed across physical hardware.</small>
+                                                                <br>
+                                                                <select class="form-control" name="hibernate">
+                                                                    <option value="false" selected>No</option>
+                                                                    <option value="true">Yes</option>
+                                                                </select>
+                                                                <small class="form-text text-muted">Enable Hibernation Support. <a href="https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/Hibernate.html" target="_blank">See Documentation.</a> </small>
+                                                                <br>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                                    <div class="d-flex justify-content-center">
+                                                        <button type="submit" class="btn btn-primary btn-lg px-5 py-3" id="launchButton" style="display: none;">Launch My Target Node</button>
+                                                    </div>
+                                                </form>
+                                            </div>
+
+                                            <div class="tab-pane fade" id="pills-find-by-ami" role="tabpanel" aria-labelledby="pills-find-by-ami-tab">
+                                                <input type="text" id="searchAMIInput" class="form-control" placeholder="Search by AMI ID, AMI Name, Operating Systems, Architecture (x86_64 / arm64) ..." aria-controls="listAllAMIs" />
+                                                <small class="text-muted">Tip: You can use <strong>and</strong> / <strong>or</strong> operators (ex: <kbd>ubuntu AND graviton</kbd> <kbd>windows 11 OR amazon linux</kbd> <kbd>linux AND x86_64</kbd>)</small>
+                                                <hr>
+                                                <div class="row" id="data-grid">
+                                                    <!-- Software Stacks will be inserted here dynamically -->
+                                                </div>
+
+                                                <!-- Pagination Controls -->
+                                                <div class="d-flex justify-content-between mt-3">
+                                                    <button id="prevPage" class="btn btn-primary">Previous</button>
+                                                    <span id="pageInfo" class="align-self-center"></span>
+                                                    <button id="nextPage" class="btn btn-primary">Next</button>
+                                                </div>
+
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="modal-footer">
+                                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <a class="scroll-to-top rounded" href="#page-top">
+        <i class="fas fa-angle-up"></i>
+    </a>
+
+        {% include 'common/footer.html' %}
+
+
+    <script>
+                                                    const softwareStack = {{ software_stacks | tojson }};
+
+            const sizeRank = (type) => {
+            // Try to extract a number before "xlarge"
+            const numMatch = type.match(/(\d+)xlarge/);
+            if (numMatch) return parseInt(numMatch[1]);
+
+            // Fallback to named sizes
+            if (/nano/.test(type)) return 0.1;
+            if (/micro/.test(type)) return 0.2;
+            if (/small/.test(type)) return 0.3;
+            if (/medium/.test(type)) return 0.4;
+            if (/large/.test(type) && !/xlarge/.test(type)) return 0.5;
+            if (/xlarge/.test(type)) return 0.6;
+            
+            if (/metal/.test(type)) {
+                const metalMatch = type.match(/metal-?(\d+)/i); // matches 'metal-24xl' '48-xl' etc 
+                const metalSize = metalMatch ? parseInt(metalMatch[1], 10) : 0;
+                return 1000 + metalSize;
+            }
+
+            return 0;
+        };
+
+        
+            function updateInstanceTypes() {
+            const selectedOption = document.getElementById('selectAMI').selectedOptions[0];
+            const selectedAMI = softwareStack.find(item => item.id === parseInt(selectedOption.value, 10));
+            const divSelectInstanceType = document.getElementById('divSelectInstanceType');
+            const selectInstanceType = document.getElementById('selectInstanceType');
+            const diskSizeInput = document.getElementById('disk_size');
+            const selectVpcSubnet = document.getElementById('subnet_id');
+            const divSelectProject = document.getElementById('divSelectProject');
+            const selectProject = document.getElementById('project');
+            const launchButton = document.getElementById('launchButton');
+            const divSelectReview = document.getElementById('selectReview');
+
+            const allowedProjects = selectedAMI.allowed_projects;
+            const allowedSubnetIds = selectedAMI.profile.allowed_subnet_ids.split(',');
+
+            allowedSubnetIds.sort(() => Math.random() - 0.5);
+
+            selectProject.innerHTML = '';
+            divSelectProject.style.display = 'none';
+            divSelectReview.style.display = 'none';
+            launchButton.style.display = 'none';
+
+            if (updateInstanceTypes.instanceChoices) {
+                updateInstanceTypes.instanceChoices.destroy();
+            }
+
+            if (selectedAMI) {
+
+                const getInstanceTypes = JSON.parse(selectedAMI.profile.allowed_instance_types);
+                const findInstancesTypeForArch = getInstanceTypes[selectedAMI.ami_arch];
+                const sortedInstanceTypes = findInstancesTypeForArch.sort();
+
+                selectInstanceType.innerHTML = '<option value="" selected disabled>Choose an Instance Type</option>';
+
+                const groupedInstances = {};
+
+                // Group instance types by prefix (family)
+                sortedInstanceTypes.forEach(type => {
+                    const group = type.split('.')[0];
+                    if (!groupedInstances[group]) {
+                        groupedInstances[group] = [];
+                    }
+                    groupedInstances[group].push(type);
+                });
+
+                // Sort each group by instance size
+                for (const group in groupedInstances) {
+                    groupedInstances[group].sort((a, b) => sizeRank(b) - sizeRank(a));
+                }
+
+                
+                const sortedGroupKeys = Object.keys(groupedInstances).sort((a, b) => {
+                const extract = (str) => {
+                    const gen = parseInt(str.match(/\d+/)?.[0] || '0', 10);
+                    const prefix = str.match(/^[a-z]+/i)?.[0] || '';
+                    return { gen, prefix };
+                };
+
+                const aParts = extract(a);
+                const bParts = extract(b);
+
+                if (aParts.gen !== bParts.gen) {
+                    return bParts.gen - aParts.gen; // Descending generation
+                }
+                return aParts.prefix.localeCompare(bParts.prefix); // Alphabetical family if same generation
+                });
+
+                // Build select options using sorted groups
+                sortedGroupKeys.forEach(group => {
+                    const optgroup = document.createElement('optgroup');
+                    optgroup.label = group;
+
+                    groupedInstances[group].forEach(type => {
+                        const option = document.createElement('option');
+                        option.value = type;
+                        option.text = type;
+                        optgroup.appendChild(option);
+                    });
+
+                    selectInstanceType.appendChild(optgroup);
+                });
+
+                divSelectInstanceType.style.display = 'block';
+
+                // Initialize and store instance
+                updateInstanceTypes.instanceChoices = new Choices(selectInstanceType, {
+                    searchEnabled: true,
+                    itemSelectText: '',
+                    shouldSort: false,
+                    placeholder: true,
+                    searchPlaceholderValue: 'Type to search an instance type...',
+                    allowHTML: true,
+                    searchResultLimit: -1,
+                });
+
+
+                // Prepare data in Choices format
+                const choicesData = [];
+                sortedGroupKeys.forEach(group => {
+                    choicesData.push({
+                        label: `<span style="color:#000000; font-weight:bold;">=== Instance Family: ${group} ===</span>`,
+                        id: group,
+                        disabled: true,
+                    });
+
+                    groupedInstances[group].forEach(type => {
+                        choicesData.push({
+                            label: type,
+                            value: type,
+                            customProperties: { group },
+                        });
+                    });
+                });
+                    updateInstanceTypes.instanceChoices.setChoices(choicesData, 'value', 'label', true);
+
+                selectVpcSubnet.innerHTML = '';
+                allowedSubnetIds.forEach(subnetId => {
+                    const option = document.createElement('option');
+                    option.value = subnetId;
+                    option.textContent = subnetId;
+                    selectVpcSubnet.appendChild(option);
+                });
+
+                diskSizeInput.value = selectedAMI.ami_root_disk_size;
+                diskSizeInput.min = selectedAMI.ami_root_disk_size;
+                diskSizeInput.max = selectedAMI.profile.max_root_size;
+            } else {
+                divSelectInstanceType.style.display = 'none';
+            }
+
+            // Handle instance type selection
+            selectInstanceType.onchange = function () {
+                if (selectInstanceType.value) {
+                    divSelectProject.style.display = 'block';
+                    selectProject.innerHTML = '<option value="" selected disabled>Select a SOCA Project</option>';
+                    allowedProjects.forEach(projectName => {
+                        const option = document.createElement('option');
+                        option.value = projectName;
+                        option.textContent = projectName;
+                        selectProject.appendChild(option);
+                    });
+                } else {
+                    divSelectProject.style.display = 'none';
+                }
+
+                updateProject();
+            };
+
+            updateProject();
+        }
+
+
+        function updateProject() {
+            const selectProject = document.getElementById('project');
+            const divSelectReview = document.getElementById('selectReview');
+            const launchButton = document.getElementById('launchButton');
+
+            if (selectProject.value) {
+                divSelectReview.style.display = 'block';
+                launchButton.style.display = 'inline-block';
+            } else {
+                divSelectReview.style.display = 'none';
+                launchButton.style.display = 'none';
+            }
+
+            selectProject.onchange = function () {
+                updateProject(); // Re-check value and update visibility
+            };
+        }
+
+                                                    // generate software stack grid view
+                                                    $(document).ready(function () {
+                                                        // Convert JSON to an array format for easier processing
+                                                       var data = Object.keys(softwareStack)
+                                                        .map(key => {
+                                                            let item = softwareStack[key];
+                                                            return {
+                                                                stack_id: item.id,
+                                                                name: key,
+                                                                ami_id: item.ami_id,
+                                                                ami_arch: item.ami_arch,
+                                                                ami_created_on: item.ami_created_on,
+                                                                ami_root_size: item.ami_root_size,
+                                                                stack_name: item.stack_name,
+                                                                thumbnail: item.thumbnail,
+                                                                description: item.description,
+                                                                profile_name: item.profile.profile_name,
+                                                                profile_id: item.profile.id,
+                                                                os_family: item.os_family
+                                                            };
+                                                        })
+                                                        .filter(item => item.stack_id !== undefined) // Ensure valid ids
+                                                        .sort((a, b) => b.stack_id - a.stack_id); // Sort descending
+
+                                                        var itemsPerPage = 12;
+                                                        var currentPage = 1;
+                                                        var filteredData = [...data];
+
+                                                        function renderData() {
+                                                            var gridContainer = $("#data-grid");
+                                                            gridContainer.empty();
+
+                                                            if (filteredData.length === 0) {
+                                                                var noDataMessage = `
+                                                                    <div class="col-12 text-center">
+                                                                        <h3>No software stack found. Please verify that you’ve been added to the appropriate <a href="/admin/projects">SOCA projects</a>. If the issue persists, contact your SOCA administrator.</h3>
+                                                                    </div>
+                                                                `;
+                                                                gridContainer.append(noDataMessage);
+                                                            } else {
+                                                                var startIndex = (currentPage - 1) * itemsPerPage;
+                                                                var endIndex = startIndex + itemsPerPage;
+                                                                var paginatedData = filteredData.slice(startIndex, endIndex);
+
+                                                                paginatedData.forEach(function (item) {
+                                                                    var card = `
+                                                                        <div class="col-md-2 mb-3">
+                                                                            <div class="card h-100 text-center">
+                                                                                <div class="card-header">
+                                                                                    <span class="badge rounded-pill ${item.ami_arch === 'x86_64' ? 'bg-info' : 'bg-warning'}"
+                                                                                          style="color: ${item.ami_arch === 'x86_64' ? 'white' : 'black'}">
+                                                                                        ${item.ami_arch}
+                                                                                    </span>
+                                                                                </div>
+                                                                                <div style="display: flex; justify-content: center;">
+                                                                                    <img src="${item.thumbnail}" class="card-img-top" style="height: 150px; object-fit: contain;">
+                                                                                </div>
+                                                                                <div class="card-body" style="padding: 0.2rem;">
+                                                                                    <strong>${item.stack_name}</strong>
+                                                                                    <hr>
+                                                                                    <p class="card-text">${item.description || 'No Description Provided'}</p>
+                                                                                      <small class="text-muted"> <hr> AMI ID: ${item.ami_id} <br> <span>Profile ID: ${item.profile_id} | Stack ID: ${item.stack_id} </span></small>
+                                                                                </div>
+                                                                                <div class="card-footer text-center">
+                                                                                    <button type="button" class="btn btn-success select-ami-btn"
+                                                                                        data-software-stack-id="${item.stack_id}"
+                                                                                        data-arch="${item.ami_arch}">
+                                                                                        Select this Stack
+                                                                                    </button>
+                                                                                </div>
+                                                                            </div>
+                                                                        </div>
+                                                                    `;
+                                                                    gridContainer.append(card);
+                                                                });
+                                                            }
+
+                                                            let totalPages = Math.ceil(filteredData.length / itemsPerPage);
+                                                            if (totalPages === 0) {
+                                                                totalPages = 1;
+                                                            }
+                                                            $("#pageInfo").text(`Page ${currentPage} of ${totalPages}`);
+                                                            $("#prevPage").prop("disabled", currentPage === 1);
+                                                            $("#nextPage").prop("disabled", currentPage >= totalPages);
+                                                        }
+
+                                                        function filterData() {
+                                                            var searchQuery = $("#searchAMIInput").val().trim().toLowerCase();
+
+                                                            if (!searchQuery) {
+                                                                filteredData = data; // Show all if query is empty
+                                                            } else {
+                                                                let isAndSearch = searchQuery.includes(" and ") || searchQuery.includes(" AND ");
+                                                                let isOrSearch = searchQuery.includes(" or ") || searchQuery.includes(" OR ");
+
+                                                                // Define keyword mappings
+                                                                const keywordMappings = {
+                                                                    "graviton": "arm64",
+                                                                    "x86": "x86_64",
+                                                                    "aws": "amazonlinux"
+                                                                };
+
+                                                                // Function to map keywords
+                                                                function mapKeyword(keyword) {
+                                                                    return keywordMappings[keyword] || keyword;
+                                                                }
+
+                                                                if (isAndSearch) {
+                                                                    let keywords = searchQuery.split(/ and | AND /).map(k => mapKeyword(k.trim()));
+                                                                    filteredData = data.filter(item =>
+                                                                        keywords.every(keyword =>
+                                                                            item.stack_name.toLowerCase().includes(keyword) ||
+                                                                            item.ami_id.toLowerCase().includes(keyword) ||
+                                                                            item.ami_arch.toLowerCase().includes(keyword) ||
+                                                                            item.description.toLowerCase().includes(keyword) ||
+                                                                            item.os_family.toLowerCase().includes(keyword)
+
+                                                                        )
+                                                                    );
+                                                                } else if (isOrSearch) {
+                                                                    let keywords = searchQuery.split(/ or | OR /).map(k => mapKeyword(k.trim()));
+                                                                    filteredData = data.filter(item =>
+                                                                        keywords.some(keyword =>
+                                                                            item.stack_name.toLowerCase().includes(keyword) ||
+                                                                            item.ami_id.toLowerCase().includes(keyword) ||
+                                                                            item.ami_arch.toLowerCase().includes(keyword) ||
+                                                                            item.description.toLowerCase().includes(keyword) ||
+                                                                            item.os_family.toLowerCase().includes(keyword)
+
+                                                                        )
+                                                                    );
+                                                                } else {
+                                                                    // Default single keyword search
+                                                                    let mappedQuery = mapKeyword(searchQuery);
+                                                                    filteredData = data.filter(item =>
+                                                                        item.stack_name.toLowerCase().includes(mappedQuery) ||
+                                                                        item.ami_id.toLowerCase().includes(mappedQuery) ||
+                                                                        item.ami_arch.toLowerCase().includes(mappedQuery) ||
+                                                                        item.description.toLowerCase().includes(mappedQuery) ||
+                                                                        item.os_family.toLowerCase().includes(mappedQuery)
+
+                                                                    );
+                                                                }
+                                                            }
+
+                                                            currentPage = 1; // Reset pagination
+                                                            renderData();
+                                                        }
+
+
+                                                        $("#searchAMIInput").on("input", filterData);
+
+                                                        $("#prevPage").click(function () {
+                                                            if (currentPage > 1) {
+                                                                currentPage--;
+                                                                renderData();
+                                                            }
+                                                        });
+
+                                                        $("#nextPage").click(function () {
+                                                            if (currentPage < Math.ceil(filteredData.length / itemsPerPage)) {
+                                                                currentPage++;
+                                                                renderData();
+                                                            }
+                                                        });
+
+                                                        // EVENT LISTENER: Use event delegation to handle dynamically created buttons
+                                                        $(document).on("click", ".select-ami-btn", function () {
+                                                            const softwareStackId = $(this).attr("data-software-stack-id");
+                                                            const amiArch = $(this).attr("data-arch");
+
+                                                            // Switch to "Home" tab
+                                                            const homeTab = new bootstrap.Tab(document.getElementById('pills-home-tab'));
+                                                            homeTab.show();
+
+                                                            // Change modal size back to xl
+                                                            $("#modal-dialog-launch").removeClass("modal-fullscreen").addClass("modal-xl");
+
+                                                            // Small timeout to allow AMI options to populate
+                                                            setTimeout(function () {
+                                                                const selectAMI = $("#selectAMI");
+                                                                selectAMI.find(`option[value="${softwareStackId}"]`).prop("selected", true).trigger("change");
+                                                            }, 300);
+
+                                                            // Scroll into view
+                                                            $("#sessionNameInput")[0].scrollIntoView({ behavior: 'smooth' });
+                                                        });
+
+                                                        renderData(); // Initial render
+                                                    });
+    </script>
+
+
+
+    <script>
+        $(document).ready(function () {
+            // enable tooltip
+            $(function () {
+                $('[data-toggle="tooltip"]').tooltip()
+            })
+        })
+    </script>
+
+    <script>
+
+        // Listen for all form and disable submit button once clicked
+        document.addEventListener('submit', function (e) {
+            if (e.target.tagName === 'FORM') {
+                e.preventDefault();
+                const submitButton = e.target.querySelector('button[type="submit"]');
+                if (submitButton) {
+                    submitButton.disabled = true;
+                    submitButton.innerHTML = `
+                    <span class="icon text-white-50">
+                        <span class="spinner-border spinner-border-lg" role="status" aria-hidden="true">  </span>
+                     </span>
+                     <span class="text">
+                        Please wait ...
+                     </span>`;
+                }
+                // Trigger form submission manually after processing
+                setTimeout(function () {
+                    e.target.submit(); // Submit the form programmatically
+                }, 500);
+            }
+        });
+
+        // Select which Desktop card OS to show
+        function displayCards(selectedValue) {
+            var cards = document.querySelectorAll('[data-soca-instance-os-family]');
+            var container = document.getElementById('selectedCardsToDisplay');
+            var labels = container.querySelectorAll('label');
+
+            // Remove active class from all labels inside the specific container
+            labels.forEach(function(label) {
+                label.classList.remove('active');
+            });
+
+            // Add active class to the selected input's parent label
+            var selectedInput = container.querySelector('input[name="options"]:checked');
+            if (selectedInput) {
+                selectedInput.parentElement.classList.add('active');
+            }
+
+            // Show/hide cards based on selection
+            cards.forEach(function(card) {
+                var osFamily = card.getAttribute('data-soca-instance-os-family').toLowerCase();
+
+                if (selectedValue === "all" || osFamily.includes(selectedValue.toLowerCase())) {
+                    card.style.display = "block";
+                } else {
+                    card.style.display = "none";
+                }
+            });
+        }
+
+
+    window.onload = function() {
+    displayCards(); // Ensure all cards are visible on page load
+    };
+    </script>
+
+ <script>
+        // verify if the state of the desktops have not changed
+        async function getUuidsFromDOM() {
+            const elements = document.querySelectorAll('div[data-soca-uuid]');
+            const uuids = {};
+            elements.forEach(element => {
+                const uuid = element.getAttribute('data-soca-uuid');
+                const state = element.getAttribute('data-soca-state') || 'unknown'; // Optional: get state from DOM if available
+                uuids[uuid] = state;
+            });
+            return uuids;
+        }
+
+        async function fetchSessionStates() {
+            try {
+                const _uuids_current_state = await getUuidsFromDOM();
+    if (Object.keys(_uuids_current_state).length === 0) {
+      console.log('No UUIDs found, skipping fetch.');
+      return;
+    }
+    const uuids = Object.keys(_uuids_current_state).join(',');
+    const response = await fetch(`/target_nodes/get_session_state?session_uuid=${uuids}`);
+    if (!response.ok) {
+      throw new Error('Failed to fetch session states');
+    }
+
+    const sessionStates = await response.json();
+    compareStates(sessionStates, _uuids_current_state);
+  } catch (error) {
+    console.error('Error fetching session states:', error);
+  }
+}
+
+function compareStates(sessionStates, _uuids_current_state) {
+  const isModalOpen = document.getElementById('launchNewTargetNodeModal')?.classList.contains('show');
+  if (isModalOpen) {
+    console.log('Modal is open, skipping page refresh.');
+    return;
+  }
+
+  for (const [uuid, state] of Object.entries(sessionStates)) {
+    if (_uuids_current_state[uuid] === state) {
+      console.log(`State for ${uuid} matches: ${state}`);
+    } else {
+      console.log(`State mismatch for ${uuid}: expected ${_uuids_current_state[uuid]}, got ${state}`);
+      location.reload();
+      break;
+    }
+  }
+}
+
+setInterval(fetchSessionStates, 30000);
+fetchSessionStates();
+</script>
+        <script>
+document.addEventListener("DOMContentLoaded", function () {
+    const modalDialog = document.getElementById("modal-dialog-launch");
+    const standardLaunchTab = document.getElementById("pills-home-tab");
+    const browseStacksTab = document.getElementById("pills-find-by-ami-tab");
+
+    standardLaunchTab.addEventListener("click", function () {
+        modalDialog.classList.remove("modal-fullscreen");
+        modalDialog.classList.add("modal-xl");
+    });
+
+    browseStacksTab.addEventListener("click", function () {
+        modalDialog.classList.remove("modal-xl");
+        modalDialog.classList.add("modal-fullscreen");
+    });
+});
+</script>
+
+
+</body>
+
+</html>

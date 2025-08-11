@@ -15,7 +15,7 @@ from flask_restful import Resource, reqparse
 import config
 import ldap
 from models import db, ApiKeys
-from decorators import restricted_api, admin_api
+from decorators import restricted_api, admin_api, feature_flag
 import errors
 import logging
 import os
@@ -24,6 +24,7 @@ from utils.aws.ssm_parameter_store import SocaConfig
 from utils.identity_provider_client import SocaIdentityProviderClient
 from utils.response import SocaResponse
 from utils.error import SocaError
+
 logger = logging.getLogger("soca_logger")
 
 
@@ -31,28 +32,92 @@ class Sudo(Resource):
     @admin_api
     def get(self):
         """
-        Check SUDO permissions for a user
+        Check user sudo permissions
         ---
+        openapi: 3.1.0
+        operationId: checkUserSudoPermissions
         tags:
           - User Management
+        summary: Check user sudo permissions
+        description: Verify if a specific user has sudo/administrator privileges in the LDAP directory
+        security:
+          - socaAuth: []
         parameters:
-          - in: body
-            name: body
+          - name: user
+            in: query
+            required: true
             schema:
-              required:
-                - user
-              properties:
-                user:
-                   type: string
-                   description: user of the SOCA user
-
+              type: string
+              minLength: 1
+              maxLength: 64
+              pattern: '^[a-zA-Z0-9._-]+$'
+              example: "john.doe"
+            description: Username to check sudo permissions for
         responses:
-          200:
-            description: Pair of user/token is valid
-          203:
-            description: Invalid user/token pair
-          400:
-            description: Malformed client input
+          '200':
+            description: Successfully checked sudo permissions
+            content:
+              application/json:
+                schema:
+                  type: object
+                  properties:
+                    success:
+                      type: boolean
+                      example: true
+                    message:
+                      type: string
+                      example: "john.doe has SUDO permissions"
+          '203':
+            description: User does not have sudo permissions
+            content:
+              application/json:
+                schema:
+                  type: object
+                  properties:
+                    success:
+                      type: boolean
+                      example: false
+                    message:
+                      type: string
+                      example: "john.doe does not have SUDO permissions"
+          '400':
+            description: Missing required parameter
+            content:
+              application/json:
+                schema:
+                  type: object
+                  properties:
+                    success:
+                      type: boolean
+                      example: false
+                    message:
+                      type: string
+                      example: "Missing required parameter: user"
+          '500':
+            description: Internal server error
+            content:
+              application/json:
+                schema:
+                  type: object
+                  properties:
+                    success:
+                      type: boolean
+                      example: false
+                    message:
+                      type: string
+                      example: "Unable to check SUDO permissions"
+        components:
+          securitySchemes:
+            socaAuth:
+              type: apiKey
+              in: header
+              name: X-SOCA-USER
+              description: SOCA username for authentication
+            socaToken:
+              type: apiKey
+              in: header
+              name: X-SOCA-TOKEN
+              description: SOCA authentication token
         """
         parser = reqparse.RequestParser()
         parser.add_argument("user", type=str, location="args")
@@ -77,15 +142,21 @@ class Sudo(Resource):
                 base=config.Config.DIRECTORY_ADMIN_SEARCH_BASE,
                 scope=ldap.SCOPE_SUBTREE,
                 filter=_user_filter,
-                attr_list = _attr_list
+                attr_list=_attr_list,
             )
             if _is_sudo.success:
                 if len(_is_sudo.message) == 1:
-                    return SocaResponse(success=True, message=f"{user} has SUDO permissions").as_flask()
+                    return SocaResponse(
+                        success=True, message=f"{user} has SUDO permissions"
+                    ).as_flask()
                 else:
-                    return SocaResponse(success=False, message=f"{user} does not have SUDO permissions").as_flask()
+                    return SocaResponse(
+                        success=False, message=f"{user} does not have SUDO permissions"
+                    ).as_flask()
             else:
-                return SocaError.IDENTITY_PROVIDER_ERROR(helper=f"Unable to check SUDO permissions because of {_is_sudo.message}").as_flask()
+                return SocaError.IDENTITY_PROVIDER_ERROR(
+                    helper=f"Unable to check SUDO permissions because of {_is_sudo.message}"
+                ).as_flask()
 
         except Exception as err:
             exc_type, exc_obj, exc_tb = sys.exc_info()
@@ -95,33 +166,75 @@ class Sudo(Resource):
             ).as_flask()
 
     @admin_api
+    @feature_flag(flag_name="USERS_GROUPS_MANAGEMENT", mode="api")
     def post(self):
         """
-        Add SUDO permission for a user
+        Grant sudo permissions
         ---
+        openapi: 3.1.0
+        operationId: grantUserSudoPermissions
         tags:
           - User Management
-        parameters:
-          - in: body
-            name: body
-            schema:
-              required:
-                - user
-              properties:
-                user:
-                  type: string
-                  description: user of the SOCA user
-                token:
-                  type: string
-                  description: token associated to the user
-
+        summary: Grant sudo permissions
+        description: Grant sudo/administrator privileges to a user and update their API key scope
+        security:
+          - socaAuth: []
+        requestBody:
+          required: true
+          content:
+            application/x-www-form-urlencoded:
+              schema:
+                type: object
+                required:
+                  - user
+                properties:
+                  user:
+                    type: string
+                    description: Username to grant sudo permissions to
+                    minLength: 1
+                    maxLength: 64
+                    pattern: '^[a-zA-Z0-9._-]+$'
+                    example: "john.doe"
         responses:
-          200:
-            description: Pair of user/token is valid
-          203:
-            description: Invalid user/token pair
-          400:
-            description: Malformed client input
+          '200':
+            description: Successfully granted sudo permissions
+            content:
+              application/json:
+                schema:
+                  type: object
+                  properties:
+                    success:
+                      type: boolean
+                      example: true
+                    message:
+                      type: string
+                      example: "john.doe has now SUDO permissions"
+          '400':
+            description: Missing required parameter or invalid request
+            content:
+              application/json:
+                schema:
+                  type: object
+                  properties:
+                    success:
+                      type: boolean
+                      example: false
+                    message:
+                      type: string
+                      example: "Missing required parameter: user"
+          '500':
+            description: Failed to grant sudo permissions
+            content:
+              application/json:
+                schema:
+                  type: object
+                  properties:
+                    success:
+                      type: boolean
+                      example: false
+                    message:
+                      type: string
+                      example: "Unable to grant SUDO permission to john.doe"
         """
         parser = reqparse.RequestParser()
         parser.add_argument("user", type=str, location="form")
@@ -134,13 +247,16 @@ class Sudo(Resource):
             _soca_identity_client = SocaIdentityProviderClient()
             _soca_identity_client.initialize()
             _soca_identity_client.bind_as_service_account()
-            if config.Config.DIRECTORY_AUTH_PROVIDER in ["openldap", "existing_openldap"]:
+            if config.Config.DIRECTORY_AUTH_PROVIDER in [
+                "openldap",
+                "existing_openldap",
+            ]:
                 _dn_user = f"cn={user},{config.Config.DIRECTORY_ADMIN_SEARCH_BASE}"
                 _attrs = [
-                    ("objectClass", [
-                        "top".encode("utf-8"),
-                        "sudoRole".encode("utf-8")
-                    ]),
+                    (
+                        "objectClass",
+                        ["top".encode("utf-8"), "sudoRole".encode("utf-8")],
+                    ),
                     ("sudoHost", ["ALL".encode("utf-8")]),
                     ("sudoUser", [str(user).encode("utf-8")]),
                     ("sudoCommand", ["ALL".encode("utf-8")]),
@@ -150,8 +266,10 @@ class Sudo(Resource):
                 # with AD, there is no concept of Sudoers OU, instead we rely on group membership
                 _dn_sudoers_group = config.Config.DIRECTORY_ADMIN_SEARCH_BASE
                 _dn_user = f"cn={user},{config.Config.DIRECTORY_PEOPLE_SEARCH_BASE}"
-                _add_sudo = _soca_identity_client.modify(dn=_dn_sudoers_group,
-                                                         mod_list=[(ldap.MOD_ADD, "member", [_dn_user.encode("utf-8")])])
+                _add_sudo = _soca_identity_client.modify(
+                    dn=_dn_sudoers_group,
+                    mod_list=[(ldap.MOD_ADD, "member", [_dn_user.encode("utf-8")])],
+                )
 
             if _add_sudo.success:
                 change_user_key_scope = ApiKeys.query.filter_by(
@@ -161,60 +279,117 @@ class Sudo(Resource):
                     for key in change_user_key_scope:
                         key.scope = "sudo"
                         db.session.commit()
-                return SocaResponse(success=True, message=f"{user} has now SUDO permissions").as_flask()
+                return SocaResponse(
+                    success=True, message=f"{user} has now SUDO permissions"
+                ).as_flask()
             else:
-                return SocaResponse(success=False, message=f"Unable to grant SUDO permission to {user} because of {_add_sudo.get('message')}").as_flask()
+                return SocaResponse(
+                    success=False,
+                    message=f"Unable to grant SUDO permission to {user} because of {_add_sudo.get('message')}",
+                ).as_flask()
 
         except Exception as err:
             exc_type, exc_obj, exc_tb = sys.exc_info()
             fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
-            return SocaError.GENERIC_ERROR(helper=f"{err}, {exc_type}, {fname}, {exc_tb.tb_lineno}").as_flask()
+            return SocaError.GENERIC_ERROR(
+                helper=f"{err}, {exc_type}, {fname}, {exc_tb.tb_lineno}"
+            ).as_flask()
 
     @admin_api
+    @feature_flag(flag_name="USERS_GROUPS_MANAGEMENT", mode="api")
     def delete(self):
         """
-        Remove SUDO permission for a user
+        Revoke sudo permissions
         ---
+        openapi: 3.1.0
+        operationId: revokeUserSudoPermissions
         tags:
           - User Management
-        parameters:
-          - in: body
-            name: body
-            schema:
-              required:
-                - user
-              properties:
-                user:
-                  type: string
-                  description: user of the SOCA user
-
+        summary: Revoke sudo permissions
+        description: Remove sudo/administrator privileges from a user and downgrade their API key scope
+        security:
+          - socaAuth: []
+        requestBody:
+          required: true
+          content:
+            application/x-www-form-urlencoded:
+              schema:
+                type: object
+                required:
+                  - user
+                properties:
+                  user:
+                    type: string
+                    description: Username to revoke sudo permissions from
+                    minLength: 1
+                    maxLength: 64
+                    pattern: '^[a-zA-Z0-9._-]+$'
+                    example: "john.doe"
         responses:
-          200:
-            description: Pair of user/token is valid
-          203:
-            description: Invalid user/token pair
-          400:
-            description: Malformed client input
+          '200':
+            description: Successfully revoked sudo permissions
+            content:
+              application/json:
+                schema:
+                  type: object
+                  properties:
+                    success:
+                      type: boolean
+                      example: true
+                    message:
+                      type: string
+                      example: "john.doe does not have admin permission anymore"
+          '400':
+            description: Missing required parameter
+            content:
+              application/json:
+                schema:
+                  type: object
+                  properties:
+                    success:
+                      type: boolean
+                      example: false
+                    message:
+                      type: string
+                      example: "Missing required parameter: user"
+          '500':
+            description: Failed to revoke sudo permissions
+            content:
+              application/json:
+                schema:
+                  type: object
+                  properties:
+                    success:
+                      type: boolean
+                      example: false
+                    message:
+                      type: string
+                      example: "Unable to remove admin permission for john.doe"
         """
         parser = reqparse.RequestParser()
         parser.add_argument("user", type=str, location="form")
         args = parser.parse_args()
         user = args["user"]
         if user is None:
-            return SocaError.CLIENT_MISSING_PARAMETER(parameter="user")
+            return SocaError.CLIENT_MISSING_PARAMETER(parameter="user").as_flask()
 
         try:
             _soca_identity_client = SocaIdentityProviderClient()
             _soca_identity_client.initialize()
             _soca_identity_client.bind_as_service_account()
-            if config.Config.DIRECTORY_AUTH_PROVIDER in ["openldap", "existing_openldap"]:
+            if config.Config.DIRECTORY_AUTH_PROVIDER in [
+                "openldap",
+                "existing_openldap",
+            ]:
                 dn_user = f"cn={user},{config.Config.DIRECTORY_ADMIN_SEARCH_BASE}"
                 _delete_sudo = _soca_identity_client.delete(dn=dn_user)
             else:
                 _dn_sudoers_group = config.Config.DIRECTORY_ADMIN_SEARCH_BASE
                 _dn_user = f"cn={user},{config.Config.DIRECTORY_PEOPLE_SEARCH_BASE}"
-                _delete_sudo = _soca_identity_client.modify(dn=_dn_sudoers_group,
-                                                            mod_list=[(ldap.MOD_DELETE, "member", [_dn_user.encode("utf-8")])])
+                _delete_sudo = _soca_identity_client.modify(
+                    dn=_dn_sudoers_group,
+                    mod_list=[(ldap.MOD_DELETE, "member", [_dn_user.encode("utf-8")])],
+                )
 
             if _delete_sudo.get("success"):
                 change_user_key_scope = ApiKeys.query.filter_by(
@@ -224,11 +399,19 @@ class Sudo(Resource):
                     for key in change_user_key_scope:
                         key.scope = "user"
                         db.session.commit()
-                return SocaResponse(success=True, message=f"{user} does not have admin permission anymore").as_flask()
+                return SocaResponse(
+                    success=True,
+                    message=f"{user} does not have admin permission anymore",
+                ).as_flask()
             else:
-                return SocaResponse(success=False, message=f"Unable to remove admin permission for {user} because of {_delete_sudo.get('message')}").as_flask()
+                return SocaResponse(
+                    success=False,
+                    message=f"Unable to remove admin permission for {user} because of {_delete_sudo.get('message')}",
+                ).as_flask()
 
         except Exception as err:
             exc_type, exc_obj, exc_tb = sys.exc_info()
             fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
-            return SocaError.GENERIC_ERROR(helper=f"{err}, {exc_type}, {fname}, {exc_tb.tb_lineno}").as_flask()
+            return SocaError.GENERIC_ERROR(
+                helper=f"{err}, {exc_type}, {fname}, {exc_tb.tb_lineno}"
+            ).as_flask()

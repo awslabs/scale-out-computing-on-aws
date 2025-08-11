@@ -16,42 +16,182 @@ from flask import request
 import logging
 from datetime import datetime, timezone
 from utils.response import SocaResponse
-from decorators import private_api
-from botocore.exceptions import ClientError
+from decorators import private_api, feature_flag
 from utils.error import SocaError
 from models import db, VirtualDesktopSessions
 import utils.aws.boto3_wrapper as utils_boto3
+import utils.aws.cloudformation_helper as cloudformation_helper
+import utils.aws.odcr_helper as odcr_helper
+from utils.aws.ssm_parameter_store import SocaConfig
 
 logger = logging.getLogger("soca_logger")
 client_ec2 = utils_boto3.get_boto(service_name="ec2").message
-client_cfn = utils_boto3.get_boto(service_name="cloudformation").message
 
 
 class DeleteVirtualDesktop(Resource):
     @private_api
+    @feature_flag(flag_name="VIRTUAL_DESKTOPS", mode="api")
     def delete(self):
         """
-        Terminate a DCV desktop session
+        Delete a DCV virtual desktop session
         ---
+        openapi: 3.1.0
+        operationId: deleteVirtualDesktop
         tags:
-          - DCV
-
+          - Virtual Desktops
+        summary: Delete virtual desktop session
+        description: Terminates an active DCV virtual desktop session and cleans up associated resources
         parameters:
-          - in: body
-            name: body
+          - name: X-SOCA-USER
+            in: header
+            required: true
             schema:
-              required:
-                - os
-              properties:
-                session_uuid:
-                  type: string
-                  description: ID of the DCV session
-
+              type: string
+              minLength: 1
+              maxLength: 64
+              pattern: '^[a-zA-Z0-9._-]+$'
+            description: SOCA username for authentication
+            example: "john.doe"
+          - name: X-SOCA-TOKEN
+            in: header
+            required: true
+            schema:
+              type: string
+              minLength: 1
+              maxLength: 256
+            description: SOCA authentication token
+            example: "abc123token456"
+        requestBody:
+          required: true
+          content:
+            application/x-www-form-urlencoded:
+              schema:
+                type: object
+                required:
+                  - session_uuid
+                properties:
+                  session_uuid:
+                    type: string
+                    format: uuid
+                    description: UUID of the DCV session to delete
+                    example: "12345678-1234-1234-1234-123456789abc"
         responses:
-          200:
-            description: Pair of user/token is valid
-          401:
-            description: Invalid user/token pair
+          '200':
+            description: Virtual desktop session deletion initiated successfully
+            content:
+              application/json:
+                schema:
+                  type: object
+                  required:
+                    - success
+                    - message
+                  properties:
+                    success:
+                      type: boolean
+                      example: true
+                    message:
+                      type: string
+                      example: "Your Virtual Desktop is about to be terminated"
+          '400':
+            description: Missing required parameters
+            content:
+              application/json:
+                schema:
+                  type: object
+                  required:
+                    - success
+                    - error_code
+                    - message
+                  properties:
+                    success:
+                      type: boolean
+                      example: false
+                    error_code:
+                      type: integer
+                      example: 400
+                    message:
+                      type: string
+                      example: "Missing required parameter: session_uuid"
+          '401':
+            description: Authentication failed
+            content:
+              application/json:
+                schema:
+                  type: object
+                  required:
+                    - success
+                    - error_code
+                    - message
+                  properties:
+                    success:
+                      type: boolean
+                      example: false
+                    error_code:
+                      type: integer
+                      example: 401
+                    message:
+                      type: string
+                      example: "Missing required header: X-SOCA-USER"
+          '403':
+            description: Feature not enabled or insufficient permissions
+            content:
+              application/json:
+                schema:
+                  type: object
+                  required:
+                    - success
+                    - error_code
+                    - message
+                  properties:
+                    success:
+                      type: boolean
+                      example: false
+                    error_code:
+                      type: integer
+                      example: 403
+                    message:
+                      type: string
+                      example: "Virtual desktops feature is not enabled"
+          '404':
+            description: Session not found or not active
+            content:
+              application/json:
+                schema:
+                  type: object
+                  required:
+                    - success
+                    - error_code
+                    - message
+                  properties:
+                    success:
+                      type: boolean
+                      example: false
+                    error_code:
+                      type: integer
+                      example: 404
+                    message:
+                      type: string
+                      example: "This session does not exist or is not active"
+          '500':
+            description: Internal server error during deletion
+            content:
+              application/json:
+                schema:
+                  type: object
+                  required:
+                    - success
+                    - error_code
+                    - message
+                  properties:
+                    success:
+                      type: boolean
+                      example: false
+                    error_code:
+                      type: integer
+                      example: 500
+                    message:
+                      type: string
+                      example: "Unable to delete cloudformation stack"
         """
         parser = reqparse.RequestParser()
         parser.add_argument("session_uuid", type=str, location="form")
@@ -78,14 +218,26 @@ class DeleteVirtualDesktop(Resource):
             logger.debug(
                 f"Found session {_check_session} about to delete {_check_session.session_name} and associated CloudFormation {_check_session.stack_name}"
             )
-            try:
-                logger.info(f"Deleting DCV CloudFormation Stack {_stack_name}")
-                client_cfn.delete_stack(StackName=_stack_name)
-            except ClientError as e:
+
+            if (
+                SocaConfig(key="/configuration/FeatureFlags/EnableCapacityReservation")
+                .get_value(return_as=bool)
+                .get("message")
+                is True
+            ):
+                logger.info("Releasing ODCR associated to this cloudformation stack")
+                odcr_helper.cancel_capacity_reservation_by_stack(
+                    stack_name=_check_session.stack_name
+                )
+
+            logger.info(f"Deleting DCV CloudFormation Stack {_stack_name}")
+            _delete_stack = cloudformation_helper.delete_stack(stack_name=_stack_name)
+            if _delete_stack.get("success") is False:
                 return SocaError.AWS_API_ERROR(
                     service_name="cloudformation",
-                    helper=f"Unable to delete cloudformation stack ({_stack_name}) due to {e}",
+                    helper=f"Unable to delete cloudformation stack ({_stack_name}) due to {_delete_stack.get('message')}",
                 ).as_flask()
+
             logger.debug("Stack deleted successfully, updating database")
             try:
                 _check_session.is_active = False

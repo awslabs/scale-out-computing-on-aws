@@ -19,7 +19,7 @@
                 {% include 'common/horizontal_menu_bar.html' %}
                 {% include 'common/flashed_messages.html' %}
 
-                <div class="col-md-10">
+                <div class="col-md-12">
                             <div class="card shadow mb-4">
                                 <div class="card-header py-3">
                                     <h6 class="m-0 font-weight-bold text-primary">Edit Virtual Desktop Profile</h6>
@@ -42,6 +42,14 @@
                                                        for="root_size">Maximum EBS Root Disk size (in GB)</label>
                                                 <input type="number" min=0 value={{profile_info.max_root_size}} id="root_size" class="form-control"
                                                        required name="max_root_size">
+                                            </div>
+
+                                                <div class="form-group">
+                                                <label for="description" data-toggle="tooltip" data-placement="top"
+                                                       title="Description of your Target Node Profile">Description
+                                                </label>
+                                                <textarea id="description"
+                                                          class="form-control" rows="3"  name="description">{{profile_info.description}}</textarea>
                                             </div>
 
                                              <div class="form-group">

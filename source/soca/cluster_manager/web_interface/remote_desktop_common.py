@@ -38,6 +38,15 @@ def can_launch_instance(launch_parameters: dict) -> dict:
         else:
             _ebs_device_name = "/dev/sda1"
 
+        _custom_tags = []
+        if launch_parameters.get("custom_tags"):
+            for tag in launch_parameters["custom_tags"].values():
+                if tag.get("Enabled", ""):
+                    _custom_tags.append({"Key": tag["Key"], "Value": tag["Value"]})
+                else:
+                    logger.warning(f"{tag} does not have Enabled key or Enabled is False.")
+            
+
         client_ec2.run_instances(
             BlockDeviceMappings=[
                 {
@@ -65,6 +74,7 @@ def can_launch_instance(launch_parameters: dict) -> dict:
             ImageId=launch_parameters["image_id"],
             DryRun=True,
             HibernationOptions={"Configured": launch_parameters["hibernate"]},
+            TagSpecifications=[{"ResourceType": "instance", "Tags": _custom_tags}] if _custom_tags else [],
         )
 
     except ClientError as err:

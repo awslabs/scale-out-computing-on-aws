@@ -55,6 +55,7 @@ class SocaConfig:
         return_as: Optional[Type] = str,  # return result as specific type
         full_key_name: Optional[bool] = False,  # include parameter_name_prefix if True
         default: Optional[Any] = None,  # Return default value if not set
+        allow_unknown_key: Optional[bool] = False # If set to True, will not trigger a SocaError if key does not exist
     ) -> [Any, None]:
         logger.debug(
             f"Trying to retrieve parameter {self._full_parameter_name}, is_path {self._is_path}"
@@ -170,6 +171,9 @@ class SocaConfig:
             if default is not None:
                 return SocaResponse(success=True, message=default)
             else:
+                if allow_unknown_key is True:
+                    # Will not trigger a SocaError
+                    return SocaResponse(success=False, message="Key does not exist")
                 return SocaError.AWS_API_ERROR(
                     service_name="ssm_parameterstore",
                     helper=f"{self._full_parameter_name} not found. Add '/' at the end if this key is a hierarchy tree",
@@ -180,9 +184,9 @@ class SocaConfig:
                 return SocaResponse(success=True, message=default)
             else:
                 return SocaError.AWS_API_ERROR(
-                    service_name="ssm_parameterstore",
-                    helper=f"Unknown error while trying to retrieve parameter {self._full_parameter_name} due to {e}",
-                )
+                        service_name="ssm_parameterstore",
+                        helper=f"Unknown error while trying to retrieve parameter {self._full_parameter_name} due to {e}",
+                    )
 
     def get_value_history(self, sort: Optional[str] = "desc") -> dict:
         _history = {}

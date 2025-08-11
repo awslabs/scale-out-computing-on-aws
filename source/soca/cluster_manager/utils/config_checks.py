@@ -34,6 +34,8 @@ class SocaConfigKeyVerifier:
         "valid_ssh_keypair",
         "list_of_ec2_instances",
         "list_of_ec2_subnet_ids",
+        "validate_feature_flags",
+        "validate_custom_tags"
     ]
 
     _KEY_CONFIG_FILE = f"/opt/soca/{os.environ.get('SOCA_CLUSTER_ID')}/cluster_manager/utils/settings/socaconfig_key_validator.yml"
@@ -93,6 +95,11 @@ class SocaConfigKeyVerifier:
         _validation_test = self.get_validation_test(
             _schema, [item for item in key.split("/") if item]
         )
+        
+        # CustomTags are unique to each customer, so we cannot pre-populate socaconfig_key_validator.yml in advance 
+        if "/configuration/CustomTags/" in key:
+            _validation_test = "validate_custom_tags"
+        
         logger.debug(f"Detected Validation Test for {key} -> {_validation_test}")
         if _validation_test is None:
             return SocaError.SOCA_CONFIG_KEY_VERIFIER(
@@ -117,6 +124,13 @@ class SocaConfigKeyVerifier:
                 elif _validation_test == "valid_ssh_keypair":
                     _result = self.valid_ssh_keypair(key_name=value)
 
+                elif _validation_test == "valid_ssh_keypair":
+                    _result = self.valid_ssh_keypair(key_name=value)
+
+                elif _validation_test == "validate_feature_flags":
+                    _result = self.validate_feature_flags(flag_value=value)
+                elif _validation_test == "validate_custom_tags":
+                    _result = self.validate_custom_tags(flag_value=value)
                 elif _validation_test == "list_of_ec2_subnet_ids":
                     _list_of_subnets = ast.literal_eval(value)
                     if not isinstance(_list_of_subnets, list):
@@ -132,6 +146,86 @@ class SocaConfigKeyVerifier:
                 return SocaResponse(success=True, message="")
             else:
                 return SocaResponse(success=False, message=_result)
+
+    @staticmethod
+    def validate_custom_tags(flag_value: str):
+        try:
+            _flag_value = ast.literal_eval(flag_value)
+        except Exception as err:
+            return f"{flag_value} invalid syntax. Enabled must be bool, Key/Value must be a str"
+
+        if not isinstance(_flag_value, dict):
+            return f"{_flag_value} does not seems to be a valid dictionary"
+
+        else:
+            if not "Enabled" in _flag_value.keys():
+                return f"Enabled key is missing in {_flag_value}"
+            else:
+                if str(_flag_value.get("Enabled")).lower() not in ["true", "false"]:
+                    return (
+                        f"Enabled value is not a boolean, must be either True or False"
+                    )
+
+            if "Key" not in _flag_value.keys():
+                return f"Key is missing in {_flag_value}"
+            else:
+                if not isinstance(_flag_value.get("Key"), str):
+                    return f"Key is not a str"
+                else:
+                    if _flag_value.get('Key').startswith("soca:") or _flag_value.get('Key').startswith("aws:") or _flag_value.get('Key') == "Name":
+                        return f"Key cannot start with soca: or aws: or be 'Name'"
+                
+            if "Value" not in _flag_value.keys():
+                return f"Value is missing in {_flag_value}"
+            else:
+                if not isinstance(_flag_value.get("Value"), str):
+                    return f"Value value is not a str"
+                
+            return True
+        
+    @staticmethod
+    def validate_feature_flags(flag_value: str):
+        try:
+            _flag_value = ast.literal_eval(flag_value)
+        except Exception as err:
+            return f"{flag_value} invalid syntax. Enabled must be bool, allowed/denied_users must be a list of str"
+
+        if not isinstance(_flag_value, dict):
+            return f"{_flag_value} does not seems to be a valid dictionary"
+
+        else:
+            if not "enabled" in _flag_value.keys():
+                return f"enabled key is missing in {_flag_value}"
+            else:
+                if str(_flag_value.get("enabled")).lower() not in ["true", "false"]:
+                    return (
+                        f"enabled value is not a boolean, must be either True or False"
+                    )
+
+            if "allowed_users" not in _flag_value.keys():
+                return f"allowed_users key is missing in {_flag_value}"
+            else:
+                if not isinstance(_flag_value.get("allowed_users"), list):
+                    return f"allowed_users value is not a list"
+                else:
+                    for item in _flag_value.get("allowed_users"):
+                        if not isinstance(item, str):
+                            return (
+                                f"allowed_users must be a list of string {_flag_value}"
+                            )
+
+            if "denied_users" not in _flag_value.keys():
+                return f"denied_users key is missing in {_flag_value}"
+            else:
+                if not isinstance(_flag_value.get("denied_users"), list):
+                    return f"denied_users value is not a list"
+                else:
+                    for item in _flag_value.get("denied_users"):
+                        if not isinstance(item, str):
+                            return (
+                                f"denied_users must be a list of string {_flag_value}"
+                            )
+            return True
 
     @staticmethod
     def valid_subnet_id(subnet_ids: list) -> [bool, str]:

@@ -29,17 +29,87 @@ class Users(Resource):
     @private_api
     def get(self):
         """
-        List all LDAP users
+        Retrieve all LDAP users
         ---
+        openapi: 3.1.0
+        operationId: getAllLdapUsers
         tags:
           - User Management
+        summary: Retrieve all LDAP users
+        description: Returns a list of all users from the configured LDAP directory (OpenLDAP or Active Directory)
+        security:
+          - socaAuth: []
         responses:
-          200:
-            description: Pair of username/token is valid
-          203:
+          '200':
+            description: Successfully retrieved all LDAP users
+            content:
+              application/json:
+                schema:
+                  type: object
+                  properties:
+                    success:
+                      type: boolean
+                      example: true
+                    message:
+                      type: object
+                      description: Dictionary of username to LDAP DN mappings
+                      additionalProperties:
+                        type: string
+                        description: LDAP Distinguished Name
+                      example:
+                        "john.doe": "cn=john.doe,ou=people,dc=soca,dc=local"
+                        "jane.smith": "cn=jane.smith,ou=people,dc=soca,dc=local"
+          '203':
             description: Invalid username/token pair
-          400:
+            content:
+              application/json:
+                schema:
+                  type: object
+                  properties:
+                    success:
+                      type: boolean
+                      example: false
+                    message:
+                      type: string
+                      example: "Invalid authentication credentials"
+          '400':
             description: Malformed client input
+            content:
+              application/json:
+                schema:
+                  type: object
+                  properties:
+                    success:
+                      type: boolean
+                      example: false
+                    message:
+                      type: string
+                      example: "Bad request parameters"
+          '500':
+            description: Internal server error
+            content:
+              application/json:
+                schema:
+                  type: object
+                  properties:
+                    success:
+                      type: boolean
+                      example: false
+                    message:
+                      type: string
+                      example: "Unable to connect to LDAP server"
+        components:
+          securitySchemes:
+            socaAuth:
+              type: apiKey
+              in: header
+              name: X-SOCA-USER
+              description: SOCA username for authentication
+            socaToken:
+              type: apiKey
+              in: header
+              name: X-SOCA-TOKEN
+              description: SOCA authentication token
         """
         all_ldap_users = {}
         if config.Config.DIRECTORY_AUTH_PROVIDER in ["openldap", "existing_openldap"]:

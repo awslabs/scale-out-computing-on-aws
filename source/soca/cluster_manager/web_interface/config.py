@@ -45,6 +45,7 @@ class Config(object):
     SOCA_DATA_SHARING_SYMMETRIC_KEY = os.environ.get("SOCA_FLASK_FERNET_KEY", False)
     TIMEZONE = "UTC"  # Change to match your local timezone if needed. See https://en.wikipedia.org/wiki/List_of_tz_database_time_zones for all TZ
 
+    USER_REGEX_PATTERN = r"^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,31}$" # Username must be alphanumeric and - _ . 
     # WEB
     APPS_LOCATION = "/apps/"
     USER_HOME = "/data/home"
@@ -96,6 +97,7 @@ class Config(object):
     COGNITO_APP_ID = "<YOUR_APP_ID>"
     COGNITO_ROOT_URL = "<YOUR_WEB_URL>"
     COGNITO_CALLBACK_URL = "<YOUR_CALLBACK_URL>"
+    COGNITO_USER_CLAIM = "email" # Claim containing the SOCA username. If set to email, SOCA will split("@") and consider the first part is the SOCA user. Replace as needed with another claim.
 
     # DCV Linux
     DCV_LINUX_SESSION_COUNT = 4
@@ -245,6 +247,51 @@ class Config(object):
         .get_value(return_as=list)
         .get("message")
     )
+
+    ## Target Nodes
+    TARGET_NODE_ALLOW_DEFAULT_SCHEDULE_UPDATE = (
+        True  # Whether users can override the default schedule
+    )
+    TARGET_NODE_SESSION_COUNT = 5  # Maximum number of concurrent target nodes per user
+    TARGET_NODE_ALLOW_INSTANCE_CHANGE = (
+        True  # Allow user to change their instance type if their target node
+    )
+    # Grace Period
+    # - Will not stop a target node if it was started within the grace period
+    # - Will not start a target node if it was stopped within  the grace period
+    # In other word, even if your schedule is stopped all day, but you manually start your target node, it will stays up and running for X hours)
+    TARGET_NODE_GRACE_PERIOD_IN_HOURS = 2
+
+    TARGET_NODE_DEFAULT_SCHEDULE = {
+        "monday": {
+            "start": 480,  # Default Schedule - Start 8 AM (8*60)
+            "stop": 1140,  # Default Schedule - Stop if idle after 7 PM (19*60)
+        },
+        "tuesday": {
+            "start": 480,  # Default Schedule - Start 8 AM (8*60)
+            "stop": 1140,  # Default Schedule - Stop if idle after 7 PM (19*60)
+        },
+        "wednesday": {
+            "start": 480,  # Default Schedule - Start 8 AM (8*60)
+            "stop": 1140,  # Default Schedule - Stop if idle after 7 PM (19*60)
+        },
+        "thursday": {
+            "start": 480,  # Default Schedule - Start 8 AM (8*60)
+            "stop": 1140,  # Default Schedule - Stop if idle after 7 PM (19*60)
+        },
+        "friday": {
+            "start": 480,  # Default Schedule - Start 8 AM (8*60)
+            "stop": 1140,  # Default Schedule - Stop if idle after 7 PM (19*60)
+        },
+        "saturday": {
+            "start": 0,  # Default Schedule - Stopped all day
+            "stop": 0,  # Default Schedule - Stopped all day
+        },
+        "sunday": {
+            "start": 0,  # Default Schedule - Stopped all day
+            "stop": 0,  # Default Schedule - Stopped all day
+        },
+    }
 
     # User Directory
     DIRECTORY_AUTH_PROVIDER = (

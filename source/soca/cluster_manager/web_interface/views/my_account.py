@@ -15,7 +15,7 @@ import logging
 import config
 from flask import render_template, Blueprint, request, redirect, session, flash
 from requests import get, post, put
-from decorators import login_required
+from decorators import login_required, feature_flag
 import string
 import random
 from utils.error import SocaError
@@ -23,45 +23,56 @@ from utils.identity_provider_client import SocaIdentityProviderClient
 from utils.response import SocaResponse
 from utils.aws.ssm_parameter_store import SocaConfig
 from utils.http_client import SocaHttpClient
+
 logger = logging.getLogger("soca_logger")
 my_account = Blueprint("my_account", __name__, template_folder="templates")
 
 
 @my_account.route("/my_account", methods=["GET"])
 @login_required
+@feature_flag(flag_name="MY_ACCOUNT_MANAGEMENT", mode="view")
 def index():
     group_name = f"{session['user']}{config.Config.DIRECTORY_GROUP_NAME_SUFFIX}"
-    _get_user_ldap_group = SocaHttpClient(endpoint="/api/ldap/group",  headers={"X-SOCA-TOKEN": config.Config.API_ROOT_KEY}).get(params={"group": group_name})
-    _get_user_ldap_users = SocaHttpClient(endpoint="/api/ldap/users",  headers={"X-SOCA-TOKEN": config.Config.API_ROOT_KEY}).get()
+    _get_user_ldap_group = SocaHttpClient(
+        endpoint="/api/ldap/group", headers={"X-SOCA-TOKEN": config.Config.API_ROOT_KEY}
+    ).get(params={"group": group_name})
+    _get_user_ldap_users = SocaHttpClient(
+        endpoint="/api/ldap/users", headers={"X-SOCA-TOKEN": config.Config.API_ROOT_KEY}
+    ).get()
     all_users = []
     group_members = []
 
     if _get_user_ldap_group.success:
         for _member in _get_user_ldap_group.message.get("members"):
-            if f"{'uid=' if config.Config.DIRECTORY_AUTH_PROVIDER in ['openldap', 'existing_openldap'] else 'cn='}{session['user']}," not in _member.lower():
+            if (
+                f"{'uid=' if config.Config.DIRECTORY_AUTH_PROVIDER in ['openldap', 'existing_openldap'] else 'cn='}{session['user']},"
+                not in _member.lower()
+            ):
                 group_members.append(_member)
 
     if _get_user_ldap_users.success:
         for _user in _get_user_ldap_users.message.keys():
             # do not show current user, cannot being added/removed to its own group
-            if _user !=  session["user"]:
+            if _user != session["user"]:
                 all_users.append(_user)
 
     return render_template(
         "my_account.html",
-        user=session["user"],
         group_members=group_members,
         all_users=all_users,
     )
 
 
 @my_account.route("/manage_group", methods=["POST"])
+@feature_flag(flag_name="MY_ACCOUNT_MANAGEMENT", mode="view")
 @login_required
 def manage_group():
     group_name = f"{session['user']}{config.Config.DIRECTORY_GROUP_NAME_SUFFIX}"
     user = request.form.get("user")
     action = request.form.get("action")
-    _update_group = SocaHttpClient(endpoint="/api/ldap/group",  headers={"X-SOCA-TOKEN": config.Config.API_ROOT_KEY}).put(data={"group": group_name, "user": user, "action": action})
+    _update_group = SocaHttpClient(
+        endpoint="/api/ldap/group", headers={"X-SOCA-TOKEN": config.Config.API_ROOT_KEY}
+    ).put(data={"group": group_name, "user": user, "action": action})
 
     if _update_group.success:
         flash("Group update successfully", "success")
@@ -72,6 +83,7 @@ def manage_group():
 
 
 @my_account.route("/reset_password", methods=["POST"])
+@feature_flag(flag_name="MY_ACCOUNT_MANAGEMENT", mode="view")
 @login_required
 def reset_key():
     password = request.form.get("password", None)

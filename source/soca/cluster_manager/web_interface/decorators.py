@@ -15,10 +15,11 @@ import urllib
 from functools import wraps
 import config
 from models import ApiKeys
-from flask import request, redirect, session, flash
+from flask import request, redirect, session, flash, abort
 from requests import get, post
 import logging
 from utils.http_client import SocaHttpClient
+import feature_flags
 
 logger = logging.getLogger("soca_logger")
 
@@ -55,14 +56,15 @@ def validate_password(user, password, check_sudo=False):
         # password are not stored in DB. We determine successfully login via LDAP bind
         check_auth = SocaHttpClient(
             endpoint="/api/ldap/authenticate",
-            headers={"X-SOCA-TOKEN": config.Config.API_ROOT_KEY}).post(
-            data={"user": user, "password": password})
+            headers={"X-SOCA-TOKEN": config.Config.API_ROOT_KEY},
+        ).post(data={"user": user, "password": password})
 
         if check_auth.status_code == 200:
             if check_sudo:
                 check_sudo_permission = SocaHttpClient(
                     endpoint="/api/ldap/sudo",
-                    headers={"X-SOCA-TOKEN": config.Config.API_ROOT_KEY}).get(param={"user": user})
+                    headers={"X-SOCA-TOKEN": config.Config.API_ROOT_KEY},
+                ).get(param={"user": user})
 
                 if check_sudo_permission.status_code == 200:
                     return True
@@ -72,6 +74,52 @@ def validate_password(user, password, check_sudo=False):
                 return True
         else:
             return False
+
+
+# Enable/Disable feature
+def feature_flag(flag_name, mode):
+    def decorator(f):
+        @wraps(f)
+        def wrapped(*args, **kwargs):
+
+            def _deny_access(message):
+                if mode == "view":
+                    flash(message, "error")
+                    return redirect("/")
+                return {"success": False, "message": message}, 400
+
+            _feature = feature_flags.FEATURE_FLAGS.get(flag_name, {})
+            _current_user = session.get("user") or request.headers.get("X-SOCA-USER")
+            logger.debug(f"Checking {_current_user} permission to {_feature}")
+
+            if not isinstance(_feature, dict):
+                return _deny_access("Invalid feature flag configuration")
+
+            # Global flag
+            if not _feature.get("enabled", False):
+                return _deny_access("Feature not available on this SOCA cluster")
+
+            _denied_users = _feature.get("denied_users", [])
+            _allowed_users = _feature.get("allowed_users", [])
+
+            # Explicit Deny
+            if _current_user in _denied_users:
+                return _deny_access(
+                    "Feature not available for you on this SOCA cluster"
+                )
+
+            # Enabled is True, allowed_users list is set but user not in list
+            if _allowed_users and _current_user not in _allowed_users:
+                return _deny_access(
+                    "Feature not available for you on this SOCA cluster"
+                )
+
+            # All other use cases, return True
+            return f(*args, **kwargs)
+
+        return wrapped
+
+    return decorator
 
 
 # Restricted API can only be accessed using Flask Root API key

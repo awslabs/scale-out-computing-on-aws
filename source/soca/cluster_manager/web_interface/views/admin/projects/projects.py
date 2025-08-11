@@ -38,6 +38,28 @@ def index():
         headers={"X-SOCA-USER": session["user"], "X-SOCA-TOKEN": session["api_key"]},
     ).get()
 
+    _list_all_users = SocaHttpClient(
+        endpoint="/api/ldap/users",
+        headers={"X-SOCA-TOKEN": session["api_key"], "X-SOCA-USER": session["user"]},
+    ).get()
+
+    if _list_all_users.get("success") is True:
+        _all_users = _list_all_users.get("message")
+    else:
+        flash(f"Unable to list all users: {_list_all_users.get('message')}", "error")
+        _all_users = []
+        
+    _list_all_groups = SocaHttpClient(
+        endpoint="/api/ldap/groups",
+        headers={"X-SOCA-TOKEN": session["api_key"], "X-SOCA-USER": session["user"]},
+    ).get()
+
+    if _list_all_groups.get("success") is True:
+        _all_groups = _list_all_groups.get("message")
+    else:
+        flash(f"Unable to list all groups: {_list_all_groups.get('message')}", "error")
+        _all_groups = []
+
     _list_software_stacks = SocaHttpClient(
         endpoint="/api/dcv/virtual_desktops/software_stacks",
         headers={"X-SOCA-USER": session["user"], "X-SOCA-TOKEN": session["api_key"]},
@@ -52,6 +74,65 @@ def index():
     else:
         _software_stacks = _list_software_stacks.get("message")
 
+    _list_target_nodes_software_stacks = SocaHttpClient(
+        endpoint="/api/target_nodes/software_stacks",
+        headers={"X-SOCA-USER": session["user"], "X-SOCA-TOKEN": session["api_key"]},
+    ).get()
+
+    if _list_target_nodes_software_stacks.get("success") is False:
+        flash(
+            f"Unable to list Target Node Software Stacks because of {_list_target_nodes_software_stacks.get('message')}",
+            "error",
+        )
+        _target_nodes_software_stacks = {}
+    else:
+        _target_nodes_software_stacks = _list_target_nodes_software_stacks.get(
+            "message"
+        )
+
+    _list_application_profiles = SocaHttpClient(
+        endpoint="/api/applications/list_applications",
+        headers={"X-SOCA-USER": session["user"], "X-SOCA-TOKEN": session["api_key"]},
+    ).get()
+
+    if _list_application_profiles.get("success") is False:
+        flash(
+            f"Unable to list Software Applications because of {_list_application_profiles.get('message')}",
+            "error",
+        )
+        _application_profiles = {}
+    else:
+        _application_profiles = _list_application_profiles.get("message")
+
+    _list_target_nodes_software_stacks = SocaHttpClient(
+        endpoint="/api/target_nodes/software_stacks",
+        headers={"X-SOCA-USER": session["user"], "X-SOCA-TOKEN": session["api_key"]},
+    ).get()
+
+    if _list_target_nodes_software_stacks.get("success") is False:
+        flash(
+            f"Unable to list Target Node Software Stacks because of {_list_target_nodes_software_stacks.get('message')}",
+            "error",
+        )
+        _target_nodes_software_stacks = {}
+    else:
+        _target_nodes_software_stacks = _list_target_nodes_software_stacks.get(
+            "message"
+        )
+
+    _check_budget = SocaHttpClient(
+        endpoint=f"/api/cost_management/budgets",
+        headers={
+            "X-SOCA-USER": session["user"],
+            "X-SOCA-TOKEN": session["api_key"],
+        },
+    ).get()
+    if _check_budget.get("success") is False:
+        flash(f"Unable to check budget due to {_check_budget.get('message')}", "error")
+        _budgets = []
+    else:
+        _budgets = _check_budget.get("message")
+
     if _list_projects.get("success") is False:
         flash(
             f"Unable to list SOCA Projects because of {_list_projects.get('message')}",
@@ -63,9 +144,13 @@ def index():
 
     return render_template(
         "admin/projects/projects.html",
-        user=session["user"],
         projects=_projects,
+        budgets=_budgets,
+        all_users=_all_users,
+        all_groups=_all_groups,
         software_stacks=_software_stacks,
+        application_profiles=_application_profiles,
+        target_nodes_software_stacks=_target_nodes_software_stacks,
         page="admin_projects",
     )
 
@@ -151,12 +236,82 @@ def project_edit():
     else:
         _software_stacks = _list_software_stacks.get("message")
 
+    _list_all_groups = SocaHttpClient(
+        endpoint="/api/ldap/groups",
+        headers={"X-SOCA-TOKEN": session["api_key"], "X-SOCA-USER": session["user"]},
+    ).get()
+
+    if _list_all_groups.get("success") is True:
+        _all_groups = _list_all_groups.get("message")
+    else:
+        flash(f"Unable to list all groups: {_list_all_groups.get('message')}", "error")
+        _all_groups = []
+        
+    _list_target_nodes_software_stacks = SocaHttpClient(
+        endpoint="/api/target_nodes/software_stacks",
+        headers={"X-SOCA-USER": session["user"], "X-SOCA-TOKEN": session["api_key"]},
+    ).get()
+
+    if _list_target_nodes_software_stacks.get("success") is False:
+        flash(
+            f"Unable to list Target Node Software Stacks because of {_list_target_nodes_software_stacks.get('message')}",
+            "error",
+        )
+        _target_nodes_software_stacks = {}
+    else:
+        _target_nodes_software_stacks = _list_target_nodes_software_stacks.get(
+            "message"
+        )
+
+    _list_all_users = SocaHttpClient(
+        endpoint="/api/ldap/users",
+        headers={"X-SOCA-TOKEN": session["api_key"], "X-SOCA-USER": session["user"]},
+    ).get()
+
+    if _list_all_users.get("success") is True:
+        _all_users = _list_all_users.get("message")
+    else:
+        flash(f"Unable to list all users: {_list_all_users.get('message')}", "error")
+        _all_users = []
+
+    _list_application_profiles = SocaHttpClient(
+        endpoint="/api/applications/list_applications",
+        headers={"X-SOCA-USER": session["user"], "X-SOCA-TOKEN": session["api_key"]},
+    ).get()
+
+    if _list_application_profiles.get("success") is False:
+        flash(
+            f"Unable to list Software Applications because of {_list_application_profiles.get('message')}",
+            "error",
+        )
+        _application_profiles = {}
+    else:
+        _application_profiles = _list_application_profiles.get("message")
+
+    _check_budget = SocaHttpClient(
+        endpoint=f"/api/cost_management/budgets",
+        headers={
+            "X-SOCA-USER": session["user"],
+            "X-SOCA-TOKEN": session["api_key"],
+        },
+    ).get()
+    if _check_budget.get("success") is False:
+        flash(f"Unable to check budget due to {_check_budget.get('message')}", "error")
+        _budgets = []
+    else:
+        _budgets = _check_budget.get("message")
+
     if _get_project_info.get("success") is True:
         return render_template(
             "admin/projects/projects_edit.html",
             user=session["user"],
+            all_users=_all_users,
+            all_groups=_all_groups,
+            budgets=_budgets,
+            application_profiles=_application_profiles,
             project_info=_get_project_info.get("message").get(_project_to_modify),
-            software_stacks=_list_software_stacks.get("message"),
+            software_stacks=_software_stacks,
+            target_nodes_software_stacks=_target_nodes_software_stacks,
             page="admin_projects",
         )
     else:
@@ -207,22 +362,30 @@ def software_stack_update():
     return redirect("/admin/projects")
 
 
-@admin_projects.route("/admin/projects/by_user", methods=["GET"])
+@admin_projects.route("/admin/projects/by_user", methods=["GET", "POST"])
 @login_required
 @admin_only
 def projects_by_user():
-    logger.info(f"List all SOCA Projects for user")
-    _user = request.args.get("user", None)
-    if _user is None:
-        _get_all_projects_for_user = {}
-    else:
+    _user = request.form.get("user", "")
+    _user_projects = {}
+    if request.method == "POST":
+        logger.info(f"List all SOCA Projects for user {_user}")
         _get_all_projects_for_user = SocaHttpClient(
-            endpoint=f"/api/projects/by_user",
+            endpoint=f"/api/user/resources_permissions",
             headers={
                 "X-SOCA-USER": session["user"],
                 "X-SOCA-TOKEN": session["api_key"],
             },
-        ).get(params={"user": _user})
+        ).post(
+            data={
+                "user": _user,
+                "virtual_desktops": "all",
+                "target_nodes": "all",
+                "application_profiles": "all",
+                "exclude_columns": "thumbnail",
+            }
+        )
+        _user_projects = _get_all_projects_for_user.get("message")
 
     _get_all_soca_users = SocaHttpClient(
         endpoint=f"/api/ldap/users",
@@ -231,9 +394,8 @@ def projects_by_user():
 
     return render_template(
         "admin/projects/projects_by_user.html",
-        user=session["user"],
         user_to_check=_user,
-        projects=_get_all_projects_for_user.get("message"),
+        projects=_user_projects,
         all_soca_users=_get_all_soca_users.get("message"),
-        page="admin_projects",
+        page="admin_projects_per_user",
     )
