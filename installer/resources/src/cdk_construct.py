@@ -7651,13 +7651,13 @@ if __name__ == "__main__":
     }
 
     principals_suffix = {
-        "backup": f"backup.{Aws.URL_SUFFIX}",
-        "cloudwatch": f"cloudwatch.{Aws.URL_SUFFIX}",
-        "ec2": f"ec2.{Aws.URL_SUFFIX}",
-        "lambda": f"lambda.{Aws.URL_SUFFIX}",
-        "sns": f"sns.{Aws.URL_SUFFIX}",
-        "spotfleet": f"spotfleet.{Aws.URL_SUFFIX}",
-        "ssm": f"ssm.{Aws.URL_SUFFIX}",
+        "backup": "backup.amazonaws.com",
+        "cloudwatch": "cloudwatch.amazonaws.com",
+        "ec2": "ec2.amazonaws.com",
+        "lambda": "lambda.amazonaws.com",
+        "sns": "sns.amazonaws.com",
+        "spotfleet": "spotfleet.amazonaws.com",
+        "ssm": "ssm.amazonaws.com",
     }
 
     # Apply default tag to all taggable resources
