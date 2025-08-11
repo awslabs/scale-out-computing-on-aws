@@ -7,7 +7,7 @@
                         "logs:CreateLogStream",
                         "logs:PutLogEvents"
                     ],
-            "Resource": "*",
+            "Resource": "arn:%%AWS_PARTITION%%:logs:%%AWS_REGION%%:%%AWS_ACCOUNT_ID%%:log-group:/aws/lambda/%%CLUSTER_ID%%*EFSAppsLambda*",
             "Effect": "Allow",
             "Sid": "CloudWatchLogsPermissions"
         },
@@ -24,10 +24,9 @@
                 "elasticfilesystem:DescribeFileSystems",
                 "elasticfilesystem:UpdateFileSystem"
             ],
-            "Resource": "arn:aws-cn:elasticfilesystem:%%AWS_REGION%%:%%AWS_ACCOUNT_ID%%:file-system/*",
+            "Resource": "arn:%%AWS_PARTITION%%:elasticfilesystem:%%AWS_REGION%%:%%AWS_ACCOUNT_ID%%:file-system/*",
             "Effect": "Allow",
             "Sid": "EFSPermissions"
         }
     ]
 }
-

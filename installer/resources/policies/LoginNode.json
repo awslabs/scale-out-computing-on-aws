@@ -7,25 +7,34 @@
                 "s3:ListBucket"
             ],
             "Resource": [
-                "arn:aws-cn:s3:::dcv-license.%%AWS_REGION%%/*",
-                "arn:aws-cn:s3:::ec2-linux-nvidia-drivers/*",
-                "arn:aws-cn:s3:::ec2-linux-nvidia-drivers",
-                "arn:aws-cn:s3:::nvidia-gaming/*",
-                "arn:aws-cn:s3:::nvidia-gaming-drivers",
-                "arn:aws-cn:s3:::ec2-amd-linux-drivers/*",
-                "arn:aws-cn:s3:::ec2-amd-linux-drivers",
-                "arn:aws-cn:s3:::%%BUCKET%%/*",
-                "arn:aws-cn:s3:::%%BUCKET%%"
+                "arn:%%AWS_PARTITION%%:s3:::dcv-license.%%AWS_REGION%%/*",
+                "arn:%%AWS_PARTITION%%:s3:::ec2-linux-nvidia-drivers/*",
+                "arn:%%AWS_PARTITION%%:s3:::ec2-linux-nvidia-drivers",
+                "arn:%%AWS_PARTITION%%:s3:::nvidia-gaming/*",
+                "arn:%%AWS_PARTITION%%:s3:::nvidia-gaming-drivers",
+                "arn:%%AWS_PARTITION%%:s3:::ec2-amd-linux-drivers/*",
+                "arn:%%AWS_PARTITION%%:s3:::ec2-amd-linux-drivers",
+                "arn:%%AWS_PARTITION%%:s3:::%%BUCKET%%/*",
+                "arn:%%AWS_PARTITION%%:s3:::%%BUCKET%%"
             ],
             "Effect": "Allow"
-        }, 
+        },
+        {
+            "Action": [
+                "ses:SendEmail"
+            ],
+            "Resource": [
+                "arn:%%AWS_PARTITION%%:ses:*:%%AWS_ACCOUNT_ID%%:identity*"
+            ],
+            "Effect": "Allow"
+        },
         {
             "Action": [
                 "ec2:CreateTags"
             ],
             "Resource": [
-                "arn:aws-cn:ec2:*:%%AWS_ACCOUNT_ID%%:volume/*",
-                "arn:aws-cn:ec2:*:%%AWS_ACCOUNT_ID%%:network-interface/*"
+                "arn:%%AWS_PARTITION%%:ec2:*:%%AWS_ACCOUNT_ID%%:volume/*",
+                "arn:%%AWS_PARTITION%%:ec2:*:%%AWS_ACCOUNT_ID%%:network-interface/*"
             ],
             "Effect": "Allow"
         },
@@ -56,7 +65,7 @@
                 "logs:PutLogEvents",
                 "logs:DescribeLogStreams"
             ],
-            "Resource": "*"
+            "Resource": "arn:%%AWS_PARTITION%%:logs:%%AWS_REGION%%:*"
         }
     ]
 }
