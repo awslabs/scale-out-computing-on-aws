@@ -3049,8 +3049,35 @@ class SOCAInstall(Stack):
                 )
             )
 
-        # Generate IAM inline policies
+        # Standard AWS regions include AWS managed buckets
+        # For GCR regions (cn-north-1, cn-northwest-1), it remains empty
+        compute_node_managed_buckets = ""
+        target_node_managed_buckets = ""
+        login_node_managed_buckets = ""
+        ses_permissions = ""
+        ec2_instance_connect_permissions = ""
+        
+        if self._region.startswith("cn-"):
+            # China regions don't support StartSerialConsoleSession
+            ec2_instance_connect_permissions = ',\n        {\n            "Sid": "AllowSerialConsoleAccess",\n            "Action": [\n                "ec2-instance-connect:SendSerialConsoleSSHPublicKey"\n            ],\n            "Resource": "arn:%%AWS_PARTITION%%:ec2:*:%%AWS_ACCOUNT_ID%%:instance/*",\n            "Effect": "Allow",\n            "Condition": {\n                "StringEquals": {\n                    "ec2:ResourceTag/soca:ClusterId": "%%CLUSTER_ID%%"\n                }\n            }\n        }'
+        else:
+            ec2_instance_connect_permissions = ',\n        {\n            "Sid": "AllowSerialConsoleAccess",\n            "Action": [\n                "ec2-instance-connect:SendSerialConsoleSSHPublicKey",\n                "ec2-instance-connect:StartSerialConsoleSession"\n            ],\n            "Resource": "arn:%%AWS_PARTITION%%:ec2:*:%%AWS_ACCOUNT_ID%%:instance/*",\n            "Effect": "Allow",\n            "Condition": {\n                "StringEquals": {\n                    "ec2:ResourceTag/soca:ClusterId": "%%CLUSTER_ID%%"\n                }\n            }\n        }'
+        
+        if not self._region.startswith("cn-"):
+            compute_node_managed_buckets = ',\n                "arn:%%AWS_PARTITION%%:s3:::dcv-license.%%AWS_REGION%%/*",\n                "arn:%%AWS_PARTITION%%:s3:::ec2-linux-nvidia-drivers/*",\n                "arn:%%AWS_PARTITION%%:s3:::ec2-linux-nvidia-drivers",\n                "arn:%%AWS_PARTITION%%:s3:::nvidia-gaming/*",\n                "arn:%%AWS_PARTITION%%:s3:::nvidia-gaming-drivers",\n                "arn:%%AWS_PARTITION%%:s3:::ec2-amd-linux-drivers/*",\n                "arn:%%AWS_PARTITION%%:s3:::ec2-amd-linux-drivers",\n                "arn:%%AWS_PARTITION%%:s3:::ec2-amd-windows-drivers",\n                "arn:%%AWS_PARTITION%%:s3:::ec2-amd-windows-drivers/*",\n                "arn:%%AWS_PARTITION%%:s3:::ec2-windows-nvidia-drivers",\n                "arn:%%AWS_PARTITION%%:s3:::ec2-windows-nvidia-drivers/*"'
+            
+            target_node_managed_buckets = ',\n                "arn:%%AWS_PARTITION%%:s3:::dcv-license.%%AWS_REGION%%/*",\n                "arn:%%AWS_PARTITION%%:s3:::ec2-linux-nvidia-drivers/*",\n                "arn:%%AWS_PARTITION%%:s3:::ec2-linux-nvidia-drivers",\n                "arn:%%AWS_PARTITION%%:s3:::nvidia-gaming/*",\n                "arn:%%AWS_PARTITION%%:s3:::nvidia-gaming-drivers",\n                "arn:%%AWS_PARTITION%%:s3:::ec2-amd-linux-drivers/*",\n                "arn:%%AWS_PARTITION%%:s3:::ec2-amd-linux-drivers",\n                "arn:%%AWS_PARTITION%%:s3:::ec2-amd-windows-drivers",\n                "arn:%%AWS_PARTITION%%:s3:::ec2-amd-windows-drivers/*",\n                "arn:%%AWS_PARTITION%%:s3:::ec2-windows-nvidia-drivers",\n                "arn:%%AWS_PARTITION%%:s3:::ec2-windows-nvidia-drivers/*"'
+            
+            login_node_managed_buckets = ',\n                "arn:%%AWS_PARTITION%%:s3:::dcv-license.%%AWS_REGION%%/*",\n                "arn:%%AWS_PARTITION%%:s3:::ec2-linux-nvidia-drivers/*",\n                "arn:%%AWS_PARTITION%%:s3:::ec2-linux-nvidia-drivers",\n                "arn:%%AWS_PARTITION%%:s3:::nvidia-gaming/*",\n                "arn:%%AWS_PARTITION%%:s3:::nvidia-gaming-drivers",\n                "arn:%%AWS_PARTITION%%:s3:::ec2-amd-linux-drivers/*",\n                "arn:%%AWS_PARTITION%%:s3:::ec2-amd-linux-drivers"'
+            
+            ses_permissions = ',\n        {\n            "Action": [\n                "ses:SendEmail"\n            ],\n            "Resource": [\n                "arn:%%AWS_PARTITION%%:ses:*:%%AWS_ACCOUNT_ID%%:identity*"\n            ],\n            "Effect": "Allow"\n        }'
+        
         policy_substitutes = {
+            "%%COMPUTE_NODE_MANAGED_BUCKETS%%": compute_node_managed_buckets,
+            "%%TARGET_NODE_MANAGED_BUCKETS%%": target_node_managed_buckets,
+            "%%LOGIN_NODE_MANAGED_BUCKETS%%": login_node_managed_buckets,
+            "%%SES_PERMISSIONS%%": ses_permissions,
+            "%%EC2_INSTANCE_CONNECT_PERMISSIONS%%": ec2_instance_connect_permissions,
             "%%AWS_ACCOUNT_ID%%": Aws.ACCOUNT_ID,
             "%%AWS_PARTITION%%": Aws.PARTITION,
             "%%AWS_URL_SUFFIX%%": Aws.URL_SUFFIX,
