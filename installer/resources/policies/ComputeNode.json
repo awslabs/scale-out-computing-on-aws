@@ -11,7 +11,7 @@
                 "arn:%%AWS_PARTITION%%:s3:::%%BUCKET%%"%%COMPUTE_NODE_MANAGED_BUCKETS%%
             ],
             "Effect": "Allow"
-        },
+        },%%SES_PERMISSIONS%%
         {
             "Action": [
                 "ec2:CreateTags"

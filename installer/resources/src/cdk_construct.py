@@ -789,7 +789,7 @@ class SOCAInstall(Stack):
             key_name="Config.controller.instance_type",
             expected_type=list,
             required=False,
-            default=["m5.large"],
+            default=["m7i-flex.large", "m5.large"],
         )
         logger.debug(f"ControllerNode - Configured instance type: {_instance_type}")
 
@@ -4101,7 +4101,7 @@ class SOCAInstall(Stack):
             key_name=f"Config.storage.{fs_key}.fsx_ontap.deployment_type",
             expected_type=str,
             required=False,
-            default="MULTI_AZ_1",
+            default="MULTI_AZ_2",
         ).upper()
 
         # Determine the regions that various FSx types are supported
@@ -6429,7 +6429,7 @@ class SOCAInstall(Stack):
             key_name="Config.login_node.instance_type",
             expected_type=list,
             required=False,
-            default=["m5.large"],
+            default=["m7i-flex.large", "m5.large"],
         )
         logger.debug(
             f"LoginNode - Configured instance type: {_configured_instance_type}"
