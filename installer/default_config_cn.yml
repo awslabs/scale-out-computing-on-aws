@@ -117,19 +117,19 @@ Config:
         performance_mode: "generalPurpose"  # https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-efs-filesystem.html#cfn-efs-filesystem-performancemode
         deletion_policy: "NO_RETAIN"  # RETAIN will preserve the EFS even if you delete the stack. Any other value will delete EFS if you delete the CFN stack
       fsx_ontap:
-        deployment_type: "MULTI_AZ_2"
+        deployment_type: "MULTI_AZ_1"
         automatic_backup_retention_days: 7
         daily_automatic_backup_start_time: "03:00"
-        throughput_capacity: 384
+        throughput_capacity: 256
         storage_capacity: 1024
         junction_path: "/apps"
         netbios_name: "SOCAAPPSSVM"  # 15 Chars Max, must be unique to your AD
         file_system_administrators_group: ~  # Leave default if using AWS DS (will use AWS Delegated FSx Administrators)
         organizational_unit_distinguished_name: ~  # Leave default if using AWS DS (OU=Computers, <BASE_DOMAIN>)
       fsx_lustre:
-        deployment_type: "PERSISTENT_2"  # Allowed values: PERSISTENT_1 | PERSISTENT_2 | SCRATCH_1 | SCRATCH_2. Region availability information  https://docs.aws.amazon.com/fsx/latest/LustreGuide/using-fsx-lustre.html
+        deployment_type: "PERSISTENT_1"  # Allowed values: PERSISTENT_1 | PERSISTENT_2 | SCRATCH_1 | SCRATCH_2. Region availability information  https://docs.aws.amazon.com/fsx/latest/LustreGuide/using-fsx-lustre.html
         drive_cache_type: "READ"  # Allowed values: NONE | READ. Required when storage_type is HDD. https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-fsx-filesystem-lustreconfiguration.html#cfn-fsx-filesystem-lustreconfiguration-drivecachetype
-        per_unit_storage_throughput: 125  # Allowed values: 12, 40 for HDD, 50, 100, 200 for SSD PERSISTENT_1, 125, 250, 500, 1000  for SSD PERSISTENT_2. Required for the PERSISTENT_1 & PERSISTENT_2 deployment_type. https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-fsx-filesystem-lustreconfiguration.html#cfn-fsx-filesystem-lustreconfiguration-perunitstoragethroughput
+        per_unit_storage_throughput: 100  # Allowed values: 12, 40 for HDD, 50, 100, 200 for SSD PERSISTENT_1, 125, 250, 500, 1000  for SSD PERSISTENT_2. Required for the PERSISTENT_1 & PERSISTENT_2 deployment_type. https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-fsx-filesystem-lustreconfiguration.html#cfn-fsx-filesystem-lustreconfiguration-perunitstoragethroughput
         storage_capacity: 1200  # For SCRATCH_2 and PERSISTENT_x types, valid values are 1,200, 2,400, then continuing in increments of 2,400 GiB. For SCRATCH_1 deployment types, valid values are 1,200, 2,400, 3,600, then continuing in increments of 3,600 GiB. https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-fsx-filesystem.html#cfn-fsx-filesystem-storagecapacity
         storage_type: "SSD"  # Allowed values: SSD or HDD. https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-fsx-filesystem.html#cfn-fsx-filesystem-storagetype
 
@@ -142,26 +142,26 @@ Config:
         transition_to_ia: "AFTER_30_DAYS"  # https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-efs-filesystem-lifecyclepolicy.html
         deletion_policy: "NO_RETAIN"  # RETAIN will preserve the EFS even if you delete the stack. Any other value will delete EFS if you delete the CFN stack
       fsx_ontap:
-        deployment_type: "MULTI_AZ_2"
+        deployment_type: "MULTI_AZ_1"
         automatic_backup_retention_days: 7
         daily_automatic_backup_start_time: "03:00"
-        throughput_capacity: 384
+        throughput_capacity: 256
         storage_capacity: 1024
         junction_path: "/data"
         netbios_name: "SOCADATASVM"  # 15 Chars Max, must be unique to your AD.
         file_system_administrators_group: ~  # Leave default if using AWS DS (will use AWS Delegated FSx Administrators)
         organizational_unit_distinguished_name: ~  # Leave default if using AWS DS (OU=Computers, <BASE_DOMAIN>)
       fsx_lustre:
-        deployment_type: "PERSISTENT_2"  # Allowed values: PERSISTENT_1 | PERSISTENT_2 | SCRATCH_1 | SCRATCH_2. Region availability information  https://docs.aws.amazon.com/fsx/latest/LustreGuide/using-fsx-lustre.html
+        deployment_type: "PERSISTENT_1"  # Allowed values: PERSISTENT_1 | PERSISTENT_2 | SCRATCH_1 | SCRATCH_2. Region availability information  https://docs.aws.amazon.com/fsx/latest/LustreGuide/using-fsx-lustre.html
         drive_cache_type: "READ"  # Allowed values: NONE | READ. Required when storage_type is HDD. https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-fsx-filesystem-lustreconfiguration.html#cfn-fsx-filesystem-lustreconfiguration-drivecachetype
-        per_unit_storage_throughput: 125  # Allowed values: 12, 40 for HDD, 50, 100, 200 for SSD. Required for the PERSISTENT_1 deployment_type. https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-fsx-filesystem-lustreconfiguration.html#cfn-fsx-filesystem-lustreconfiguration-perunitstoragethroughput
+        per_unit_storage_throughput: 100  # Allowed values: 12, 40 for HDD, 50, 100, 200 for SSD. Required for the PERSISTENT_1 deployment_type. https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-fsx-filesystem-lustreconfiguration.html#cfn-fsx-filesystem-lustreconfiguration-perunitstoragethroughput
         storage_capacity: 1200  # For SCRATCH_2 and PERSISTENT_x types, valid values are 1,200, 2,400, then continuing in increments of 2,400 GiB. For SCRATCH_1 deployment types, valid values are 1,200, 2,400, 3,600, then continuing in increments of 3,600 GiB. https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-fsx-filesystem.html#cfn-fsx-filesystem-storagecapacity
         storage_type: "SSD"  # Allowed values: SSD or HDD. https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-fsx-filesystem.html#cfn-fsx-filesystem-storagetype
 
 
   # Configure your EC2 instance used as login host below
   login_node:
-    instance_type: ["m7i-flex.large", "m7i.large", "m6a.large", "m6i.large", "m5.large"]  # Type of EC2 machine to deploy for login_node
+    instance_type: ["m6i.large", "m5.large"]  # Type of EC2 machine to deploy for login_node
     min_count: 1  # Minimum Number of login node(s) to provision. This value can be changed post deployment
     desired_count: ~  # Default is to match minimum count
     max_count: 2  # Maximum Number of login node(s) to provision. This value can be changed post deployment
@@ -187,7 +187,7 @@ Config:
 
   # Configure your EC2 instance used as controller host below
   controller:
-    instance_type: ["m7i-flex.large", "m7i.large", "m6a.large", "m6i.large", "m5.large"]  # Type of EC2 machine to deploy for controller
+    instance_type: ["m6i.large", "m5.large"]  # Type of EC2 machine to deploy for controller
     volume_size: 300  # Size of the EBS root disk in GB
     volume_type: "gp3"  #  'gp2' may be needed for AWS Outposts installations
     volume_throughput: 150  #  For Provisioned IOPS SSD (io1) volumes
@@ -229,17 +229,17 @@ Config:
     version: "2023.1.16388"
     high_scale: false  # Should DCV be configured to support HA and high scale?
     gateway:
-      instance_type: ["m7i-flex.large", "m7i.large", "m6a.large", "m6i.large", "m5.large"]  # EC2 instance to deploy
+      instance_type: ["m6i.large", "m5.large"]  # EC2 instance to deploy
       instance_count: 1  # Number of DCV gateway node(s) to provision. This value can be changed post deployment
       volume_size: 50  # Size of the EBS root disk in GB
       volume_type: "gp3"
     broker:
-      instance_type: ["m7i-flex.large", "m7i.large", "m6a.large", "m6i.large", "m5.large"]  # EC2 instance to deploy
+      instance_type: ["m6i.large", "m5.large"]  # EC2 instance to deploy
       instance_count: 1  # Number of DCV broker node(s) to provision. This value can be changed post deployment
       volume_size: 50  # Size of the EBS root disk in GB
       volume_type: "gp3"
     manager:
-      instance_type: ["m7i-flex.large", "m7i.large", "m6a.large", "m6i.large", "m5.large"]  # EC2 instance to deploy
+      instance_type: ["m6i.large", "m5.large"]  # EC2 instance to deploy
       instance_count: 1  # Number of DCV session_manager node(s) to provision. This value can be changed post deployment
       volume_size: 50  # Size of the EBS root disk in GB
       volume_type: "gp3"
@@ -412,7 +412,7 @@ Parameters:
     # SOCA Python, installed on all SOCA nodes
     python:
       version: "3.13.2"
-      url: "https://www.python.org/ftp/python/3.13.2/Python-3.13.2.tgz"
+      url: "https://mirrors.huaweicloud.com/python/3.13.2/Python-3.13.2.tgz"
       sha256: "b8d79530e3b7c96a5cb2d40d431ddb512af4a563e863728d8713039aa50203f9"
 
     # Scheduler to deploy on all SOCA nodes
@@ -420,44 +420,44 @@ Parameters:
       openpbs:
         tgz:  # Download OpenPBS tgz from the URL listed below
           version: "23.06.06"
-          url: "https://github.com/openpbs/openpbs/archive/v23.06.06.tar.gz"
+          url: "https://aws-gcr-industry-assets.s3.cn-northwest-1.amazonaws.com.cn/soca/openpbs-23.06.06.tar.gz"
           sha256: "689df6caa101422237118d81f9cfb0e6cad432209c77a6b3b8021cf984a91a90"
         git:  # Install OpenPBS from Source.
           version: "23.06.06"  # Version to install (this can be anything, it's just used to avoid re-installation if the same version is already detected)
-          repo: "https://github.com/openpbs/openpbs.git"  # Repo to clone from, e.g https://github.com/openpbs/openpbs.git
+          repo: "https://gitee.com/fctestbot/openpbs.git"  # Repo to clone from, e.g https://github.com/openpbs/openpbs.git
           branch: "master"  # (Optional: Specify the branch if you do not want to use the default)
           commit_id: "b22e67ed4709cd952fc166ba599de9a20a3d9b02"  # (Optional: Specify the commit id if you do not want to use the default)
 
         compatibility_packages:
           # Package installed/replaced on older distro (RHEL8, Rocky8 ..) to enable OpenPBS compilation for python3.13
           automake:
-            url: "https://ftp.gnu.org/gnu/automake/automake-1.16.5.tar.gz"
+            url: "https://mirrors.tuna.tsinghua.edu.cn/gnu/automake/automake-1.16.5.tar.gz"
             sha256: "07bd24ad08a64bc17250ce09ec56e921d6343903943e99ccf63bbf0705e34605"
           # Package installed/replaced on older distro (RHEL8, Rocky8 ..) to enable OpenPBS compilation for python3.13
           libtool:
-            url: "https://ftp.gnu.org/gnu/libtool/libtool-2.4.7.tar.gz"
+            url: "https://mirrors.tuna.tsinghua.edu.cn/gnu/libtool/libtool-2.4.7.tar.gz"
             sha256: "04e96c2404ea70c590c546eba4202a4e12722c640016c12b9b2f1ce3d481e9a8"
           # Package installed/replaced on older distro (RHEL8, Rocky8 ..) to enable OpenPBS compilation for python3.13
           pkgconfig:
-            url: "https://pkg-config.freedesktop.org/releases/pkg-config-0.29.2.tar.gz"
+            url: "https://aws-gcr-industry-assets.s3.cn-northwest-1.amazonaws.com.cn/soca/pkg-config-0.29.2.tar.gz"
             sha256: "6fc69c01688c9458a57eb9a1664c9aba372ccda420a02bf4429fe610e7e7d591"
           # Dependency when compiling OpenPBS from source
           cjson:
-            url: "https://github.com/DaveGamble/cJSON/archive/refs/tags/v1.7.18.tar.gz"
+            url: "https://aws-gcr-industry-assets.s3.cn-northwest-1.amazonaws.com.cn/soca/cJSON-1.7.18.tar.gz"
             sha256: "3aa806844a03442c00769b83e99970be70fbef03735ff898f4811dd03b9f5ee5"
 
     cache_client:
       valkey:
-        url: "https://github.com/valkey-io/valkey/archive/refs/tags/8.0.2.tar.gz"
+        url: "https://aws-gcr-industry-assets.s3.cn-northwest-1.amazonaws.com.cn/soca/valkey-8.0.2.tar.gz"
         sha256: "e052c45b3cbe512e24fdfdc3fd337f9f5e4b8f8b8713f349ba867b829c8ff11a"
       redis:
-        url: "http://download.redis.io/redis-stable.tar.gz"
+        url: "https://aws-gcr-industry-assets.s3.cn-northwest-1.amazonaws.com.cn/soca/redis-stable.tar.gz"
 
     # OpenMPI is automatically installed on /apps partition at the end of the initial Controller setup
     # You can disable it via installer/resources/user_data/controller/03_setup.sh.j2
     openmpi:
       version: "5.0.6"
-      url: "https://download.open-mpi.org/release/open-mpi/v5.0/openmpi-5.0.6.tar.gz"
+      url: "https://aws-gcr-industry-assets.s3.cn-northwest-1.amazonaws.com.cn/soca/openmpi-5.0.6.tar.gz"
       sha256: "1d6dd41f6b53c00db23b40e56733d16a996fa743957ef8add8e117feffd92689"
 
     # CloudWatch agent is only used if you enable cluster_node_boostrap/templates/linux/aws_cloudwatch_agent.sh.j2
@@ -482,7 +482,7 @@ Parameters:
 
 
     nodejs:
-      url: "https://nodejs.org/dist/v22.16.0/node-v22.16.0-linux-x64.tar.xz"
+      url: "https://aws-gcr-industry-assets.s3.cn-northwest-1.amazonaws.com.cn/soca/node-v22.16.0-linux-x64.tar.xz"
       sha256: "f4cb75bb036f0d0eddf6b79d9596df1aaab9ddccd6a20bf489be5abe9467e84e"
 
     # EFA Drivers installed on all HPC Compute node when efa_support=True is specified
@@ -495,7 +495,7 @@ Parameters:
     # SQLite is installed on the controller host and is the primary DB for SOCA Web UI
     sqlite:
       version: "3.49.1"
-      url: "https://www.sqlite.org/2025/sqlite-src-3490100.zip"
+      url: "https://aws-gcr-industry-assets.s3.cn-northwest-1.amazonaws.com.cn/soca/sqlite-src-3490100.zip"
       sha256: "4404d93cbce818b1b98ca7259d0ba9b45db76f2fdd9373e56f2d29b519f4d43b"
 
     # EPEL repository
@@ -504,9 +504,9 @@ Parameters:
       el7:
         url: "https://dl.fedoraproject.org/pub/epel/epel-release-latest-7.noarch.rpm"
       el8:
-        url: "https://dl.fedoraproject.org/pub/epel/epel-release-latest-8.noarch.rpm"
+        url: "https://aws-gcr-industry-assets.s3.cn-northwest-1.amazonaws.com.cn/soca/epel-release-latest-8.noarch.rpm"
       el9:
-        url: "https://dl.fedoraproject.org/pub/epel/epel-release-latest-9.noarch.rpm"
+        url: "https://aws-gcr-industry-assets.s3.cn-northwest-1.amazonaws.com.cn/soca/epel-release-latest-9.noarch.rpm"
 
     # Chocolatey package manager installed on DCV Windows. You can disable it via cluster_node_boostrap/templates/windows/
     chocolatey:
