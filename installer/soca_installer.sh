@@ -128,7 +128,7 @@ export SOCA_PYTHON_VERSION
 
 # Download and Install PyENV if needed
 PYENV_URL="https://pyenv.run"
-PYENV_URL_CHINA="https://gitee.com/fctestbot/pyenv"
+PYENV_URL_CN="https://gitee.com/fctestbot/pyenv"
 
 # Change to "true" for more log
 QUIET_MODE="false"
@@ -220,7 +220,7 @@ else
           if [[ $AWS_DEFAULT_REGION == "cn-north-1" ]] || [[ $AWS_DEFAULT_REGION == "cn-northwest-1" ]]; then
             log_warning "Primary PyEnv URL failed, trying China mirror..."
             # For China mirror, we need to clone the repo and run the installer
-            git clone --depth=1 $PYENV_URL_CHINA "$HOME/.pyenv"
+            git clone --depth=1 $PYENV_URL_CN "$HOME/.pyenv"
             if [[ $? -eq 0 ]]; then
               log_success "PyEnv cloned successfully from China mirror"
               # Add pyenv to path
