@@ -13,7 +13,7 @@ cn-north-1:
     ubuntu2404: ami-0a83c884ad208dfbc
     windows2019: ami-0aced60d5a97d56c1
     windows2022: ami-02862b4d551aae7ef
-    windows2025: ami-0325e5ef7145a0604
+    windows2025: ami-09b6bea2ea0353b56
   arm64:
     amazonlinux2: ami-0b6b5c2b39fbe6e25
     amazonlinux2023: ami-0050bdea503afb267
