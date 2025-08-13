@@ -88,10 +88,7 @@ function install_soca_python () {
       PYTHON_CONFIGURE_CMD+=" --enable-loadable-sqlite-extensions"
       PYTHON_CONFIGURE_CMD+=" --prefix=\"${SOCA_PYTHON_LOCAL_INSTALL_PREFIX}\""
       PYTHON_CONFIGURE_CMD+=" --enable-shared"
-      {% if context.get("/configuration/Region") in ("cn-north-1", "cn-northwest-1") %}
-        PYTHON_CONFIGURE_CMD+=" --build=\$(uname -m)-linux-gnu"
-        PYTHON_CONFIGURE_CMD+=" --host=\$(uname -m)-linux-gnu"
-      {% else %}
+      {% if context.get("/configuration/Region") not in ("cn-north-1", "cn-northwest-1") %}
         PYTHON_CONFIGURE_CMD+=" --enable-optimizations"
         PYTHON_CONFIGURE_CMD+=" --with-lto"
       {% endif %}
