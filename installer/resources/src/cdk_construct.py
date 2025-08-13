@@ -3049,8 +3049,7 @@ class SOCAInstall(Stack):
                 )
             )
 
-        # Standard AWS regions include AWS managed buckets
-        # For GCR regions (cn-north-1, cn-northwest-1), it remains empty
+        # Handle IAM policies in standard regions and GCR regions
         compute_node_managed_buckets = ""
         target_node_managed_buckets = ""
         login_node_managed_buckets = ""
@@ -3058,7 +3057,7 @@ class SOCAInstall(Stack):
         ec2_instance_connect_permissions = ""
         
         if self._region.startswith("cn-"):
-            # China regions don't support StartSerialConsoleSession
+            # GCR regions don't have StartSerialConsoleSession
             ec2_instance_connect_permissions = ',\n        {\n            "Sid": "AllowSerialConsoleAccess",\n            "Action": [\n                "ec2-instance-connect:SendSerialConsoleSSHPublicKey"\n            ],\n            "Resource": "arn:%%AWS_PARTITION%%:ec2:*:%%AWS_ACCOUNT_ID%%:instance/*",\n            "Effect": "Allow",\n            "Condition": {\n                "StringEquals": {\n                    "ec2:ResourceTag/soca:ClusterId": "%%CLUSTER_ID%%"\n                }\n            }\n        }'
         else:
             ec2_instance_connect_permissions = ',\n        {\n            "Sid": "AllowSerialConsoleAccess",\n            "Action": [\n                "ec2-instance-connect:SendSerialConsoleSSHPublicKey",\n                "ec2-instance-connect:StartSerialConsoleSession"\n            ],\n            "Resource": "arn:%%AWS_PARTITION%%:ec2:*:%%AWS_ACCOUNT_ID%%:instance/*",\n            "Effect": "Allow",\n            "Condition": {\n                "StringEquals": {\n                    "ec2:ResourceTag/soca:ClusterId": "%%CLUSTER_ID%%"\n                }\n            }\n        }'
