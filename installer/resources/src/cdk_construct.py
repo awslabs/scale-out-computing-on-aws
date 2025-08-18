@@ -3058,18 +3058,60 @@ class SOCAInstall(Stack):
         
         if self._region.startswith("cn-"):
             # GCR regions don't have StartSerialConsoleSession
-            ec2_instance_connect_permissions = ',\n        {\n            "Sid": "AllowSerialConsoleAccess",\n            "Action": [\n                "ec2-instance-connect:SendSerialConsoleSSHPublicKey"\n            ],\n            "Resource": "arn:%%AWS_PARTITION%%:ec2:*:%%AWS_ACCOUNT_ID%%:instance/*",\n            "Effect": "Allow",\n            "Condition": {\n                "StringEquals": {\n                    "ec2:ResourceTag/soca:ClusterId": "%%CLUSTER_ID%%"\n                }\n            }\n        }'
+            ec2_instance_connect_permissions = ',{' \
+            '"Sid": "AllowSerialConsoleAccess",' \
+            '"Action": ["ec2-instance-connect:SendSerialConsoleSSHPublicKey"],' \
+            '"Resource": "arn:%%AWS_PARTITION%%:ec2:*:%%AWS_ACCOUNT_ID%%:instance/*",' \
+            '"Effect": "Allow",' \
+            '"Condition": {"StringEquals": {"ec2:ResourceTag/soca:ClusterId": "%%CLUSTER_ID%%"}}}'
         else:
-            ec2_instance_connect_permissions = ',\n        {\n            "Sid": "AllowSerialConsoleAccess",\n            "Action": [\n                "ec2-instance-connect:SendSerialConsoleSSHPublicKey",\n                "ec2-instance-connect:StartSerialConsoleSession"\n            ],\n            "Resource": "arn:%%AWS_PARTITION%%:ec2:*:%%AWS_ACCOUNT_ID%%:instance/*",\n            "Effect": "Allow",\n            "Condition": {\n                "StringEquals": {\n                    "ec2:ResourceTag/soca:ClusterId": "%%CLUSTER_ID%%"\n                }\n            }\n        }'
-        
-        if not self._region.startswith("cn-"):
-            compute_node_managed_buckets = ',\n                "arn:%%AWS_PARTITION%%:s3:::dcv-license.%%AWS_REGION%%/*",\n                "arn:%%AWS_PARTITION%%:s3:::ec2-linux-nvidia-drivers/*",\n                "arn:%%AWS_PARTITION%%:s3:::ec2-linux-nvidia-drivers",\n                "arn:%%AWS_PARTITION%%:s3:::nvidia-gaming/*",\n                "arn:%%AWS_PARTITION%%:s3:::nvidia-gaming-drivers",\n                "arn:%%AWS_PARTITION%%:s3:::ec2-amd-linux-drivers/*",\n                "arn:%%AWS_PARTITION%%:s3:::ec2-amd-linux-drivers",\n                "arn:%%AWS_PARTITION%%:s3:::ec2-amd-windows-drivers",\n                "arn:%%AWS_PARTITION%%:s3:::ec2-amd-windows-drivers/*",\n                "arn:%%AWS_PARTITION%%:s3:::ec2-windows-nvidia-drivers",\n                "arn:%%AWS_PARTITION%%:s3:::ec2-windows-nvidia-drivers/*"'
+            ec2_instance_connect_permissions = ',{' \
+            '"Sid": "AllowSerialConsoleAccess",' \
+            '"Action": ' \
+            '["ec2-instance-connect:SendSerialConsoleSSHPublicKey","ec2-instance-connect:StartSerialConsoleSession"],' \
+            '"Resource": "arn:%%AWS_PARTITION%%:ec2:*:%%AWS_ACCOUNT_ID%%:instance/*",' \
+            '"Effect": "Allow",' \
+            '"Condition": {"StringEquals": {"ec2:ResourceTag/soca:ClusterId": "%%CLUSTER_ID%%"}}}'
             
-            target_node_managed_buckets = ',\n                "arn:%%AWS_PARTITION%%:s3:::dcv-license.%%AWS_REGION%%/*",\n                "arn:%%AWS_PARTITION%%:s3:::ec2-linux-nvidia-drivers/*",\n                "arn:%%AWS_PARTITION%%:s3:::ec2-linux-nvidia-drivers",\n                "arn:%%AWS_PARTITION%%:s3:::nvidia-gaming/*",\n                "arn:%%AWS_PARTITION%%:s3:::nvidia-gaming-drivers",\n                "arn:%%AWS_PARTITION%%:s3:::ec2-amd-linux-drivers/*",\n                "arn:%%AWS_PARTITION%%:s3:::ec2-amd-linux-drivers",\n                "arn:%%AWS_PARTITION%%:s3:::ec2-amd-windows-drivers",\n                "arn:%%AWS_PARTITION%%:s3:::ec2-amd-windows-drivers/*",\n                "arn:%%AWS_PARTITION%%:s3:::ec2-windows-nvidia-drivers",\n                "arn:%%AWS_PARTITION%%:s3:::ec2-windows-nvidia-drivers/*"'
+            compute_node_managed_buckets = ',' \
+            '"arn:%%AWS_PARTITION%%:s3:::dcv-license.%%AWS_REGION%%/*",' \
+            '"arn:%%AWS_PARTITION%%:s3:::ec2-linux-nvidia-drivers/*",' \
+            '"arn:%%AWS_PARTITION%%:s3:::ec2-linux-nvidia-drivers",' \
+            '"arn:%%AWS_PARTITION%%:s3:::nvidia-gaming/*",' \
+            '"arn:%%AWS_PARTITION%%:s3:::nvidia-gaming-drivers",' \
+            '"arn:%%AWS_PARTITION%%:s3:::ec2-amd-linux-drivers/*",' \
+            '"arn:%%AWS_PARTITION%%:s3:::ec2-amd-linux-drivers",' \
+            '"arn:%%AWS_PARTITION%%:s3:::ec2-amd-windows-drivers",' \
+            '"arn:%%AWS_PARTITION%%:s3:::ec2-amd-windows-drivers/*",' \
+            '"arn:%%AWS_PARTITION%%:s3:::ec2-windows-nvidia-drivers",' \
+            '"arn:%%AWS_PARTITION%%:s3:::ec2-windows-nvidia-drivers/*"'
             
-            login_node_managed_buckets = ',\n                "arn:%%AWS_PARTITION%%:s3:::dcv-license.%%AWS_REGION%%/*",\n                "arn:%%AWS_PARTITION%%:s3:::ec2-linux-nvidia-drivers/*",\n                "arn:%%AWS_PARTITION%%:s3:::ec2-linux-nvidia-drivers",\n                "arn:%%AWS_PARTITION%%:s3:::nvidia-gaming/*",\n                "arn:%%AWS_PARTITION%%:s3:::nvidia-gaming-drivers",\n                "arn:%%AWS_PARTITION%%:s3:::ec2-amd-linux-drivers/*",\n                "arn:%%AWS_PARTITION%%:s3:::ec2-amd-linux-drivers"'
+            target_node_managed_buckets = ',' \
+            '"arn:%%AWS_PARTITION%%:s3:::dcv-license.%%AWS_REGION%%/*",' \
+            '"arn:%%AWS_PARTITION%%:s3:::ec2-linux-nvidia-drivers/*",' \
+            '"arn:%%AWS_PARTITION%%:s3:::ec2-linux-nvidia-drivers",' \
+            '"arn:%%AWS_PARTITION%%:s3:::nvidia-gaming/*",' \
+            '"arn:%%AWS_PARTITION%%:s3:::nvidia-gaming-drivers",' \
+            '"arn:%%AWS_PARTITION%%:s3:::ec2-amd-linux-drivers/*",' \
+            '"arn:%%AWS_PARTITION%%:s3:::ec2-amd-linux-drivers",' \
+            '"arn:%%AWS_PARTITION%%:s3:::ec2-amd-windows-drivers",' \
+            '"arn:%%AWS_PARTITION%%:s3:::ec2-amd-windows-drivers/*",' \
+            '"arn:%%AWS_PARTITION%%:s3:::ec2-windows-nvidia-drivers",' \
+            '"arn:%%AWS_PARTITION%%:s3:::ec2-windows-nvidia-drivers/*"'
             
-            ses_permissions = ',\n        {\n            "Action": [\n                "ses:SendEmail"\n            ],\n            "Resource": [\n                "arn:%%AWS_PARTITION%%:ses:*:%%AWS_ACCOUNT_ID%%:identity*"\n            ],\n            "Effect": "Allow"\n        }'
+            login_node_managed_buckets = ',' \
+            '"arn:%%AWS_PARTITION%%:s3:::dcv-license.%%AWS_REGION%%/*",' \
+            '"arn:%%AWS_PARTITION%%:s3:::ec2-linux-nvidia-drivers/*",' \
+            '"arn:%%AWS_PARTITION%%:s3:::ec2-linux-nvidia-drivers",' \
+            '"arn:%%AWS_PARTITION%%:s3:::nvidia-gaming/*",' \
+            '"arn:%%AWS_PARTITION%%:s3:::nvidia-gaming-drivers",' \
+            '"arn:%%AWS_PARTITION%%:s3:::ec2-amd-linux-drivers/*",' \
+            '"arn:%%AWS_PARTITION%%:s3:::ec2-amd-linux-drivers"'
+            
+            ses_permissions = '{' \
+            '"Action": ["ses:SendEmail"],' \
+            '"Resource": ["arn:%%AWS_PARTITION%%:ses:*:%%AWS_ACCOUNT_ID%%:identity*"],' \
+            '"Effect": "Allow"},'
         
         policy_substitutes = {
             "%%COMPUTE_NODE_MANAGED_BUCKETS%%": compute_node_managed_buckets,
@@ -3211,6 +3253,11 @@ class SOCAInstall(Stack):
 
             for k, v in policy_substitutes.items():
                 policy_content = policy_content.replace(k, v)
+
+            logger.info("lvning - Attaching IAM Policy: %s", policy_name)
+            logger.info(f"{user_specified_variables.cluster_id}-{policy_name}")
+            logger.info(policy_data["attach_to_role"])
+            logger.info(policy_content)
 
             self.soca_resources[policy_data["attach_to_role"]].attach_inline_policy(
                 iam.Policy(
