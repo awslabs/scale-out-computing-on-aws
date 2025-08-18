@@ -3254,11 +3254,6 @@ class SOCAInstall(Stack):
             for k, v in policy_substitutes.items():
                 policy_content = policy_content.replace(k, v)
 
-            logger.info("lvning - Attaching IAM Policy: %s", policy_name)
-            logger.info(f"{user_specified_variables.cluster_id}-{policy_name}")
-            logger.info(policy_data["attach_to_role"])
-            logger.info(policy_content)
-
             self.soca_resources[policy_data["attach_to_role"]].attach_inline_policy(
                 iam.Policy(
                     self,
