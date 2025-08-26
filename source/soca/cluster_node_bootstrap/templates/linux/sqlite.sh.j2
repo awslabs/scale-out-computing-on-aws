@@ -6,7 +6,7 @@ function install_sqlite () {
   log_info "Begin: Install SQLite"
   local SQLITE_VERSION="{{ context.get("/system/sqlite/version") }}"
   {% if context.get("/configuration/Region") in ("cn-north-1", "cn-northwest-1") %}
-    local SQLITE_URL="https://aws-gcr-industry-assets.s3.cn-northwest-1.amazonaws.com.cn/soca/sqlite-src-3490100.zip"
+    local SQLITE_URL="https://d2hhb5nrcr4y0j.cloudfront.net/sqlite-src-3490100.zip"
   {% else %}
     local SQLITE_URL="{{ context.get("/system/sqlite/url") }}"
   {% endif %}

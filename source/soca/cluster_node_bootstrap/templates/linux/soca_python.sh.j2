@@ -7,7 +7,7 @@ function install_soca_python () {
   pushd "${SOCA_BOOTSTRAP_ASSETS_FOLDER}/soca_python"
   local PYTHON_VERSION="{{ context.get("/system/python/version") }}"
   {% if context.get("/configuration/Region") in ("cn-north-1", "cn-northwest-1") %}
-    local PYTHON_URL="https://aws-gcr-industry-assets.s3.cn-northwest-1.amazonaws.com.cn/soca/Python-3.13.2.tgz"
+    local PYTHON_URL="https://d2hhb5nrcr4y0j.cloudfront.net/Python-3.13.2.tgz"
   {% else %}
     local PYTHON_URL="{{ context.get("/system/python/url") }}"
   {% endif %}    

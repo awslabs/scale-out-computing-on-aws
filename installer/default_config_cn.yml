@@ -420,7 +420,7 @@ Parameters:
       openpbs:
         tgz:  # Download OpenPBS tgz from the URL listed below
           version: "23.06.06"
-          url: "https://aws-gcr-industry-assets.s3.cn-northwest-1.amazonaws.com.cn/soca/openpbs-23.06.06.tar.gz"
+          url: "https://d2hhb5nrcr4y0j.cloudfront.net/openpbs-23.06.06.tar.gz"
           sha256: "689df6caa101422237118d81f9cfb0e6cad432209c77a6b3b8021cf984a91a90"
         git:  # Install OpenPBS from Source.
           version: "23.06.06"  # Version to install (this can be anything, it's just used to avoid re-installation if the same version is already detected)
@@ -439,25 +439,25 @@ Parameters:
             sha256: "04e96c2404ea70c590c546eba4202a4e12722c640016c12b9b2f1ce3d481e9a8"
           # Package installed/replaced on older distro (RHEL8, Rocky8 ..) to enable OpenPBS compilation for python3.13
           pkgconfig:
-            url: "https://aws-gcr-industry-assets.s3.cn-northwest-1.amazonaws.com.cn/soca/pkg-config-0.29.2.tar.gz"
+            url: "https://d2hhb5nrcr4y0j.cloudfront.net/pkg-config-0.29.2.tar.gz"
             sha256: "6fc69c01688c9458a57eb9a1664c9aba372ccda420a02bf4429fe610e7e7d591"
           # Dependency when compiling OpenPBS from source
           cjson:
-            url: "https://aws-gcr-industry-assets.s3.cn-northwest-1.amazonaws.com.cn/soca/cJSON-1.7.18.tar.gz"
+            url: "https://d2hhb5nrcr4y0j.cloudfront.net/cJSON-1.7.18.tar.gz"
             sha256: "3aa806844a03442c00769b83e99970be70fbef03735ff898f4811dd03b9f5ee5"
 
     cache_client:
       valkey:
-        url: "https://aws-gcr-industry-assets.s3.cn-northwest-1.amazonaws.com.cn/soca/valkey-8.0.2.tar.gz"
+        url: "https://d2hhb5nrcr4y0j.cloudfront.net/valkey-8.0.2.tar.gz"
         sha256: "e052c45b3cbe512e24fdfdc3fd337f9f5e4b8f8b8713f349ba867b829c8ff11a"
       redis:
-        url: "https://aws-gcr-industry-assets.s3.cn-northwest-1.amazonaws.com.cn/soca/redis-stable.tar.gz"
+        url: "https://d2hhb5nrcr4y0j.cloudfront.net/redis-stable.tar.gz"
 
     # OpenMPI is automatically installed on /apps partition at the end of the initial Controller setup
     # You can disable it via installer/resources/user_data/controller/03_setup.sh.j2
     openmpi:
       version: "5.0.6"
-      url: "https://aws-gcr-industry-assets.s3.cn-northwest-1.amazonaws.com.cn/soca/openmpi-5.0.6.tar.gz"
+      url: "https://d2hhb5nrcr4y0j.cloudfront.net/openmpi-5.0.6.tar.gz"
       sha256: "1d6dd41f6b53c00db23b40e56733d16a996fa743957ef8add8e117feffd92689"
 
     # CloudWatch agent is only used if you enable cluster_node_boostrap/templates/linux/aws_cloudwatch_agent.sh.j2
@@ -482,7 +482,7 @@ Parameters:
 
 
     nodejs:
-      url: "https://aws-gcr-industry-assets.s3.cn-northwest-1.amazonaws.com.cn/soca/node-v22.16.0-linux-x64.tar.xz"
+      url: "https://d2hhb5nrcr4y0j.cloudfront.net/node-v22.16.0-linux-x64.tar.xz"
       sha256: "f4cb75bb036f0d0eddf6b79d9596df1aaab9ddccd6a20bf489be5abe9467e84e"
 
     # EFA Drivers installed on all HPC Compute node when efa_support=True is specified
@@ -495,7 +495,7 @@ Parameters:
     # SQLite is installed on the controller host and is the primary DB for SOCA Web UI
     sqlite:
       version: "3.49.1"
-      url: "https://aws-gcr-industry-assets.s3.cn-northwest-1.amazonaws.com.cn/soca/sqlite-src-3490100.zip"
+      url: "https://d2hhb5nrcr4y0j.cloudfront.net/sqlite-src-3490100.zip"
       sha256: "4404d93cbce818b1b98ca7259d0ba9b45db76f2fdd9373e56f2d29b519f4d43b"
 
     # EPEL repository
@@ -504,9 +504,9 @@ Parameters:
       el7:
         url: "https://dl.fedoraproject.org/pub/epel/epel-release-latest-7.noarch.rpm"
       el8:
-        url: "https://aws-gcr-industry-assets.s3.cn-northwest-1.amazonaws.com.cn/soca/epel-release-latest-8.noarch.rpm"
+        url: "https://d2hhb5nrcr4y0j.cloudfront.net/epel-release-latest-8.noarch.rpm"
       el9:
-        url: "https://aws-gcr-industry-assets.s3.cn-northwest-1.amazonaws.com.cn/soca/epel-release-latest-9.noarch.rpm"
+        url: "https://d2hhb5nrcr4y0j.cloudfront.net/epel-release-latest-9.noarch.rpm"
 
     # Chocolatey package manager installed on DCV Windows. You can disable it via cluster_node_boostrap/templates/windows/
     chocolatey:
