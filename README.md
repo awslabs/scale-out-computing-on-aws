@@ -21,8 +21,6 @@ Key Features:
 
 ## :rocket: How to install Scale-Out Computing on AWS
 
-***SOCA is only available to be deployed on Amazon Linux 2023, choose amazonlinux2023 during the deployment***
-
 Refer to [SOCA Installation Documentation](https://awslabs.github.io/scale-out-computing-on-aws-documentation/documentation/01-install-soca-cluster/) for installation instructions.
 
 
