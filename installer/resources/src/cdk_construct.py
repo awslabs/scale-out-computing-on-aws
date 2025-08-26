@@ -3049,8 +3049,76 @@ class SOCAInstall(Stack):
                 )
             )
 
-        # Generate IAM inline policies
+        # Handle IAM policies in standard regions and GCR regions
+        compute_node_managed_buckets = ""
+        target_node_managed_buckets = ""
+        login_node_managed_buckets = ""
+        ses_permissions = ""
+        ec2_instance_connect_permissions = ""
+        
+        if self._region.startswith("cn-"):
+            # GCR regions don't have StartSerialConsoleSession
+            ec2_instance_connect_permissions = ',{' \
+            '"Sid": "AllowSerialConsoleAccess",' \
+            '"Action": ["ec2-instance-connect:SendSerialConsoleSSHPublicKey"],' \
+            '"Resource": "arn:%%AWS_PARTITION%%:ec2:*:%%AWS_ACCOUNT_ID%%:instance/*",' \
+            '"Effect": "Allow",' \
+            '"Condition": {"StringEquals": {"ec2:ResourceTag/soca:ClusterId": "%%CLUSTER_ID%%"}}}'
+        else:
+            ec2_instance_connect_permissions = ',{' \
+            '"Sid": "AllowSerialConsoleAccess",' \
+            '"Action": ' \
+            '["ec2-instance-connect:SendSerialConsoleSSHPublicKey","ec2-instance-connect:StartSerialConsoleSession"],' \
+            '"Resource": "arn:%%AWS_PARTITION%%:ec2:*:%%AWS_ACCOUNT_ID%%:instance/*",' \
+            '"Effect": "Allow",' \
+            '"Condition": {"StringEquals": {"ec2:ResourceTag/soca:ClusterId": "%%CLUSTER_ID%%"}}}'
+            
+            compute_node_managed_buckets = ',' \
+            '"arn:%%AWS_PARTITION%%:s3:::dcv-license.%%AWS_REGION%%/*",' \
+            '"arn:%%AWS_PARTITION%%:s3:::ec2-linux-nvidia-drivers/*",' \
+            '"arn:%%AWS_PARTITION%%:s3:::ec2-linux-nvidia-drivers",' \
+            '"arn:%%AWS_PARTITION%%:s3:::nvidia-gaming/*",' \
+            '"arn:%%AWS_PARTITION%%:s3:::nvidia-gaming-drivers",' \
+            '"arn:%%AWS_PARTITION%%:s3:::ec2-amd-linux-drivers/*",' \
+            '"arn:%%AWS_PARTITION%%:s3:::ec2-amd-linux-drivers",' \
+            '"arn:%%AWS_PARTITION%%:s3:::ec2-amd-windows-drivers",' \
+            '"arn:%%AWS_PARTITION%%:s3:::ec2-amd-windows-drivers/*",' \
+            '"arn:%%AWS_PARTITION%%:s3:::ec2-windows-nvidia-drivers",' \
+            '"arn:%%AWS_PARTITION%%:s3:::ec2-windows-nvidia-drivers/*"'
+            
+            target_node_managed_buckets = ',' \
+            '"arn:%%AWS_PARTITION%%:s3:::dcv-license.%%AWS_REGION%%/*",' \
+            '"arn:%%AWS_PARTITION%%:s3:::ec2-linux-nvidia-drivers/*",' \
+            '"arn:%%AWS_PARTITION%%:s3:::ec2-linux-nvidia-drivers",' \
+            '"arn:%%AWS_PARTITION%%:s3:::nvidia-gaming/*",' \
+            '"arn:%%AWS_PARTITION%%:s3:::nvidia-gaming-drivers",' \
+            '"arn:%%AWS_PARTITION%%:s3:::ec2-amd-linux-drivers/*",' \
+            '"arn:%%AWS_PARTITION%%:s3:::ec2-amd-linux-drivers",' \
+            '"arn:%%AWS_PARTITION%%:s3:::ec2-amd-windows-drivers",' \
+            '"arn:%%AWS_PARTITION%%:s3:::ec2-amd-windows-drivers/*",' \
+            '"arn:%%AWS_PARTITION%%:s3:::ec2-windows-nvidia-drivers",' \
+            '"arn:%%AWS_PARTITION%%:s3:::ec2-windows-nvidia-drivers/*"'
+            
+            login_node_managed_buckets = ',' \
+            '"arn:%%AWS_PARTITION%%:s3:::dcv-license.%%AWS_REGION%%/*",' \
+            '"arn:%%AWS_PARTITION%%:s3:::ec2-linux-nvidia-drivers/*",' \
+            '"arn:%%AWS_PARTITION%%:s3:::ec2-linux-nvidia-drivers",' \
+            '"arn:%%AWS_PARTITION%%:s3:::nvidia-gaming/*",' \
+            '"arn:%%AWS_PARTITION%%:s3:::nvidia-gaming-drivers",' \
+            '"arn:%%AWS_PARTITION%%:s3:::ec2-amd-linux-drivers/*",' \
+            '"arn:%%AWS_PARTITION%%:s3:::ec2-amd-linux-drivers"'
+            
+            ses_permissions = '{' \
+            '"Action": ["ses:SendEmail"],' \
+            '"Resource": ["arn:%%AWS_PARTITION%%:ses:*:%%AWS_ACCOUNT_ID%%:identity*"],' \
+            '"Effect": "Allow"},'
+        
         policy_substitutes = {
+            "%%COMPUTE_NODE_MANAGED_BUCKETS%%": compute_node_managed_buckets,
+            "%%TARGET_NODE_MANAGED_BUCKETS%%": target_node_managed_buckets,
+            "%%LOGIN_NODE_MANAGED_BUCKETS%%": login_node_managed_buckets,
+            "%%SES_PERMISSIONS%%": ses_permissions,
+            "%%EC2_INSTANCE_CONNECT_PERMISSIONS%%": ec2_instance_connect_permissions,
             "%%AWS_ACCOUNT_ID%%": Aws.ACCOUNT_ID,
             "%%AWS_PARTITION%%": Aws.PARTITION,
             "%%AWS_URL_SUFFIX%%": Aws.URL_SUFFIX,
@@ -3950,6 +4018,8 @@ class SOCAInstall(Stack):
                 _pricing_region = "ap-south-1"
             elif region.startswith("eu"):
                 _pricing_region = "eu-central-1"
+            elif region.startswith("cn"):
+                _pricing_region = "cn-northwest-1"
             else:
                 # default to us-east-1
                 _pricing_region = "us-east-1"
@@ -7649,13 +7719,13 @@ if __name__ == "__main__":
     }
 
     principals_suffix = {
-        "backup": f"backup.{Aws.URL_SUFFIX}",
-        "cloudwatch": f"cloudwatch.{Aws.URL_SUFFIX}",
-        "ec2": f"ec2.{Aws.URL_SUFFIX}",
-        "lambda": f"lambda.{Aws.URL_SUFFIX}",
-        "sns": f"sns.{Aws.URL_SUFFIX}",
-        "spotfleet": f"spotfleet.{Aws.URL_SUFFIX}",
-        "ssm": f"ssm.{Aws.URL_SUFFIX}",
+        "backup": "backup.amazonaws.com",
+        "cloudwatch": "cloudwatch.amazonaws.com",
+        "ec2": "ec2.amazonaws.com",
+        "lambda": "lambda.amazonaws.com",
+        "sns": "sns.amazonaws.com",
+        "spotfleet": "spotfleet.amazonaws.com",
+        "ssm": "ssm.amazonaws.com",
     }
 
     # Apply default tag to all taggable resources

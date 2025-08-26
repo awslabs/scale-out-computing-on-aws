@@ -7,31 +7,11 @@
                 "s3:ListBucket"
             ],
             "Resource": [
-                "arn:%%AWS_PARTITION%%:s3:::dcv-license.%%AWS_REGION%%/*",
-                "arn:%%AWS_PARTITION%%:s3:::ec2-linux-nvidia-drivers/*",
-                "arn:%%AWS_PARTITION%%:s3:::ec2-linux-nvidia-drivers",
-                "arn:%%AWS_PARTITION%%:s3:::nvidia-gaming/*",
-                "arn:%%AWS_PARTITION%%:s3:::nvidia-gaming-drivers",
-                "arn:%%AWS_PARTITION%%:s3:::ec2-amd-linux-drivers/*",
-                "arn:%%AWS_PARTITION%%:s3:::ec2-amd-linux-drivers",
-                "arn:%%AWS_PARTITION%%:s3:::ec2-amd-windows-drivers",
-                "arn:%%AWS_PARTITION%%:s3:::ec2-amd-windows-drivers/*",
-                "arn:%%AWS_PARTITION%%:s3:::ec2-windows-nvidia-drivers",
-                "arn:%%AWS_PARTITION%%:s3:::ec2-windows-nvidia-drivers/*",
                 "arn:%%AWS_PARTITION%%:s3:::%%BUCKET%%/*",
-                "arn:%%AWS_PARTITION%%:s3:::%%BUCKET%%"
+                "arn:%%AWS_PARTITION%%:s3:::%%BUCKET%%"%%COMPUTE_NODE_MANAGED_BUCKETS%%
             ],
             "Effect": "Allow"
-        },
-        {
-            "Action": [
-                "ses:SendEmail"
-            ],
-            "Resource": [
-                "arn:%%AWS_PARTITION%%:ses:*:%%AWS_ACCOUNT_ID%%:identity*"
-            ],
-            "Effect": "Allow"
-        },
+        },%%SES_PERMISSIONS%%
         {
             "Action": [
                 "ec2:CreateTags"
@@ -69,21 +49,7 @@
                 "logs:PutLogEvents",
                 "logs:DescribeLogStreams"
             ],
-            "Resource": "arn:%%AWS_PARTITION%%:logs:%%AWS_REGION%%:*"
-        },
-        {
-            "Sid": "AllowSerialConsoleAccess",
-            "Action": [
-                "ec2-instance-connect:SendSerialConsoleSSHPublicKey",
-                "ec2-instance-connect:StartSerialConsoleSession"
-            ],
-            "Resource": "arn:%%AWS_PARTITION%%:ec2:*:%%AWS_ACCOUNT_ID%%:instance/*",
-            "Effect": "Allow",
-            "Condition": {
-                "StringEquals": {
-                    "ec2:ResourceTag/soca:ClusterId": "%%CLUSTER_ID%%"
-                }
-            }
-        }
+            "Resource": "*"
+        }%%EC2_INSTANCE_CONNECT_PERMISSIONS%%
     ]
 }

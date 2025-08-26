@@ -2363,12 +2363,21 @@ if __name__ == "__main__":
         type=str,
         help="AWS region where you want to deploy your SOCA environment.",
     )
+    # Determine default config file based on AWS region
+    def get_default_config_path():
+        aws_region = os.environ.get('AWS_DEFAULT_REGION', '')
+        base_path = f"{os.path.dirname(os.path.realpath(__file__))}/../../"
+        if aws_region in ['cn-north-1', 'cn-northwest-1']:
+            return f"{base_path}default_config_cn.yml"
+        else:
+            return f"{base_path}default_config.yml"
+    
     parser.add_argument(
         "--config",
         "-c",
         type=str,
-        default=f"{os.path.dirname(os.path.realpath(__file__))}/../../default_config.yml",
-        help="Path of custom config file(s). Defaults to default_config.yml .",
+        default=get_default_config_path(),
+        help="Path of custom config file(s). Defaults to default_config.yml or default_config_cn.yml based on AWS region.",
     )
     parser.add_argument(
         "--region-map",

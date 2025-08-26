@@ -65,8 +65,22 @@ set_environment_variable "SOCA_CONTROLLER_IP" "$(hostname -I)"
 # Install NodeJS
 {% include "templates/linux/nodejs.sh.j2" %}
 
-# Install required Node modules
-${SOCA_BOOTSTRAP_ASSETS_FOLDER}/node/bin/npm install --prefix "/opt/soca/{{ context.get("/configuration/ClusterId") }}/cluster_manager/web_interface/static" monaco-editor@0.52.0
+{% if context.get("/configuration/Region") in ("cn-north-1", "cn-northwest-1") %}
+  # Ensure Node.js environment is available and install required Node modules
+  if command -v npm >/dev/null 2>&1; then
+    npm install --prefix "/opt/soca/{{ context.get("/configuration/ClusterId") }}/cluster_manager/web_interface/static" monaco-editor@0.52.0
+  else
+    # If npm is not in PATH, try to source NVM environment
+    if [ -f "${SOCA_BOOTSTRAP_ASSETS_FOLDER}/nvm/*/.*nvm/nvm.sh" ]; then
+      source "${SOCA_BOOTSTRAP_ASSETS_FOLDER}/nvm/*/.*nvm/nvm.sh"
+      npm install --prefix "/opt/soca/{{ context.get("/configuration/ClusterId") }}/cluster_manager/web_interface/static" monaco-editor@0.52.0
+    else
+      log_warning "npm not available, skipping monaco-editor installation"
+    fi
+  fi
+{% else %}
+  ${SOCA_BOOTSTRAP_ASSETS_FOLDER}/node/bin/npm install --prefix "/opt/soca/{{ context.get("/configuration/ClusterId") }}/cluster_manager/web_interface/static" monaco-editor@0.52.0
+{% endif %}
 
 # Reload OpenPBS
 systemctl restart pbs
@@ -146,6 +160,9 @@ IFS="-" read name sanitized_cluster_name <<< "echo {{ context.get("/configuratio
 sed -i "s/__SOCA_CLUSTER__NAME__/${sanitized_cluster_name}/g" /opt/soca/{{ context.get("/configuration/ClusterId") }}/cluster_manager/web_interface/templates/common/horizontal_menu_bar.html
 
 # Start Web UI
+{% if context.get("/configuration/Region") in ("cn-north-1", "cn-northwest-1") %}
+  chmod +x /opt/soca/{{ context.get("/configuration/ClusterId") }}/python/latest/bin/uwsgi
+{% endif %}
 chmod +x /opt/soca/{{ context.get("/configuration/ClusterId") }}/cluster_manager/web_interface/socawebui.sh
 ./socawebui.sh start
 

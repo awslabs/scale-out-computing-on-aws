@@ -1,0 +1,624 @@
+---
+
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+Config:
+  version: "25.8.0"  # version automatically populated as part of RELEASE-PIPELINE.sh (see github_release.py)
+  termination_protection: true  # Enable (recommended) or Disable Cloudformation Stack termination protection
+  entry_points_subnets: "Public"  # Public (recommended) or Private. In public mode the scheduler and ELB are deployed on PublicSubnets and assigned Public IPS. In Private mode scheduler and ELB are deployed in private subnets. In both case compute nodes and OpenSearch/EFS/FSxL are deployed in private subnets. Public does not means your cluster will be accessible to everyone by default, access to your cluster is still protected by security groups
+  admin_user_name: "socaadmin"  # The name of the default admin username that will be created.
+  metadata_http_tokens: "required"  # Supported values are "required" for IMDSv2 or "optional" for IMDSv1 (https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-ec2-launchtemplate-launchtemplatedata-metadataoptions.html#cfn-ec2-launchtemplate-launchtemplatedata-metadataoptions-httptokens)
+  kms_key_id: ~  # A Global KMS KeyID (ARN) for any encrypted operations. Setting this removes the need to set on a per-resource basis. Note a per-resource key will over-ride this setting.
+  # Uncomment section below if you want to add additional tags to the resources created by SOCA. You can add additional tags post-deployment via `socactl`
+  # custom_tags:
+  #  - Key: 'example:custom:Tag1Name'
+  #    Value: 'Tag1Value'
+  #  - Key: 'example:custom:Tag2Name'
+  #    Value: 'Tag2Value'
+  services:
+    aws_backup:
+      enabled: true  # Enable (True) or Disable (False) AWS Backup integration.  WARNING - SETTING THIS TO FALSE WILL DISABLE AUTOMATIC BACKUPS OF YOUR SOCA ENVIRONMENT.
+      kms_key_id: ~  # Specify your own CMK to encrypt AWS Backup
+
+    # Rework this section once migration is fully completed
+    aws_elasticache:
+      enabled: true  # Required to be True for now
+      engine: "valkey"  # valkey (default) or redis are supported - https://docs.aws.amazon.com/AmazonElastiCache/latest/dg/supported-engine-versions.html
+      engine_version: "7"  # Engine specific version information
+      kms_key_id: ~  # Specify your own CMK to encrypt ElastiCache
+      limits:
+        ecpu:
+          min: 1000
+          max: 2000
+        memory:
+          min: 2
+          max: 24
+      ttl:
+        short: 3600
+        long: 86400
+
+    # Beta Build Only
+    # aws_pcs:
+    #  enabled: false # Enable (true) or Disable (false) the AWS Parallel Computing Service integration. For more information on AWS Parallel Computing Service - https://aws.amazon.com/pcs/
+    #  controller_size: "SMALL" #  https://docs.aws.amazon.com/pcs/latest/userguide/working-with_clusters_size.html
+    #  scheduler: "slurm"
+    #  slurm:
+    #    version: "23.11"
+    #    select_type_parameters: "CR_CPU" # CR_CPU or CR_CPU_Memory
+    #    scale_down_idle_time: 10
+    #    prolog: ~  # defaults to /apps/<clusterID>/pcs/scripts/prolog.sh
+    #    epilog: ~  # defaults to /apps/</clusterID>/pcs/scripts/epilog.sh
+
+  # Configure your Network parameters below (CIDR range is configured interactively --vpc-cidr
+  network:
+    alb_tls_policy: "ELBSecurityPolicy-TLS13-1-2-2021-06"  # See https://docs.aws.amazon.com/elasticloadbalancing/latest/application/describe-ssl-policies.html
+    nat_gateways: 1  # Number of NAT gateways to create. Must be equal or lower to the numbers of public subnets
+    max_azs: 3  # Number of AZs to use. We will deploy the same number of private and public subnets. Must be greater than 2
+    cross_zone_enabled: true  # Enable NLB cross-zone access
+    use_vpc_endpoints: false  # Enable / Disable creation of VPC endpoints for various services (listed under vpc_interface_endpoints)
+    vpc_gateway_endpoints:
+      - s3
+    vpc_interface_endpoints:  # use_vpc_endpoints must be set to True. For list of services:  https://docs.aws.amazon.com/cdk/api/latest/python/aws_cdk.aws_ec2/InterfaceVpcEndpointAwsService.html
+      - cloudformation
+      - ec2
+      - ec2messages
+      - elasticache
+      - elasticfilesystem
+      - elasticloadbalancing
+      - fsx
+      - iam
+      - logs
+      - monitoring
+      - secretsmanager
+      - sns
+      - ssm
+      - ssmmessages
+    # FIPS endpoints are available for specific services. Enabled as required by policy.
+    #  - elasticfilesystem-fips
+    #  - fsx-fips
+
+    #
+    # AWS Global Accelerator (AGA) settings
+    #
+    aws_aga:
+      # Enable AGA true/false
+      # Only applies in public-facing deployments
+      enabled: false
+      address_type: "IPV4"  # "IPV4" or "DUAL_STACK"
+      # What areas of SOCA are subject to AGA acceleration?
+      acceleration:
+        #
+        # Login Node / SSH is disabled by default to prevent global/public SSH
+        #
+        login_node:
+          enabled: false
+          client_affinity: "SOURCE_IP"
+        webui:
+          enabled: true
+          client_affinity: "SOURCE_IP"
+        vdi:
+          # VDI Acceleration
+          enabled: true
+          client_affinity: "SOURCE_IP"
+
+
+  # Configure your Storage options below
+  storage:
+    # Define storage / filesystems
+    # apps and data are required
+    # Additional filesystems can be created by creating a new config tree
+    kms_key_id: ~  # Storge-wide KMS KeyID
+    apps:
+      mount_point: "/apps"  # (Just for reference, this cannot be changed today) Where this should be mounted in the filesystem namespace.
+      kms_key_id: ~  # Specify your own CMK to encrypt filesystem.
+      efs:
+        throughput_mode: "bursting"  # https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-efs-filesystem.html#cfn-efs-filesystem-throughputmode
+        performance_mode: "generalPurpose"  # https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-efs-filesystem.html#cfn-efs-filesystem-performancemode
+        deletion_policy: "NO_RETAIN"  # RETAIN will preserve the EFS even if you delete the stack. Any other value will delete EFS if you delete the CFN stack
+      fsx_ontap:
+        deployment_type: "MULTI_AZ_1"
+        automatic_backup_retention_days: 7
+        daily_automatic_backup_start_time: "03:00"
+        throughput_capacity: 256
+        storage_capacity: 1024
+        junction_path: "/apps"
+        netbios_name: "SOCAAPPSSVM"  # 15 Chars Max, must be unique to your AD
+        file_system_administrators_group: ~  # Leave default if using AWS DS (will use AWS Delegated FSx Administrators)
+        organizational_unit_distinguished_name: ~  # Leave default if using AWS DS (OU=Computers, <BASE_DOMAIN>)
+      fsx_lustre:
+        deployment_type: "PERSISTENT_1"  # Allowed values: PERSISTENT_1 | PERSISTENT_2 | SCRATCH_1 | SCRATCH_2. Region availability information  https://docs.aws.amazon.com/fsx/latest/LustreGuide/using-fsx-lustre.html
+        drive_cache_type: "READ"  # Allowed values: NONE | READ. Required when storage_type is HDD. https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-fsx-filesystem-lustreconfiguration.html#cfn-fsx-filesystem-lustreconfiguration-drivecachetype
+        per_unit_storage_throughput: 100  # Allowed values: 12, 40 for HDD, 50, 100, 200 for SSD PERSISTENT_1, 125, 250, 500, 1000  for SSD PERSISTENT_2. Required for the PERSISTENT_1 & PERSISTENT_2 deployment_type. https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-fsx-filesystem-lustreconfiguration.html#cfn-fsx-filesystem-lustreconfiguration-perunitstoragethroughput
+        storage_capacity: 1200  # For SCRATCH_2 and PERSISTENT_x types, valid values are 1,200, 2,400, then continuing in increments of 2,400 GiB. For SCRATCH_1 deployment types, valid values are 1,200, 2,400, 3,600, then continuing in increments of 3,600 GiB. https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-fsx-filesystem.html#cfn-fsx-filesystem-storagecapacity
+        storage_type: "SSD"  # Allowed values: SSD or HDD. https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-fsx-filesystem.html#cfn-fsx-filesystem-storagetype
+
+    data:
+      mount_point: "/data"  # (Just for reference, this cannot be changed today) Where this should be mounted in the filesystem namespace.
+      kms_key_id: ~  # Specify your own CMK to encrypt filesystem.
+      efs:
+        throughput_mode: "bursting"  # https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-efs-filesystem.html#cfn-efs-filesystem-throughputmode
+        performance_mode: "generalPurpose"  # https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-efs-filesystem.html#cfn-efs-filesystem-performancemode
+        transition_to_ia: "AFTER_30_DAYS"  # https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-efs-filesystem-lifecyclepolicy.html
+        deletion_policy: "NO_RETAIN"  # RETAIN will preserve the EFS even if you delete the stack. Any other value will delete EFS if you delete the CFN stack
+      fsx_ontap:
+        deployment_type: "MULTI_AZ_1"
+        automatic_backup_retention_days: 7
+        daily_automatic_backup_start_time: "03:00"
+        throughput_capacity: 256
+        storage_capacity: 1024
+        junction_path: "/data"
+        netbios_name: "SOCADATASVM"  # 15 Chars Max, must be unique to your AD.
+        file_system_administrators_group: ~  # Leave default if using AWS DS (will use AWS Delegated FSx Administrators)
+        organizational_unit_distinguished_name: ~  # Leave default if using AWS DS (OU=Computers, <BASE_DOMAIN>)
+      fsx_lustre:
+        deployment_type: "PERSISTENT_1"  # Allowed values: PERSISTENT_1 | PERSISTENT_2 | SCRATCH_1 | SCRATCH_2. Region availability information  https://docs.aws.amazon.com/fsx/latest/LustreGuide/using-fsx-lustre.html
+        drive_cache_type: "READ"  # Allowed values: NONE | READ. Required when storage_type is HDD. https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-fsx-filesystem-lustreconfiguration.html#cfn-fsx-filesystem-lustreconfiguration-drivecachetype
+        per_unit_storage_throughput: 100  # Allowed values: 12, 40 for HDD, 50, 100, 200 for SSD. Required for the PERSISTENT_1 deployment_type. https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-fsx-filesystem-lustreconfiguration.html#cfn-fsx-filesystem-lustreconfiguration-perunitstoragethroughput
+        storage_capacity: 1200  # For SCRATCH_2 and PERSISTENT_x types, valid values are 1,200, 2,400, then continuing in increments of 2,400 GiB. For SCRATCH_1 deployment types, valid values are 1,200, 2,400, 3,600, then continuing in increments of 3,600 GiB. https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-fsx-filesystem.html#cfn-fsx-filesystem-storagecapacity
+        storage_type: "SSD"  # Allowed values: SSD or HDD. https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-fsx-filesystem.html#cfn-fsx-filesystem-storagetype
+
+
+  # Configure your EC2 instance used as login host below
+  login_node:
+    instance_type: ["m6i.large", "m5.large"]  # Type of EC2 machine to deploy for login_node
+    min_count: 1  # Minimum Number of login node(s) to provision. This value can be changed post deployment
+    desired_count: ~  # Default is to match minimum count
+    max_count: 2  # Maximum Number of login node(s) to provision. This value can be changed post deployment
+    volume_size: 50  # Size of the EBS root disk in GB
+    volume_type: "gp3"
+    volume_kms_key_id: "alias/aws/ebs"  # Specify your own CMK to encrypt EBS volume.
+    # Security group settings for login nodes on the public
+    security:
+      ssh_frontend_port: 22  # By default, the SSH port That the NLB listens on to forward to the LoginNode instances
+      ssh_backend_port: 22  # By default, the SSH port that the LoginNode listens on the instance
+#      additional_ports:
+#        tcp: [222] # List of TCP ports to allow from the client_ip and prefix-lists. These will be used for security group configurations
+#        udp: [333] # List of UDP ports to allow from the client_ip and prefix-lists. These will be used for security group configurations
+
+    #  Override AMI selection for login nodes
+    # ami:
+    #   arm64: "ami-123"  # SecOps AMI ID for arm64
+    #   x86_64: "ami-456"  # SecOps AMI ID for x86_64
+
+  scheduler:
+    scheduler_engine: "openpbs"
+    deployment_type: "git" # tgz or git. See Parameters.scheduler section below for more info
+
+  # Configure your EC2 instance used as controller host below
+  controller:
+    instance_type: ["m6i.large", "m5.large"]  # Type of EC2 machine to deploy for controller
+    volume_size: 300  # Size of the EBS root disk in GB
+    volume_type: "gp3"  #  'gp2' may be needed for AWS Outposts installations
+    volume_throughput: 150  #  For Provisioned IOPS SSD (io1) volumes
+    volume_iops: 8200  #  For Provisioned IOPS SSD (io1) volumes
+    volume_kms_key_id: "alias/aws/ebs"  # Specify your own CMK to encrypt EBS volume.
+    subnet_type: "private"  # Select if you want to deploy your EC2 machine in public or private subnet
+
+  # Configure your AWS OpenSearch
+  analytics:
+    enabled: true
+    engine: "opensearch"
+    kms_key_id: ~  # KMS KeyID for analytics
+    aoss:
+      standby_replicas: "DISABLED"  #  ENABLED (HA) or DISABLED (non-HA)
+      public_access: false  # Deploy the serverless cache with public reachability or in-VPC reachability (default)
+    data_node_instance_type: "m6g.large.search"  # instance type for analytics data nodes
+    data_nodes: ~  # number of data nodes for analytics (default is automatic based on the private AZ/subnet count).
+    ebs_volume_size: 100  # EBS volume size attached to data nodes in GB
+    deletion_policy: "NO_RETAIN"  # RETAIN will preserve the ES even if you delete the stack. Any other value will delete OS if you delete the CFN stack
+
+  # Configure your AWS Secrets Manager options below
+  secretsmanager:
+    kms_key_id: ~  # Specify your own CMK to encrypt your Secret manager. If set to ~ , encryption will be managed by the default AWS key
+
+  # Configure your AWS Backup options below
+  backups:
+    delete_after: 7  # (Experimental) In Days, choose backup retention period
+    # Support additional copy destinations in the AWS Backup Rule
+    # This allows for integration of Logically Air-gapped Vaults to provide
+    # additional protection of the backups
+    # The configured destination vault must already exist and be configured/reachable
+    # For more information: https://aws.amazon.com/blogs/storage/building-cyber-resiliency-with-aws-backup-logically-air-gapped-vault/
+    # additional_copy_destinations:
+    #   - "arn:aws:backup:us-east-1:123456789012:backup-vault:backupvaultname"
+
+  dcv:
+    allowed_instances: ["m7i-flex.*", "m7i.*", "c6i.*", "c7g.*", "m5.*", "g6.*", "g6f.*", "gr6.*", "g5.*", "g5g.*", "g4dn.*", "g4ad.*"]  # Which instances should be displayed for the user?
+    allow_metal_instances: true  # Should the user be presented with metal instances?
+    version: "2023.1.16388"
+    high_scale: false  # Should DCV be configured to support HA and high scale?
+    gateway:
+      instance_type: ["m6i.large", "m5.large"]  # EC2 instance to deploy
+      instance_count: 1  # Number of DCV gateway node(s) to provision. This value can be changed post deployment
+      volume_size: 50  # Size of the EBS root disk in GB
+      volume_type: "gp3"
+    broker:
+      instance_type: ["m6i.large", "m5.large"]  # EC2 instance to deploy
+      instance_count: 1  # Number of DCV broker node(s) to provision. This value can be changed post deployment
+      volume_size: 50  # Size of the EBS root disk in GB
+      volume_type: "gp3"
+    manager:
+      instance_type: ["m6i.large", "m5.large"]  # EC2 instance to deploy
+      instance_count: 1  # Number of DCV session_manager node(s) to provision. This value can be changed post deployment
+      volume_size: 50  # Size of the EBS root disk in GB
+      volume_type: "gp3"
+
+  # Configure your Directory options below
+  directoryservice:
+    create_route53_resolver: true  # Create (true) the Route53 resolver and rules for the domain in AD mode. This may need to be set to false for shared VPC environments where the downstream AWS account is not able to create the Route53 resolver/rules.
+    # Choose the Directory to use on SOCA:
+    # 1 - aws_ds_managed_activedirectory (Recommended) - Create a new AWS Directory Service Managed Active Directory -  https://docs.aws.amazon.com/directoryservice/latest/admin-guide/directory_microsoft_ad.html
+    # 2 - existing_active_directory (Experimental) - Connect to an existing Microsoft Active Directory
+    # 3 - openldap - Create a new standalone OpenLDAP hosted on the Controller host - https://www.openldap.org/
+    # 4 - existing_openldap - Connect to an existing OpenLDAP
+    provider: "aws_ds_managed_activedirectory"
+
+    # DNS Domain name for your deployment. Automatically populated as <clusterID>.local unless specified here (e.g: soca-test.local)
+    domain_name: ~
+
+    # Based on your domain name unless specified here (e.g: DC=soca-test,DC=local)
+    base_dn: ~
+
+    # NetBIOS name (AD only) Automatically populated as the first part of directoryservice.domain_name (e.g. SOCA-TEST if soca-test.local) unless specified here
+    # Limit to 15 chars
+    short_name: ~
+
+    ### Specific provider configurations
+    aws_ds_simple_activedirectory:
+      size: "Small"  # Small or Large - https://docs.aws.amazon.com/directoryservice/latest/admin-guide/directory_simple_ad.html
+      # Note: These are the default settings created by AWS Directory Simple AD which cannot be changed. Displayed for information only.
+      # people_search_base: "cn=Users,<base_dn>", group_search_base: "cn=Group,<base_dn>", admins_search_base: "cn=Enterprise Admins,<base_dn>"
+      admins_search_base: "cn=socasudoadminsgroup"  # Any users created in this group will have Linux SUDO & SOCA Admin permissions
+
+    aws_ds_managed_activedirectory:
+      edition: "Standard"  # https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-directoryservice-microsoftad.html#cfn-directoryservice-microsoftad-edition
+      # Note: These are the default settings created by AWS Directory Simple AD which cannot be changed. Displayed for information only.
+      # people_search_base: "cn=Users,<base_dn>", group_search_base: "cn=Group,<base_dn>", admins_search_base: "cn=AWS Delegated Administrators,ou=AWS Delegated Groups,<base_dn>"
+      admins_search_base: "cn=socasudoadminsgroup"  # Any users created in this group will have Linux SUDO & SOCA Admin permissions
+
+    openldap:
+      people_search_base: "ou=People"  # Users will be created or authenticated in this OrganizationAL Unit (OU) - (base_dn is automatically added as suffix if not present)
+      group_search_base: "ou=Group"  # Groups in this OU will be usable in SOCA - (base_dn is automatically added as suffix if not present)
+      admins_search_base: "ou=Sudoers"  # Any users created in this OU  will have Linux SUDO & SOCA Admin permissions https://www.sudo.ws/docs/man/sudoers.ldap.man/ (base_dn is automatically added as suffix if not present)
+
+    existing_openldap:
+      people_search_base: ~  # Users will be created or authenticated in this OrganizationAL Unit (OU) - (base_dn is automatically added as suffix if not present)
+      group_search_base: ~  # Groups in this OU will be usable in SOCA - (base_dn is automatically added as suffix if not present)
+      admins_search_base: ~  # Any users created in this Group will have Linux SUDO & SOCA Admin permissions (base_dn is automatically added as suffix if not present)
+
+      #  If you change this value, SOCA will !!!NOT!!! create an OpenLDAP and will connect to the one you have specified.
+      #  1. Verify if your OpenLDAP is reachable from the AWS Environment where you are about to install SOCA
+      #  2. Verify the different Search Base above and ensure they match your environment
+      #  3. You MUST set existing_directory_service_account_secret_name below
+      #  4. Verify the provider (above) is the correct one based on your Directory platform
+      endpoint: ~  # ex: ldaps://10.5.5.10, ldap://myad.mycompany.com ... must start with ldap:// or ldaps://
+
+      # A service account with enough privileges to join other objects into the directory.
+      # Left blank if you are not using an existing Directory, SOCA will automatically create a secure secret on SecretManager for you
+      # Otherwise, manually create your own Secret on SecretsManager:
+      #    - Access AWS Console
+      #    - Open Secrets Manager Service in the region you are planning to install SOCA
+      #    - Click "Store a new secret"
+      #    - Secret Type: "Other type of secret"
+      #    - "Keys/Values pair:  choose "Plaintext" and add the following base dn:
+      #      For OpenLDAP: -> {"username":"CN=myuser,DC=xxxx", "password": "<REPLACEWITHUSERPASSWORD>"}
+      #      For Active Directory -> {"username":"USER@DOMAIN.COM", "password": "<REPLACEWITHUSERPASSWORD>"}
+      #    - Secret Name: Enter your secret name
+      #    - Disable Rotation unless you have a function that can take care of it
+      #    - Save, Copy the "Secret ARN" below (Important: copy "Secret ARN", not "Secret Name")
+      service_account_secret_name_arn: ~
+
+    existing_active_directory:
+      people_search_base: ~  # Users will be created or authenticated in this OrganizationAL Unit (OU) - (base_dn is automatically added as suffix if not present)
+      group_search_base: ~  # Groups in this OU will be usable in SOCA - (base_dn is automatically added as suffix if not present)
+      admins_search_base: ~  # Any users created in this OU will have SUDO permissions https://www.sudo.ws/docs/man/sudoers.ldap.man/ (base_dn is automatically added as suffix if not present)
+
+      # If you change this value, SOCA will !!!NOT!!! create an Active Directory and will connect to the one you have specified.
+      #  1. Verify if your Active Directory is reachable from the AWS Environment where you are about to install SOCA
+      #  2. Verify the different Search Base above and ensure they match your environment
+      #  3. You MUST set existing_directory_service_account_secret_name below
+      #  4. Verify the provider (above) is the correct one based on your Directory platform
+      endpoint: ~  # ex: ldaps://10.5.5.10, ldap://myad.mycompany.com ... must start with ldap:// or ldaps://
+
+      #  List Domain Controller IPs, only needed if you are planning to use FSx for NetApp ONTAP
+      # dc_ips:
+      # - ip1
+      # - ip2
+      dc_ips: ~
+
+      # A service account with enough privileges to join other objects into the directory.
+      # Left blank if you are not using an existing Directory, SOCA will automatically create a secure secret on SecretManager for you
+      # Otherwise, manually create your own Secret on SecretsManager:
+      #    - Access AWS Console
+      #    - Open Secrets Manager Service in the region you are planning to install SOCA
+      #    - Click "Store a new secret"
+      #    - Secret Type: "Other type of secret"
+      #    - "Keys/Values pair:  choose "Plaintext" and add the following base dn:
+      #      For OpenLDAP: -> {"username":"CN=myuser,DC=xxxx", "password": "<REPLACEWITHUSERPASSWORD>"}
+      #      For Active Directory -> {"username":"USER@DOMAIN.COM", "password": "<REPLACEWITHUSERPASSWORD>"}
+      #    - Secret Name: Enter your secret name
+      #    - Disable Rotation unless you have a function that can take care of it
+      #    - Save, Copy the "Secret ARN" below (Important: copy "Secret ARN", not "Secret Name")
+      service_account_secret_name_arn: ~
+
+  # Enable/Disable specific Web APIs and Views.
+  # Feature can be enabled/disabled post-deployment via `socactl`
+  # List of allowed/denied users can also be managed post-deployment via `socactl`
+  feature_flags:
+    Networking:
+      EnableIPv6: false  # [PREVIEW FEATURE] - Enable IPv6 CIDRs, SG rules. MPLs for newly created VPCs/Subnets
+      AutoManagedPrefixList: false  # [PREVIEW FEATURE] - Automatically create and use EC2 Managed Prefix Lists instead of CIDRs
+    WebInterface:
+      VirtualDesktops: true
+      TargetNodes: true
+      LoginNodes: true
+      Hpc: true
+      FileBrowser: true
+      UsersGroupsManagement: true
+      MyApiKeyManagement: true
+      SftpInstructions: true
+      MyAccountManagement: true
+      AnalyticsCostManagement: true
+      ContainersManagement: false # [PREVIEW FEATURE] 
+    EnableCapacityReservation: false # [PREVIEW FEATURE] When false, SOCA will try to provision EC2 capacity and ignore capacity reservation request.
+    EnableAWSQuotaChecks: true # # When false, SOCA will ignore AWS Quotas when provisioning EC2 capacity. It's recommended to enable this setting only when the AWS Service Quotas API is not accessible (e.g: isolated subnets)
+
+
+# Parameters below will be stored on AWS Parameter Store via /soca/<cluster_id/<root>/<key>
+# ex: /soca/soca-mycluster/system/awscliv2/x86_64
+Parameters:
+  system:
+    base_os:
+      supported:
+        - "amazonlinux2"
+        - "amazonlinux2023"
+        - "rhel8"
+        - "rhel9"
+        - "rocky8"
+        - "rocky9"
+        - "ubuntu2204"
+        - "ubuntu2404"
+        - "windows2019"
+        - "windows2022"
+        - "windows2025"
+
+
+      # OS supported on previous SOCA versions but removed as they reached End-Of-Life and no further support is provided
+      # Historical code may continue to work.
+      eol:
+        - "centos7"
+        - "rhel7"
+
+    aws_pcs:
+      slurm_version: "23.11"
+      full_version: "23.11.9-1"
+      agent_version: "1.0.0-1"
+      linux:
+        installer:
+          url_pattern: "https://aws-pcs-repo-%region%.s3.amazonaws.com/aws-pcs-slurm/aws-pcs-slurm-%slurm_version%-installer-%version%.tar.gz"
+          sha256: "1de7d919c8632fe8e2806611bed4fde1005a4fadc795412456e935c7bba2a9b8"
+        agent:
+          url_pattern: "https://aws-pcs-repo-%region%.s3.amazonaws.com/aws-pcs-agent/aws-pcs-agent-v%version%.tar.gz"
+          sha256: "d2d3d68d00c685435c38af471d7e2492dde5ce9eb222d7b6ef0042144b134ce0"
+
+    awscliv2:
+      linux:
+        x86_64: "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip"
+        aarch64: "https://awscli.amazonaws.com/awscli-exe-linux-aarch64.zip"
+      windows:
+        x86_64: "https://awscli.amazonaws.com/AWSCLIV2.msi"
+
+    # SOCA Python, installed on all SOCA nodes
+    python:
+      version: "3.13.2"
+      url: "https://mirrors.huaweicloud.com/python/3.13.2/Python-3.13.2.tgz"
+      sha256: "b8d79530e3b7c96a5cb2d40d431ddb512af4a563e863728d8713039aa50203f9"
+
+    # Scheduler to deploy on all SOCA nodes
+    scheduler:
+      openpbs:
+        tgz:  # Download OpenPBS tgz from the URL listed below
+          version: "23.06.06"
+          url: "https://d2hhb5nrcr4y0j.cloudfront.net/openpbs-23.06.06.tar.gz"
+          sha256: "689df6caa101422237118d81f9cfb0e6cad432209c77a6b3b8021cf984a91a90"
+        git:  # Install OpenPBS from Source.
+          version: "23.06.06"  # Version to install (this can be anything, it's just used to avoid re-installation if the same version is already detected)
+          repo: "https://gitee.com/fctestbot/openpbs.git"  # Repo to clone from, e.g https://github.com/openpbs/openpbs.git
+          branch: "master"  # (Optional: Specify the branch if you do not want to use the default)
+          commit_id: "b22e67ed4709cd952fc166ba599de9a20a3d9b02"  # (Optional: Specify the commit id if you do not want to use the default)
+
+        compatibility_packages:
+          # Package installed/replaced on older distro (RHEL8, Rocky8 ..) to enable OpenPBS compilation for python3.13
+          automake:
+            url: "https://mirrors.tuna.tsinghua.edu.cn/gnu/automake/automake-1.16.5.tar.gz"
+            sha256: "07bd24ad08a64bc17250ce09ec56e921d6343903943e99ccf63bbf0705e34605"
+          # Package installed/replaced on older distro (RHEL8, Rocky8 ..) to enable OpenPBS compilation for python3.13
+          libtool:
+            url: "https://mirrors.tuna.tsinghua.edu.cn/gnu/libtool/libtool-2.4.7.tar.gz"
+            sha256: "04e96c2404ea70c590c546eba4202a4e12722c640016c12b9b2f1ce3d481e9a8"
+          # Package installed/replaced on older distro (RHEL8, Rocky8 ..) to enable OpenPBS compilation for python3.13
+          pkgconfig:
+            url: "https://d2hhb5nrcr4y0j.cloudfront.net/pkg-config-0.29.2.tar.gz"
+            sha256: "6fc69c01688c9458a57eb9a1664c9aba372ccda420a02bf4429fe610e7e7d591"
+          # Dependency when compiling OpenPBS from source
+          cjson:
+            url: "https://d2hhb5nrcr4y0j.cloudfront.net/cJSON-1.7.18.tar.gz"
+            sha256: "3aa806844a03442c00769b83e99970be70fbef03735ff898f4811dd03b9f5ee5"
+
+    cache_client:
+      valkey:
+        url: "https://d2hhb5nrcr4y0j.cloudfront.net/valkey-8.0.2.tar.gz"
+        sha256: "e052c45b3cbe512e24fdfdc3fd337f9f5e4b8f8b8713f349ba867b829c8ff11a"
+      redis:
+        url: "https://d2hhb5nrcr4y0j.cloudfront.net/redis-stable.tar.gz"
+
+    # OpenMPI is automatically installed on /apps partition at the end of the initial Controller setup
+    # You can disable it via installer/resources/user_data/controller/03_setup.sh.j2
+    openmpi:
+      version: "5.0.6"
+      url: "https://d2hhb5nrcr4y0j.cloudfront.net/openmpi-5.0.6.tar.gz"
+      sha256: "1d6dd41f6b53c00db23b40e56733d16a996fa743957ef8add8e117feffd92689"
+
+    # CloudWatch agent is only used if you enable cluster_node_boostrap/templates/linux/aws_cloudwatch_agent.sh.j2
+    cloudwatch_agent:
+      download_link_pattern: "https://s3.%region%.amazonaws.com/amazoncloudwatch-agent-%region%/%os%/%architecture%/latest/amazon-cloudwatch-agent.%ext%"
+
+    # SSM is automatically installed on all SOCA nodes, giving you the permission to access your host via AWS System Manager and perform DCV automations
+    # We do not recommend disable it
+    ssm:
+      x86_64: "https://s3.amazonaws.com/ec2-downloads-windows/SSMAgent/latest/linux_amd64/amazon-ssm-agent.rpm"
+      aarch64: "https://s3.amazonaws.com/ec2-downloads-windows/SSMAgent/latest/linux_arm64/amazon-ssm-agent.rpm"
+
+    # S3 Mountpoint is only used if you mount an S3 path via SOCA Shared Storage
+    # https://awslabs.github.io/scale-out-computing-on-aws-documentation/documentation/storage/dedicated-storage/
+    s3_mountpoint:
+      x86_64:
+        url: "https://s3.amazonaws.com/mountpoint-s3-release/1.14.0/x86_64/mount-s3-1.14.0-x86_64.rpm"
+        sha256: "ea6f6f76602b0034642a88a8ce31542a185c36c9fa5e50c49dffe445b8b70cd7"
+      aarch64:
+        url: "https://s3.amazonaws.com/mountpoint-s3-release/1.14.0/arm64/mount-s3-1.14.0-arm64.rpm"
+        sha256: "5c13de3fa0a8fd884444c5bf149cc4c3967aadad5c6fc4925df2529d4a83a5dd"
+
+
+    nodejs:
+      url: "https://d2hhb5nrcr4y0j.cloudfront.net/node-v22.16.0-linux-x64.tar.xz"
+      sha256: "f4cb75bb036f0d0eddf6b79d9596df1aaab9ddccd6a20bf489be5abe9467e84e"
+
+    # EFA Drivers installed on all HPC Compute node when efa_support=True is specified
+    # https://aws.amazon.com/hpc/efa/
+    efa:
+      version: "1.42.0"
+      url: "https://efa-installer.amazonaws.com/aws-efa-installer-1.42.0.tar.gz"
+      sha256: "4114fe612905ee05083ae5cb391a00a012510f3abfecc642d86c9a5ae4be9008"
+
+    # SQLite is installed on the controller host and is the primary DB for SOCA Web UI
+    sqlite:
+      version: "3.49.1"
+      url: "https://d2hhb5nrcr4y0j.cloudfront.net/sqlite-src-3490100.zip"
+      sha256: "4404d93cbce818b1b98ca7259d0ba9b45db76f2fdd9373e56f2d29b519f4d43b"
+
+    # EPEL repository
+    # https://docs.fedoraproject.org/en-US/epel/
+    epel:
+      el7:
+        url: "https://dl.fedoraproject.org/pub/epel/epel-release-latest-7.noarch.rpm"
+      el8:
+        url: "https://d2hhb5nrcr4y0j.cloudfront.net/epel-release-latest-8.noarch.rpm"
+      el9:
+        url: "https://d2hhb5nrcr4y0j.cloudfront.net/epel-release-latest-9.noarch.rpm"
+
+    # Chocolatey package manager installed on DCV Windows. You can disable it via cluster_node_boostrap/templates/windows/
+    chocolatey:
+      url: "https://community.chocolatey.org/install.ps1"
+
+    # GPU settings when using a GPU-supported EC2 instance
+    gpu:
+      gpu_settings:
+        nvidia:
+          linux:
+            #  https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/install-nvidia-driver.html#nvidia-driver-instance-type
+            # If EC2 Instance Family only supports Tesla, SOCA will install Tesla Drivers
+            # If EC2 Instance family supports both Tesla and Grid, SOCA will only install Grid Driver if it's a DCV (Virtual Desktop) machine
+            tesla_drivers_only: "(p3|p4d|p4de|p5|p5e|g5g)"
+            tesla_drivers_ltsb_only: "(p2|g2)"  # (Experimental) For Older GPU generation
+            grid_drivers:
+              s3_bucket_url: "https://ec2-linux-nvidia-drivers.s3.amazonaws.com"
+              s3_bucket_path: "s3://ec2-linux-nvidia-drivers" # Note: GRID Driver version is managed via linux/gpu/install_drivers.sh.j2
+
+            tesla_drivers:
+              public_driver_url_endpoint: "https://us.download.nvidia.com/tesla" # Edit linux/gpu/install_drivers.sh.j2 if you need to change the driver versions
+
+          windows:
+            # Windows is only for VDI instance, so we install only Grid Drivers.
+            # User can replace with TESLA post-VDI deployment if needed.
+            grid_drivers:
+              s3_bucket_url: "https://ec2-windows-nvidia-drivers.s3.amazonaws.com"
+              s3_bucket_path: "s3://ec2-windows-nvidia-drivers" # Note: GRID Driver version is managed via windows/gpu/nvidia_drivers.ps.j2
+
+        amd:
+          linux:
+            s3_bucket_url: "https://ec2-amd-linux-drivers.s3.amazonaws.com"
+            s3_bucket_path: "s3://ec2-amd-linux-drivers/latest/"
+            radeon_repo_url: "https://repo.radeon.com/amdgpu"
+          windows:
+            s3_bucket_url: "https://ec2-amd-windows-drivers.s3.amazonaws.com"
+            s3_bucket_path: "s3://ec2-amd-windows-drivers/latest/"
+
+    # Amazon DCV Settings
+    # https://aws.amazon.com/hpc/dcv/
+    dcv:
+      session_storage: "dcv_session_storage"  # $HOME will be appended as prefix https://docs.aws.amazon.com/dcv/latest/adminguide/manage-storage.html
+      idle_timeout: 1440  # in minutes. Disconnect DCV (but not terminate the session) after 1 day if not active
+      al2:  # Amazon Linux 2
+        x86_64:
+          version: "2024.0-17979-el7-only-al2-x86_64"
+          url: "https://d1uj6qtbmh3dt5.cloudfront.net/2024.0/Servers/nice-dcv-2024.0-17979-el7-only-al2-x86_64.tgz"
+          sha256: "0dc68b98a27e245697e56e4d27c0eb4d648613a60290e7976f31a9b1aaca7e67"
+        aarch64:
+          version: "2024.0-17979-el7-only-al2-aarch64"
+          url: "https://d1uj6qtbmh3dt5.cloudfront.net/2024.0/Servers/nice-dcv-2024.0-17979-el7-only-al2-aarch64.tgz"
+          sha256: "59011a340e903c058013c8c8f2aa346e864eb3a4168f6d74779e21f9ea8e8e86"
+      al2023: # Amazon linux 2023
+        x86_64:
+          version: "nice-dcv-2024.0-19030-amzn2023-x86_64"
+          url: "https://d1uj6qtbmh3dt5.cloudfront.net/2024.0/Servers/nice-dcv-2024.0-19030-amzn2023-x86_64.tgz"
+          sha256: "35128b988dee4f1f4582bd912dc4764b8712c1f0e3a35082a5da7e039eb7ff92"
+        aarch64:
+          version: "nice-dcv-2024.0-19030-amzn2023-aarch6"
+          url: "https://d1uj6qtbmh3dt5.cloudfront.net/2024.0/Servers/nice-dcv-2024.0-19030-amzn2023-aarch64.tgz"
+          sha256: "60001ea60e91513b5c5018c38c2178cb0fac5cd0f15875ccf694ab95d7cfe661"
+      el7:  ## Centos7/RHEL7 [IMPORTANT: Latest supported is 2023.1]
+        x86_64:
+          version: "2023.1-17701-el7-x86_64"
+          url: "https://d1uj6qtbmh3dt5.cloudfront.net/2023.1/Servers/nice-dcv-2023.1-17701-el7-x86_64.tgz"
+          sha256: "dd63c2aad943e2c106ac4e519c308bba4786eb1e4c11674bedad9111c65c6230"
+        aarch64:
+          version: "nice-dcv-2023.1-17701-el7-aarch64"
+          url: "https://d1uj6qtbmh3dt5.cloudfront.net/2023.1/Servers/nice-dcv-2023.1-17701-el7-aarch64.tgz"
+          sha256: "e44f3c06e1830ccc52d25995227bbbb2060bc81a9623420ade8ef69317784fdd"
+
+      el8:  ## Centos8/RHEL8/Rocky8
+        x86_64:
+          version: "2024.0-17979-el8-x86_64"
+          url: "https://d1uj6qtbmh3dt5.cloudfront.net/2024.0/Servers/nice-dcv-2024.0-17979-el8-x86_64.tgz"
+          sha256: "8958505f859dd62749936f0a709eb679162ad268f402ff01a0554eea19bb5b0c"
+        aarch64:
+          version: "2024.0-17979-el8-aarch64"
+          url: "https://d1uj6qtbmh3dt5.cloudfront.net/2024.0/Servers/nice-dcv-2024.0-17979-el8-aarch64.tgz"
+          sha256: "24909cb2aaca358404a1e69ad5e1c7e7596668d907329403c09299d26a6672e8"
+
+      el9:  ## RHEL9/Rocky9
+        x86_64:
+          version: "2024.0-17979-el9-x86_64"
+          url: "https://d1uj6qtbmh3dt5.cloudfront.net/2024.0/Servers/nice-dcv-2024.0-17979-el9-x86_64.tgz"
+          sha256: "d6a961619412d2f63fdd82133125a4e3916c904f4b58897953ecd69ff6f4c7d7"
+        aarch64:
+          version: "2024.0-17979-el9-aarch64"
+          url: "https://d1uj6qtbmh3dt5.cloudfront.net/2024.0/Servers/nice-dcv-2024.0-17979-el9-aarch64.tgz"
+          sha256: "cf1f4453f5a82b57a73845f0173de3dc2d1f58cd269ffb2635b36a68d1108ce6"
+
+      ubuntu2204:  # Ubuntu 22.04
+        x86_64:
+          version: "nice-dcv-2024.0-18131-ubuntu2204-x86_64"
+          url: "https://d1uj6qtbmh3dt5.cloudfront.net/2024.0/Servers/nice-dcv-2024.0-18131-ubuntu2204-x86_64.tgz"
+          sha256: "b30a57f5029b9d8acb59db9fc72f1dbc7c6a33d76dbbfe02017cec553c5b86f9"
+        aarch64:
+          version: "nice-dcv-2024.0-18131-ubuntu2204-aarch64"
+          url: "https://d1uj6qtbmh3dt5.cloudfront.net/2024.0/Servers/nice-dcv-2024.0-18131-ubuntu2204-aarch64.tgz"
+          sha256: "48bb605dbb5f28af79b94de9239a8c3e7811e9e47078d8985d036915f2a34217"
+
+      ubuntu2404:  # Ubuntu 24.04
+        x86_64:
+          version: "nice-dcv-2024.0-18131-ubuntu2404-x86_64"
+          url: "https://d1uj6qtbmh3dt5.cloudfront.net/2024.0/Servers/nice-dcv-2024.0-18131-ubuntu2404-x86_64.tgz"
+          sha256: "2cebf01c1fb5389d349ba22fdd8a85dec179bbf24c86f252535e8da43fb4c705"
+        aarch64:
+          version: "nice-dcv-2024.0-18131-ubuntu2404-aarch64"
+          url: "https://d1uj6qtbmh3dt5.cloudfront.net/2024.0/Servers/nice-dcv-2024.0-18131-ubuntu2404-aarch64.tgz"
+          sha256: "95e4a364a78de6febbdeb877febd998099f59fbb4c4226fe6dd27fa4b5afc809"
+
+      windows:
+        version: "2024.0-18131"
+        url: "https://d1uj6qtbmh3dt5.cloudfront.net/2024.0/Servers/nice-dcv-server-x64-Release-2024.0-18131.msi"
+        sha256: "f3049b2affdfa331ea3205cc5b3ae6106822e9d727fb4e84e470c2e0b10c6296"

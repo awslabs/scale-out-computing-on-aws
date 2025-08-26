@@ -5,9 +5,14 @@
 function install_sqlite () {
   log_info "Begin: Install SQLite"
   local SQLITE_VERSION="{{ context.get("/system/sqlite/version") }}"
-  local SQLITE_URL="{{ context.get("/system/sqlite/url") }}"
+  {% if context.get("/configuration/Region") in ("cn-north-1", "cn-northwest-1") %}
+    local SQLITE_URL="https://d2hhb5nrcr4y0j.cloudfront.net/sqlite-src-3490100.zip"
+  {% else %}
+    local SQLITE_URL="{{ context.get("/system/sqlite/url") }}"
+  {% endif %}
   local SQLITE_SHA256="{{ context.get("/system/sqlite/sha256") }}"
   local SQLITE_INSTALL_PREFIX="/opt/soca/{{ context.get('/configuration/ClusterId') }}/packages/sqlite"
+  chmod +x "${SQLITE_INSTALL_PREFIX}/bin/sqlite3"
   if [[ $(${SQLITE_INSTALL_PREFIX}/bin/sqlite3 --version | awk {'print $1'}) == "${SQLITE_VERSION}" ]]; then
     log_info "SQLITE3 exist and is at correct version, skipping ..."
   else

@@ -7,27 +7,11 @@
                 "s3:ListBucket"
             ],
             "Resource": [
-                "arn:%%AWS_PARTITION%%:s3:::dcv-license.%%AWS_REGION%%/*",
-                "arn:%%AWS_PARTITION%%:s3:::ec2-linux-nvidia-drivers/*",
-                "arn:%%AWS_PARTITION%%:s3:::ec2-linux-nvidia-drivers",
-                "arn:%%AWS_PARTITION%%:s3:::nvidia-gaming/*",
-                "arn:%%AWS_PARTITION%%:s3:::nvidia-gaming-drivers",
-                "arn:%%AWS_PARTITION%%:s3:::ec2-amd-linux-drivers/*",
-                "arn:%%AWS_PARTITION%%:s3:::ec2-amd-linux-drivers",
                 "arn:%%AWS_PARTITION%%:s3:::%%BUCKET%%/*",
-                "arn:%%AWS_PARTITION%%:s3:::%%BUCKET%%"
+                "arn:%%AWS_PARTITION%%:s3:::%%BUCKET%%"%%LOGIN_NODE_MANAGED_BUCKETS%%
             ],
             "Effect": "Allow"
-        },
-        {
-            "Action": [
-                "ses:SendEmail"
-            ],
-            "Resource": [
-                "arn:%%AWS_PARTITION%%:ses:*:%%AWS_ACCOUNT_ID%%:identity*"
-            ],
-            "Effect": "Allow"
-        },
+        },%%SES_PERMISSIONS%%
         {
             "Action": [
                 "ec2:CreateTags"
@@ -65,7 +49,7 @@
                 "logs:PutLogEvents",
                 "logs:DescribeLogStreams"
             ],
-            "Resource": "arn:%%AWS_PARTITION%%:logs:%%AWS_REGION%%:*"
+            "Resource": "*"
         }
     ]
 }

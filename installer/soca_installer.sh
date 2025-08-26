@@ -15,6 +15,11 @@ shopt -s extglob
 #  and limitations under the License.                                                                                #
 ######################################################################################################################
 
+# Set default region while respecting existing environment, fallback to Virginia if not defined (Used by install_soca.py)
+export AWS_DEFAULT_REGION=${AWS_DEFAULT_REGION:-$(grep region <"${HOME}/.aws/config" | head -n 1 | awk '{print $3}')}
+if [[ $AWS_DEFAULT_REGION == "" ]]; then
+  export AWS_DEFAULT_REGION="us-east-1"
+fi
 
 if [[ ! "$BASH_VERSION" ]] ; then
     exec /bin/bash "$0" "$@"
@@ -25,13 +30,21 @@ function realpath() {
 }
 
 function run_pip() {
-  if [[ "$QUIET_MODE" = "true" ]]; then
-    pip3 install --upgrade pip --quiet
-    pip3 install -r resources/src/requirements.txt --quiet
-  else
-    pip3 install --upgrade pip
-    pip3 install -r resources/src/requirements.txt
+  local pip_index=""
+  local quiet_flag=""
+  
+  if [[ $AWS_DEFAULT_REGION == "cn-north-1" ]] || [[ $AWS_DEFAULT_REGION == "cn-northwest-1" ]]; then
+    pip_index="-i https://pypi.tuna.tsinghua.edu.cn/simple"
   fi
+  
+  # Set quiet flag if quiet mode is enabled
+  if [[ "$QUIET_MODE" = "true" ]]; then
+    quiet_flag="--quiet"
+  fi
+  
+  # Run pip commands with the appropriate flags
+  pip3 install --upgrade pip $quiet_flag $pip_index
+  pip3 install -r resources/src/requirements.txt $quiet_flag $pip_index
 }
 
 function log_success() { echo -e "${GREEN}${1}${NC}" ;}
@@ -107,7 +120,6 @@ if [[ "$CHECK_GLIBC" = true ]]; then
 
 fi
 
-
 # Python3 must be available to build python dependencies on Lambda
 SOCA_PYTHON_VERSION=${SOCA_PYTHON_VERSION:-"3.13"}
 
@@ -116,6 +128,7 @@ export SOCA_PYTHON_VERSION
 
 # Download and Install PyENV if needed
 PYENV_URL="https://pyenv.run"
+PYENV_URL_CN="https://gitee.com/fctestbot/pyenv"
 
 # Change to "true" for more log
 QUIET_MODE="false"
@@ -127,7 +140,12 @@ INSTALLER_DIRECTORY=$(dirname $(realpath "$0"))
 PYTHON_VENV="$INSTALLER_DIRECTORY/resources/src/envs/venv-py-installer"
 
 # NVM path
-NODEJS_BIN="https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.3/install.sh"
+# Check if region is China and set NODEJS_BIN accordingly
+if [[ $AWS_DEFAULT_REGION == "cn-north-1" ]] || [[ $AWS_DEFAULT_REGION == "cn-northwest-1" ]]; then
+  NODEJS_BIN="https://d2hhb5nrcr4y0j.cloudfront.net/nvm-sh/nvm/v0.40.1/install_gcr.sh"
+else
+  NODEJS_BIN="https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.3/install.sh"
+fi
 
 # Color
 NC="\033[0m"
@@ -198,19 +216,63 @@ else
             * ) log_error "Please answer yes or no."
             exit 1 ;;
           esac
-          curl --silent $PYENV_URL | bash
-          if [[ $? -ne 0 ]]; then
-            log_error "Unable to access PyEnv, fix errors above"
-            exit 1
+
+          if [[ $AWS_DEFAULT_REGION == "cn-north-1" ]] || [[ $AWS_DEFAULT_REGION == "cn-northwest-1" ]]; then
+            log_warning "Primary PyEnv URL failed, trying China mirror..."
+            # For China mirror, we need to clone the repo and run the installer
+            git clone --depth=1 $PYENV_URL_CN "$HOME/.pyenv"
+            if [[ $? -eq 0 ]]; then
+              log_success "PyEnv cloned successfully from China mirror"
+              # Add pyenv to path
+              export PYENV_ROOT="$HOME/.pyenv"
+              export PATH="$PYENV_ROOT/bin:$PATH"
+              # Initialize pyenv
+              eval "$(pyenv init -)"
+            else
+              log_error "Unable to access PyEnv from any source. Please check your network connection."
+              exit 1
+            fi
+          else
+            curl --silent $PYENV_URL | bash
+            if [[ $? -ne 0 ]]; then
+              log_error "Unable to access PyEnv, fix errors above"
+              exit 1
+            fi
           fi
+        
           export PYENV_ROOT="$HOME/.pyenv"
           command -v pyenv >/dev/null || export PATH="$PYENV_ROOT/bin:$PATH"
           eval "$(pyenv init -)"
           PYENV=$(command -v pyenv)
           echo "Installing  Python ${SOCA_PYTHON_VERSION} via PyEnv"
-          $PYENV install "${SOCA_PYTHON_VERSION}"
-          if [[ $? -ne 0 ]]; then
-            log_error "Unable to install Python ${SOCA_PYTHON_VERSION} via PyEnv. Consult above errors and try again"
+          # Try to install Python with retry logic and alternative mirrors
+          MAX_RETRIES=3
+          RETRY_COUNT=0
+          PYTHON_INSTALLED=false
+          # export PYTHON_BUILD_MIRROR_URL="https://pypi.tuna.tsinghua.edu.cn/simple"
+          
+          while [[ $RETRY_COUNT -lt $MAX_RETRIES && "$PYTHON_INSTALLED" = "false" ]]; do
+            if $PYENV install "${SOCA_PYTHON_VERSION}"; then
+              PYTHON_INSTALLED=true
+            else
+              RETRY_COUNT=$((RETRY_COUNT+1))
+              log_warning "Python installation failed. Attempt $RETRY_COUNT/$MAX_RETRIES"
+              
+              # On failure, try setting PYTHON_BUILD_MIRROR_URL to a China mirror
+              if [[ $RETRY_COUNT -eq 1 ]]; then
+                log_warning "Trying with Tsinghua University mirror..."
+                export PYTHON_BUILD_MIRROR_URL="https://pypi.tuna.tsinghua.edu.cn/simple"
+                sleep 2
+              elif [[ $RETRY_COUNT -eq 2 ]]; then
+                log_warning "Trying with USTC mirror..."
+                export PYTHON_BUILD_MIRROR_URL="https://mirrors.ustc.edu.cn/python"
+                sleep 2
+              fi
+            fi
+          done
+          
+          if [[ "$PYTHON_INSTALLED" = "false" ]]; then
+            log_error "Unable to install Python ${SOCA_PYTHON_VERSION} via PyEnv after $MAX_RETRIES attempts. Consult above errors and try again"
             exit 1
           fi
           $PYENV local "${SOCA_PYTHON_VERSION}"
@@ -296,12 +358,6 @@ if [[ $? -ne 0 ]]; then
           exit 1;;
     esac
   done
-fi
-
-# Set default region while respecting existing environment, fallback to Virginia if not defined (Used by install_soca.py)
-export AWS_DEFAULT_REGION=${AWS_DEFAULT_REGION:-$(grep region <"${HOME}/.aws/config" | head -n 1 | awk '{print $3}')}
-if [[ $AWS_DEFAULT_REGION == "" ]]; then
-  export AWS_DEFAULT_REGION="us-east-1"
 fi
 
 log_success "======= Pre-requisites completed. Launching installer ======="

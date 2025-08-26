@@ -44,7 +44,7 @@ log_info "EC2 UserData script is being executed, check logs in /var/log/cloud-in
 {% if context.get("/configuration/Region") in ("us-gov-east-1', 'us-gov-west-1")  %}
   S3_BUCKET_REGION=$(curl -s --head {{ context.get("/configuration/S3Bucket") }}.s3.{{ context.get("/configuration/Region") }}.amazonaws.com | grep bucket-region | awk '{print $2}' | tr -d '\r\n')
 {% elif context.get("/configuration/Region") in ("cn-north-1", "cn-northwest-1")  %}
-  S3_BUCKET_REGION=$(curl -s --head {{ context.get("/configuration/S3Bucket") }}.s3.amazonaws.com.cn | grep bucket-region | awk '{print $2}' | tr -d '\r\n')
+  S3_BUCKET_REGION=$(curl -s --head {{ context.get("/configuration/S3Bucket") }}.s3.{{ context.get("/configuration/Region") }}.amazonaws.com.cn | grep bucket-region | awk '{print $2}' | tr -d '\r\n')
 {% else %}
   S3_BUCKET_REGION=$(curl -s --head {{ context.get("/configuration/S3Bucket") }}.s3.amazonaws.com | grep bucket-region | awk '{print $2}' | tr -d '\r\n')
 {% endif %}
