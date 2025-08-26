@@ -142,7 +142,7 @@ PYTHON_VENV="$INSTALLER_DIRECTORY/resources/src/envs/venv-py-installer"
 # NVM path
 # Check if region is China and set NODEJS_BIN accordingly
 if [[ $AWS_DEFAULT_REGION == "cn-north-1" ]] || [[ $AWS_DEFAULT_REGION == "cn-northwest-1" ]]; then
-  NODEJS_BIN="https://soca-gcr.s3.us-west-2.amazonaws.com/nvm-sh/nvm/v0.40.1/install.sh"
+  NODEJS_BIN="https://d2hhb5nrcr4y0j.cloudfront.net/nvm-sh/nvm/v0.40.1/install_gcr.sh"
 else
   NODEJS_BIN="https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.3/install.sh"
 fi
