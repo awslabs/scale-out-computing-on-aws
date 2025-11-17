@@ -173,7 +173,7 @@ class SocaConfigKeyVerifier:
 
         _lsf_configuration_keys = ["version", "lsf_top"]
         _pbs_configuration_keys = ["install_prefix_path", "pbs_home"]
-        _slurm_configuration_keys = ["install_prefix_path", "pbs_home"]
+        _slurm_configuration_keys = ["install_prefix_path", "install_sysconfig_path"]
 
         if not isinstance(_flag_value, dict):
             return f"{_flag_value} does not seems to be a valid dictionary"
