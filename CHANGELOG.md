@@ -2,8 +2,53 @@
 All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
-and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+and this project adheres to [Calendar Versioning](https://calver.org/).
 
+
+## [25.11.0] - 2025-11-17
+
+
+### Features
+- Added support for `Asia Pacific (Taipei)` / `ap-east-2` to SOCA.
+  - Not all BaseOSes are supported - check `region_map.d` for more information.
+- Introducing smart subnet id selection for Virtual Desktops and Target Nodes provisioning. When enabled, SOCA will validate capacity availability and try other subnets automatically as needed.
+- SOCA installation will now create a dedicated cluster SNS topic for important administrative events. The interactive installer now asks for the `E-mail address` for notifications.
+- You can now add environment variables during EKS job submission
+- Added ability to disable domain join for HPC ephemeral nodes
+- Added `--email` command-line option to `soca_install.sh` to provide the notification E-mail address. Format can be `--email email1@example.com --email email2@example.com` or `--email email1@example.com,email2@example.com`.
+- Improved VDI Idle detection by using `GPU` as well as `CPU` as a resource for idle detection
+  - Supported on `NVIDIA` GPUs only at this release
+- Preview support for IBM Spectrum LSF scheduler
+- Preview support for SchedMD Slurm scheduler
+- Preview support for new SOCA Automatic Host Provisioning (disabled by default)
+- Preview support to optionally disable Active Directory domain join for ephemeral HPC compute nodes
+
+### Changed
+
+- Updated `SOCA Controller` default instance type to `m8i-flex.large` in regions where it is available.
+- Updated `OpenSearch` default instance to `m7g.large.search` when SOCA is creating the OpenSearch/Analytics cluster.
+- Removed support for `AWS Directory Service - Simple AD` as a back-end user Directory (disabled in previous releases).
+- Increased the AD Join loop to 30 tries for slower AD environments or faster ephemeral nodes.
+- Updated all BaseOS AMIs for all regions/partitions for more up to date AMIs.
+- Continue deprecation of `CentOS 7` and removed `CentOS 7`
+- Split the creation of `VPC Endpoints` between `interface` and `gateway`
+  - Enable `gateway VPC Endpoints` by default
+- Added CDK Strict enforcement by default. This can be disabled with `--cdk-no-strict` when running `soca_install.sh`
+- Updated various Python modules
+- Updated AWS EFA Installer to `1.43.2`
+- Increased SocaLogger's rotating file size limit from 5MB to 50MB
+- PBS Nodes are now registering using their private Ipv4 as MoM  (previous AWS Private DNS, which could cause some problems when using custom non-AWS DNS)
+- Updated missing API documentations for `VirtualDesktopProfilesManager`, `TargetNodeSoftwareStacksManager` and `GetVirtualDesktopsSessionState`
+- RHEL9 updated from RHEL9.5 to RHEL9.6
+- AL2023 updated from `2023.7` to `2023.9` kernel 6.1
+- Updated OpenPBS installation via git to commit ID `2bf8f31fbd5bbd7fff4b1c620c625d2944b422b1`
+
+### Fixes
+
+- NVIDIA drivers are now installed correctly on Ubuntu `-aws` kernels
+- Fixed TargetNode hibernation detection defect (seen during launch).
+- Added automatic AZ selection for the `SOCA Controller` based on the selected `Instance Type`. Previously the first AZ in a region was always used but this may change based on AZ-availability of a selected instance type.
+- Fixed bug that prevents tags to be propagated correctly when using FSx for Lustre
 
 ## [25.8.0] - 2025-08-05
 

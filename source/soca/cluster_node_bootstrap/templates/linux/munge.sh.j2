@@ -1,0 +1,127 @@
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# Begin: Install and Configure MUNGE
+function configure_munge () {
+    log_info "Configuring MUNGE"
+    local MUNGE_USER="munge"
+    local MUNGE_USER_GROUP="munge"
+    local MUNGE_KEY_DIR="/apps/soca/{{context.get("/configuration/ClusterId")}}/shared/munge"
+
+    log_info "Creating MUNGE User/Group ..."
+    groupadd -r ${MUNGE_USER_GROUP}
+    useradd -r -g ${MUNGE_USER_GROUP} -d /var/lib/munge -s /sbin/nologin ${MUNGE_USER}
+
+    log_info "Creating MUNGE directory and assigning correct permissions"
+    mkdir -p /etc/munge /var/lib/munge /var/log/munge /var/run/munge /run/munge
+    chown -R ${MUNGE_USER}:${MUNGE_USER_GROUP} /etc/munge /var/lib/munge /var/log/munge /var/run/munge /run/munge
+    chmod 0755 /etc/munge /var/lib/munge /var/log/munge /var/run/munge /run/munge
+    mkdir -p /etc/sysconfig
+
+    log_info "Creating MUNGE Key Directory if needed: ${MUNGE_KEY_DIR}"
+    mkdir -p ${MUNGE_KEY_DIR}
+
+    cat << EOF > "/usr/lib/systemd/system/munge.service"
+[Unit]
+Description=MUNGE authentication service
+Documentation=man:munged(8)
+After=network.target
+After=time-sync.target
+
+[Service]
+Type=forking
+ExecStart=/usr/sbin/munged --key-file=/etc/munge/munge.key
+PIDFile=/var/run/munge/munged.pid
+User=${MUNGE_USER}
+Group=${MUNGE_USER_GROUP}
+Restart=on-abort
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+    {% if context.get("/job/NodeType") == "controller" %}
+        # ATTENTION: Replacing munge key will automatically break all existing SLURM nodes
+        # Key is only created by the controller
+        # Should the key be moved outside of filesystem? e.g: pulled from SocaConfig ?
+        if [[ ! -f "${MUNGE_KEY_DIR}/munge.key" ]]; then
+            log_info "MUNGE key not found, creating it ..."
+            mkdir -p $MUNGE_KEY_DIR
+            /usr/sbin/mungekey
+            cp /etc/munge/munge.key $MUNGE_KEY_DIR/munge.key
+        fi
+    {% else %}
+        log_info "Copying MUNGE key ..."
+        if [[ ! -f "${MUNGE_KEY_DIR}/munge.key" ]]; then
+            exit_fail "MUNGE key (${MUNGE_KEY_DIR}/munge.key) not found, exiting ..."
+        fi
+        cp $MUNGE_KEY_DIR/munge.key /etc/munge/munge.key
+        
+    {% endif %}
+
+    log_info "Setting up correct permissions for MUNGE"
+    chown -R $MUNGE_USER:$MUNGE_USER_GROUP /etc/munge
+    log_info "MUNGE configured correctly"
+    systemctl enable munge
+    if ! systemctl start munge; then 
+        journalctl -xeu munge.service
+        exit_fail "Unable to start MUNGE, check logs ... "
+    fi
+}
+
+function install_munge {
+    local INSTALLED_MUNGE_VERSION=$(munged --version | awk '{print $1}' | grep -oP '\d+\.\d+\.\d+')
+    local INSTALLER_DIR="${SOCA_BOOTSTRAP_ASSETS_FOLDER}/munge"
+    local MUNGE_VERSION="{{ context.get("/system/munge/version") }}"
+    local MUNGE_URL="{{ context.get("/system/munge/url") }}"
+
+    if [[ "${INSTALLED_MUNGE_VERSION}" == "${MUNGE_VERSION}" ]]; then
+        log_info "MUNGE version ${MUNGE_VERSION} already installed, skipping to MUNGE configuration ..."
+       
+    else
+        log_info "Installing MUNGE ${MUNGE_VERSION}"
+
+        log_info "Removing any potential system-installed MUNGE"
+        {% if context.get("/configuration/BaseOS") in ["amazonlinux2", "amazonlinux2023", "rhel8", "rhel9", "rocky8", "rocky9"] %}
+          packages_generic_command  remove -y munge munge-devel munge-libs
+        {% elif context.get("/configuration/BaseOS") in ["ubuntu2204", "ubuntu2404"] %}
+          packages_generic_command remove --purge -y munge
+        {% endif %}
+
+        mkdir -p ${INSTALLER_DIR}
+        pushd ${INSTALLER_DIR}
+        
+        log_info "Downloading ${MUNGE_URL}"
+        file_download --download-url="${MUNGE_URL}" --save-as="munge_installer.tar.xz" --sha256-checksum="{{ context.get("/system/munge/sha256") }}"
+        
+        log_info "Extracting MUNGE"
+        tar -xvf munge_installer.tar.xz
+        pushd munge-${MUNGE_VERSION}
+        
+        log_info "Compiling and Installing MUNGE"
+        ./configure --prefix=/usr --sysconfdir=/etc --localstatedir=/var --libdir=/usr/lib64
+        
+        NUM_PROCS=$(nproc --all)
+        if ! make -j ${NUM_PROCS}; then
+            exit_fail "Unable to run make for munge. See log for additional details ..."
+        fi
+        
+        if ! make install -j ${NUM_PROCS}; then
+            exit_fail "Unable to run make install for munge. See log for additional details ..."
+        fi
+        
+        if ! ldconfig; then
+            exit_fail "Unable to run ldconfig. See log for additional details ..."
+        fi
+    
+        popd
+        popd
+
+        log_info "MUNGE installed successfully"
+    fi
+
+    configure_munge
+
+}
+install_munge
+# End: Install Munge

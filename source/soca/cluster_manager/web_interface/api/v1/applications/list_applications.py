@@ -1,35 +1,19 @@
-######################################################################################################################
-#  Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.                                                #
-#                                                                                                                    #
-#  Licensed under the Apache License, Version 2.0 (the "License"). You may not use this file except in compliance    #
-#  with the License. A copy of the License is located at                                                             #
-#                                                                                                                    #
-#      http://www.apache.org/licenses/LICENSE-2.0                                                                    #
-#                                                                                                                    #
-#  or in the 'license' file accompanying this file. This file is distributed on an 'AS IS' BASIS, WITHOUT WARRANTIES #
-#  OR CONDITIONS OF ANY KIND, express or implied. See the License for the specific language governing permissions    #
-#  and limitations under the License.                                                                                #
-######################################################################################################################
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: Apache-2.0
 
 from flask_restful import Resource, reqparse
 import logging
-import utils.aws.boto3_wrapper as utils_boto3
 from utils.response import SocaResponse
 from utils.error import SocaError
-from decorators import admin_api
+from decorators import admin_api, feature_flag
 from models import ApplicationProfiles
 
 logger = logging.getLogger("soca_logger")
 
-
-budgets_client = utils_boto3.get_boto(service_name="budgets").message
-sts_client = utils_boto3.get_boto(service_name="sts").message
-
-
-class Applications(Resource):
-    @staticmethod
+class ListApplications(Resource):
+    @feature_flag(flag_name="HPC", mode="api")
     @admin_api
-    def get():
+    def get(self):
         """
         Get application profiles
         ---
@@ -59,6 +43,14 @@ class Applications(Resource):
               maxLength: 1000
             description: SOCA authentication token
             example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9"
+          - in: query
+            name: application_id
+            required: false
+            schema:
+              type: string
+              pattern: '^[0-9]+$'
+              example: "1"
+            description: Specific application ID to retrieve (returns all if not specified)
         responses:
           '200':
             description: Application profiles retrieved successfully
@@ -141,13 +133,24 @@ class Applications(Resource):
                       type: string
                       example: "Error retrieving applications profile list, check logs for more details."
         """
+        parser = reqparse.RequestParser()
+        parser.add_argument("application_id", type=str, location="args")
+        args = parser.parse_args()
+        _application_id = args.get("application_id", "")
+        logger.debug(f"List applications received parameters: {_application_id=}")
         try:
-            _application_profiles = {}
-            get_all_application_profiles = ApplicationProfiles.query.all()
-            for profile in get_all_application_profiles:
-                _application_profiles[profile.id] = profile.as_dict()
-
-            return SocaResponse(success=True, message=_application_profiles).as_flask()
+            _application_profiles = []
+            if _application_id:
+                _profile = ApplicationProfiles.query.filter_by(id=_application_id).first()
+                if _profile:
+                    _application_profiles = [_profile]
+                else:
+                    logger.error(f"Application profile with id {_application_id} not found")
+                    
+            else:
+                _application_profiles = ApplicationProfiles.query.all()
+           
+            return SocaResponse(success=True, message=[p.as_dict() for p in _application_profiles]).as_flask()
 
         except Exception as e:
             logger.error(f"Error retrieving application profile list: {str(e)}")

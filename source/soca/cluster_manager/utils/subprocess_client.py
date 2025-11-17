@@ -3,17 +3,48 @@
 
 import subprocess
 import shlex
-from utils.error import SocaError
+import pwd
 import logging
-from typing import Optional, Literal
+import grp
+import os
+from typing import Optional, Literal, Callable
+import base64
+from utils.error import SocaError
 from utils.response import SocaResponse
+
 
 logger = logging.getLogger("soca_logger")
 
 
 class SocaSubprocessClient:
-    def __init__(self, run_command: str):
+    def __init__(self, run_command: str, run_as: Optional[str] = None):
         self._command = run_command
+        self._run_as = run_as
+
+    def _make_demote_fn(self) -> Optional[Callable[[], None]]:
+        """Return a preexec_fn that sets UID/GID/groups for the given username."""
+        pw = pwd.getpwnam(self._run_as)
+        target_uid = pw.pw_uid
+        target_gid = pw.pw_gid
+        groups = [g.gr_gid for g in grp.getgrall() if self._run_as in g.gr_mem]
+
+        def demote():
+            try:
+                if groups:
+                    os.setgroups(groups)
+            except Exception as e:
+                logger.debug(f"setgroups failed for {self._run_as}: {e}")
+            # Use atomic calls if available
+            if hasattr(os, "setresgid"):
+                os.setresgid(target_gid, target_gid, target_gid)
+            else:
+                os.setgid(target_gid)
+            if hasattr(os, "setresuid"):
+                os.setresuid(target_uid, target_uid, target_uid)
+            else:
+                os.setuid(target_uid)
+
+        return demote
 
     def run(
         self,
@@ -21,12 +52,12 @@ class SocaSubprocessClient:
         text: Optional[bool] = True,
         shell: Optional[bool] = False,
         cwd: Optional[str] = None,
-        timeout: Optional[int] = None,
+        timeout: Optional[int] = 30,
         universal_newlines: Optional[bool] = None,  # cannot be set with text = True
         stdin: Optional[Literal[subprocess.PIPE, subprocess.DEVNULL]] = None,
         stdout: Optional[Literal[subprocess.PIPE, subprocess.DEVNULL]] = None,
         stderr: Optional[Literal[subprocess.STDOUT]] = None,
-        env: Optional[str] = None,
+        env: Optional[dict] = None,
         non_fatal_rcs: Optional[list[int]] = None,
     ) -> dict:
         """
@@ -55,16 +86,59 @@ class SocaSubprocessClient:
             f"Running Subprocess command {self._command}, capture_output: {capture_output}, text: {text}, shell: {shell}"
         )
         logger.debug(f"Subprocess Command info: {locals()}")
+
+        # sanitize log for output and pass them as base64 hash
+        # encode _env in base64 to avoid breaking sequences such as 'BASH_FUNC_which%%': f'() {  ( alias;\n eval ${which_declare} ) | /usr/bin/which --tty-only --read-alias --read-functions --show-tilde --show-dot "$@"\n}
+
+        _env_log = {
+            k: ("REDACTED" if k.startswith("SOCA_") else v)
+            for k, v in (env or {}).items()
+        }
+        _encoded_env_log = base64.b64encode(str(_env_log).encode("utf-8")).decode(
+            "utf-8"
+        )
+
         if text in [True, False] and universal_newlines is not None:
             return SocaError.SUBPROCESS_ERROR(
                 command=self._command,
-                stdout=None,
-                stderr=None,
+                stdout="",
+                stderr="",
+                env=_encoded_env_log,
                 returncode=-1,
                 helper=f"You cannot set both text and universal_newlines as they are mutually exclusive",
             )
 
         try:
+            if self._run_as:
+                logger.info(
+                    f"Command must run as specific user : {self._run_as}, creating preexec_fn .."
+                )
+
+                try:
+                    preexec_fn = self._make_demote_fn()
+                except KeyError:
+                    return SocaError.SUBPROCESS_ERROR(
+                        command="preexec_fn",
+                        stdout="",
+                        stderr=f"Unable to demote to user {self._run_as} because this user does not seems to exist. Validate sssd.conf",
+                        env=_encoded_env_log,
+                        returncode=1,
+                        helper=f"Unable to demote to user {self._run_as} because this user does not seems to exist. Validate sssd.conf",
+                    )
+
+                except Exception as e:
+                    return SocaError.SUBPROCESS_ERROR(
+                        command="preexec_fn",
+                        stdout="",
+                        stderr=f"Failed to create preexec_fn for user {self._run_as}: {e}",
+                        env=_encoded_env_log,
+                        returncode=1,
+                        helper=f"Failed to create preexec_fn for user {self._run_as}: {e}",
+                    )
+                logger.debug(f"preexec_fn created for user {self._run_as}")
+            else:
+                preexec_fn = None
+
             if shell:
                 logger.warning(
                     f"Running command in shell mode is dangerous. Make sure you sanitized the command ({self._command}) correctly"
@@ -86,7 +160,8 @@ class SocaSubprocessClient:
                     cwd=cwd,
                     timeout=timeout,
                     universal_newlines=universal_newlines,
-                ) # nosec
+                    preexec_fn=preexec_fn,
+                )  # nosec
 
                 logger.debug(f"Subprocess command {_process}")
 
@@ -98,17 +173,19 @@ class SocaSubprocessClient:
             except subprocess.CalledProcessError as e:
                 return SocaError.SUBPROCESS_ERROR(
                     command=self._command,
-                    stdout=None,
+                    stdout="",
                     stderr=f"{e.stderr.decode()}",
                     returncode=-1,
+                    env=_encoded_env_log,
                     helper=f"{self._command} failed: ",
                 )
 
         except Exception as e:
             return SocaError.SUBPROCESS_ERROR(
                 command=self._command,
-                stdout=None,
+                stdout="",
                 stderr=f"{e}",
+                env=_encoded_env_log,
                 returncode=-1,
                 helper=f"Unable to run {self._command}",
             )
@@ -116,11 +193,12 @@ class SocaSubprocessClient:
         if _stderr or _returncode != 0:
             if _returncode in non_fatal_rcs:
                 return SocaResponse(
-                    success=False,
+                    success=True,
                     message={
                         "command": self._command,
                         "stdout": _stdout,
                         "stderr": _stderr,
+                        "env": _encoded_env_log,
                         "returncode": _returncode,
                         "helper": "Command ran with nonfatal returncode",
                     },
@@ -128,8 +206,9 @@ class SocaSubprocessClient:
             else:
                 return SocaError.SUBPROCESS_ERROR(
                     command=self._command,
-                    stdout=None,
+                    stdout="",
                     stderr=_stderr,
+                    env=_encoded_env_log,
                     returncode=_returncode,
                     helper=f"{self._command} has returned an error",
                 )
@@ -141,6 +220,7 @@ class SocaSubprocessClient:
                     "stdout": _stdout,
                     "stderr": _stderr,
                     "returncode": _returncode,
+                    "env": _encoded_env_log,
                     "helper": "Command ran successfully",
                 },
             )

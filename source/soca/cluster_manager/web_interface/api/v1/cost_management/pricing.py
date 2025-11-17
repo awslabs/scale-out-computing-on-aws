@@ -19,6 +19,8 @@ import math
 import utils.aws.boto3_wrapper as utils_boto3
 from utils.response import SocaResponse
 from utils.aws.ssm_parameter_store import SocaConfig
+from utils.aws.ec2_helper import describe_instance_types
+
 
 logger = logging.getLogger("soca_logger")
 
@@ -134,14 +136,14 @@ class AwsPrice(Resource):
               default: "01:00:00"
             description: Job duration in HH:MM:SS format
             example: "02:30:00"
-          - name: cpus
+          - name: vcpus
             in: query
             required: false
             schema:
               type: integer
               minimum: 1
               maximum: 1000
-            description: Number of CPUs to allocate
+            description: Number of vCPUs to allocate
             example: 4
           - name: scratch_size
             in: query
@@ -242,7 +244,7 @@ class AwsPrice(Resource):
                             instance_type:
                               type: string
                               example: "m5.large"
-                            cpus:
+                            vcpus:
                               type: integer
                               nullable: true
                               example: 4
@@ -350,10 +352,10 @@ class AwsPrice(Resource):
             default="01:00:00",
         )
         parser.add_argument(
-            "cpus",
+            "vcpus",
             type=int,
             location="args",
-            help="Please specify how many cpus you want to allocate",
+            help="Please specify how many vcpus you want to allocate",
         )
         parser.add_argument(
             "scratch_size",
@@ -366,7 +368,7 @@ class AwsPrice(Resource):
             "root_size",
             type=int,
             location="args",
-            help="Please specify your AMI root disk space (Default 10gb)",
+            help="Please specify your AMI root disk space (Default 40gb)",
             default=40,
         )
         parser.add_argument(
@@ -383,7 +385,7 @@ class AwsPrice(Resource):
         root_size = args["root_size"]
         fsx_storage = args["fsx_capacity"]
         fsx_type = args["fsx_type"]
-        cpus = args["cpus"]
+        vcpus = args["vcpus"]
         sim_cost = {}
 
         # Change value below as needed if you use a different region
@@ -403,19 +405,25 @@ class AwsPrice(Resource):
 
         walltime = sim_hours + (sim_minutes / 60) + (sim_seconds / 3600)
 
-        # Calculate number of nodes required based on instance type and CPUs (not vCPUs) requested
-        if cpus is None:
+        # Calculate number of nodes required based on instance type and vCPUs requested
+        if vcpus is None:
             nodect = 1
         else:
-            cpus_count_pattern = re.search(r"[.](\d+)", instance_type)
-            if cpus_count_pattern:
-                cpu_per_system = int(cpus_count_pattern.group(1)) * 2
-            else:
-                if re.search(r"[.](xlarge)", instance_type):
-                    cpu_per_system = 2
-                else:
-                    cpu_per_system = 1
-            nodect = math.ceil(int(cpus) / cpu_per_system)
+            _describe_instance_type = describe_instance_types(
+            instance_types=[instance_type]
+        )
+        if _describe_instance_type.get("success") is False:
+             return SocaResponse(
+                    success=False,
+                    message=f"Unable to describe_instance {instance_type} because of {_describe_instance_type.get('message')} ",
+                ).as_flask()
+        else:
+            _describe_instance_types = _describe_instance_type.get("message")
+
+            for instance_info in _describe_instance_types.get("InstanceTypes"):
+                _cpu_per_system = instance_info["VCpuInfo"]["DefaultVCpus"]
+
+            nodect = math.ceil(int(vcpus) / _cpu_per_system)
 
         # Calculate EBS Storage (storage * ebs_price * sim_time_in_secs / (walltime_seconds * 30 days) * number of nodes
         sim_cost["scratch_size"] = (
@@ -500,5 +508,5 @@ class AwsPrice(Resource):
             else 0
         )
 
-        sim_cost["compute"]["cpus"] = cpus
+        sim_cost["compute"]["vcpus"] = vcpus
         return SocaResponse(success=True, message=sim_cost).as_flask()

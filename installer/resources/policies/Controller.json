@@ -2,6 +2,21 @@
     "Version": "2012-10-17",
     "Statement": [
         {
+            "Sid": "SNSClusterTopicsByClusterTag",
+            "Condition": {
+                "StringLike": {
+                    "aws:ResourceTag/soca:ClusterId": "%%CLUSTER_ID%%*"
+                }
+            },
+            "Action": [
+                "sns:*"
+            ],
+            "Resource": [
+                "arn:%%AWS_PARTITION%%:sns:%%AWS_REGION%%:%%AWS_ACCOUNT_ID%%:soca-*"
+            ],
+            "Effect": "Allow"
+        },
+        {
             "Action": [
                 "elasticloadbalancing:DeleteRule"
             ],
@@ -183,7 +198,7 @@
                 "ssm:StartAutomationExecution"
             ],
             "Resource": [
-                "arn:%%AWS_PARTITION%%:ssm::::automation-definition/"
+                "arn:%%AWS_PARTITION%%:ssm:*:%%AWS_ACCOUNT_ID%%:automation-definition/"
             ],
             "Effect": "Allow"
         },
@@ -193,7 +208,7 @@
                 "ssm:GetAutomationExecution"
             ],
             "Resource": [
-                "arn:%%AWS_PARTITION%%:ssm::::automation-execution/"
+                "arn:%%AWS_PARTITION%%:ssm:*:%%AWS_ACCOUNT_ID%%:automation-execution/"
             ],
             "Effect": "Allow"
         },

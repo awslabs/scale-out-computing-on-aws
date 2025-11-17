@@ -23,31 +23,31 @@ fi
   sed -ie 's/"1"/"0"/g' /etc/apt/apt.conf.d/20auto-upgrades
 {% endif %}
 
-# Note: OpenPBS must be installed with system python
-log_info "Using Scheduler Engine: OpenPBS"
-{% include "templates/linux/scheduler/openpbs/install.sh.j2" %}
 
-{% include "templates/linux/scheduler/openpbs/configure_server.sh.j2" %}
+# Install and configure HPC schedulers.
+# Note: Your SOCA_CONTROLLER can be the host of multiple schedulers
+{% include "templates/linux/scheduler/install_schedulers.sh.j2" %}
 
-# Set custom PATH
-{% set PATH = '/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin:/opt/pbs/bin:/opt/pbs/sbin:/opt/pbs/bin:/opt/soca/' ~ context.get("/configuration/ClusterId") %}
-PATH="/opt/soca/{{ context.get("/configuration/ClusterId") }}/python/latest/bin:$PATH"
-set_environment_variable "PATH" "{{ PATH }}"
+# Configure default queues mapping file
+{% include "templates/linux/scheduler/queues_mapping.sh.j2" %}
+
+# Set default path
+set_environment_variable "PATH" "/opt/soca/{{ context.get("/configuration/ClusterId") }}/python/latest/bin:/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin"
 
 # Set Controller IP, not needed as you are already on the controller host, but making sure the variable exist to stay consistent with the other machines
-set_environment_variable "SOCA_CONTROLLER_IP" "$(hostname -I)"
+set_environment_variable "SOCA_CONTROLLER_IP" "$(get_ipv4_host_address)"
 
 # Configure User Directory (AD/OpenLDAP)
 {% if context.get("/configuration/UserDirectory/provider") in ["existing_openldap", "openldap"] %}
   {% if context.get("/configuration/UserDirectory/provider") == "existing_openldap" %}
-    {% include "templates/linux/openldap_client.sh.j2" %}
+    {% include "templates/linux/user_directory/openldap/openldap_client.sh.j2" %}
   {% else %}
-    {% include "templates/linux/openldap_server.sh.j2" %}
+    {% include "templates/linux/user_directory/openldap/openldap_server.sh.j2" %}
   {% endif %}
-{% elif context.get("/configuration/UserDirectory/provider") in ["existing_active_directory", "aws_ds_managed_activedirectory" , "aws_ds_simple_activedirectory"] %}
-  {% include "templates/linux/join_activedirectory.sh.j2" %}
+{% elif context.get("/configuration/UserDirectory/provider") in ["existing_active_directory", "aws_ds_managed_activedirectory"] %}
+  {% include "templates/linux/user_directory/active_directory/join_activedirectory.sh.j2" %}
 {% else %}
-  exit_fail "UserDirectory/provider must be openldap, existing_openldap, aws_ds_simple_activedirectory, existing_active_directory or aws_ds_managed_activedirectory, detected {{ context.get("/configuration/UserDirectory/provider") }}"
+  exit_fail "UserDirectory/provider must be one of openldap, existing_openldap, existing_active_directory or aws_ds_managed_activedirectory. Detected {{ context.get("/configuration/UserDirectory/provider") }}"
 {% endif %}
 
 # Disable SELINUX
@@ -68,8 +68,8 @@ set_environment_variable "SOCA_CONTROLLER_IP" "$(hostname -I)"
 # Install required Node modules
 ${SOCA_BOOTSTRAP_ASSETS_FOLDER}/node/bin/npm install --prefix "/opt/soca/{{ context.get("/configuration/ClusterId") }}/cluster_manager/web_interface/static" monaco-editor@0.52.0
 
-# Reload OpenPBS
-systemctl restart pbs
+# Start Schedulers
+{% include "templates/linux/scheduler/start_scheduler_services.sh.j2" %}
 
 # Create crontabs
 echo "
@@ -105,22 +105,13 @@ echo "
 # Cluster Management
 ####################
 
-* * * * * source /opt/soca/{{ context.get("/configuration/ClusterId") }}/python/latest/soca_python.env; \
- source /etc/environment; \
- /opt/soca/{{ context.get("/configuration/ClusterId") }}/python/latest/bin/python3 /opt/soca/{{ context.get("/configuration/ClusterId") }}/cluster_manager/orchestrator/nodes_manager.py
+* * * * * /opt/soca/{{ context.get("/configuration/ClusterId") }}/cluster_manager/orchestrator/nodes_manager.sh
 
 # Automatic Host Provisioning
-* * * * *  source /opt/soca/{{ context.get("/configuration/ClusterId") }}/python/latest/soca_python.env; \
- source /etc/environment; \
- /opt/soca/{{ context.get("/configuration/ClusterId") }}/python/latest/bin/python3 /opt/soca/{{ context.get("/configuration/ClusterId") }}/cluster_manager/orchestrator/dispatcher.py -c /opt/soca/{{ context.get("/configuration/ClusterId") }}/cluster_manager/orchestrator/settings/queue_mapping.yml -t compute
 
-* * * * *  source /opt/soca/{{ context.get("/configuration/ClusterId") }}/python/latest/soca_python.env; \
- source /etc/environment; \
- /opt/soca/{{ context.get("/configuration/ClusterId") }}/python/latest/bin/python3 /opt/soca/{{ context.get("/configuration/ClusterId") }}/cluster_manager/orchestrator/dispatcher.py -c /opt/soca/{{ context.get("/configuration/ClusterId") }}/cluster_manager/orchestrator/settings/queue_mapping.yml -t job-shared
-
-* * * * * source /opt/soca/{{ context.get("/configuration/ClusterId") }}/python/latest/soca_python.env; \
-  source /etc/environment; \
-  /opt/soca/{{ context.get("/configuration/ClusterId") }}/python/latest/bin/python3 /opt/soca/{{ context.get("/configuration/ClusterId") }}/cluster_manager/orchestrator/dispatcher.py -c /opt/soca/{{ context.get("/configuration/ClusterId") }}/cluster_manager/orchestrator/settings/queue_mapping.yml -t test
+* * * * * /opt/soca/{{ context.get("/configuration/ClusterId") }}/cluster_manager/orchestrator/jobs_dispatcher.sh compute
+* * * * * /opt/soca/{{ context.get("/configuration/ClusterId") }}/cluster_manager/orchestrator/jobs_dispatcher.sh job-shared
+* * * * * /opt/soca/{{ context.get("/configuration/ClusterId") }}/cluster_manager/orchestrator/jobs_dispatcher.sh test
 
 # Add/Remove DCV hosts and configure ALB
 */3 * * * *  source /opt/soca/{{ context.get("/configuration/ClusterId") }}/python/latest/soca_python.env; \
@@ -132,6 +123,17 @@ echo "
 
 # Restart UI at reboot
 @reboot /opt/soca/{{ context.get("/configuration/ClusterId") }}/cluster_manager/web_interface/socawebui.sh start
+
+{% if context.get("/configuration/UserDirectory/provider") in ["existing_active_directory", "aws_ds_managed_activedirectory"] %}
+
+############################
+# AD Sync Users Mapping File
+############################
+
+# Note: If no job are submitted, script freshness will be updated automatically every 3 hours. Otherwise dispatcher will update every 30 mins is there is active jobs in the queue.
+0 */3 * * * source /opt/soca/{{ context.get("/configuration/ClusterId") }}/python/latest/soca_python.env; /opt/soca/{{ context.get("/configuration/ClusterId") }}/cluster_manager/socactl ad export
+
+{% endif %} 
 
 " | crontab -
 
@@ -240,9 +242,6 @@ mkdir -p /data/home
   log_info "Using an existing Active Directory or OpenLDAP, skipping User Creation"
 {%  endif %}
 
-
-# Disable job submission for local users
-{% include "templates/linux/scheduler/openpbs/disable_local_account_job_submission.sh.j2" %}
 
 # Tag EBS disks manually as CFN ASG does not support it
 {% include "templates/linux/tags/ebs.sh.j2" %}

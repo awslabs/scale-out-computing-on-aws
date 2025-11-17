@@ -15,7 +15,7 @@ from flask_restful import Resource, reqparse
 import config
 import ldap
 from models import db, ApiKeys
-from decorators import restricted_api, admin_api, feature_flag
+from decorators import restricted_api, private_api, admin_api, feature_flag
 import errors
 import logging
 import os
@@ -29,7 +29,7 @@ logger = logging.getLogger("soca_logger")
 
 
 class Sudo(Resource):
-    @admin_api
+    @private_api
     def get(self):
         """
         Check user sudo permissions

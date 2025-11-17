@@ -33,10 +33,8 @@ DATA_RETENTION_IN_DAYS=10
 BACKUP_S3_PREFIX_LOCATION="s3://${SOCA_INSTALL_BUCKET}/${SOCA_CLUSTER_ID}/${SOCA_VERSION}/cluster_logs"
 
 # Content of these directory will be backup to S3, and file/dir may be subject to removal based on DATA_RETENTION_IN_DAYS value
+# Folders that does not exist will simply be skipped. This list contains all folders irrespective of your Scheduler choices
 DIRS_TO_SYNC=(
-  "/var/spool/pbs/server_logs/"
-  "/var/spool/pbs/sched_logs/"
-  "/var/spool/pbs/server_priv/accounting/"
   "/opt/soca/${SOCA_CLUSTER_ID}/cluster_node_bootstrap/logs/dcv_node/"
   "/opt/soca/${SOCA_CLUSTER_ID}/cluster_node_bootstrap/logs/compute_node/"
   "/opt/soca/${SOCA_CLUSTER_ID}/cluster_node_bootstrap/logs/login_node/"
@@ -44,6 +42,28 @@ DIRS_TO_SYNC=(
   "/opt/soca/${SOCA_CLUSTER_ID}/cluster_manager/analytics/logs/"
   "/opt/soca/${SOCA_CLUSTER_ID}/cluster_manager/web_interface/logs/"
 )
+
+# Define PBS-related folders (will be skipped if you don't use OpenPBS)
+PBS_FOLDERS=(
+  "/opt/soca/${SOCA_CLUSTER_ID}/schedulers/default/pbs/var/spool/pbs/server_logs/"
+  "/opt/soca/${SOCA_CLUSTER_ID}/schedulers/default/pbs/var/spool/pbs/pbs/sched_logs/"
+  "/opt/soca/${SOCA_CLUSTER_ID}/schedulers/default/pbs/var/spool/pbs/spool/pbs/server_priv/accounting/"
+)
+
+# Define LSF-related folders (will be skipped if you don't use LSF)
+LSF_FOLDERS=(
+  "/opt/soca/${SOCA_CLUSTER_ID}/schedulers/default/lsf/logs/"
+)
+
+# Define SLURM-related folders (will be skipped if you don't use Slurm)
+SLURM_FOLDERS=(
+  "/opt/soca/${SOCA_CLUSTER_ID}/schedulers/default/slurm/etc/"
+)
+
+DIRS_TO_SYNC+=("${PBS_FOLDERS[@]}")
+DIRS_TO_SYNC+=("${LSF_FOLDERS[@]}")
+DIRS_TO_SYNC+=("${SLURM_FOLDERS[@]}")
+
 
 for DIR in "${DIRS_TO_SYNC[@]}"
 do

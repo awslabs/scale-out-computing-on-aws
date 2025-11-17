@@ -1,25 +1,15 @@
 #!/usr/bin/bash
-######################################################################################################################
-#  Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.                                                #
-#                                                                                                                    #
-#  Licensed under the Apache License, Version 2.0 (the "License"). You may not use this file except in compliance    #
-#  with the License. A copy of the License is located at                                                             #
-#                                                                                                                    #
-#      http://www.apache.org/licenses/LICENSE-2.0                                                                    #
-#                                                                                                                    #
-#  or in the 'license' file accompanying this file. This file is distributed on an 'AS IS' BASIS, WITHOUT WARRANTIES #
-#  OR CONDITIONS OF ANY KIND, express or implied. See the License for the specific language governing permissions    #
-#  and limitations under the License.                                                                                #
-######################################################################################################################
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: Apache-2.0
 
-##
-#
-# socawebui.sh start|stop|status
-#
-##
 
-source /etc/environment
-source /opt/soca/${SOCA_CLUSTER_ID}/python/latest/soca_python.env
+#
+# socawebui.sh start|stop|status|restart
+#
+
+
+source "/etc/environment"
+source "/opt/soca/${SOCA_CLUSTER_ID}/python/latest/soca_python.env"
 UWSGI_BIN="/opt/soca/${SOCA_CLUSTER_ID}/python/latest/bin/uwsgi"
 UWSGI_BIND='0.0.0.0:8443'
 
@@ -51,14 +41,14 @@ if [[ $EUID -ne 0 ]]; then
    exit 1
 fi
 
-cd `dirname "$0"`
+cd $(dirname "$0")
 status ()
     {
-    status_check_process=`ps aux | grep uwsgi | grep $UWSGI_FILE | awk '{print $2}'`
+    status_check_process=$(ps aux | grep uwsgi | grep $UWSGI_FILE | awk '{print $2}')
     }
 
 if [[ $# -eq 0 ]] ; then
-    echo 'Usage: socawebui.sh start|stop|status'
+    echo 'Usage: socawebui.sh start|stop|restart|status'
     exit 0
 fi
 
@@ -135,6 +125,14 @@ case "$1" in
 
        fi
     ;;
+    ## RESTART
+    restart)
+        echo 'Restarting SOCA...'
+        $0 stop
+        sleep 3
+        $0 start
+        echo 'SOCA restarted successfully.'
+    ;;
     ## STATUS
     status)
         status
@@ -147,5 +145,5 @@ case "$1" in
 
 
      ;;
-    *) echo 'Usage: socawebui.sh start|stop|status' ;;
+    *) echo 'Usage: socawebui.sh start|stop|restart|status' ;;
 esac

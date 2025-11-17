@@ -1518,6 +1518,158 @@
         }
       }
     },
+    "/api/dcv/virtual_desktops/session_state": {
+      "get": {
+        "operationId": "getVirtualDesktopSessionStates",
+        "tags": [
+          "Virtual Desktops"
+        ],
+        "summary": "Get session states for virtual desktops",
+        "description": "Retrieves the current state of one or more DCV virtual desktop sessions",
+        "security": [
+          {
+            "socaAuth": [],
+            "socaToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "X-SOCA-USER",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64,
+              "pattern": "^[a-zA-Z0-9._-]+$"
+            },
+            "description": "SOCA username for authentication",
+            "example": "john.doe"
+          },
+          {
+            "name": "X-SOCA-TOKEN",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 256
+            },
+            "description": "SOCA authentication token",
+            "example": "abc123token456"
+          },
+          {
+            "name": "session_uuid",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}(,[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})*$"
+            },
+            "description": "Comma-separated list of session UUIDs to check",
+            "example": "12345678-1234-1234-1234-123456789abc,87654321-4321-4321-4321-cba987654321"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Session states retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "success",
+                    "message"
+                  ],
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "message": {
+                      "type": "object",
+                      "additionalProperties": {
+                        "type": "string",
+                        "enum": [
+                          "pending",
+                          "running",
+                          "stopped",
+                          "stopping",
+                          "terminated"
+                        ]
+                      },
+                      "description": "Dictionary mapping session UUIDs to their states",
+                      "example": {
+                        "12345678-1234-1234-1234-123456789abc": "running",
+                        "87654321-4321-4321-4321-cba987654321": "stopped"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Missing required parameters",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "success",
+                    "error_code",
+                    "message"
+                  ],
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": false
+                    },
+                    "error_code": {
+                      "type": "integer",
+                      "example": 400
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "Missing required parameter: session_uuid"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "success",
+                    "error_code",
+                    "message"
+                  ],
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": false
+                    },
+                    "error_code": {
+                      "type": "integer",
+                      "example": 401
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "Invalid authentication credentials"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/dcv/virtual_desktops/list_all": {
       "get": {
         "operationId": "listAllVirtualDesktops",
@@ -2395,6 +2547,751 @@
                     "message": {
                       "type": "string",
                       "example": "Failed to create virtual desktop session"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/dcv/virtual_desktops/profiles": {
+      "get": {
+        "operationId": "getVirtualDesktopProfiles",
+        "tags": [
+          "Virtual Desktops"
+        ],
+        "summary": "Get virtual desktop profiles",
+        "description": "Retrieves virtual desktop profiles, optionally filtered by profile ID (admin access required)",
+        "security": [
+          {
+            "socaAuth": [],
+            "socaToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-SOCA-USER",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "example": "admin.user"
+            },
+            "description": "SOCA username for authentication (must be admin)"
+          },
+          {
+            "in": "header",
+            "name": "X-SOCA-TOKEN",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "example": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+            },
+            "description": "SOCA authentication token"
+          },
+          {
+            "in": "query",
+            "name": "profile_id",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "example": "1"
+            },
+            "description": "Specific profile ID to retrieve (returns all if not specified)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Virtual desktop profiles retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "message": {
+                      "oneOf": [
+                        {
+                          "type": "string",
+                          "example": "No Virtual Desktop Profiles found"
+                        },
+                        {
+                          "type": "object",
+                          "additionalProperties": {
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "integer",
+                                "example": 1
+                              },
+                              "profile_name": {
+                                "type": "string",
+                                "example": "Standard Profile"
+                              },
+                              "description": {
+                                "type": "string",
+                                "example": "Standard virtual desktop profile"
+                              },
+                              "allowed_subnet_ids": {
+                                "type": "string",
+                                "example": "subnet-12345,subnet-67890"
+                              },
+                              "pattern_allowed_instance_types": {
+                                "type": "string",
+                                "example": "m5.*,t3.*"
+                              },
+                              "max_root_size": {
+                                "type": "integer",
+                                "example": 50
+                              },
+                              "software_stack_ids": {
+                                "type": "array",
+                                "items": {
+                                  "type": "integer"
+                                },
+                                "example": [
+                                  1,
+                                  2,
+                                  3
+                                ]
+                              }
+                            }
+                          }
+                        }
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid profile ID",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": false
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "profile_id does not seems to be a valid integer"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient permissions or feature not enabled",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": false
+                    },
+                    "error_code": {
+                      "type": "integer",
+                      "example": 403
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "Admin access required"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "operationId": "createVirtualDesktopProfile",
+        "tags": [
+          "Virtual Desktops"
+        ],
+        "summary": "Create virtual desktop profile",
+        "description": "Creates a new virtual desktop profile with specified configuration (admin access required)",
+        "security": [
+          {
+            "socaAuth": [],
+            "socaToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-SOCA-USER",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "example": "admin.user"
+            },
+            "description": "SOCA username for authentication (must be admin)"
+          },
+          {
+            "in": "header",
+            "name": "X-SOCA-TOKEN",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "example": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+            },
+            "description": "SOCA authentication token"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "profile_name",
+                  "pattern_allowed_instance_types",
+                  "allowed_subnet_ids",
+                  "max_root_size",
+                  "description"
+                ],
+                "properties": {
+                  "profile_name": {
+                    "type": "string",
+                    "description": "Name for the virtual desktop profile",
+                    "example": "Engineering Profile"
+                  },
+                  "pattern_allowed_instance_types": {
+                    "type": "string",
+                    "description": "Comma-separated patterns for allowed EC2 instance types",
+                    "example": "m5.*,c5.*,r5.*"
+                  },
+                  "allowed_subnet_ids": {
+                    "type": "string",
+                    "description": "Comma-separated list of allowed subnet IDs",
+                    "example": "subnet-12345678,subnet-87654321"
+                  },
+                  "max_root_size": {
+                    "type": "string",
+                    "description": "Maximum root volume size in GB",
+                    "example": "100"
+                  },
+                  "description": {
+                    "type": "string",
+                    "maxLength": 500,
+                    "description": "Profile description (max 500 characters)",
+                    "example": "Profile for engineering workloads with high compute requirements"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Virtual desktop profile created successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "Engineering Profile registered successfully in SOCA"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request parameters",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": false
+                    },
+                    "error_code": {
+                      "type": "integer",
+                      "example": 400
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "Missing required parameter: profile_name"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": false
+                    },
+                    "error_code": {
+                      "type": "integer",
+                      "example": 401
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "Missing required header: X-SOCA-USER"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient permissions or feature not enabled",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": false
+                    },
+                    "error_code": {
+                      "type": "integer",
+                      "example": 403
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "Admin access required"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Profile name already exists",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": false
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "Profile name Engineering Profile already exists"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Database or validation error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": false
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "Unable to add VDI Profile to DB"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deleteVirtualDesktopProfile",
+        "tags": [
+          "Virtual Desktops"
+        ],
+        "summary": "Delete virtual desktop profile",
+        "description": "Deactivates a virtual desktop profile by setting is_active to false (admin access required)",
+        "security": [
+          {
+            "socaAuth": [],
+            "socaToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-SOCA-USER",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "example": "admin.user"
+            },
+            "description": "SOCA username for authentication (must be admin)"
+          },
+          {
+            "in": "header",
+            "name": "X-SOCA-TOKEN",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "example": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+            },
+            "description": "SOCA authentication token"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "profile_id"
+                ],
+                "properties": {
+                  "profile_id": {
+                    "type": "string",
+                    "description": "ID of the profile to delete",
+                    "example": "1"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Virtual desktop profile deleted successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "VDI Profile removed from SOCA"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Missing or invalid profile ID",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": false
+                    },
+                    "error_code": {
+                      "type": "integer",
+                      "example": 400
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "Missing required parameter: profile_id"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient permissions or feature not enabled",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": false
+                    },
+                    "error_code": {
+                      "type": "integer",
+                      "example": 403
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "Admin access required"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Profile not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": false
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "VDI Profile not found or already deactivated"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Database error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": false
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "Unable to deactivate software stack due to database error"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "operationId": "updateVirtualDesktopProfile",
+        "tags": [
+          "Virtual Desktops"
+        ],
+        "summary": "Update virtual desktop profile",
+        "description": "Updates an existing virtual desktop profile with new configuration (admin access required)",
+        "security": [
+          {
+            "socaAuth": [],
+            "socaToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-SOCA-USER",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "example": "admin.user"
+            },
+            "description": "SOCA username for authentication (must be admin)"
+          },
+          {
+            "in": "header",
+            "name": "X-SOCA-TOKEN",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "example": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+            },
+            "description": "SOCA authentication token"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "profile_id",
+                  "pattern_allowed_instance_types",
+                  "allowed_subnet_ids",
+                  "max_root_size",
+                  "description"
+                ],
+                "properties": {
+                  "profile_id": {
+                    "type": "string",
+                    "description": "ID of the profile to update",
+                    "example": "1"
+                  },
+                  "pattern_allowed_instance_types": {
+                    "type": "string",
+                    "description": "Comma-separated patterns for allowed EC2 instance types",
+                    "example": "m5.*,c5.*,r5.*"
+                  },
+                  "allowed_subnet_ids": {
+                    "type": "string",
+                    "description": "Comma-separated list of allowed subnet IDs",
+                    "example": "subnet-12345678,subnet-87654321"
+                  },
+                  "max_root_size": {
+                    "type": "string",
+                    "description": "Maximum root volume size in GB",
+                    "example": "100"
+                  },
+                  "description": {
+                    "type": "string",
+                    "maxLength": 500,
+                    "description": "Profile description (max 500 characters)",
+                    "example": "Updated profile for engineering workloads"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Virtual desktop profile updated successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "Profile updated successfully"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request parameters",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": false
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "Missing required parameter: profile_id"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": false
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "Missing required header: X-SOCA-USER"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient permissions or feature not enabled",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": false
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "Admin access required"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Profile not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": false
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "Unable to find existing virtual desktop profile"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Database or validation error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": false
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "Unable to edit VDI Profile to DB"
                     }
                   }
                 }
@@ -4333,6 +5230,559 @@
         }
       }
     },
+    "/api/scheduler/job": {
+      "get": {
+        "operationId": "getJob",
+        "tags": [
+          "Scheduler"
+        ],
+        "summary": "GET /api/scheduler/job",
+        "description": "GET operation for /api/scheduler/job",
+        "security": [
+          {
+            "socaAuth": [],
+            "socaToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "X-SOCA-USER",
+            "in": "header",
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "required": true,
+            "description": "SOCA username for authentication",
+            "example": "admin"
+          },
+          {
+            "name": "X-SOCA-TOKEN",
+            "in": "header",
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "required": true,
+            "description": "SOCA authentication token",
+            "example": "abc123token"
+          },
+          {
+            "name": "scheduler_id",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9]+\\.[a-zA-Z0-9_.-]+$",
+              "minLength": 1
+            },
+            "required": true,
+            "description": "ID of scheduler. Optional if only one scheduler is configured",
+            "example": "openpbs-soca-default"
+          },
+          {
+            "name": "serialize",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "pattern": "true/false",
+              "minLength": 1
+            },
+            "required": false,
+            "description": "Choose whether you wnt to serialize output. recommended to true",
+            "example": "true"
+          },
+          {
+            "name": "job_id",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9]+\\.[a-zA-Z0-9_.-]+$",
+              "minLength": 1
+            },
+            "required": true,
+            "description": "ID of the job to retrieve",
+            "example": "123.scheduler"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Job information retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "message": {
+                      "type": "object",
+                      "properties": {
+                        "Job_Name": {
+                          "type": "string",
+                          "example": "my_job"
+                        },
+                        "Job_Owner": {
+                          "type": "string",
+                          "example": "john.doe@cluster"
+                        },
+                        "job_state": {
+                          "type": "string",
+                          "enum": [
+                            "Q",
+                            "R",
+                            "H",
+                            "S",
+                            "E",
+                            "F"
+                          ],
+                          "example": "R"
+                        },
+                        "queue": {
+                          "type": "string",
+                          "example": "normal"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Missing job_id parameter"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "210": {
+            "description": "Job may have terminated"
+          }
+        }
+      },
+      "post": {
+        "operationId": "submitJob",
+        "tags": [
+          "Scheduler"
+        ],
+        "summary": "POST /api/scheduler/job",
+        "description": "POST operation for /api/scheduler/job",
+        "security": [
+          {
+            "socaAuth": [],
+            "socaToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "X-SOCA-USER",
+            "in": "header",
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "required": true,
+            "description": "SOCA username for authentication",
+            "example": "admin"
+          },
+          {
+            "name": "X-SOCA-TOKEN",
+            "in": "header",
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "required": true,
+            "description": "SOCA authentication token",
+            "example": "abc123token"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "payload"
+                ],
+                "properties": {
+                  "payload": {
+                    "type": "string",
+                    "format": "base64",
+                    "minLength": 1,
+                    "description": "Base64 encoded job submission script",
+                    "example": "IyEvYmluL2Jhc2gKI1BCUyAtTiBteV9qb2IKZWNobyAiSGVsbG8gV29ybGQi"
+                  },
+                  "interpreter": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "Interpreter to use (either valid scheduler indetifier or system interpreter such as /bin/bash, /bin/csh, /bin/sh or /bin/zsh)",
+                    "example": "qsub"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Job submitted successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "123"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Missing payload or invalid base64 encoding"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "500": {
+            "description": "Job submission failed"
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deleteJob",
+        "tags": [
+          "Scheduler"
+        ],
+        "summary": "DELETE /api/scheduler/job",
+        "description": "DELETE operation for /api/scheduler/job",
+        "security": [
+          {
+            "socaAuth": [],
+            "socaToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "X-SOCA-USER",
+            "in": "header",
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "required": true,
+            "description": "SOCA username for authentication",
+            "example": "admin"
+          },
+          {
+            "name": "X-SOCA-TOKEN",
+            "in": "header",
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "required": true,
+            "description": "SOCA authentication token",
+            "example": "abc123token"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "job_id"
+                ],
+                "properties": {
+                  "job_id": {
+                    "type": "string",
+                    "pattern": "^[0-9]+\\.[a-zA-Z0-9_.-]+$",
+                    "minLength": 1,
+                    "description": "ID of the job to delete",
+                    "example": "123"
+                  }
+                },
+                "scheduler_id": {
+                  "type": "string",
+                  "pattern": "^[0-9]+\\.[a-zA-Z0-9_.-]+$",
+                  "minLength": 1,
+                  "description": "ID of the scheduler. Optional if only one scheduler is configured",
+                  "example": "openpbs-soca-default"
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Job deleted successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "Job deleted successfully"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Missing job_id parameter"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "403": {
+            "description": "User is not the job owner"
+          },
+          "404": {
+            "description": "Job not found or already terminated"
+          },
+          "500": {
+            "description": "Job deletion failed"
+          }
+        }
+      }
+    },
+    "/api/scheduler/jobs": {
+      "get": {
+        "operationId": "getJobs",
+        "tags": [
+          "Scheduler"
+        ],
+        "summary": "GET /api/scheduler/jobs",
+        "description": "GET operation for /api/scheduler/jobs",
+        "security": [
+          {
+            "socaAuth": [],
+            "socaToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "X-SOCA-USER",
+            "in": "header",
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "required": true,
+            "description": "SOCA username for authentication",
+            "example": "admin"
+          },
+          {
+            "name": "X-SOCA-TOKEN",
+            "in": "header",
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "required": true,
+            "description": "SOCA authentication token",
+            "example": "abc123token"
+          },
+          {
+            "name": "user",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-zA-Z0-9._-]+$",
+              "minLength": 1
+            },
+            "required": false,
+            "description": "Filter jobs by specific user (returns all jobs if not specified)",
+            "example": "john.doe"
+          },
+          {
+            "name": "queue",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-zA-Z0-9._-]+$",
+              "minLength": 1
+            },
+            "required": false,
+            "description": "Filter jobs by specific queue (returns all jobs if not specified)",
+            "example": "normal"
+          },
+          {
+            "name": "scheduler_id",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-zA-Z0-9._-]+$",
+              "minLength": 1
+            },
+            "required": false,
+            "description": "Filter jobs by specific scheduler_id (returns all jobs if not specified)",
+            "example": "openpbs-soca-default"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Jobs retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "message": {
+                      "type": "object",
+                      "description": "Jobs list and list of scheduler that returned an error",
+                      "additionalProperties": {
+                        "type": "object",
+                        "properties": {
+                          "Job_Name": {
+                            "type": "string",
+                            "example": "my_job"
+                          },
+                          "Job_Owner": {
+                            "type": "string",
+                            "example": "john.doe@cluster"
+                          },
+                          "job_state": {
+                            "type": "string",
+                            "enum": [
+                              "Q",
+                              "R",
+                              "H",
+                              "S",
+                              "E",
+                              "F"
+                            ],
+                            "example": "R"
+                          },
+                          "queue": {
+                            "type": "string",
+                            "example": "normal"
+                          }
+                        }
+                      },
+                      "example": {
+                        "123.scheduler": {
+                          "Job_Name": "my_job",
+                          "Job_Owner": "john.doe@cluster",
+                          "job_state": "R",
+                          "queue": "normal"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "500": {
+            "description": "SOCA scheduler error or JSON parsing failure"
+          }
+        }
+      }
+    },
+    "/api/user/run_command": {
+      "post": {
+        "operationId": "runRemoteCommand",
+        "tags": [
+          "User"
+        ],
+        "summary": "Execute a command as the specified user",
+        "description": "Executes a command on the system as the specified user (private API)",
+        "security": [
+          {
+            "socaAuth": [],
+            "socaToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "X-SOCA-USER",
+            "in": "header",
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "required": true,
+            "description": "SOCA username to execute command as",
+            "example": "user.name"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "command"
+                ],
+                "properties": {
+                  "command": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "Command to execute",
+                    "example": "ls -la /home"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Command executed successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "message": {
+                      "type": "string",
+                      "description": "Command output",
+                      "example": "total 4 drwxr-xr-x 3 root root 4096 Jan 1 12:00 user.name"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Missing required parameter or header"
+          },
+          "500": {
+            "description": "Command execution failed"
+          }
+        }
+      }
+    },
     "/api/user/resources_permissions": {
       "get": {
         "operationId": "getUserResourcePermissions",
@@ -4473,7 +5923,7 @@
       "post": {
         "operationId": "getUserResourcePermissionsAdmin",
         "tags": [
-          "User Permissions"
+          "User"
         ],
         "summary": "Get resource permissions for a specific user",
         "description": "Retrieves resource permissions for a specified user (admin access required)",
@@ -4616,7 +6066,7 @@
       "get": {
         "operationId": "getUserApiKey",
         "tags": [
-          "User API Keys"
+          "User"
         ],
         "summary": "GET /api/user/api_key",
         "description": "GET operation for /api/user/api_key",
@@ -5190,6 +6640,533 @@
           },
           "500": {
             "description": "Internal server error"
+          }
+        }
+      }
+    },
+    "/api/target_nodes/software_stacks": {
+      "get": {
+        "operationId": "getSoftwareStacks",
+        "tags": [
+          "Target Nodes"
+        ],
+        "summary": "Retrieve software stacks",
+        "description": "Get a list of all available software stacks or a specific software stack by ID",
+        "security": [
+          {
+            "socaAuth": [],
+            "socaToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-SOCA-USER",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64,
+              "pattern": "^[a-zA-Z0-9._-]+$",
+              "example": "admin"
+            },
+            "description": "SOCA username for authentication"
+          },
+          {
+            "in": "header",
+            "name": "X-SOCA-TOKEN",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "example": "abc123token"
+            },
+            "description": "SOCA authentication token"
+          },
+          {
+            "in": "query",
+            "name": "software_stack_id",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9]+$",
+              "example": "1"
+            },
+            "description": "ID of specific software stack to retrieve"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successfully retrieved software stacks",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "success",
+                    "message"
+                  ],
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "message": {
+                      "type": "object",
+                      "example": {
+                        "1": {
+                          "id": 1,
+                          "stack_name": "Ubuntu 20.04",
+                          "ami_id": "ami-12345678",
+                          "root_size": 20,
+                          "project_ids": [
+                            1,
+                            2
+                          ]
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid software_stack_id parameter"
+          },
+          "401": {
+            "description": "Missing authentication header"
+          }
+        }
+      },
+      "post": {
+        "operationId": "createSoftwareStack",
+        "tags": [
+          "Target Nodes"
+        ],
+        "summary": "Create a new software stack",
+        "description": "Register a new software stack with AMI and configuration details",
+        "security": [
+          {
+            "socaAuth": [],
+            "socaToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-SOCA-USER",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64,
+              "pattern": "^[a-zA-Z0-9._-]+$",
+              "example": "admin"
+            },
+            "description": "SOCA username for authentication"
+          },
+          {
+            "in": "header",
+            "name": "X-SOCA-TOKEN",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "example": "abc123token"
+            },
+            "description": "SOCA authentication token"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "ami_id",
+                  "stack_name",
+                  "root_size",
+                  "target_node_profile_id",
+                  "target_node_user_data_id"
+                ],
+                "properties": {
+                  "ami_id": {
+                    "type": "string",
+                    "pattern": "^ami-[0-9a-f]{8,17}$",
+                    "description": "AWS AMI ID",
+                    "example": "ami-12345678"
+                  },
+                  "stack_name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 100,
+                    "description": "Name for the software stack",
+                    "example": "Ubuntu 20.04 LTS"
+                  },
+                  "root_size": {
+                    "type": "string",
+                    "pattern": "^[0-9]+$",
+                    "description": "Root volume size in GB",
+                    "example": "20"
+                  },
+                  "launch_tenancy": {
+                    "type": "string",
+                    "enum": [
+                      "default",
+                      "dedicated",
+                      "host"
+                    ],
+                    "description": "EC2 tenancy type",
+                    "example": "default"
+                  },
+                  "launch_host": {
+                    "type": "string",
+                    "pattern": "^h-[0-9a-f]{8,17}$",
+                    "description": "Dedicated host ID (required if tenancy is 'host')",
+                    "example": "h-12345678"
+                  },
+                  "user_data_variables": {
+                    "type": "string",
+                    "pattern": "^[a-zA-Z0-9_]+=.*$",
+                    "description": "User data variables in key=value,key2=value2 format",
+                    "example": "env=prod,region=us-east-1"
+                  },
+                  "target_node_profile_id": {
+                    "type": "string",
+                    "pattern": "^[0-9]+$",
+                    "description": "Target node profile ID",
+                    "example": "1"
+                  },
+                  "connection_string": {
+                    "type": "string",
+                    "maxLength": 1000,
+                    "description": "Connection instructions (HTML allowed)",
+                    "example": "<h3>Connect via SSH</h3><p>ssh user@hostname</p>"
+                  },
+                  "target_node_user_data_id": {
+                    "type": "string",
+                    "pattern": "^[0-9]+$",
+                    "description": "Target node user data ID",
+                    "example": "1"
+                  },
+                  "description": {
+                    "type": "string",
+                    "maxLength": 500,
+                    "description": "Description of the software stack (max 500 characters)",
+                    "example": "Ubuntu 20.04 LTS with development tools"
+                  },
+                  "thumbnail": {
+                    "type": "string",
+                    "format": "binary",
+                    "description": "Thumbnail image for the software stack"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Software stack created successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "success",
+                    "message"
+                  ],
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "ami-12345678 registered successfully in SOCA as Ubuntu 20.04 LTS"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input parameters"
+          },
+          "401": {
+            "description": "Missing authentication header"
+          },
+          "409": {
+            "description": "Software stack name already exists"
+          },
+          "500": {
+            "description": "AWS API error or internal server error"
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deleteSoftwareStack",
+        "tags": [
+          "Target Nodes"
+        ],
+        "summary": "Delete software stacks",
+        "description": "Delete a Target Node Software Stack",
+        "security": [
+          {
+            "socaAuth": [],
+            "socaToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-SOCA-USER",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64,
+              "pattern": "^[a-zA-Z0-9._-]+$",
+              "example": "admin"
+            },
+            "description": "SOCA username for authentication"
+          },
+          {
+            "in": "header",
+            "name": "X-SOCA-TOKEN",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "example": "abc123token"
+            },
+            "description": "SOCA authentication token"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "software_stack_id"
+                ],
+                "properties": {
+                  "software_stack_id": {
+                    "type": "string",
+                    "pattern": "^[0-9]+$",
+                    "description": "ID of software stack to delete",
+                    "example": "1"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successfully deleted software stack",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "success",
+                    "message"
+                  ],
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "Software Stack removed from SOCA"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid software_stack_id parameter"
+          },
+          "401": {
+            "description": "Missing authentication header"
+          },
+          "404": {
+            "description": "Software stack not found"
+          }
+        }
+      },
+      "put": {
+        "operationId": "updateSoftwareStack",
+        "tags": [
+          "Target Nodes"
+        ],
+        "summary": "Modify an existing software stack",
+        "description": "Modify an existing software stack with AMI and configuration details",
+        "security": [
+          {
+            "socaAuth": [],
+            "socaToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-SOCA-USER",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64,
+              "pattern": "^[a-zA-Z0-9._-]+$",
+              "example": "admin"
+            },
+            "description": "SOCA username for authentication"
+          },
+          {
+            "in": "header",
+            "name": "X-SOCA-TOKEN",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "example": "abc123token"
+            },
+            "description": "SOCA authentication token"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "software_stack_id",
+                  "ami_id",
+                  "root_size",
+                  "target_node_profile_id",
+                  "target_node_user_data_id",
+                  "connection_string"
+                ],
+                "properties": {
+                  "software_stack_id": {
+                    "type": "string",
+                    "pattern": "^[0-9]+$",
+                    "description": "ID of software stack to update",
+                    "example": "1"
+                  },
+                  "ami_id": {
+                    "type": "string",
+                    "pattern": "^ami-[0-9a-f]{8,17}$",
+                    "description": "AWS AMI ID",
+                    "example": "ami-12345678"
+                  },
+                  "root_size": {
+                    "type": "string",
+                    "pattern": "^[0-9]+$",
+                    "description": "Root volume size in GB",
+                    "example": "20"
+                  },
+                  "launch_tenancy": {
+                    "type": "string",
+                    "enum": [
+                      "default",
+                      "dedicated",
+                      "host"
+                    ],
+                    "description": "EC2 tenancy type",
+                    "example": "default"
+                  },
+                  "launch_host": {
+                    "type": "string",
+                    "pattern": "^h-[0-9a-f]{8,17}$",
+                    "description": "Dedicated host ID (required if tenancy is 'host')",
+                    "example": "h-12345678"
+                  },
+                  "user_data_variables": {
+                    "type": "string",
+                    "pattern": "^[a-zA-Z0-9_]+=.*$",
+                    "description": "User data variables in key=value,key2=value2 format",
+                    "example": "env=prod,region=us-east-1"
+                  },
+                  "target_node_profile_id": {
+                    "type": "string",
+                    "pattern": "^[0-9]+$",
+                    "description": "Target node profile ID",
+                    "example": "1"
+                  },
+                  "connection_string": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 1000,
+                    "description": "Connection instructions (HTML allowed)",
+                    "example": "<h3>Connect via SSH</h3><p>ssh user@hostname</p>"
+                  },
+                  "target_node_user_data_id": {
+                    "type": "string",
+                    "pattern": "^[0-9]+$",
+                    "description": "Target node user data ID",
+                    "example": "1"
+                  },
+                  "description": {
+                    "type": "string",
+                    "maxLength": 500,
+                    "description": "Description of the software stack (max 500 characters)",
+                    "example": "Ubuntu 20.04 LTS with development tools"
+                  },
+                  "thumbnail": {
+                    "type": "string",
+                    "format": "binary",
+                    "description": "Thumbnail image for the software stack"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Software stack updated successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "success",
+                    "message"
+                  ],
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "ami-12345678 updated successfully in SOCA"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input parameters"
+          },
+          "401": {
+            "description": "Missing authentication header"
+          },
+          "404": {
+            "description": "Software stack not found"
+          },
+          "500": {
+            "description": "AWS API error or internal server error"
           }
         }
       }
@@ -6701,7 +8678,7 @@
       "put": {
         "operationId": "resizeTargetNode",
         "tags": [
-          "Virtual Desktops"
+          "Target Nodes"
         ],
         "summary": "Resize target node instance type",
         "description": "Modify the instance type of a target node session. The session must be in stopped state.",
@@ -7101,6 +9078,724 @@
         }
       }
     },
+    "/api/applications/export": {
+      "get": {
+        "operationId": "exportApplicationProfile",
+        "tags": [
+          "Applications"
+        ],
+        "summary": "Export application profile",
+        "description": "Exports an application profile configuration for backup or migration (admin access required)",
+        "security": [
+          {
+            "socaAuth": [],
+            "socaToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-SOCA-USER",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 100,
+              "pattern": "^[a-zA-Z0-9._-]+$"
+            },
+            "description": "SOCA username for authentication (must be admin)",
+            "example": "admin.user"
+          },
+          {
+            "in": "header",
+            "name": "X-SOCA-TOKEN",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 10,
+              "maxLength": 1000
+            },
+            "description": "SOCA authentication token",
+            "example": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9"
+          },
+          {
+            "in": "query",
+            "name": "application_id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9]+$"
+            },
+            "description": "ID of the application profile to export",
+            "example": "1"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Application profile exported successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "message": {
+                      "type": "object",
+                      "properties": {
+                        "Instructions": {
+                          "type": "string",
+                          "example": "https://awslabs.github.io/scale-out-computing-on-aws-documentation/documentation/web-interface/import-export-application-profiles"
+                        },
+                        "profile_form": {
+                          "type": "string",
+                          "example": "<form><input name='cores' type='number' /></form>"
+                        },
+                        "profile_job": {
+                          "type": "string",
+                          "example": "#!/bin/bash module load ansys fluent -g"
+                        },
+                        "profile_interpreter": {
+                          "type": "string",
+                          "example": "bash"
+                        },
+                        "profile_thumbnail": {
+                          "type": "string",
+                          "example": "data:image/png;base64,..."
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Missing application_id parameter",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": false
+                    },
+                    "error_code": {
+                      "type": "integer",
+                      "example": 400
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "Missing required parameter: application_id"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient permissions",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": false
+                    },
+                    "error_code": {
+                      "type": "integer",
+                      "example": 403
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "Admin access required"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Application profile not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": false
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "Application does not exist"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": false
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "Database error occurred"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/applications/application": {
+      "post": {
+        "operationId": "createApplicationProfile",
+        "tags": [
+          "Applications"
+        ],
+        "summary": "Create application profile",
+        "description": "Creates a new application profile with job submission form and script (admin access required)",
+        "security": [
+          {
+            "socaAuth": [],
+            "socaToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-SOCA-USER",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 100,
+              "pattern": "^[a-zA-Z0-9._-]+$"
+            },
+            "description": "SOCA username for authentication (must be admin)",
+            "example": "admin.user"
+          },
+          {
+            "in": "header",
+            "name": "X-SOCA-TOKEN",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 10,
+              "maxLength": 1000
+            },
+            "description": "SOCA authentication token",
+            "example": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "profile_name",
+                  "submit_job_form",
+                  "submit_job_script",
+                  "submit_job_interpreter"
+                ],
+                "properties": {
+                  "profile_name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 100,
+                    "description": "Name for the application profile",
+                    "example": "ANSYS Fluent"
+                  },
+                  "submit_job_form": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "HTML form for job submission parameters",
+                    "example": "<form><input name='cores' type='number' /></form>"
+                  },
+                  "submit_job_script": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "Job submission script template",
+                    "example": "#!/bin/bash module load ansys fluent -g"
+                  },
+                  "submit_job_interpreter": {
+                    "type": "string",
+                    "description": "Script interpreter (scheduler name or system shell)",
+                    "example": "bash"
+                  },
+                  "thumbnail_b64": {
+                    "type": "string",
+                    "format": "base64",
+                    "description": "Base64 encoded thumbnail image for the application",
+                    "example": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg=="
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Application profile created successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "ANSYS Fluent created successfully"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request parameters",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": false
+                    },
+                    "error_code": {
+                      "type": "integer",
+                      "example": 400
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "Missing required parameter: profile_name"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient permissions",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": false
+                    },
+                    "error_code": {
+                      "type": "integer",
+                      "example": 403
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "Admin access required"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server error during creation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": false
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "Unable to add new application db entry"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "operationId": "updateApplicationProfile",
+        "tags": [
+          "Applications"
+        ],
+        "summary": "Update application profile",
+        "description": "Updates an existing application profile with new configuration (admin access required)",
+        "security": [
+          {
+            "socaAuth": [],
+            "socaToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-SOCA-USER",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 100,
+              "pattern": "^[a-zA-Z0-9._-]+$"
+            },
+            "description": "SOCA username for authentication (must be admin)",
+            "example": "admin.user"
+          },
+          {
+            "in": "header",
+            "name": "X-SOCA-TOKEN",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 10,
+              "maxLength": 1000
+            },
+            "description": "SOCA authentication token",
+            "example": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "application_id"
+                ],
+                "properties": {
+                  "application_id": {
+                    "type": "string",
+                    "pattern": "^[0-9]+$",
+                    "description": "ID of the application profile to update",
+                    "example": "1"
+                  },
+                  "profile_name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 100,
+                    "description": "Updated name for the application profile",
+                    "example": "ANSYS Fluent 2024"
+                  },
+                  "submit_job_form": {
+                    "type": "string",
+                    "description": "Updated HTML form for job submission",
+                    "example": "<form><input name='cores' type='number' /></form>"
+                  },
+                  "submit_job_script": {
+                    "type": "string",
+                    "description": "Updated job submission script template",
+                    "example": "#!/bin/bash module load ansys/2024 fluent -g"
+                  },
+                  "submit_job_interpreter": {
+                    "type": "string",
+                    "description": "Updated script interpreter",
+                    "example": "bash"
+                  },
+                  "thumbnail_b64": {
+                    "type": "string",
+                    "format": "base64",
+                    "description": "Updated base64 encoded thumbnail image",
+                    "example": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg=="
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Application profile updated successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "Application updated successfully"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Missing or invalid parameters",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": false
+                    },
+                    "error_code": {
+                      "type": "integer",
+                      "example": 400
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "Missing required parameter: application_id"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient permissions",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": false
+                    },
+                    "error_code": {
+                      "type": "integer",
+                      "example": 403
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "Admin access required"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Application profile not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": false
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "Application not found"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server error during update",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": false
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "Unable to edit existing application db entry"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deleteApplicationProfile",
+        "tags": [
+          "Applications"
+        ],
+        "summary": "Delete application profile",
+        "description": "Deletes an existing application profile from the database (admin access required)",
+        "security": [
+          {
+            "socaAuth": [],
+            "socaToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-SOCA-USER",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 100,
+              "pattern": "^[a-zA-Z0-9._-]+$"
+            },
+            "description": "SOCA username for authentication (must be admin)",
+            "example": "admin.user"
+          },
+          {
+            "in": "header",
+            "name": "X-SOCA-TOKEN",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 10,
+              "maxLength": 1000
+            },
+            "description": "SOCA authentication token",
+            "example": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "application_id"
+                ],
+                "properties": {
+                  "application_id": {
+                    "type": "string",
+                    "pattern": "^[0-9]+$",
+                    "description": "ID of the application profile to delete",
+                    "example": "1"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Application profile deleted successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "Application deleted successfully"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Missing application_id parameter",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": false
+                    },
+                    "error_code": {
+                      "type": "integer",
+                      "example": 400
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "Missing required parameter: application_id"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient permissions",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": false
+                    },
+                    "error_code": {
+                      "type": "integer",
+                      "example": 403
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "Admin access required"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server error during deletion",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": false
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "Unable to delete application db entry"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/applications/list_applications": {
       "get": {
         "operationId": "listApplications",
@@ -7140,6 +9835,17 @@
             },
             "description": "SOCA authentication token",
             "example": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9"
+          },
+          {
+            "in": "query",
+            "name": "application_id",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9]+$",
+              "example": "1"
+            },
+            "description": "Specific application ID to retrieve (returns all if not specified)"
           }
         ],
         "responses": {
@@ -7252,6 +9958,159 @@
                     "message": {
                       "type": "string",
                       "example": "Error retrieving applications profile list, check logs for more details."
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/applications/import": {
+      "post": {
+        "operationId": "importApplicationProfile",
+        "tags": [
+          "Applications"
+        ],
+        "summary": "Import application profile",
+        "description": "Imports an application profile from a JSON file (admin access required)",
+        "security": [
+          {
+            "socaAuth": [],
+            "socaToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-SOCA-USER",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 100,
+              "pattern": "^[a-zA-Z0-9._-]+$"
+            },
+            "description": "SOCA username for authentication (must be admin)",
+            "example": "admin.user"
+          },
+          {
+            "in": "header",
+            "name": "X-SOCA-TOKEN",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 10,
+              "maxLength": 1000
+            },
+            "description": "SOCA authentication token",
+            "example": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "app_profile"
+                ],
+                "properties": {
+                  "app_profile": {
+                    "type": "string",
+                    "format": "binary",
+                    "description": "JSON file containing application profile configuration"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Application profile imported successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "Application Imported successfully"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid JSON file or missing parameters",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": false
+                    },
+                    "error_code": {
+                      "type": "integer",
+                      "example": 400
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "This does not seem to be a valid JSON"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient permissions",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": false
+                    },
+                    "error_code": {
+                      "type": "integer",
+                      "example": 403
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "Admin access required"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server error during import",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": false
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "Unable to import file. See log for details"
                     }
                   }
                 }
@@ -7523,7 +10382,7 @@
             "example": "02:30:00"
           },
           {
-            "name": "cpus",
+            "name": "vcpus",
             "in": "query",
             "required": false,
             "schema": {
@@ -7531,7 +10390,7 @@
               "minimum": 1,
               "maximum": 1000
             },
-            "description": "Number of CPUs to allocate",
+            "description": "Number of vCPUs to allocate",
             "example": 4
           },
           {
@@ -7662,7 +10521,7 @@
                               "type": "string",
                               "example": "m5.large"
                             },
-                            "cpus": {
+                            "vcpus": {
                               "type": "integer",
                               "nullable": true,
                               "example": 4
@@ -8596,251 +11455,6 @@
           }
         }
       },
-      "post": {
-        "operationId": "submitEksJob",
-        "tags": [
-          "Elastic Kubernetes Service (EKS)"
-        ],
-        "summary": "Submit a new EKS job",
-        "description": "Creates and submits a new job to the specified EKS cluster with the provided configuration",
-        "security": [
-          {
-            "socaAuth": [],
-            "socaToken": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "X-SOCA-USER",
-            "in": "header",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "minLength": 1,
-              "maxLength": 64,
-              "pattern": "^[a-zA-Z0-9._-]+$"
-            },
-            "description": "SOCA username for authentication",
-            "example": "john.doe"
-          },
-          {
-            "name": "X-SOCA-TOKEN",
-            "in": "header",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "minLength": 1,
-              "maxLength": 256
-            },
-            "description": "SOCA authentication token",
-            "example": "abc123token456"
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/x-www-form-urlencoded": {
-              "schema": {
-                "type": "object",
-                "required": [
-                  "image_uri",
-                  "eks_cluster",
-                  "job_name"
-                ],
-                "properties": {
-                  "image_uri": {
-                    "type": "string",
-                    "minLength": 1,
-                    "maxLength": 1000,
-                    "pattern": "^[a-zA-Z0-9._/-]+:[a-zA-Z0-9._-]+$",
-                    "description": "Container image URI to run",
-                    "example": "nginx:latest"
-                  },
-                  "eks_cluster": {
-                    "type": "string",
-                    "minLength": 1,
-                    "maxLength": 100,
-                    "pattern": "^[a-zA-Z0-9._-]+$",
-                    "description": "Name of the EKS cluster",
-                    "example": "my-soca-cluster"
-                  },
-                  "job_name": {
-                    "type": "string",
-                    "minLength": 1,
-                    "maxLength": 253,
-                    "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$",
-                    "description": "Unique name for the job",
-                    "example": "simulation-job-001"
-                  },
-                  "cpu": {
-                    "type": "string",
-                    "pattern": "^[0-9]+(\\.[0-9]+)?$",
-                    "default": "1",
-                    "description": "CPU resource allocation (cores)",
-                    "example": "2"
-                  },
-                  "memory": {
-                    "type": "string",
-                    "pattern": "^[0-9]+(\\.[0-9]+)?$",
-                    "default": "1",
-                    "description": "Memory allocation in GB",
-                    "example": "4"
-                  },
-                  "instance_type": {
-                    "type": "string",
-                    "pattern": "^[a-z0-9]+\\.[a-z0-9]+$",
-                    "description": "EC2 instance type for node selection",
-                    "example": "m5.large"
-                  },
-                  "commandArray": {
-                    "type": "string",
-                    "format": "json",
-                    "description": "JSON array of command to execute",
-                    "example": "[\"echo\", \"hello\"]"
-                  },
-                  "argsArray": {
-                    "type": "string",
-                    "format": "json",
-                    "description": "JSON array of arguments for the command",
-                    "example": "[\"world\"]"
-                  },
-                  "namespace": {
-                    "type": "string",
-                    "minLength": 1,
-                    "maxLength": 63,
-                    "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$",
-                    "default": "default",
-                    "description": "Kubernetes namespace",
-                    "example": "default"
-                  }
-                }
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Job submitted successfully",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "success",
-                    "message"
-                  ],
-                  "properties": {
-                    "success": {
-                      "type": "boolean",
-                      "example": true
-                    },
-                    "message": {
-                      "type": "string",
-                      "example": "Job submitted successfully"
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Bad request - invalid parameters",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "success",
-                    "message"
-                  ],
-                  "properties": {
-                    "success": {
-                      "type": "boolean",
-                      "example": false
-                    },
-                    "message": {
-                      "type": "string",
-                      "example": "Unable to parse command as JSON"
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized - missing or invalid authentication",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "success",
-                    "message"
-                  ],
-                  "properties": {
-                    "success": {
-                      "type": "boolean",
-                      "example": false
-                    },
-                    "message": {
-                      "type": "string",
-                      "example": "Unauthorized: Verify if the IAM role is allowed to connect to cluster"
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Namespace not found",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "success",
-                    "message"
-                  ],
-                  "properties": {
-                    "success": {
-                      "type": "boolean",
-                      "example": false
-                    },
-                    "message": {
-                      "type": "string",
-                      "example": "Namespace not found on your EKS cluster"
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Internal server error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "success",
-                    "message"
-                  ],
-                  "properties": {
-                    "success": {
-                      "type": "boolean",
-                      "example": false
-                    },
-                    "message": {
-                      "type": "string",
-                      "example": "Unable to submit EKS job"
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
-      },
       "delete": {
         "operationId": "deleteEksJob",
         "tags": [
@@ -9618,434 +12232,6 @@
           },
           "500": {
             "description": "PBS scheduler error or backend failure"
-          }
-        }
-      }
-    },
-    "/api/scheduler/job": {
-      "get": {
-        "operationId": "getJob",
-        "tags": [
-          "PBS Pro Scheduler"
-        ],
-        "summary": "GET /api/scheduler/job",
-        "description": "GET operation for /api/scheduler/job",
-        "security": [
-          {
-            "socaAuth": [],
-            "socaToken": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "X-SOCA-USER",
-            "in": "header",
-            "schema": {
-              "type": "string",
-              "minLength": 1
-            },
-            "required": true,
-            "description": "SOCA username for authentication",
-            "example": "admin"
-          },
-          {
-            "name": "X-SOCA-TOKEN",
-            "in": "header",
-            "schema": {
-              "type": "string",
-              "minLength": 1
-            },
-            "required": true,
-            "description": "SOCA authentication token",
-            "example": "abc123token"
-          },
-          {
-            "name": "job_id",
-            "in": "query",
-            "schema": {
-              "type": "string",
-              "pattern": "^[0-9]+\\.[a-zA-Z0-9_.-]+$",
-              "minLength": 1
-            },
-            "required": true,
-            "description": "ID of the job to retrieve",
-            "example": "123.scheduler"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Job information retrieved successfully",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "success": {
-                      "type": "boolean",
-                      "example": true
-                    },
-                    "message": {
-                      "type": "object",
-                      "properties": {
-                        "Job_Name": {
-                          "type": "string",
-                          "example": "my_job"
-                        },
-                        "Job_Owner": {
-                          "type": "string",
-                          "example": "john.doe@cluster"
-                        },
-                        "job_state": {
-                          "type": "string",
-                          "enum": [
-                            "Q",
-                            "R",
-                            "H",
-                            "S",
-                            "E",
-                            "F"
-                          ],
-                          "example": "R"
-                        },
-                        "queue": {
-                          "type": "string",
-                          "example": "normal"
-                        }
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Missing job_id parameter"
-          },
-          "401": {
-            "description": "Authentication required"
-          },
-          "210": {
-            "description": "Job may have terminated"
-          }
-        }
-      },
-      "post": {
-        "operationId": "submitJob",
-        "tags": [
-          "PBS Pro Scheduler"
-        ],
-        "summary": "POST /api/scheduler/job",
-        "description": "POST operation for /api/scheduler/job",
-        "security": [
-          {
-            "socaAuth": [],
-            "socaToken": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "X-SOCA-USER",
-            "in": "header",
-            "schema": {
-              "type": "string",
-              "minLength": 1
-            },
-            "required": true,
-            "description": "SOCA username for authentication",
-            "example": "admin"
-          },
-          {
-            "name": "X-SOCA-TOKEN",
-            "in": "header",
-            "schema": {
-              "type": "string",
-              "minLength": 1
-            },
-            "required": true,
-            "description": "SOCA authentication token",
-            "example": "abc123token"
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/x-www-form-urlencoded": {
-              "schema": {
-                "type": "object",
-                "required": [
-                  "payload"
-                ],
-                "properties": {
-                  "payload": {
-                    "type": "string",
-                    "format": "base64",
-                    "minLength": 1,
-                    "description": "Base64 encoded job submission script",
-                    "example": "IyEvYmluL2Jhc2gKI1BCUyAtTiBteV9qb2IKZWNobyAiSGVsbG8gV29ybGQi"
-                  },
-                  "interpreter": {
-                    "type": "string",
-                    "enum": [
-                      "qsub",
-                      "bash"
-                    ],
-                    "description": "Interpreter to use (qsub or bash)",
-                    "example": "qsub"
-                  },
-                  "input_file_path": {
-                    "type": "string",
-                    "pattern": "^/[a-zA-Z0-9_./\\-]+/$",
-                    "description": "Custom path for job output files",
-                    "example": "/home/user/my_jobs/"
-                  }
-                }
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Job submitted successfully",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "success": {
-                      "type": "boolean",
-                      "example": true
-                    },
-                    "message": {
-                      "type": "string",
-                      "example": "123"
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Missing payload or invalid base64 encoding"
-          },
-          "401": {
-            "description": "Authentication required"
-          },
-          "500": {
-            "description": "Job submission failed"
-          }
-        }
-      },
-      "delete": {
-        "operationId": "deleteJob",
-        "tags": [
-          "PBS Pro Scheduler"
-        ],
-        "summary": "DELETE /api/scheduler/job",
-        "description": "DELETE operation for /api/scheduler/job",
-        "security": [
-          {
-            "socaAuth": [],
-            "socaToken": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "X-SOCA-USER",
-            "in": "header",
-            "schema": {
-              "type": "string",
-              "minLength": 1
-            },
-            "required": true,
-            "description": "SOCA username for authentication",
-            "example": "admin"
-          },
-          {
-            "name": "X-SOCA-TOKEN",
-            "in": "header",
-            "schema": {
-              "type": "string",
-              "minLength": 1
-            },
-            "required": true,
-            "description": "SOCA authentication token",
-            "example": "abc123token"
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/x-www-form-urlencoded": {
-              "schema": {
-                "type": "object",
-                "required": [
-                  "job_id"
-                ],
-                "properties": {
-                  "job_id": {
-                    "type": "string",
-                    "pattern": "^[0-9]+\\.[a-zA-Z0-9_.-]+$",
-                    "minLength": 1,
-                    "description": "ID of the job to delete",
-                    "example": "123.scheduler"
-                  }
-                }
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Job deleted successfully",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "success": {
-                      "type": "boolean",
-                      "example": true
-                    },
-                    "message": {
-                      "type": "string",
-                      "example": "Job deleted successfully"
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Missing job_id parameter"
-          },
-          "401": {
-            "description": "Authentication required"
-          },
-          "403": {
-            "description": "User is not the job owner"
-          },
-          "404": {
-            "description": "Job not found or already terminated"
-          },
-          "500": {
-            "description": "Job deletion failed"
-          }
-        }
-      }
-    },
-    "/api/scheduler/jobs": {
-      "get": {
-        "operationId": "getJobs",
-        "tags": [
-          "PBS Pro Scheduler"
-        ],
-        "summary": "GET /api/scheduler/jobs",
-        "description": "GET operation for /api/scheduler/jobs",
-        "security": [
-          {
-            "socaAuth": [],
-            "socaToken": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "X-SOCA-USER",
-            "in": "header",
-            "schema": {
-              "type": "string",
-              "minLength": 1
-            },
-            "required": true,
-            "description": "SOCA username for authentication",
-            "example": "admin"
-          },
-          {
-            "name": "X-SOCA-TOKEN",
-            "in": "header",
-            "schema": {
-              "type": "string",
-              "minLength": 1
-            },
-            "required": true,
-            "description": "SOCA authentication token",
-            "example": "abc123token"
-          },
-          {
-            "name": "user",
-            "in": "query",
-            "schema": {
-              "type": "string",
-              "pattern": "^[a-zA-Z0-9._-]+$",
-              "minLength": 1
-            },
-            "required": false,
-            "description": "Filter jobs by specific user (returns all jobs if not specified)",
-            "example": "john.doe"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Jobs retrieved successfully",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "success": {
-                      "type": "boolean",
-                      "example": true
-                    },
-                    "message": {
-                      "type": "object",
-                      "description": "Job information keyed by job ID",
-                      "additionalProperties": {
-                        "type": "object",
-                        "properties": {
-                          "Job_Name": {
-                            "type": "string",
-                            "example": "my_job"
-                          },
-                          "Job_Owner": {
-                            "type": "string",
-                            "example": "john.doe@cluster"
-                          },
-                          "job_state": {
-                            "type": "string",
-                            "enum": [
-                              "Q",
-                              "R",
-                              "H",
-                              "S",
-                              "E",
-                              "F"
-                            ],
-                            "example": "R"
-                          },
-                          "queue": {
-                            "type": "string",
-                            "example": "normal"
-                          }
-                        }
-                      },
-                      "example": {
-                        "123.scheduler": {
-                          "Job_Name": "my_job",
-                          "Job_Owner": "john.doe@cluster",
-                          "job_state": "R",
-                          "queue": "normal"
-                        }
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Authentication required"
-          },
-          "500": {
-            "description": "PBS scheduler error or JSON parsing failure"
           }
         }
       }

@@ -1,11 +1,17 @@
 # Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-function build_openpbs {
+# SCHEDULER_VARS are forwarded from templates/linux/schedulers/install_schedulers.sh.j2:
+
+function build_openpbs_{{  SCHEDULER_VARS.get("IDENTIFIER") }} {
   pushd ${1}
   log_info "Building OpenPBS from $(pwd)"
   local NCPUS=$(nproc)
   local SOCA_PYTHON="/opt/soca/{{ context.get('/configuration/ClusterId') }}/python"
+  local OPENPBS_INSTALL_DIR="{{ SCHEDULER_VARS.get("PBS_CONFIGURATION").get("install_prefix_path") }}"
+  local OPENPBS_PBS_HOME="{{ SCHEDULER_VARS.get("PBS_CONFIGURATION").get("pbs_home") }}"
+
+  
   {% if context.get("/configuration/BaseOS") in ("amazonlinux2", "rhel8", "rocky8") %}
     log_info "Detected old Linux Distro, patching libtool/automake/pkg-config to make sure we can compile OpenPBS with python3.13"
     local COMPAT_PACKAGE_INSTALLER_PATH="/opt/soca/{{ context.get('/configuration/ClusterId') }}/packages"
@@ -58,10 +64,38 @@ function build_openpbs {
   fi
 
   log_info "Running Configure, adding SOCA Python location to rpath"
-  # objdump -x /opt/pbs/sbin/pbs_sched | grep RPATH ensure this contains path to SOCA_PYTHON for hooks
-  if ! LDFLAGS="-Wl,-rpath,${SOCA_PYTHON}/latest/lib" ./configure --prefix=/opt/pbs --with-python=${SOCA_PYTHON}/latest; then
-    exit_fail "Unable to run ./configure --prefix=/opt/pbs for OpenPBS. See log for additional details"
+  # objdump -x ${OPENPBS_INSTALL_DIR}/sbin/pbs_sched | grep RPATH ensure this contains path to SOCA_PYTHON for hooks
+  # Fine tuning of the installation directories:
+  # --bindir=DIR            user executables [EPREFIX/bin]
+  # --sbindir=DIR           system admin executables [EPREFIX/sbin]
+  # --libexecdir=DIR        program executables [EPREFIX/libexec]
+  # --sysconfdir=DIR        read-only single-machine data [PREFIX/etc]
+  # --sharedstatedir=DIR    modifiable architecture-independent data [PREFIX/com]
+  # --localstatedir=DIR     modifiable single-machine data [PREFIX/var]
+  # --runstatedir=DIR       modifiable per-process data [LOCALSTATEDIR/run]
+  # --libdir=DIR            object code libraries [EPREFIX/lib]
+  # --includedir=DIR        C header files [PREFIX/include]
+  # --oldincludedir=DIR     C header files for non-gcc [/usr/include]
+  # --datarootdir=DIR       read-only arch.-independent data root [PREFIX/share]
+  # --datadir=DIR           read-only architecture-independent data [DATAROOTDIR]
+  # --infodir=DIR           info documentation [DATAROOTDIR/info]
+  # --localedir=DIR         locale-dependent data [DATAROOTDIR/locale]
+  # --mandir=DIR            man documentation [DATAROOTDIR/man]
+  # --docdir=DIR            documentation root [DATAROOTDIR/doc/openpbs]
+  # --htmldir=DIR           html documentation [DOCDIR]
+  # --dvidir=DIR            dvi documentation [DOCDIR]
+  # --pdfdir=DIR            pdf documentation [DOCDIR]
+  # --psdir=DIR             ps documentation [DOCDIR]
+
+  #   --with-python=DIR       Specify the directory where Python is installed.
+
+  # --with-pbs-server-home=DIR. Location of the PBS spool directory. Default is /var/spool/pbs
+  if ! LDFLAGS="-Wl,-rpath,${SOCA_PYTHON}/latest/lib" ./configure --prefix="${OPENPBS_INSTALL_DIR}" --with-pbs-server-home="${OPENPBS_PBS_HOME}" --with-python=${SOCA_PYTHON}/latest; then
+    exit_fail "Unable to run ./configure --prefix=${OPENPBS_INSTALL_DIR} for OpenPBS. See log for additional details"
   fi
+
+  log_info "Creating ${OPENPBS_PBS_HOME}"
+  mkdir -p ${OPENPBS_PBS_HOME}
 
   log_info "Running Make"
 
@@ -74,45 +108,50 @@ function build_openpbs {
   fi
 
   log_info "Post Build Command"
-  if ! /opt/pbs/libexec/pbs_postinstall; then
-    exit_fail "Unable to run  /opt/pbs/libexec/pbs_postinstall for OpenPBS. See log for additional details"
+  if ! ${OPENPBS_INSTALL_DIR}/libexec/pbs_postinstall; then
+    exit_fail "Unable to run  ${OPENPBS_INSTALL_DIR}/libexec/pbs_postinstall for OpenPBS. See log for additional details"
   fi
 
-  chmod 4755 /opt/pbs/sbin/pbs_iff /opt/pbs/sbin/pbs_rcp
+  chmod 4755 ${OPENPBS_INSTALL_DIR}/sbin/pbs_iff ${OPENPBS_INSTALL_DIR}/sbin/pbs_rcp
   log_info "Build Completed"
   popd
 }
 
 
-function openpbs_install {
-    local OPENPBS_INSTALLED_VERS=$(/opt/pbs/bin/qstat --version | awk {'print $NF'})
+function openpbs_install_{{  SCHEDULER_VARS.get("IDENTIFIER") }} {
+    local OPENPBS_INSTALL_DIR="{{ SCHEDULER_VARS.get("PBS_CONFIGURATION").get("install_prefix_path") }}"
+    local OPENPBS_PBS_HOME="{{ SCHEDULER_VARS.get("PBS_CONFIGURATION").get("pbs_home") }}"
+
+
+    local SCHEDULER_IDENTIFIER="{{ SCHEDULER_VARS.get("IDENTIFIER") }}"
     local INSTALLER_DIR="${SOCA_BOOTSTRAP_ASSETS_FOLDER}/openpbs"
+    
     mkdir -p ${INSTALLER_DIR}
     pushd ${INSTALLER_DIR}
 
-    {% if context.get("/configuration/SchedulerDeploymentType") == "tgz" %}
+    {% if context.get("/configuration/SchedulerOpenPBSDeploymentType") == "tgz" %}
       log_info "Installing OpenPBS via tgz download"
       local OPENPBS_VERSION="{{ context.get("/system/scheduler/openpbs/tgz/version") }}"
       local OPENPBS_URL="{{ context.get("/system/scheduler/openpbs/tgz/url") }}"
       local OPENPBS_SHA256="{{ context.get("/system/scheduler/openpbs/tgz/sha256") }}"
-      if [[ "${OPENPBS_INSTALLED_VERS}" != "${OPENPBS_VERSION}" ]]; then
+      if [[ ! -d "${OPENPBS_INSTALL_DIR}" ]]; then
           log_info "OpenPBS Not Detected, Installing OpenPBS"
           file_download --download-url="${OPENPBS_URL}" --save-as="openpbs_installer_${OPENPBS_VERSION}.tgz" --sha256-checksum="${OPENPBS_SHA256}"
           tar zxvf "openpbs_installer_${OPENPBS_VERSION}.tgz" -C ${INSTALLER_DIR} --strip-components=1
-          build_openpbs ${INSTALLER_DIR}
+          build_openpbs_{{  SCHEDULER_VARS.get("IDENTIFIER") }} ${INSTALLER_DIR}
 
       else
-          log_info "OpenPBS already installed, and at correct version (${OPENPBS_VERSION})."
+          log_info "OpenPBS already installed, and at correct version."
       fi
 
-    {% elif context.get("/configuration/SchedulerDeploymentType") == "git" %}
+    {% elif context.get("/configuration/SchedulerOpenPBSDeploymentType") == "git" %}
       log_info "Installing OpenPBS via git"
       local OPENPBS_GIT_REPO="{{ context.get("/system/scheduler/openpbs/git/repo") }}"
       local OPENPBS_GIT_BRANCH="{{ context.get("/system/scheduler/openpbs/git/branch") }}"
       local OPENPBS_GIT_COMMIT_ID="{{ context.get("/system/scheduler/openpbs/git/commit_id") }}"
       local OPENPBS_VERSION="{{ context.get("/system/scheduler/openpbs/tgz/version") }}"
 
-      if [[ "${OPENPBS_INSTALLED_VERS}" != "${OPENPBS_VERSION}" ]]; then
+      if [[ ! -d "${OPENPBS_INSTALL_DIR}" ]]; then
           log_info "OpenPBS Not Detected, Installing OpenPBS"
           # Note: clone in current directory without checkout to avoid new folder creation
           git clone ${OPENPBS_GIT_REPO} --no-checkout {% if context.get("/system/scheduler/openpbs/git/branch") %}--branch ${OPENPBS_GIT_BRANCH} {% endif %} ${INSTALLER_DIR}
@@ -161,15 +200,65 @@ function openpbs_install {
             popd
           fi
 
-        build_openpbs ${INSTALLER_DIR}
+        build_openpbs_{{ SCHEDULER_VARS.get("IDENTIFIER") }} ${INSTALLER_DIR}
       else
-          log_info "OpenPBS already installed, and at correct version (${OPENPBS_VERSION})."
+          log_info "OpenPBS already installed, and at correct version."
       fi
 
     {% else %}
       exit_fail "{{ context.get("/configuration/scheduler/deployment_type") }} must be tgz or git"
     {% endif %}
     popd
+
+    # Note: even with custom --prefix / --sysconfig, PBS compiler will generate a default /etc/pbs.conf and default services
+    log_info "Disabling default systemctl created by the compilation command"
+    systemctl stop pbs
+    systemctl disable pbs
+
+    log_info "Creating custom /bin/soca_pbs_${SCHEDULER_IDENTIFIER} wrapper"
+    cat << EOF > "/bin/soca_pbs_${SCHEDULER_IDENTIFIER}"
+export PATH=${OPENPBS_INSTALL_DIR}/bin:$PATH
+export PBS_CONF_FILE=${OPENPBS_PBS_HOME}/pbs.conf 
+echo "========= SOCA ========= "
+echo ">> PBS environment loaded, you can now run commands such as qsub/qstat/qalter etc ..."
+echo ">> PBS is installed under: ${OPENPBS_INSTALL_DIR}"
+echo ">> Add /bin/soca_pbs to your .bashrc or .bash_profile to automatically run this script"
+echo ">> Type exit to close this shell"
+echo "======================== "
+export PS1="(soca_openpbs) \u@\h:\w# "
+exec "$SHELL" -i
+
+EOF
+    chmod +x /bin/soca_pbs_${SCHEDULER_IDENTIFIER}
+
+    log_info "Creating new one with patched PBS_CONF_FILE /etc/systemd/system/soca_scheduler_${SCHEDULER_IDENTIFIER}.service"
+    cat << EOF > "/etc/systemd/system/soca_scheduler_${SCHEDULER_IDENTIFIER}.service"
+[Unit]
+Documentation=man:pbs(8)
+SourcePath=${OPENPBS_INSTALL_DIR}/libexec/pbs_init.d
+Description=Manage Portable Batch System installed via SOCA
+After=network-online.target remote-fs.target nss-lookup.target
+Wants=network-online.target
+DefaultDependencies=true
+
+[Service]
+Environment="PBS_CONF_FILE=${OPENPBS_PBS_HOME}/pbs.conf"
+Type=forking
+Restart=no
+TimeoutStartSec=0
+TimeoutStopSec=5min
+Delegate=yes
+IgnoreSIGPIPE=no
+GuessMainPID=no
+ExecStart=${OPENPBS_INSTALL_DIR}/libexec/pbs_init.d start
+ExecStop=${OPENPBS_INSTALL_DIR}/libexec/pbs_init.d stop
+ExecReload=${OPENPBS_INSTALL_DIR}/libexec/pbs_reload ${OPENPBS_INSTALL_DIR}/libexec/pbs_init.d start
+TasksMax=infinity
+
+[Install]
+WantedBy=multi-user.target
+EOF
+    
     log_info "Completed OpenPBS installation"
 }
-openpbs_install
+openpbs_install_{{ SCHEDULER_VARS.get("IDENTIFIER") }}

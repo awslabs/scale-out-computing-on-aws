@@ -4,11 +4,11 @@
 # SPDX-License-Identifier: Apache-2.0
 
 Config:
-  version: "25.8.0"  # version automatically populated as part of RELEASE-PIPELINE.sh (see github_release.py)
+  version: "25.11.0"  # version automatically populated as part of RELEASE-PIPELINE.sh (see github_release.py)
   termination_protection: true  # Enable (recommended) or Disable Cloudformation Stack termination protection
   entry_points_subnets: "Public"  # Public (recommended) or Private. In public mode the scheduler and ELB are deployed on PublicSubnets and assigned Public IPS. In Private mode scheduler and ELB are deployed in private subnets. In both case compute nodes and OpenSearch/EFS/FSxL are deployed in private subnets. Public does not means your cluster will be accessible to everyone by default, access to your cluster is still protected by security groups
   admin_user_name: "socaadmin"  # The name of the default admin username that will be created.
-  metadata_http_tokens: "required"  # Supported values are "required" for IMDSv2 or "optional" for IMDSv1 (https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-ec2-launchtemplate-launchtemplatedata-metadataoptions.html#cfn-ec2-launchtemplate-launchtemplatedata-metadataoptions-httptokens)
+  metadata_http_tokens: "required"  # Supported values are "required" (recommended) for IMDSv2 or "optional" for IMDSv1 (https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-ec2-launchtemplate-launchtemplatedata-metadataoptions.html#cfn-ec2-launchtemplate-launchtemplatedata-metadataoptions-httptokens)
   kms_key_id: ~  # A Global KMS KeyID (ARN) for any encrypted operations. Setting this removes the need to set on a per-resource basis. Note a per-resource key will over-ride this setting.
   # Uncomment section below if you want to add additional tags to the resources created by SOCA. You can add additional tags post-deployment via `socactl`
   # custom_tags:
@@ -16,6 +16,18 @@ Config:
   #    Value: 'Tag1Value'
   #  - Key: 'example:custom:Tag2Name'
   #    Value: 'Tag2Value'
+  
+  scheduler:
+    # Scheduler(s) to install/configure on the SOCA_CONTROLLER host
+    # Note: 
+    # - LSF: Additional customer inputs are required. See Parameters.scheduler.lsf section below.
+    # - OpenPBS: You can define various deployment type (default to git). See Parameters.scheduler.openpbs section below.
+    # Supported engine: openpbs , lsf
+    scheduler_engine: 
+      - "openpbs" # Production ready - Stable & Tested
+      #- "lsf" # Preview - Development, not stable, not fully tested and not suitable for production.
+      #- "slurm" # Preview - In Development, not stable, not fully tested and not suitable for production.
+
   services:
     aws_backup:
       enabled: true  # Enable (True) or Disable (False) AWS Backup integration.  WARNING - SETTING THIS TO FALSE WILL DISABLE AUTOMATIC BACKUPS OF YOUR SOCA ENVIRONMENT.
@@ -38,17 +50,13 @@ Config:
         short: 3600
         long: 86400
 
-    # Beta Build Only
-    # aws_pcs:
-    #  enabled: false # Enable (true) or Disable (false) the AWS Parallel Computing Service integration. For more information on AWS Parallel Computing Service - https://aws.amazon.com/pcs/
-    #  controller_size: "SMALL" #  https://docs.aws.amazon.com/pcs/latest/userguide/working-with_clusters_size.html
-    #  scheduler: "slurm"
-    #  slurm:
-    #    version: "23.11"
-    #    select_type_parameters: "CR_CPU" # CR_CPU or CR_CPU_Memory
-    #    scale_down_idle_time: 10
-    #    prolog: ~  # defaults to /apps/<clusterID>/pcs/scripts/prolog.sh
-    #    epilog: ~  # defaults to /apps/</clusterID>/pcs/scripts/epilog.sh
+    logging:
+      kms_key_id: ~  # KMS KeyID used for CloudWatch / logging operations
+      log_group_prefix: ~  # Create a specific log group prefix. If empty (~) , will use /soca by default. Including a leading / if needed.
+      log_group_class: "STANDARD"  # STANDARD or INFREQUENT_ACCESS . NOTE - feature differences existing between the classes
+      log_group_include_cluster_id: true  #  By default(true), include the cluster name in the created log-group so logs appear as <prefix>/<cluster_id>/<resource>
+      retention_policy: "THREE_YEARS"  # For valid values see the Enum: https://docs.aws.amazon.com/cdk/api/v2/python/aws_cdk.aws_logs/RetentionDays.html
+      removal_policy: "RETAIN"  # RETAIN or DESTROY
 
   # Configure your Network parameters below (CIDR range is configured interactively --vpc-cidr
   network:
@@ -56,9 +64,10 @@ Config:
     nat_gateways: 1  # Number of NAT gateways to create. Must be equal or lower to the numbers of public subnets
     max_azs: 3  # Number of AZs to use. We will deploy the same number of private and public subnets. Must be greater than 2
     cross_zone_enabled: true  # Enable NLB cross-zone access
-    use_vpc_endpoints: false  # Enable / Disable creation of VPC endpoints for various services (listed under vpc_interface_endpoints)
+    enable_vpc_gateway_endpoints: true  # Enable(true)/Disable the default creation/use of gateway endpoints and routing updates (only applies to SOCA-created resources)
     vpc_gateway_endpoints:
       - s3
+    use_vpc_endpoints: false  # Enable / Disable (default) creation of VPC endpoints for various services (listed under vpc_interface_endpoints).
     vpc_interface_endpoints:  # use_vpc_endpoints must be set to True. For list of services:  https://docs.aws.amazon.com/cdk/api/latest/python/aws_cdk.aws_ec2/InterfaceVpcEndpointAwsService.html
       - cloudformation
       - ec2
@@ -161,7 +170,7 @@ Config:
 
   # Configure your EC2 instance used as login host below
   login_node:
-    instance_type: ["m7i-flex.large", "m7i.large", "m6a.large", "m6i.large", "m5.large"]  # Type of EC2 machine to deploy for login_node
+    instance_type: ["m8i-flex.large", "m8i.large", "m7i-flex.large", "m7i.large", "m6a.large", "m6i.large", "m5.large"]  # Type of EC2 machine to deploy
     min_count: 1  # Minimum Number of login node(s) to provision. This value can be changed post deployment
     desired_count: ~  # Default is to match minimum count
     max_count: 2  # Maximum Number of login node(s) to provision. This value can be changed post deployment
@@ -181,13 +190,10 @@ Config:
     #   arm64: "ami-123"  # SecOps AMI ID for arm64
     #   x86_64: "ami-456"  # SecOps AMI ID for x86_64
 
-  scheduler:
-    scheduler_engine: "openpbs"
-    deployment_type: "git" # tgz or git. See Parameters.scheduler section below for more info
-
   # Configure your EC2 instance used as controller host below
+  # Make sure to adjust the size depending on the number of schedulers you are planning to host
   controller:
-    instance_type: ["m7i-flex.large", "m7i.large", "m6a.large", "m6i.large", "m5.large"]  # Type of EC2 machine to deploy for controller
+    instance_type: ["m8i-flex.large", "m8i.large", "m7i-flex.large", "m7i.large", "m6a.large", "m6i.large", "m5.large"]  # Type of EC2 machine to deploy
     volume_size: 300  # Size of the EBS root disk in GB
     volume_type: "gp3"  #  'gp2' may be needed for AWS Outposts installations
     volume_throughput: 150  #  For Provisioned IOPS SSD (io1) volumes
@@ -203,10 +209,10 @@ Config:
     aoss:
       standby_replicas: "DISABLED"  #  ENABLED (HA) or DISABLED (non-HA)
       public_access: false  # Deploy the serverless cache with public reachability or in-VPC reachability (default)
-    data_node_instance_type: "m6g.large.search"  # instance type for analytics data nodes
+    data_node_instance_type: "m7g.large.search"  # instance type for analytics data nodes
     data_nodes: ~  # number of data nodes for analytics (default is automatic based on the private AZ/subnet count).
     ebs_volume_size: 100  # EBS volume size attached to data nodes in GB
-    deletion_policy: "NO_RETAIN"  # RETAIN will preserve the ES even if you delete the stack. Any other value will delete OS if you delete the CFN stack
+    deletion_policy: "NO_RETAIN"  # RETAIN will preserve the OpenSearch even if you delete the stack. Any other value will delete OS if you delete the CFN stack
 
   # Configure your AWS Secrets Manager options below
   secretsmanager:
@@ -224,22 +230,40 @@ Config:
     #   - "arn:aws:backup:us-east-1:123456789012:backup-vault:backupvaultname"
 
   dcv:
-    allowed_instances: ["m7i-flex.*", "m7i.*", "c6i.*", "c7g.*", "m5.*", "g6.*", "g6f.*", "gr6.*", "g5.*", "g5g.*", "g4dn.*", "g4ad.*"]  # Which instances should be displayed for the user?
+    # Default EC2 instance for VDI. Can be changed post-deployment via Virtual Destkop Profiles https://awslabs.github.io/scale-out-computing-on-aws-documentation/documentation/virtual-desktops/vdi-profiles/
+    allowed_instances: [
+      "m8i-flex.*",
+      "m8i.*",
+      "m7i-flex.*",
+      "m7i.*",
+      "c8i.*",
+      "c7i.*", 
+      "c6i.*",
+      "r7i.*",
+      "c7g.*",
+      "g6.*", 
+      "g6f.*",
+      "g6e.*",
+      "gr6.*",
+      "g5.*",
+      "g5g.*",
+      "g4dn.*",
+      "g4ad.*"]  
     allow_metal_instances: true  # Should the user be presented with metal instances?
     version: "2023.1.16388"
     high_scale: false  # Should DCV be configured to support HA and high scale?
     gateway:
-      instance_type: ["m7i-flex.large", "m7i.large", "m6a.large", "m6i.large", "m5.large"]  # EC2 instance to deploy
+      instance_type: ["m8i-flex.large", "m8i.large", "m7i-flex.large", "m7i.large", "m6a.large", "m6i.large", "m5.large"]  # Type of EC2 machine to deploy
       instance_count: 1  # Number of DCV gateway node(s) to provision. This value can be changed post deployment
       volume_size: 50  # Size of the EBS root disk in GB
       volume_type: "gp3"
     broker:
-      instance_type: ["m7i-flex.large", "m7i.large", "m6a.large", "m6i.large", "m5.large"]  # EC2 instance to deploy
+      instance_type: ["m8i-flex.large", "m8i.large", "m7i-flex.large", "m7i.large", "m6a.large", "m6i.large", "m5.large"]  # Type of EC2 machine to deploy
       instance_count: 1  # Number of DCV broker node(s) to provision. This value can be changed post deployment
       volume_size: 50  # Size of the EBS root disk in GB
       volume_type: "gp3"
     manager:
-      instance_type: ["m7i-flex.large", "m7i.large", "m6a.large", "m6i.large", "m5.large"]  # EC2 instance to deploy
+      instance_type: ["m8i-flex.large", "m8i.large", "m7i-flex.large", "m7i.large", "m6a.large", "m6i.large", "m5.large"]  # Type of EC2 machine to deploy
       instance_count: 1  # Number of DCV session_manager node(s) to provision. This value can be changed post deployment
       volume_size: 50  # Size of the EBS root disk in GB
       volume_type: "gp3"
@@ -264,16 +288,9 @@ Config:
     # Limit to 15 chars
     short_name: ~
 
-    ### Specific provider configurations
-    aws_ds_simple_activedirectory:
-      size: "Small"  # Small or Large - https://docs.aws.amazon.com/directoryservice/latest/admin-guide/directory_simple_ad.html
-      # Note: These are the default settings created by AWS Directory Simple AD which cannot be changed. Displayed for information only.
-      # people_search_base: "cn=Users,<base_dn>", group_search_base: "cn=Group,<base_dn>", admins_search_base: "cn=Enterprise Admins,<base_dn>"
-      admins_search_base: "cn=socasudoadminsgroup"  # Any users created in this group will have Linux SUDO & SOCA Admin permissions
-
     aws_ds_managed_activedirectory:
       edition: "Standard"  # https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-directoryservice-microsoftad.html#cfn-directoryservice-microsoftad-edition
-      # Note: These are the default settings created by AWS Directory Simple AD which cannot be changed. Displayed for information only.
+      # Note: These are the default settings created by AWS Directory Service which cannot be changed. Displayed for information only.
       # people_search_base: "cn=Users,<base_dn>", group_search_base: "cn=Group,<base_dn>", admins_search_base: "cn=AWS Delegated Administrators,ou=AWS Delegated Groups,<base_dn>"
       admins_search_base: "cn=socasudoadminsgroup"  # Any users created in this group will have Linux SUDO & SOCA Admin permissions
 
@@ -342,28 +359,28 @@ Config:
       #    - Save, Copy the "Secret ARN" below (Important: copy "Secret ARN", not "Secret Name")
       service_account_secret_name_arn: ~
 
-  # Enable/Disable specific Web APIs and Views.
+  # Enable/Disable specific FF
+  # NOTE: Web API Feature Flag can be found under cluster_manager/web_interface/feature_flags
   # Feature can be enabled/disabled post-deployment via `socactl`
   # List of allowed/denied users can also be managed post-deployment via `socactl`
   feature_flags:
+    RunRemoteCommand: false # When true, /api/user/run_command will be enabled and end user will have the ability to run remote command on the controller.
+    EnableCapacityReservation: true # When false, SOCA will try to provision EC2 capacity and ignore capacity reservation request.
+    Hpc:
+      AllowCustomTags: true
+      EnableDryRun: true
+      EnableQuotasCheck: true
+      JoinEphemeralNodesToAD: true # [PREVIEW FEATURE] Decide whether or not you want to join ephemeral HPC nodes to your Active Directory. Ignored if using OpenLDAP. If false, a local dump of your users it deployed as local users on each nodes
+
     Networking:
       EnableIPv6: false  # [PREVIEW FEATURE] - Enable IPv6 CIDRs, SG rules. MPLs for newly created VPCs/Subnets
       AutoManagedPrefixList: false  # [PREVIEW FEATURE] - Automatically create and use EC2 Managed Prefix Lists instead of CIDRs
-    WebInterface:
-      VirtualDesktops: true
-      TargetNodes: true
-      LoginNodes: true
-      Hpc: true
-      FileBrowser: true
-      UsersGroupsManagement: true
-      MyApiKeyManagement: true
-      SftpInstructions: true
-      MyAccountManagement: true
-      AnalyticsCostManagement: true
-      ContainersManagement: false # [PREVIEW FEATURE] 
-    EnableCapacityReservation: false # [PREVIEW FEATURE] When false, SOCA will try to provision EC2 capacity and ignore capacity reservation request.
-    EnableAWSQuotaChecks: true # # When false, SOCA will ignore AWS Quotas when provisioning EC2 capacity. It's recommended to enable this setting only when the AWS Service Quotas API is not accessible (e.g: isolated subnets)
+    
+    VirtualDesktops:
+       AllowCustomTags: true
 
+    TargetNodes:
+      AllowCustomTags: true
 
 # Parameters below will be stored on AWS Parameter Store via /soca/<cluster_id/<root>/<key>
 # ex: /soca/soca-mycluster/system/awscliv2/x86_64
@@ -417,7 +434,60 @@ Parameters:
 
     # Scheduler to deploy on all SOCA nodes
     scheduler:
+      slurm:
+        # Install path. We recommend you to not change this path
+        # if you do, make sure to update relevant cluster_analytics / log_backup  paths as well
+        # Note: $SOCA_CLUSTER_ID will be automatically replaced by the SOCA Cluster Name specified at install time
+        install_prefix_path: "/opt/soca/$SOCA_CLUSTER_ID/schedulers/default/slurm"
+        install_sysconfig_path: "/opt/soca/$SOCA_CLUSTER_ID/schedulers/default/slurm/etc"
+
+        version: "25-05-3-1"
+        url: "https://github.com/SchedMD/slurm/archive/refs/tags/slurm-25-05-3-1.tar.gz"
+        sha256: "a24d9a530e8ae1071dd3865c7260945ceffd6c65eea273d0ee21c85d8926782e"
+        
+        compatibility_packages:
+          # Note: SLURM is only compatible with libjwt 1.x as there is a dependency with jwt_add_header()
+          libjwt:
+            url: "https://github.com/benmcollins/libjwt/releases/download/v1.17.0/libjwt-1.17.0.tar.bz2"
+            sha256: "b8b257da9b64ba9075fce3a3f670ae02dee7fc95ab7009a2e1ad60905e3f8d48"
+      
+      lsf:
+        # Install path. We recommend you to not change this path
+        # if you do, make sure to update relevant cluster_analytics / log_backup paths as well
+        # Note: there is no sysconfigdir_path for LSF, everything is self-contained within install_prefix_path
+        # Note: $SOCA_CLUSTER_ID will be automatically replaced by the SOCA Cluster Name specified at install time
+        install_prefix_path: "/opt/soca/$SOCA_CLUSTER_ID/schedulers/default/lsf"
+        
+        # LSF version, used to browse default LSF folder name
+        # Supported Version:
+        # - 10.1 Service Pack 14 (10.1.0.14)
+        # Note: This should match the major.minor version (e.g: if 10.1.0.14 then use 10.1).
+        # This can be verified in the lsf installer name (e.g:lsf10.1_lsfinstall_linux_x86_64 or in an existing install (/opt/lsf/<version>)
+        version: "10.1"
+       
+        # Required -  Path to your S3 folder containing LSF installer: e.g: s3://mybucket/lsf/ (IMPORTANT: Must end with a /).
+        # Must contains all required install files + entitlement and fix pack.
+        # IMPORTANT: Must use the same bucket as the one specified at install time
+        lsf_installer_s3_uri: ~ 
+        
+        # Required - Name of the installer file, e.g: lsf10.1_lsfinstall_linux_x86_64.tar.Z"
+        lsf_installer_file_name: ~
+        
+        # Required - Name of the entitlement file stored inside lsf_installer_s3_uri: e.g: lsf_std_entitlement.dat
+        lsf_entitlement_file_name: ~
+        
+        # Fix Pack (both x86/aarch64) file name
+        lsf_fixpack_x86_file_name: ~ # Name of your x86_64 fixpack installer: e.g: lsf10.1_lnx418-lib228-x86_64.tar.Z
+        lsf_fixpack_aarch64_file_name: ~ # Name of your aarch64 LSF fixpack installer: e.g: lsf10.1_lnx418-lib228-aarch64.tar.Z
+ 
       openpbs:
+        # Install path. We recommend you to not change this path
+        # if you do, make sure to update relevant cluster_analytics / log_backup paths as well
+        # Note: $SOCA_CLUSTER_ID will be automatically replaced by the SOCA Cluster Name specified at install time
+        install_prefix_path: "/opt/soca/$SOCA_CLUSTER_ID/schedulers/default/pbs"
+        pbs_home: "/opt/soca/$SOCA_CLUSTER_ID/schedulers/default/pbs/var/spool/pbs" # include spooler dirs, hierarchy will be created at compilation time but use the same tree as install_prefix_path. You can override this setting if needed.
+        
+        deployment_type: "git" # tgz or git
         tgz:  # Download OpenPBS tgz from the URL listed below
           version: "23.06.06"
           url: "https://github.com/openpbs/openpbs/archive/v23.06.06.tar.gz"
@@ -426,7 +496,7 @@ Parameters:
           version: "23.06.06"  # Version to install (this can be anything, it's just used to avoid re-installation if the same version is already detected)
           repo: "https://github.com/openpbs/openpbs.git"  # Repo to clone from, e.g https://github.com/openpbs/openpbs.git
           branch: "master"  # (Optional: Specify the branch if you do not want to use the default)
-          commit_id: "b22e67ed4709cd952fc166ba599de9a20a3d9b02"  # (Optional: Specify the commit id if you do not want to use the default)
+          commit_id: "2bf8f31fbd5bbd7fff4b1c620c625d2944b422b1"  # (Optional: Specify the commit id if you do not want to use the default)
 
         compatibility_packages:
           # Package installed/replaced on older distro (RHEL8, Rocky8 ..) to enable OpenPBS compilation for python3.13
@@ -452,6 +522,11 @@ Parameters:
         sha256: "e052c45b3cbe512e24fdfdc3fd337f9f5e4b8f8b8713f349ba867b829c8ff11a"
       redis:
         url: "http://download.redis.io/redis-stable.tar.gz"
+
+    munge:
+      version: "0.5.16"
+      url: "https://github.com/dun/munge/releases/download/munge-0.5.16/munge-0.5.16.tar.xz"
+      sha256: "6fa6f14de41064c2b56422592df7ad1de2af483912c54460863db2827e6a2861"
 
     # OpenMPI is automatically installed on /apps partition at the end of the initial Controller setup
     # You can disable it via installer/resources/user_data/controller/03_setup.sh.j2
@@ -488,9 +563,9 @@ Parameters:
     # EFA Drivers installed on all HPC Compute node when efa_support=True is specified
     # https://aws.amazon.com/hpc/efa/
     efa:
-      version: "1.42.0"
-      url: "https://efa-installer.amazonaws.com/aws-efa-installer-1.42.0.tar.gz"
-      sha256: "4114fe612905ee05083ae5cb391a00a012510f3abfecc642d86c9a5ae4be9008"
+      version: "1.43.2"
+      url: "https://efa-installer.amazonaws.com/aws-efa-installer-1.43.2.tar.gz"
+      sha256: "de15c5bdbc83b952afbde876110830c604ad0796680e5157c05f7c1979a41069"
 
     # SQLite is installed on the controller host and is the primary DB for SOCA Web UI
     sqlite:

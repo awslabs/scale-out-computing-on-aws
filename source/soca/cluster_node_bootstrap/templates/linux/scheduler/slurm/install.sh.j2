@@ -1,0 +1,166 @@
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# SCHEDULER_VARS are forwarded from templates/linux/schedulers/install_schedulers.sh.j2:
+
+# Note: MUNGE must be installed first
+{% include "templates/linux/munge.sh.j2" %}
+
+function slurm_install_{{ SCHEDULER_VARS.get("IDENTIFIER") }} {
+    local INSTALLER_DIR="${SOCA_BOOTSTRAP_ASSETS_FOLDER}/slurm"
+    local SCHEDULER_IDENTIFIER="{{ SCHEDULER_VARS.get("IDENTIFIER") }}"
+    local SLURM_VERSION="{{ context.get("/system/scheduler/slurm/version") }}"
+    local SLURM_URL="{{ context.get("/system/scheduler/slurm/url") }}"
+    local SLURM_SOCA_INSTALL_DIR="{{ SCHEDULER_VARS.get("SLURM_CONFIGURATION").get("install_prefix_path") }}"
+    local SLURM_SOCA_INSTALL_SYSCONFIG_DIR="{{ SCHEDULER_VARS.get("SLURM_CONFIGURATION").get("install_sysconfig_path") }}"
+
+
+    if [[ ! -d "${SLURM_SOCA_INSTALL_DIR}" ]]; then
+        log_info "${SLURM_SOCA_INSTALL_DIR} not detected on this machine, installing it ..."
+        mkdir -p ${INSTALLER_DIR}
+        pushd ${INSTALLER_DIR}
+        log_info "Downloading ${SLURM_URL}"
+        file_download --download-url="${SLURM_URL}" --save-as="slurm_installer.tar.bz2" --sha256-checksum="{{ context.get("/system/scheduler/slurm/sha256") }}"
+        log_info "Extracting Slurm"
+        tar -xaf "slurm_installer.tar.bz2" --strip-components=1
+        
+        log_info "Installing additional required packages"
+        {% if context.get("/configuration/BaseOS") in ["amazonlinux2023", "amazonlinux2", "rhel8", "rhel9", "rocky8", "rocky9"] %}
+            packages_install pmix pmix-devel dbus-devel json-c-devel pam-devel jansson-devel
+        {% elif context.get("/configuration/BaseOS") in ["ubuntu2204", "ubuntu2404"] %}
+            packages_install libpmix3 libpmix-dev libdbus-1-dev libjson-c-dev libpam0g-dev libjansson4 libjansson-dev
+        {% endif %}
+        
+        # Note: SLURM is only compatible with libjwt 1.x as there is a deps with jwt_add_header()
+        log_info "Installing required libjwt for auth/slurm from {{ context.get("/system/scheduler/slurm/compatibility_packages/libjwt/url") }}"
+        mkdir -p libjwt
+        pushd libjwt
+        file_download --download-url="{{ context.get("/system/scheduler/slurm/compatibility_packages/libjwt/url") }}" --save-as="libjwt.tar.bz2" --sha256-checksum="{{ context.get("/system/scheduler/slurm/compatibility_packages/libjwt/sha256") }}"
+        tar xvf libjwt.tar.bz2 --strip-components=1
+        if ! ./configure; then
+            exit_fail "Unable to run ./configure for libjwt. See log for additional details ..."
+        fi
+
+        if ! make; then
+            exit_fail "Unable to run make failed for libjwt. See log for additional details ..."
+        fi
+
+        if ! make install; then
+            exit_fail "Unable to run make install failed for libjwt. See log for additional details ..."
+        fi
+        popd
+        log_info "libjwt is installed under /usr/local/lib, adding this path to ldconfig" 
+        echo "/usr/local/lib" | sudo tee /etc/ld.so.conf.d/local-lib.conf
+        ldconfig
+        log_info "libjwt installed successfully"
+                
+        SLURM_COMPILATION_OPTIONS="--prefix=${SLURM_SOCA_INSTALL_DIR} \
+        --exec-prefix=${SLURM_SOCA_INSTALL_DIR} \
+        --libdir=${SLURM_SOCA_INSTALL_DIR}/lib64 \
+        --bindir=${SLURM_SOCA_INSTALL_DIR}/bin \
+        --sbindir=${SLURM_SOCA_INSTALL_DIR}/sbin \
+        --includedir=${SLURM_SOCA_INSTALL_DIR}/include \
+        --sysconfdir=${SLURM_SOCA_INSTALL_SYSCONFIG_DIR} \
+        --with-munge=/usr/ \
+        --disable-dependency-tracking \
+        --enable-pkgconfig \
+        --enable-cgroupv2 \
+        --with-pmix \
+        --enable-pam"
+          log_info "Compiling Slurm with following options: ${SLURM_COMPILATION_OPTIONS}"
+        ./configure ${SLURM_COMPILATION_OPTIONS}
+
+        log_info "Creating ${SLURM_SOCA_INSTALL_SYSCONFIG_DIR}"
+        mkdir -p ${SLURM_SOCA_INSTALL_SYSCONFIG_DIR}
+
+        local NUM_PROCS=$(nproc --all)
+        if ! make -j ${NUM_PROCS}; then
+            exit_fail "Unable to run make -j ${NUM_PROCS} failed for Slurm. See log for additional details ..."
+        fi
+
+        if ! make -j ${NUM_PROCS} contrib; then
+            exit_fail "Unable to run make -j ${NUM_PROCS} contrib failed for Slurm. See log for additional details ..."
+        fi
+        
+        if ! make install -j ${NUM_PROCS}; then
+            exit_fail "Unable to run make install -j ${NUM_PROCS} failed for Slurm. See log for additional details ..."
+        fi
+
+        if ! make install-contrib -j ${NUM_PROCS}; then
+          exit_fail "Unable to run  make install-contrib -j ${NUM_PROCS} failed for Slurm. See log for additional details ..."
+        fi
+
+        log_info "Creating sysconfdir for slurm ${SLURM_SOCA_INSTALL_SYSCONFIG_DIR}"
+        mkdir -p ${SLURM_SOCA_INSTALL_SYSCONFIG_DIR}      
+        popd
+        
+    else
+        log_warning "${SLURM_SOCA_INSTALL_DIR} existing, SLURM will not be re-installed but additional reconfiguration will still apply"
+    fi
+
+    log_info "Creating custom /bin/soca_slurm_${SCHEDULER_IDENTIFIER}"
+    cat << EOF > "/bin/soca_slurm_${SCHEDULER_IDENTIFIER}"
+export PATH=${SLURM_SOCA_INSTALL_DIR}/bin:${SLURM_SOCA_INSTALL_DIR}/sbin:${PATH}
+echo "========= SOCA ========= "
+echo ">> SLURM environment loaded, you can now run commands such as sbatch/squeue/srun etc ..."
+echo ">> SLURM is installed under: ${SLURM_SOCA_INSTALL_DIR}"
+echo ">> Add /bin/soca_slurm to your .bashrc / .bash_profile to automatically run this script"
+echo ">> Type exit to close this shell"
+echo "======================== "
+export PS1="(soca_slurm) \u@\h:\w# "
+exec "$SHELL" -i
+EOF
+    chmod +x /bin/soca_slurm_${SCHEDULER_IDENTIFIER}
+
+
+    log_info "Creating /etc/systemd/system/soca_scheduler_${SCHEDULER_IDENTIFIER}.service"
+    {% if context.get("/job/NodeType") == "controller" %}
+        cat << EOF > "/etc/systemd/system/soca_scheduler_${SCHEDULER_IDENTIFIER}.service"
+[Unit]
+Description=Slurm controller daemon
+After=network.target
+
+[Service]
+Type=simple
+User=root
+ExecStart=${SLURM_SOCA_INSTALL_DIR}/sbin/slurmctld -D
+ExecReload=/bin/kill -HUP \$MAINPID
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target
+EOF
+    {% else %}
+
+    cat << EOF > "/etc/systemd/system/soca_scheduler_${SCHEDULER_IDENTIFIER}.service"
+[Unit]
+Description=Slurm controller daemon
+After=network.target
+
+[Service]
+Type=simple
+User=root
+ExecStart=${SLURM_SOCA_INSTALL_DIR}/sbin/slurmd -D
+ExecReload=/bin/kill -HUP \$MAINPID
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+    {% endif %}
+
+    systemctl daemon-reload
+    systemctl enable soca_scheduler_${SCHEDULER_IDENTIFIER}.service
+    if ! systemctl start soca_scheduler_${SCHEDULER_IDENTIFIER}.service; then
+        journalctl -xeu soca_scheduler_${SCHEDULER_IDENTIFIER}.service
+        exit_fail "Unable to start Slurm via soca_scheduler_${SCHEDULER_IDENTIFIER}.service, check logs"
+    else
+        log_info "Slurm successfully started, stopping it to finalize installation"
+        systemctl stop soca_scheduler_${SCHEDULER_IDENTIFIER}.service
+    fi 
+
+    log_info "Completed Slurm ${SLURM_VERSION} installation"
+
+}
+slurm_install_{{ SCHEDULER_VARS.get("IDENTIFIER") }}

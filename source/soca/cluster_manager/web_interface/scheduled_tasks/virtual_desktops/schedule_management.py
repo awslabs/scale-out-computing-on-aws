@@ -44,6 +44,18 @@ def ssm_get_command_info(
 
     if os_family == "windows":
         _ssm_commands = [
+            # Powershell in Python - syntax highlighting may get crazy!
+            """
+            $Instance_Type = (Get-EC2InstanceMetadata -Category InstanceType)
+            $GPU = (aws ec2 describe-instance-types --instance-types $Instance_Type --query 'InstanceTypes[*].GpuInfo.Gpus[*].Manufacturer' --output=text)
+            if ($GPU -eq "NVIDIA") {
+                $GPU_Usage_Level = (nvidia-smi --query-gpu=utilization.gpu --format=csv,noheader,nounits)
+            } elseif ($GPU -eq "AMD") {
+                $GPU_Usage_Level = 0
+            } else {
+                $GPU_Usage_Level = 0
+            }
+            """,
             f"$DCV_Describe_Session = Invoke-Expression \"& 'C:\\Program Files\\NICE\\DCV\\Server\\bin\\dcv' describe-session $env:SOCA_DCV_SESSION_ID -j\" | ConvertFrom-Json",
             '$CPUAveragePerformanceLast10Secs = (GET-COUNTER -Counter "\\Processor(_Total)\\% Processor Time" -SampleInterval 2 -MaxSamples 5 |select -ExpandProperty countersamples | select -ExpandProperty cookedvalue | Measure-Object -Average).average',
             "$output = @{}",
@@ -51,15 +63,27 @@ def ssm_get_command_info(
             '$output["DCVCurrentConnections"] = $DCV_Describe_Session."num-of-connections"',
             '$output["DCVCreationTime"] = $DCV_Describe_Session."creation-time"',
             '$output["DCVLastDisconnectTime"] = $DCV_Describe_Session."last-disconnection-time"',
+            '$output["GPUUsageLevel"] = $GPU_Usage_Level',
             "$output | ConvertTo-Json",
         ]
         _ssm_document_name = "AWS-RunPowerShellScript"
 
     else:
+        # Linux BaseOS
         _ssm_commands = [
+            """
+            TOKEN=$(curl -s -X PUT "http://169.254.169.254/latest/api/token" -H "X-aws-ec2-metadata-token-ttl-seconds: 300")
+            INSTANCE_TYPE=$(curl -s -H "X-aws-ec2-metadata-token: ${TOKEN}" http://169.254.169.254/latest/meta-data/instance-type)
+            GPU=$(aws ec2 describe-instance-types --instance-types ${INSTANCE_TYPE} --query 'InstanceTypes[*].GpuInfo.Gpus[*].Manufacturer' --output=text)
+            if [ "${GPU}" == "NVIDIA" ]; then
+                GPU_USAGE_LEVEL=$(nvidia-smi --query-gpu=utilization.gpu --format=csv,noheader,nounits)
+            else
+                GPU_USAGE_LEVEL=0
+            fi
+            """,
             "export SOCA_DCV_SESSION_ID=$(cat /etc/environment | grep SOCA_DCV_SESSION_ID= | awk -F'=' '{print $2}')",  # ssm.send_command() cannot use source",
             "DCV_Describe_Session=$(dcv describe-session $SOCA_DCV_SESSION_ID -j)",
-            'echo "${DCV_Describe_Session}" | jq --arg CPUAveragePerformanceLast10Secs "$(top -d 5 -b -n2 | grep \'Cpu(s)\' | tail -n 1 | awk \'{print $2 + $4}\')" \'{"DCVCurrentConnections": .["num-of-connections"], "DCVCreationTime": .["creation-time"], "DCVLastDisconnectTime": .["last-disconnection-time"], "CPUAveragePerformanceLast10Secs": $CPUAveragePerformanceLast10Secs }\'',
+            'echo "${DCV_Describe_Session}" | jq --arg GPUUsageLevel "${GPU_USAGE_LEVEL}" --arg CPUAveragePerformanceLast10Secs "$(top -d 5 -b -n2 | grep \'Cpu(s)\' | tail -n 1 | awk \'{print $2 + $4}\')" \'{"DCVCurrentConnections": .["num-of-connections"], "DCVCreationTime": .["creation-time"], "DCVLastDisconnectTime": .["last-disconnection-time"], "CPUAveragePerformanceLast10Secs": $CPUAveragePerformanceLast10Secs, "GPUUsageLevel": $GPUUsageLevel}\'',
         ]
         _ssm_document_name = "AWS-RunShellScript"
 
@@ -160,6 +184,7 @@ def find_inactive_sessions(sessions_info: list[VirtualDesktopSessions]) -> None:
     """
     Identify Linux or Windows instances that should be stopped and execute an SSM command to check for any ongoing activity.
     """
+
     _windows_sessions_instance_ids = [
         session.instance_id
         for session in sessions_info
@@ -305,104 +330,221 @@ def stop_instance_if_inactive(
     _instance_id = session.instance_id
     _session_uuid = session.session_uuid
     _hibernate = session.support_hibernation
+
+    #
+    # TODO - try/except for boto3 call
+    #
     _ssm_output = client_ssm.get_command_invocation(
-        CommandId=ssm_command_id, InstanceId=_instance_id
+        CommandId=ssm_command_id,
+        InstanceId=_instance_id
     )
-    _status = _ssm_output.get("Status")
+    _status = _ssm_output.get("Status", "")
+
     logger.info(
-        f"Checking if {_instance_id=} is inactive and can be stopped for DCV Session {_session_id=} : {_ssm_output}"
+        f"Checking if {_instance_id=} is inactive and can be stopped for DCV Session {_session_id=} ({_status=}): {_ssm_output}"
     )
 
-    if _status == "Success":
-        logger.info(
-            f"SSM output for {_instance_id} succeeded, checking current DCV & CPU usage"
-        )
-        _dcv_info = json.loads(_ssm_output.get("StandardOutputContent"))
-        session_current_connection = int(_dcv_info["DCVCurrentConnections"])
-        _session_cpu_average = float(_dcv_info["CPUAveragePerformanceLast10Secs"])
+    #
+    # The resources we are concerned with monitoring on the instance
+    #
+    # TODO - there should probably be a difference for fallback_value and something like unknown_value?
+    #
+    _resource_usage_thresholds: dict = {
+        "dcv_connections": {
+            "enabled": True,
+            "element": "DCVCurrentConnections",
+            "min": 1,
+            "fallback_value": 1,
+            "cast_as": int,
+        },
+        "cpu_usage": {
+            "enabled": True,
+            "element": "CPUAveragePerformanceLast10Secs",
+            "min": config.Config.DCV_IDLE_CPU_THRESHOLD,
+            "fallback_value": 100.0,
+            "cast_as": float,
+        },
+        "gpu_usage": {
+            "enabled": True,
+            "element": "GPUUsageLevel",
+            "min": 10.0,
+            "fallback_value": 100.0,
+            "cast_as": float,
+        },
+        "memory_usage": {
+            "enabled": False,
+            "element": "MemoryUsage",
+            "min": 1.0,
+            "fallback_value": 1.0,
+            "cast_as": float,
+        },
+    }
 
-        if _dcv_info["DCVLastDisconnectTime"] == "":
-            # handle case where user launched DCV but never accessed it
-            last_dcv_disconnect = parse(_dcv_info["DCVCreationTime"])
-        else:
-            last_dcv_disconnect = parse(_dcv_info["DCVLastDisconnectTime"])
+    # Where we put our resource values that we find
+    _resource_values: dict = {}
+    #
+    # _resource_idle_results tells us if the resource is "Idle" - that is - under the min for the resource.
+    # This is used to determine if the instance can be paused.
+    _resource_idle_results: dict = {}
 
-        logger.info(
-            f"DCV Activity Info for instance ID {_instance_id}: {session_current_connection=} {session_current_connection=}. {_session_cpu_average=}. {last_dcv_disconnect=}. Desktop UUID {_session_uuid}"
-        )
 
-        if _session_cpu_average < config.Config.DCV_IDLE_CPU_THRESHOLD:
-            if session_current_connection == 0:
-                current_time = parse(
-                    datetime.now()
-                    .replace(microsecond=0)
-                    .replace(tzinfo=timezone.utc)
-                    .isoformat()
-                )
-                if (
-                    last_dcv_disconnect + timedelta(hours=stop_instance_after_idle_time)
-                ) < current_time:
-
-                    logger.info(
-                        f"{_instance_id} is ready to be stopped/hibernated {_hibernate=}, last access time {last_dcv_disconnect}, stop after idle time (hours): {stop_instance_after_idle_time}, current time is {current_time}"
-                    )
-                    try:
-                        client_ec2.stop_instances(
-                            InstanceIds=[_instance_id],
-                            Hibernate=_hibernate,
-                        )
-                    except Exception as err:
-                        logger.critical(
-                            f"Unable to stop/hibernate instance {_instance_id=} due to {err} {_hibernate=}. Desktop UUID {_session_uuid}"
-                        )
-
-                    try:
-                        session.session_state = "stopped"
-                        session.session_state_latest_change_time = datetime.now(
-                            timezone.utc
-                        )
-                        db.session.commit()
-                        logger.info(f"{session} stopped successfully")
-
-                    except Exception as err:
-                        logger.error(
-                            f"Unable to update DB entry for {_instance_id=} due to {err}. Desktop UUID {_session_uuid}"
-                        )
-                        try:
-                            client_ec2.start_instances(
-                                InstanceIds=[session.instance_id]
-                            )
-                        except Exception as err:
-                            logger.error(
-                                f"Unable to start {session} instance {session.instance_id} due to {err}"
-                            )
-
-                else:
-                    logger.info(
-                        f"{_instance_id=} NOT ready to be stopped/hibernated, last access time {last_dcv_disconnect}, stop after idle time (hours): {stop_instance_after_idle_time}, current time is {current_time} Desktop UUID {_session_uuid}"
-                    )
-            else:
-                logger.info(
-                    f"{_instance_id=} currently has active DCV sessions: {session_current_connection}. Desktop UUID {_session_uuid}"
-                )
-
-        else:
-            logger.info(
-                f"{_instance_id=} CPU usage {_session_cpu_average} is above threshold {config.Config.DCV_IDLE_CPU_THRESHOLD} so this host won't be subject to stop/hibernate. Desktop UUID {_session_uuid}"
-            )
-
-    else:
+    if _status not in {"Success"}:
         logger.error(
-            f"SSM command {ssm_command_id} on {_instance_id=} failed with error: {_ssm_output.get('StandardErrorContent')}"
+            f"SSM command {ssm_command_id} on {_instance_id=} failed with error: {_ssm_output.get('StandardErrorContent', '')}"
         )
+        return
+
+    logger.info(
+        f"SSM output for {_instance_id} succeeded, checking current resource usage"
+    )
+    #
+    # TODO - try/except for JSON errs
+    #
+    _dcv_info = json.loads(_ssm_output.get("StandardOutputContent", ""))
+
+    if not _dcv_info:
+        logger.error(f"Unable to read DCV info for {_instance_id=}: {_ssm_output}")
+
+    if _dcv_info.get("DCVLastDisconnectTime", "") == "":
+        # handle case where user launched DCV but never accessed it
+        last_dcv_disconnect = parse(_dcv_info.get("DCVCreationTime", ""))
+    else:
+        last_dcv_disconnect = parse(_dcv_info.get("DCVLastDisconnectTime", ""))
+
+    #
+    # Scan our resources
+    #
+    for _resource_name, _resource_config in _resource_usage_thresholds.items():
+        logger.info(f"Considering {_resource_name=} for thresholds")
+
+        _resource_key_name: str = _resource_config.get("element", "")
+        _resource_cast_as = _resource_config.get("cast_as")
+
+        if not _resource_config.get("enabled", False) or not _resource_key_name:
+            logger.info(f"Skipping {_resource_name=} for thresholds - disabled or no element name available")
+            continue
+
+        # If there is no fallback - fallback to 100 for safety
+
+        _raw_resource_value = _dcv_info.get(_resource_key_name, _resource_config.get("fallback_value", 100))
+
+        # Run it via the Casting Engine to make sure it is what we expect
+        if (
+            _resource_value_caster := SocaCastEngine(data=_raw_resource_value).cast_as(_resource_cast_as)
+        ).get("success"):
+            _resource_value = _resource_value_caster.get("message", _resource_config.get("fallback_value"))
+        else:
+            logger.error(f"Unable to determine {_resource_name=} for thresholds - Casting failure")
+            return
+
+        logger.info(f"Found resource {_resource_name=} at {_resource_key_name=} with a value of {_resource_value=}")
+
+        _resource_values[_resource_name] = _resource_value
+        #
+        # TODO - Should the min be sent via Caster as well?
+        #
+        _resource_min_value = _resource_config.get("min", _resource_config.get("fallback_value", 100))
+
+        #
+        # If the resource_value is below our min_value - the resource is Idle. Else it is Not-Idle.
+        #
+        if _resource_value < _resource_min_value:
+            logger.info(f"Resource {_resource_name=} is {_resource_value=} - threshold is {_resource_min_value=} - Setting resource to Idle")
+            _resource_idle_results[_resource_name] = True
+        else:
+            logger.info(f"Resource {_resource_name=} is {_resource_value=} - threshold is {_resource_min_value=} - Setting resource to Non-Idle")
+            _resource_idle_results[_resource_name] = False
+
+
+    # We should now have _resource_values populated with the information
+    logger.debug(f"Resources for session: {_resource_values=}")
+
+    #
+    # Logic for Idle can now take place.
+    # If all resources are Idle=False, then this is an easy-button
+    #
+    if True not in _resource_idle_results.values():
+        logger.debug(f"Resources for session: {_resource_values=}")
+        logger.info("All resources are active - skipping")
+        return
+
+    # How many resources?
+    # NOTE - do not compare to _resource_usage_thresholds - as it has enabled/disabled settings
+    # must compare to our _enabled_ and _collected_ resources
+    _resource_count: int = len(_resource_idle_results)
+
+    # How many True-ly idle resources?
+    # Python allows us to do this since True=1 and False=0.
+    # So we just need to sum() up the dict values() for a count of our True
+    _idle_resources: int = sum(_resource_idle_results.values())
+
+    logger.info(f"Resources for session: {_resource_values=}")
+    logger.info(f"At least one resource is idle: {_resource_idle_results=}")
+
+    if _idle_resources != _resource_count:
+        logger.info(f"Resources for session: {_resource_values=}")
+        logger.info(f"At least one resource is non-idle - skipping: {_resource_idle_results=}")
+        return
+
+    # If we are here - then our idle resources matches our resource count
+    logger.info(f"Session has all idle resources - {_idle_resources=}")
+
+    current_time = parse(datetime.now().replace(microsecond=0).replace(tzinfo=timezone.utc).isoformat())
+
+    if (
+        last_dcv_disconnect + timedelta(hours=stop_instance_after_idle_time)
+    ) > current_time:
+        logger.info(
+            f"{_instance_id=} NOT ready to be stopped/hibernated, last access time {last_dcv_disconnect}, stop after idle time (hours): {stop_instance_after_idle_time}, current time is {current_time} Desktop UUID {_session_uuid}"
+        )
+        return
+
+    # All checks pass - idle and able to be stopped
+    logger.info(
+        f"{_instance_id} is ready to be stopped/hibernated {_hibernate=}, last access time {last_dcv_disconnect}, stop after idle time (hours): {stop_instance_after_idle_time}, current time is {current_time}"
+    )
+    try:
+        #
+        # TODO - check return value?
+        #
+        client_ec2.stop_instances(
+            InstanceIds=[_instance_id],
+            Hibernate=_hibernate,
+        )
+    except Exception as err:
+        logger.critical(
+            f"Unable to stop/hibernate instance {_instance_id=} due to {err} {_hibernate=}. Desktop UUID {_session_uuid}"
+        )
+
+    try:
+        session.session_state = "stopped"
+        session.session_state_latest_change_time = datetime.now(
+            timezone.utc
+        )
+        db.session.commit()
+        logger.info(f"{session} stopped successfully")
+
+    except Exception as err:
+        logger.error(
+            f"Unable to update DB entry for {_instance_id=} due to {err}. Desktop UUID {_session_uuid}"
+        )
+        # TODO - why was this here? Restart in case of DB commit failure?
+        # try:
+        #     client_ec2.start_instances(
+        #         InstanceIds=[session.instance_id]
+        #     )
+        # except Exception as err:
+        #     logger.error(
+        #         f"Unable to start {session} instance {session.instance_id} due to {err}"
+        #     )
 
 
 def process_chunk(vdi_sessions: list[VirtualDesktopSessions]):
     logger.info(f"Processing chunk: {vdi_sessions}")
     # Grace Period
     # - Will not stop a desktop if it was started within the grace period
-    # - Will not start a desktop if it was stopped within  the grace period
-    # In other word, even if your schedule is stopped all day, but you manually start your desktop, it will stays up and running for 1 hour)
+    # - Will not start a desktop if it was stopped within the grace period
+    # In other words, even if your schedule is stopped all day, but you manually start your desktop, it will stays up and running for 1 hour)
     _grace_period = config.Config.DCV_SCHEDULE_GRACE_PERIOD_IN_HOURS
 
     try:
@@ -617,12 +759,14 @@ def auto_terminate_stopped_instance(app: Flask):
                         f"Desktop {session_info.session_uuid} is ready to be terminated, last access time {_session_state_latest_change_time}, stop after idle time (hours): {_terminate_stopped_instance_after}"
                     )
 
+                    # TODO - try/except
+
                     _delete_stack = cloudformation_helper.delete_stack(
                         stack_name=_stack_name
                     )
                     if _delete_stack.get("success") is False:
                         return SocaError.GENERIC_ERROR(
-                            helper=f"Unable to terminate instance {_stack_name} due to {err}"
+                            helper=f"Unable to terminate instance {_stack_name}"
                         )
 
                     try:

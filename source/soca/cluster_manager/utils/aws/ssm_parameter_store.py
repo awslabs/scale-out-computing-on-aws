@@ -5,7 +5,7 @@ import os
 import logging
 from typing import Type, Optional, Any
 import utils.aws.boto3_wrapper as utils_boto3
-from utils.cache import SocaCacheClient
+from utils.cache.client import SocaCacheClient
 from utils.cast import SocaCastEngine
 from utils.error import SocaError
 from utils.response import SocaResponse
@@ -55,7 +55,9 @@ class SocaConfig:
         return_as: Optional[Type] = str,  # return result as specific type
         full_key_name: Optional[bool] = False,  # include parameter_name_prefix if True
         default: Optional[Any] = None,  # Return default value if not set
-        allow_unknown_key: Optional[bool] = False # If set to True, will not trigger a SocaError if key does not exist
+        allow_unknown_key: Optional[
+            bool
+        ] = False,  # If set to True, will not trigger a SocaError if key does not exist
     ) -> [Any, None]:
         logger.debug(
             f"Trying to retrieve parameter {self._full_parameter_name}, is_path {self._is_path}"
@@ -77,7 +79,7 @@ class SocaConfig:
                     )
                     if not _result.success:
                         return SocaError.CAST_ERROR(
-                            helper=f"Value retrieved on cache but could not cast {_key_in_redis.message} as {return_as}"
+                            helper=f"Value retrieved on cache but could not cast {_key_in_redis.message} as {return_as} because of {_result.get('message')}"
                         )
                     else:
                         return SocaResponse(success=True, message=_result.message)
@@ -140,6 +142,11 @@ class SocaConfig:
                             )
                         ] = _entry["Value"]
 
+                _auto_cast_output = SocaCastEngine(data=_output).autocast()
+                if _auto_cast_output.get("success") is True:
+                    _output = _auto_cast_output.get("message")
+                else:
+                    logger.info("Unable to autocast output, will default to standard result")
                 return SocaResponse(success=True, message=_output)
             else:
                 _response = self._ssm_client.get_parameter(
@@ -162,7 +169,7 @@ class SocaConfig:
                 _result = SocaCastEngine(_key_value).cast_as(expected_type=return_as)
                 if not _result.success:
                     return SocaError.CAST_ERROR(
-                        helper=f"Value retrieved on cache but could not cast {_key_value} as {return_as}"
+                        helper=f"Could not cast {_key_value} as {return_as} due to {_result.get('message')}"
                     )
                 else:
                     return SocaResponse(success=True, message=_result.message)
@@ -184,9 +191,9 @@ class SocaConfig:
                 return SocaResponse(success=True, message=default)
             else:
                 return SocaError.AWS_API_ERROR(
-                        service_name="ssm_parameterstore",
-                        helper=f"Unknown error while trying to retrieve parameter {self._full_parameter_name} due to {e}",
-                    )
+                    service_name="ssm_parameterstore",
+                    helper=f"Unknown error while trying to retrieve parameter {self._full_parameter_name} due to {e}",
+                )
 
     def get_value_history(self, sort: Optional[str] = "desc") -> dict:
         _history = {}

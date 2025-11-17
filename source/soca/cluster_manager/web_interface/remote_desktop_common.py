@@ -15,7 +15,7 @@ import time
 import logging
 from utils.aws.ssm_parameter_store import SocaConfig
 import utils.aws.boto3_wrapper as utils_boto3
-from utils.cache import SocaCacheClient
+from utils.cache.client import SocaCacheClient
 from models import SoftwareStacks, VirtualDesktopSessions
 import random
 from botocore.exceptions import ClientError
@@ -28,63 +28,6 @@ from utils.response import SocaResponse
 
 client_ec2 = utils_boto3.get_boto(service_name="ec2").message
 logger = logging.getLogger("soca_logger")
-
-
-def can_launch_instance(launch_parameters: dict) -> dict:
-    try:
-        logger.debug(f"Trying to perform DryRun with {launch_parameters}")
-        if launch_parameters["base_os"] in {"amazonlinux2", "amazonlinux2023"}:
-            _ebs_device_name = "/dev/xvda"
-        else:
-            _ebs_device_name = "/dev/sda1"
-
-        _custom_tags = []
-        if launch_parameters.get("custom_tags"):
-            for tag in launch_parameters["custom_tags"].values():
-                if tag.get("Enabled", ""):
-                    _custom_tags.append({"Key": tag["Key"], "Value": tag["Value"]})
-                else:
-                    logger.warning(f"{tag} does not have Enabled key or Enabled is False.")
-            
-
-        client_ec2.run_instances(
-            BlockDeviceMappings=[
-                {
-                    "DeviceName": _ebs_device_name,
-                    "Ebs": {
-                        "DeleteOnTermination": True,
-                        "VolumeSize": launch_parameters.get("disk_size"),
-                        "VolumeType": launch_parameters.get("VolumeType", "gp2"),
-                        "Encrypted": True,
-                    },
-                },
-            ],
-            MaxCount=1,
-            MinCount=1,
-            SecurityGroupIds=[launch_parameters["security_group_id"]],
-            InstanceType=launch_parameters["instance_type"],
-            IamInstanceProfile={"Arn": launch_parameters["instance_profile"]},
-            SubnetId=(
-                random.choice(launch_parameters["soca_private_subnets"])
-                if not launch_parameters["subnet_id"]
-                else launch_parameters["subnet_id"]
-            ),
-            Placement={"Tenancy": launch_parameters["tenancy"]},
-            UserData=launch_parameters["user_data"],
-            ImageId=launch_parameters["image_id"],
-            DryRun=True,
-            HibernationOptions={"Configured": launch_parameters["hibernate"]},
-            TagSpecifications=[{"ResourceType": "instance", "Tags": _custom_tags}] if _custom_tags else [],
-        )
-
-    except ClientError as err:
-        if err.response["Error"].get("Code") == "DryRunOperation":
-            return {"success": True, "message": None}
-        else:
-            return SocaError.AWS_API_ERROR(
-                service_name="ec2",
-                helper=f"Unable to launch capacity: {err.response['Error']}",
-            )
 
 
 def max_concurrent_desktop_limit_reached(os_family: str, session_owner: str) -> bool:

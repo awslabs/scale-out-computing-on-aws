@@ -249,19 +249,32 @@ def get_install_properties(pathname: str) -> dict:
         return {}
         # sys.exit("No parameters were found in configuration file.")
 
-def is_valid_address(address_family: Literal["ipv4", "ipv6"], address: str) -> bool:
+def is_valid_address(address_family: Literal["ipv4", "ipv6"], address: list) -> bool:
     """
-    Determine if an address (String) is a valid member of the desired address-family.
+    Determine if an address (list) is a valid member of the desired address-family.
     """
-    logger.debug(f"Determining if {address=} is valid for {address_family=}")
 
-    try:
-        _ip_object = ipaddress.IPv4Network(address) if address_family == "ipv4" else ipaddress.IPv6Network(address)
-        return True
-    except ipaddress.AddressValueError as _e:
-        # We dont care about the details - just that it failed
-        logger.debug(f"Exception in IP validation: {_e}")
+    _invalid: bool = False
+
+    if isinstance(address, str):
+        logger.debug(f"Fixing address to list of addresses")
+        address = [address]
+
+    for _address in address:
+        try:
+            logger.debug(f"Determining if {_address=} is valid for {address_family=}")
+            _ip_object = ipaddress.IPv4Network(_address) if address_family == "ipv4" else ipaddress.IPv6Network(_address)
+        except ipaddress.AddressValueError as _e:
+            # We dont care about the details - just that it failed
+            logger.debug(f"Exception in IP validation for ({_address}): {_e}")
+            _invalid = True
+
+    if _invalid:
+        logger.debug(f"At least one IP address is valid for {address_family}: {address}")
         return False
+    else:
+        logger.debug(f"All IP addresses are valid for {address_family}: {address}")
+        return True
 
 
 def aggregate_address(address_family: Literal["ipv4", "ipv6"], address: str, mask: int) -> str:
@@ -1434,7 +1447,12 @@ def get_install_parameters():
         show_expected_answers=False,
     )
 
-    keypair_table = Table(title=f"SSH Key Pairs", show_lines=True, highlight=True)
+    keypair_table = Table(
+        title=f"SSH Key Pairs",
+        show_lines=True,
+        highlight=True,
+        caption="Note that Windows does not support ED25519 Key Pairs\n",
+    )
 
     keypair_table.add_column(header="#", justify="center", width=4, no_wrap=True)
     keypair_table.add_column(
@@ -1459,9 +1477,16 @@ def get_install_parameters():
         _key_type_str: str = accepted_aws_values["accepted_keypairs"][keypair].get(
             "KeyType"
         )
+        #
+        # Reduce long string timestamps to keep more room display for the fingerprint
+        # e.g.
+        # 2024-03-20 01:51:25.431000+00:00 -> 2024-03-20 01:51:25
+        # 2020-07-10 01:14:33+00:00 -> 2020-07-10 01:14:33
+
         _key_creation_date_str: str = str(
-            accepted_aws_values["accepted_keypairs"][keypair].get("CreateTime")
-        )
+            accepted_aws_values["accepted_keypairs"][keypair].get("CreateTime", "")
+        ).split(".")[0].split("+")[0]
+
         _key_fingerprint_str: str = accepted_aws_values["accepted_keypairs"][
             keypair
         ].get("KeyFingerprint")
@@ -2322,6 +2347,14 @@ if __name__ == "__main__":
     )
 
     parser.add_argument(
+        "--cdk-no-strict",
+        action="store_const",
+        const=True,
+        default=False,
+        help="Disable CDK --strict setting (Failure on CDK stack warnings)"
+    )
+
+    parser.add_argument(
         "--cdk-cloudformation-execution-policies",
         "--cloudformation-execution-policies",
         type=str,
@@ -2399,6 +2432,14 @@ if __name__ == "__main__":
     parser.add_argument("--custom-ami", "-ami", type=str, help="Specify a custom image")
 
     parser.add_argument(
+        "--email",
+        "--email-address",
+        type=str,
+        action="append",
+        help="Administrator email address(es) that will be registered for cluster notifications and alerts. Supports multiple values --email email1 --email email2 etc.",
+    )
+
+    parser.add_argument(
         "--vpc-cidr",
         "--vpc-cidr-ipv4,"
         "-cidr",
@@ -2415,13 +2456,16 @@ if __name__ == "__main__":
         "--client-ipv4",
         "-ip",
         type=str,
+        action="append",
         help="Client IPv4 authorized to access SOCA on TCP ports 22/443",
     )
     parser.add_argument(
         "--client-ipv6",
         type=str,
+        action="append",
         help="Client IPv6 authorized to access SOCA on TCP ports 22/443",
     )
+    # TODO - Make prefix-list take multi
     parser.add_argument(
         "--prefix-list-id",
         "--prefix-list-id-ipv4",
@@ -2542,7 +2586,7 @@ if __name__ == "__main__":
     os.chdir(path=_install_directory)
 
     # Append Solution ID to Boto3 Construct
-    aws_solution_user_agent = {"user_agent_extra": "AwsSolution/SO0072/25.8.0"}
+    aws_solution_user_agent = {"user_agent_extra": "AwsSolution/SO0072/25.11.0"}
     boto_extra_config = config.Config(**aws_solution_user_agent)
 
     splash_info = f"""
@@ -2560,6 +2604,7 @@ if __name__ == "__main__":
     logger.info(splash_info)
 
     install_phases = {
+        "email_address": "Please provide a valid email address for cluster notifications (This may include critical or time-sensitive items related to cluster health/availability)",
         "cluster_name": "Please provide a cluster name ('soca-' is automatically added as a prefix)",
         "bucket": "Enter the name of an S3 bucket you own",
         "baseos": "Choose the default operating system (this can be changed later for the compute nodes)",
@@ -2576,6 +2621,7 @@ if __name__ == "__main__":
 
     install_parameters = {
         # SOCA parameters
+        "email_address": None,
         "base_os": None,
         "account_id": None,
         "bucket": None,
@@ -2866,7 +2912,7 @@ if __name__ == "__main__":
     default_region: str = ""
     _ssm_region_query: bool = False
 
-    logger.debug(f"Default region: {default_region} / {_ssm_region_query=}")
+    logger.debug(f"Default region for SSM query (not the cluster installation location): {default_region} / {_ssm_region_query=}")
     match _sts_partition:
         case "aws":
             default_region = "us-east-1"
@@ -2981,18 +3027,90 @@ if __name__ == "__main__":
             #            _region_extra_data[_region]["partition"] if _ssm_region_query else _region,
         )
 
+    #
+    # FIXME TODO - This should _not_ display the table if passed a valid CLI region name
+    #
     _region_table = Align.center(_region_table, vertical="middle")
-    print(_region_table)
 
-    # Choose region where to install SOCA
-    install_parameters["region"] = get_input(
-        prompt=f"What AWS region do you want to install SOCA? (e.g. {default_region})",
-        specified_value=args.region,
-        expected_answers=accepted_regions_dict,
+    if args.region and args.region in accepted_regions:
+        logger.info(f"Using CLI-specified region: {args.region}")
+    else:
+        print(_region_table)
+
+    while install_parameters["region"] not in accepted_regions:
+        # Choose region where to install SOCA
+        install_parameters["region"] = get_input(
+            prompt=f"What AWS region do you want to install SOCA? (e.g. {default_region})",
+            specified_value=args.region,
+            expected_answers=accepted_regions_dict,
+            expected_type=str,
+            show_default_answer=True,
+            show_expected_answers=False,
+        )
+
+    #
+    # Cluster notification email address
+    # e.g. hpcnoc@example.com
+    # FIXME TODO - validate that it is a valid email address
+    #
+    logger.debug(f"Emails from command line args: {args.email=}")
+
+    install_parameters["email_address"] = get_input(
+        prompt=install_phases.get("email_address", "unk-email-prompt"),
+        specified_value=args.email,
+        expected_answers=None,
         expected_type=str,
-        show_default_answer=True,
+        show_default_answer=False,
         show_expected_answers=False,
     )
+
+    # List-ify from get_input() which returns a string to us
+    if isinstance(install_parameters["email_address"], str):
+        install_parameters["email_address"] = [install_parameters["email_address"]]
+
+    logger.debug(f"After get_input() - Emails from command line args: {install_parameters['email_address']=}")
+
+    _cluster_allowed_emails: list = []
+
+    _email_regex = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
+    for _email_addr in install_parameters.get("email_address", []):
+        logger.debug(f"Checking email address: {_email_addr=}")
+        # remove spaces and allow support for comma split
+        # e.g. --email mynoc1@example.com,mynoc2@example.com
+        #
+        _email_addr = _email_addr.replace(" ", "")
+        if "," in _email_addr:
+            logger.debug(f"Splitting a comma-split email list: {_email_addr}")
+
+            for _sub_email_addr in _email_addr.split(","):
+                logger.debug(f"Looking at sub-email: {_sub_email_addr=}")
+                if not re.match(_email_regex, _sub_email_addr):
+                    logger.error(f"Failed to validate sub-email address: {_sub_email_addr} from {_email_addr} . Please try again with a valid email address.")
+                    sys.exit(1)
+                else:
+                    logger.debug(f"Sub-email {_sub_email_addr} from {_email_addr} conforms to Email Regex")
+                    _cluster_allowed_emails.append(_sub_email_addr)
+        else:
+            if not re.match(_email_regex, _email_addr):
+                # TODO =- Should this error, or just kick out the non-compliant email?
+                logger.error(f"Failed to validate email address: {_email_addr} . Please try again with a valid email address.")
+                sys.exit(1)
+            else:
+                logger.debug(f"Email address {_email_addr} conforms to Email Regex")
+                _cluster_allowed_emails.append(_email_addr)
+
+
+    logger.debug(f"Using Cluster Notification Email address(es) (raw): {install_parameters['email_address']}")
+
+    install_parameters["install_properties"] = base64.b64encode(
+        json.dumps(_merged_properties).encode("utf-8")
+    ).decode("utf-8")
+
+    install_parameters["email_address"] = base64.b64encode(
+        json.dumps(_cluster_allowed_emails).encode("utf-8")
+    ).decode("utf-8")
+
+    logger.debug(f"Using Cluster Notification Email address(es) (base64): {install_parameters['email_address']}")
 
     # Initiate boto3 clients now the partition and region is known
     # TODO - there are better ways to do this
@@ -3076,7 +3194,7 @@ if __name__ == "__main__":
     }
 
     if not args.client_ip:
-        install_parameters["client_ip"] = detect_customer_ip(address_family="ipv4")
+        install_parameters["client_ip"] = [detect_customer_ip(address_family="ipv4")]
 
         if install_parameters.get("client_ip", ""):
             logger.warning(
@@ -3087,13 +3205,13 @@ if __name__ == "__main__":
                 f"Unable to automatically determine your IPv4 address. Manual specification will be required"
             )
     else:
-        install_parameters["client_ip"] = args.client_ip
+        install_parameters["client_ip"] = [args.client_ip]
         logger.debug(f"Client-IPv4: {args.client_ip}")
 
     # Repeat for IPv6 if enabled
     if args.ipv6:
         if not args.client_ipv6:
-            install_parameters["client_ipv6"] = detect_customer_ip(address_family="ipv6")
+            install_parameters["client_ipv6"] = [detect_customer_ip(address_family="ipv6")]
 
             if install_parameters.get("client_ipv6", ""):
                 logger.warning(
@@ -3104,30 +3222,45 @@ if __name__ == "__main__":
                     f"Unable to automatically determine your IPv6 address. Manual specification will be required"
                 )
         else:
-            install_parameters["client_ipv6"] = args.client_ipv6
+            install_parameters["client_ipv6"] = [args.client_ipv6]
             logger.debug(f"Client-IPv6: {args.client_ipv6}")
 
 
     # If we had to auto-probe the IP, give the option to update it before continuing
-    install_parameters["client_ip"] = get_input(
-        prompt="Client IPv4 /CIDR authorized to access SOCA on TCP ports 443/22",
-        specified_value=install_parameters["client_ip"],
-        expected_answers=None,
-        expected_type=str,
-    )
-
-    # Make sure the answer is a valid IP address
-    while not is_valid_address(address_family="ipv4", address=install_parameters["client_ip"]):
+    if not args.client_ip:
         install_parameters["client_ip"] = get_input(
             prompt="Client IPv4 /CIDR authorized to access SOCA on TCP ports 443/22",
-            specified_value=None,
+            specified_value=install_parameters["client_ip"],
             expected_answers=None,
             expected_type=str,
         )
 
-#        install_parameters["client_ip"] = f"{install_parameters['client_ip']}/32"
+        # Make sure the answer is a valid IP address
+        while not is_valid_address(address_family="ipv4", address=install_parameters["client_ip"]):
+            install_parameters["client_ip"] = get_input(
+                prompt="Client IPv4 /CIDR authorized to access SOCA on TCP ports 443/22",
+                specified_value=None,
+                expected_answers=None,
+                expected_type=str,
+            )
 
-    # TODO Ask for IPv6 if it is enabled?
+
+    # if isinstance(install_parameters["client_ip"], str):
+    #     logger.debug(f"Listify - {install_parameters['client_ip']}")
+    #     install_parameters["client_ip"] = list(install_parameters["client_ip"])
+    #     logger.debug(f"Listify now - {install_parameters['client_ip']}")
+    # else:
+
+    logger.debug(f"Client-IPv4: {install_parameters['client_ip']=}")
+
+    install_parameters["client_ip"] = base64.b64encode(
+        str(install_parameters['client_ip']).encode("utf-8")
+    ).decode("utf-8")
+
+    if install_parameters.get("client_ipv6", ""):
+        install_parameters["client_ipv6"] = base64.b64encode(
+            str(install_parameters['client_ipv6']).encode("utf-8")
+        ).decode("utf-8")
 
 
     # Get SOCA parameters
@@ -3204,6 +3337,15 @@ if __name__ == "__main__":
     if args.profile:
         _cdk_common_args += f" --profile {args.profile}"
         install_parameters["profile"] = "False" if not args.profile else args.profile
+
+
+    # Default to --strict mode
+    if args.cdk_no_strict:
+        logger.warning(f"Disabling CDK Strict mode - Templates are allowed to proceed with CDK warnings")
+    else:
+        logger.info(f":white_check_mark: [green]CDK Strict mode activated")
+        _cdk_common_args += f" --strict"
+
 
     if args.cdk_cmd in ["create", "update"]:
         cdk_cmd = "deploy"
@@ -3345,8 +3487,11 @@ if __name__ == "__main__":
                                 f"{output['OutputValue']}", verify=False, timeout=35
                             )  # nosec
                         except Timeout:
+                            #
+                            # We cannot log the IP here as it is now a b64-list by this point and it may get large
+                            # Or we are in MPL mode. So we just tell the user to go to the console to fix the issue.
                             logger.warning(
-                                f"Unable to connect to the SOCA endpoint URL. Maybe your IP {install_parameters['client_ip']} is not valid/has changed (maybe you are behind a proxy?). If that's the case please go to AWS console and authorize your real IP address on the ALB and NLB Security Groups"
+                                f"Unable to connect to the SOCA endpoint URL. Maybe your IP is not valid/has changed (maybe you are behind a proxy?). If that's the case please go to AWS console and authorize your real IP address on the ALB and NLB Security Groups / Prefix-Lists"
                             )
                             sys.exit(1)
                         except ConnectionError as e:

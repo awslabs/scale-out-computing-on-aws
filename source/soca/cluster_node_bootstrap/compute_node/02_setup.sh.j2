@@ -12,6 +12,9 @@
 
 log_info "Setup Start Date: $(date)"
 
+# Stop/Disable scheduler if running
+{% include "templates/linux/scheduler/stop_scheduler_services.sh.j2" %}
+
 # Install Required System library/packages
 {% include "templates/linux/system_packages/install_required_packages.sh.j2" %}
 
@@ -54,13 +57,8 @@ set_environment_variable "SOCA_BOOTSTRAP_LOGS" "/apps/soca/{{ context.get("/conf
   # Add any additional variable for login nodes if needed
 {% endif %}
 
-log_info "Stopping OpenPBS services if already there"
-systemctl stop pbs || echo "PBS service not found yet, ignoring"
-
 # Install jq
 {% include "templates/linux/jq.sh.j2" %}
-
-{% set PATH = '/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin:/opt/pbs/bin:/opt/pbs/sbin:/opt/pbs/bin:/opt/soca/' ~ context.get("/configuration/ClusterId") %}
 
 # Check if machine is a login node, if yes perform additional setup actions
 {% include "compute_node/extra/login_node.sh.j2" %}
@@ -77,12 +75,9 @@ systemctl stop pbs || echo "PBS service not found yet, ignoring"
 # Install/Load SOCA Python
 {% include "templates/linux/soca_python.sh.j2" %}
 
-# Install OpenPBS if needed
-{% include "templates/linux/scheduler/openpbs/install.sh.j2" %}
-
-# Configure OpenPBS client
-{% include "templates/linux/scheduler/openpbs/configure_client.sh.j2" %}
-
+# Install and configure HPC schedulers.
+{% include "templates/linux/scheduler/install_schedulers.sh.j2" %}
+   
 # Disable SELINUX
 {% include "templates/linux/disable_selinux.sh.j2" %}
 
@@ -92,12 +87,12 @@ systemctl stop pbs || echo "PBS service not found yet, ignoring"
 # Configure OpenLDAP or Microsoft AD
 {% if context.get("/configuration/UserDirectory/provider") in ["existing_openldap", "openldap"] %}
   # OpenLDAP configuration
-  {% include "templates/linux/openldap_client.sh.j2" %}
-{% elif context.get("/configuration/UserDirectory/provider") in ["existing_active_directory","aws_ds_managed_activedirectory", "aws_ds_simple_activedirectory"] %}
+  {% include "templates/linux/user_directory/openldap/openldap_client.sh.j2" %}
+{% elif context.get("/configuration/UserDirectory/provider") in ["existing_active_directory","aws_ds_managed_activedirectory"] %}
   # Active Directory configuration
-  {% include "templates/linux/join_activedirectory.sh.j2" %}
+  {% include "templates/linux/user_directory/active_directory/join_activedirectory.sh.j2" %}
 {% else %}
-  exit_fail "UserDirectory/provider must be existing_active_directory, existing_openldap, openldap, aws_ds_simple_activedirectory, aws_ds_managed_activedirectory, detected {{ context.get("/configuration/UserDirectory/provider") }}"
+  exit_fail "UserDirectory/provider must be one of existing_active_directory, existing_openldap, openldap, or aws_ds_managed_activedirectory. Detected {{ context.get("/configuration/UserDirectory/provider") }}"
 {% endif %}
 
 # Disable StrictHostKeyChecking
@@ -121,7 +116,7 @@ log_info "Setup End Date: $(date)"
 REBOOT_REQUIRED=$(get_reboot_required)
 {% if context.get("/job/NodeType") in ("dcv_node", "compute_node") %}
 if [[ "${REBOOT_REQUIRED}" == "yes" ]]; then
-  echo "@reboot /bin/bash ${SOCA_BOOTSTRAP_ASSETS_FOLDER}/03_setup_post_reboot.sh >> ${SOCA_BOOTSTRAP_LOGS_FOLDER}/03_setup_post_reboot.log 2>&1" | crontab -
+  (crontab -l 2>/dev/null; echo "@reboot /bin/bash ${SOCA_BOOTSTRAP_ASSETS_FOLDER}/03_setup_post_reboot.sh >> ${SOCA_BOOTSTRAP_LOGS_FOLDER}/03_setup_post_reboot.log 2>&1") | crontab -
   log_info "Final bootstrap sequence will be executed post reboot, verifying crontab"
   crontab -l
   log_info "Rebooting the machine"
@@ -131,11 +126,44 @@ else
   /bin/bash "${SOCA_BOOTSTRAP_ASSETS_FOLDER}/03_setup_post_reboot.sh" >> ${SOCA_BOOTSTRAP_LOGS_FOLDER}/03_setup_post_reboot.log 2>&1
 fi
 
-{% else %}
- log_info "No post_reboot customizations for login_nodes or controller host"
+{% else %} 
+ log_info "No post_reboot customizations for login_nodes"
  {% include "templates/linux/motd.sh.j2" %}
  if [[ "${REBOOT_REQUIRED}" == "yes" ]]; then
-   log_info "Rebooting the machine"
-   reboot
+    log_info "Rebooting the machine"
+    log_info "Final reboot needed, preparing rc.local to be executed post final reboot"
+    cat << 'EOF' >> /etc/rc.local
+{% if "openpbs" in context.get("/configuration/HPC/SOCAInstalledSchedulerList") %}
+# Start OpenPBS
+systemctl enable pbs
+systemctl start pbs
+{% endif %}
+{% if "lsf" in context.get("/configuration/HPC/SOCAInstalledSchedulerList") %}
+# Start LSF
+systemctl enable soca_lsfdaemons.service
+systemctl start soca_lsfdaemons.service
+{% endif %}
+source /etc/environment
+echo "Node Ready - ${SOCA_NODE_TYPE}" > /etc/motd
+EOF
+    chmod +x /etc/rc.d/rc.local
+    systemctl enable rc-local
+    unset_reboot_required
+    reboot
+ 
+ else
+    log_info "No reboot needed, starting scheduler process"
+    {% if "openpbs" in context.get("/configuration/HPC/SOCAInstalledSchedulerList") %}
+        # Start OpenPBS
+        systemctl enable pbs
+        systemctl start pbs
+    {% endif %}
+    
+    {% if "lsf" in context.get("/configuration/HPC/SOCAInstalledSchedulerList") %}
+        # Start LSF
+        systemctl enable soca_lsfdaemons.service
+        systemctl start soca_lsfdaemons.service
+        ps aux | grep lsf 
+    {% endif %}
  fi
 {% endif %}

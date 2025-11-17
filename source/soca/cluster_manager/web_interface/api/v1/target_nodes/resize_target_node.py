@@ -35,7 +35,7 @@ class ResizeTargetNode(Resource):
         openapi: 3.1.0
         operationId: resizeTargetNode
         tags:
-          - Virtual Desktops
+          - Target Nodes
         summary: Resize target node instance type
         description: Modify the instance type of a target node session. The session must be in stopped state.
         security:

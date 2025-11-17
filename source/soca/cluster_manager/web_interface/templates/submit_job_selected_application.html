@@ -21,23 +21,7 @@
             <div class="container-fluid">
                 {% include 'common/horizontal_menu_bar.html' %}
                 <main role="main">
-                    {% with messages = get_flashed_messages(with_categories=true) %}
-                        {% if messages %}
-                            {% for category, message in messages %}
-                                <br>
-                                {% if category == "success" %}
-                                    <div class="alert alert-success">
-                                        <strong>{{ message | safe }} </strong>
-                                    </div>
-                                {% else %}
-                                    <div class="alert alert-danger">
-                                        <strong>{{ message | safe }} </strong>
-                                    </div>
-                                {% endif %}
-                            {% endfor %}
-                        {% endif %}
-                    {% endwith %}
-
+                    {% include 'common/flashed_messages.html' %}
                     <div class="row">
                         <div class="col-md-6">
                             <div class="card shadow mb-4" style="width: 100%">
@@ -67,7 +51,7 @@
                                     <h6 class="m-0 font-weight-bold text-primary">Cost estimate for your job</h6>
                                 </div>
                                 <div class="card-body">
-                                    {% if profile_interpreter != pbs_interpreter %}
+                                    {% if profile_interpreter not in all_schedulers_identifiers %}
                                         <div class="alert alert-warning">
                                             Cost estimate is not available because this application will generate a
                                             Linux command and not a qsub file.
@@ -86,7 +70,7 @@
                                                     <li><strong>scratch_size</strong>: 0 GB</li>
                                                     <li><strong>root_size</strong>: 10 GB</li>
                                                     <li><strong>fsx_capacity</strong>: 0 GB</li>
-                                                    <li><strong>cpus</strong>: 1</li>
+                                                    <li><strong>vcpus</strong>: 1</li>
                                                     <li><strong>wall_time</strong>: 60</li>
                                                 </ul>
                                             </div>
@@ -150,14 +134,14 @@
         $("#input_file").val('{{ input_path }}');
         $("#job_name").val('{{ input_name }}');
 
-        if ("{{profile_interpreter | safe }}" == "{{ pbs_interpreter | safe}}") {
+        {% if profile_interpreter  in all_schedulers_identifiers %}
             $("form").change(function () {
                 const instance_type = $("#instance_type").val() || "c7i.large";
                 const scratch_size = $("#scratch_size").val() || 0;
                 const root_size = $("#root_size").val() || 0;
                 const fsx_capacity = $("#fsx_capacity").val() || 0;
                 const walltime = $("#wall_time").val() || "01:00:00";
-                const cpus = $("#cpus").val() || 1;
+                const vcpus = $("#vcpus").val() || 1;
 
                 $("#cost_result").html('<div><i class="fas fa-spinner fa-5x"></i></div><h3><br> Please wait while we estimate the price of this job ... </h3>'),
 
@@ -166,7 +150,7 @@
                         "scratch_size": scratch_size,
                         "root_size": root_size,
                         "fsx_capacity": fsx_capacity,
-                        "cpus": cpus,
+                        "vcpus": vcpus,
                         "wall_time": walltime
                     }, function (data) {
 
@@ -185,7 +169,7 @@
                          <ul style="list-style: none;"> \
                              <li><strong>Nodes Count</strong> ' + cost_data.compute.nodes + ' </li>\
                              <li><strong>Instance Type:</strong> ' + cost_data.compute.instance_type + ' </li> \
-                             <li><strong>Requested CPUs:</strong> ' + cost_data.compute.cpus + ' </li> \
+                             <li><strong>Requested vCPUs:</strong> ' + cost_data.compute.vcpus + ' </li> \
                              <li><strong>Estimated Compute OnDemand</strong> $' + cost_data.compute.estimated_on_demand_cost + ' </li> \
                           </ul> \
                          <div class="alert alert-warning"> <strong>You could save money by <a href="https://aws.amazon.com/ec2/pricing/reserved-instances/" target="_blank" rel="noopener,noreferrer"> purchasing Reserved Instances</a></strong> <br> \
@@ -197,7 +181,7 @@
                          <li><strong>FSx for Lustre:</strong> ' + fsx_capacity + ' GB for $' + cost_data.fsx_capacity + ' </li> \
                          <li><strong>Estimated Storage:</strong> $' + cost_data.estimated_storage_cost + ' </li></ul> \
                          <hr> \
-                          <div class="alert alert-warning"> <strong> IMPORTANT </strong>Node Count is based on the number of physical CPUs (<strong>not vCPUs</strong>) per machine. (e.g: a c6i.xlarge has 2 physical CPUs but 4 vCPUs. If you request 8 CPUs SOCA will provision 4 instances)</div>'
+                          <div class="alert alert-warning"> <strong> IMPORTANT </strong>Node Count is based on the number of vCPUs (<strong>not CPUs</strong>) per machine. (e.g: a c6i.xlarge has 2 physical CPUs but 4 vCPUs. If you request 8 vCPUs SOCA will provision 2 instances. If you need 8 logical cores, we recommend using ht_support=false and request a single EC2 machine with 16 vCPUs)</div>'
 
                         $("#cost_result").html(cost_response);
 
@@ -206,7 +190,7 @@
                         $("#cost_result").html("<div class='alert alert-danger'><h3><i class='fas fa-exclamation-triangle'></i>Unable to estimate cost</h3> <strong>Error:</strong> <br> " + JSON.stringify(data.responseJSON)) + "</div>";
                     });
             });
-        }
+        {% endif %}
 
     });
 

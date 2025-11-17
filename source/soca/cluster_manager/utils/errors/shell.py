@@ -5,13 +5,13 @@ from typing import Optional
 import inspect
 from utils.error import SocaError
 
-
 def SUBPROCESS_ERROR(
     command: str,
     stdout: str,
     stderr: str,
     returncode: str,
-    helper: Optional[str] = None,
+    env: Optional[str] = "", # env is passed as base64 hash
+    helper: Optional[str] = "",
     status_code: Optional[int] = 500,
     error_doc_url: Optional[str] = None,
 ):
@@ -19,9 +19,10 @@ def SUBPROCESS_ERROR(
         error_id=inspect.currentframe().f_code.co_name,
         error_message={
             "command": command,
-            "stdout": stdout,
-            "stderr": stderr,
+            "stdout": stdout if stdout is not None else "",
+            "stderr": stderr if stderr is not None else "",
             "returncode": returncode,
+            "env": env,
             "helper": helper,
         },
         error_doc_url=error_doc_url,

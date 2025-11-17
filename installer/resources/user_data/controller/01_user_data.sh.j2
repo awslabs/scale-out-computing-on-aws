@@ -49,6 +49,7 @@ log_info "EC2 UserData script is being executed, check logs in /var/log/cloud-in
   S3_BUCKET_REGION=$(curl -s --head {{ context.get("/configuration/S3Bucket") }}.s3.amazonaws.com | grep bucket-region | awk '{print $2}' | tr -d '\r\n')
 {% endif %}
 
+log_info "Detected S3 Bucket Region: ${S3_BUCKET_REGION}"
 # Retrieve Boostrap sequences
 aws_cli s3 --region ${S3_BUCKET_REGION} sync s3://{{ context.get("/configuration/S3Bucket") }}/{{ context.get("/configuration/ClusterId") }}/config/do_not_delete/bootstrap/controller/ ${SOCA_BOOTSTRAP_ASSETS_FOLDER}
 

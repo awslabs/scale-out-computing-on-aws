@@ -1,7 +1,13 @@
 # Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-from jinja2 import Environment, FileSystemLoader, select_autoescape, Template
+from jinja2 import (
+    Environment,
+    FileSystemLoader,
+    select_autoescape,
+    Template,
+    TemplateError,
+)
 from utils.cast import SocaCastEngine
 from utils.error import SocaError
 from utils.response import SocaResponse
@@ -76,10 +82,15 @@ class SocaJinja2Generator:
                 else:
                     return SocaError.JINJA_GENERATOR_ERROR(helper=_autocast.message)
 
-            _rendered_template = _j2_env.get_template(self._get_template).render(
-                context=self._variables,
-                ns=SimpleNamespace(template_already_included=[]),
-            )
+            try:
+                _rendered_template = _j2_env.get_template(self._get_template).render(
+                    context=self._variables,
+                    ns=SimpleNamespace(template_already_included=[]),
+                )
+            except TemplateError as err:
+                logger.error(f"Unable to generate {self._get_template} due to {err} ")
+                return SocaError.JINJA_GENERATOR_ERROR(helper=f"{err}")
+
             return SocaResponse(success=True, message=_rendered_template)
         except Exception as err:
             exc_type, exc_obj, exc_tb = sys.exc_info()
@@ -106,10 +117,14 @@ class SocaJinja2Generator:
                 else:
                     return SocaError.JINJA_GENERATOR_ERROR(helper=_autocast.message)
 
-            _rendered_template = _j2_env.get_template(self._get_template).render(
-                context=self._variables,
-                ns=SimpleNamespace(template_already_included=[]),
-            )
+            try:
+                _rendered_template = _j2_env.get_template(self._get_template).render(
+                    context=self._variables,
+                    ns=SimpleNamespace(template_already_included=[]),
+                )
+            except TemplateError as err:
+                logger.error(f"Unable to generate {self._get_template} due to {err} ")
+                return SocaError.JINJA_GENERATOR_ERROR(helper=f"{err}")
 
             try:
                 _s3_client.put_object(
@@ -150,10 +165,14 @@ class SocaJinja2Generator:
                 else:
                     return SocaError.JINJA_GENERATOR_ERROR(helper=_autocast.message)
 
-            _rendered_template = _j2_env.get_template(self._get_template).render(
-                context=self._variables,
-                ns=SimpleNamespace(template_already_included=[]),
-            )
+            try:
+                _rendered_template = _j2_env.get_template(self._get_template).render(
+                    context=self._variables,
+                    ns=SimpleNamespace(template_already_included=[]),
+                )
+            except TemplateError as err:
+                logger.error(f"Unable to generate {self._get_template} due to {err} ")
+                return SocaError.JINJA_GENERATOR_ERROR(helper=f"{err}")
             logger.info(f"Writing rendered template to {_output_file}")
             output_file = pathlib.Path(_output_file)
             if _output_file.exists():

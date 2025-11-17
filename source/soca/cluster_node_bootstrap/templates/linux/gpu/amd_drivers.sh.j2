@@ -16,9 +16,6 @@ function install_amd_gpu_drivers() {
   mkdir -p "${SOCA_BOOTSTRAP_ASSETS_FOLDER}/gpu_drivers"
   pushd "${SOCA_BOOTSTRAP_ASSETS_FOLDER}/gpu_drivers"
 
-  # Enforce pbs stop to avoid pbs restart during amdgpupro install
-  systemctl stop pbs
-
   {% if context.get("/configuration/BaseOS") =='amazonlinux2' %}
      packages_install mesa* mesa-libEGL mesa-dri-drivers vulkan vulkan-amdgpu vulkan-devel vulkan-filesystem
   {% endif %}

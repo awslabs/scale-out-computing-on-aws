@@ -1,0 +1,92 @@
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# SOCA will install all schedulers configured under /configuration/Schedulers unless /job/SchedulerIdentifier is provided
+{% set SCHEDULER_ID_TO_INSTALL = context.get("/job/SchedulerIdentifier", "") %}
+
+{% for scheduler_id, scheduler_data in context.items() if scheduler_id.startswith('/configuration/Schedulers/') %}
+    log_info "Processing {{ scheduler_id }} with scheduler data: {{ scheduler_data }}."
+    
+    {% if not SCHEDULER_ID_TO_INSTALL %}
+      log_info "/job/SchedulerIdentifier is not set, will install all schedulers from /configuration/Schedulers/ hierarchy"
+    {% endif %}
+    
+    {% set SCHEDULER_VARS = {
+        "ENABLED": scheduler_data.get("enabled"),
+        "PROVIDER": scheduler_data.get("provider"),
+        "ENDPOINT": scheduler_data.get("endpoint"),
+        "BINARY_FOLDER_PATHS": scheduler_data.get("binary_folder_paths"),
+        "SOCA_MANAGED_NODES_PROVISIONING": scheduler_data.get("soca_managed_nodes_provisioning"),
+        "IDENTIFIER": scheduler_data.get("identifier"),
+        "PBS_CONFIGURATION": scheduler_data.get("pbs_configuration", {}),
+        "LSF_CONFIGURATION": scheduler_data.get("lsf_configuration", {}),
+        "SLURM_CONFIGURATION": scheduler_data.get("slurm_configuration", {})}
+    %}
+  
+    {% if SCHEDULER_VARS.get("ENABLED") == True %}
+        {% if SCHEDULER_VARS.get("PROVIDER") in ["pbspro", "openpbs"] %}
+            {% if not SCHEDULER_ID_TO_INSTALL or SCHEDULER_ID_TO_INSTALL == SCHEDULER_VARS.get("IDENTIFIER") %}
+                {% include "templates/linux/scheduler/openpbs/install.sh.j2" %}
+
+                {% if context.get("/job/NodeType") == "controller" %}
+                    log_info "[OpenPBS/PBSPro] Installing and configuring {{ scheduler_id }} on the SOCA Controller (server setup)"
+                    {% include "templates/linux/scheduler/openpbs/configure_server.sh.j2" %}
+                {% else %}
+                    {% if SCHEDULER_VARS.get("SOCA_MANAGED_NODES_PROVISIONING") == True %}
+                        log_info "[OpenPBS/PBSPro] Installing and configuring {{ scheduler_id }} on non SOCA Controller machine (client setup)"
+                        {% include "templates/linux/scheduler/openpbs/configure_client.sh.j2" %}
+                    {% else %}
+                        log_info "[OpenPBS/PBSPro] {{scheduler_id}} is enabled but not configured for SOCA Nodes Provisioning, skipping ... "
+                    {% endif %}
+
+                {% endif %}
+            {% else %}
+                log_info "Skipping Scheduler because SCHEDULER_ID_TO_INSTALL is set and {{ SCHEDULER_VARS.get("IDENTIFIER") }} is not configured for this host. Only ${SCHEDULER_ID_TO_INSTALL} will be installed"
+            {% endif %}
+
+
+        {% elif SCHEDULER_VARS.get("PROVIDER") == "slurm" %}
+            {% if not SCHEDULER_ID_TO_INSTALL or SCHEDULER_ID_TO_INSTALL == SCHEDULER_VARS.get("IDENTIFIER") %}
+                {% include "templates/linux/scheduler/slurm/install.sh.j2" %}
+                {% if context.get("/job/NodeType") == "controller" %}
+                    log_info "[SLURM] Installing and configuring {{ scheduler_id }} on the SOCA Controller (server setup)"
+                    {% include "templates/linux/scheduler/slurm/configure_server.sh.j2" %}
+                {% else %}
+                    {% if SCHEDULER_VARS.get("SOCA_MANAGED_NODES_PROVISIONING") == True %}
+                        log_info "[SLURM] Installing and configuring {{ scheduler_id }} on non SOCA Controller machine (client setup)"
+                        {% include "templates/linux/scheduler/slurm/configure_client.sh.j2" %}
+                    {% else %}
+                        log_info "[SLURM] {{scheduler_id}} is enabled but not configured for SOCA Nodes Provisioning, skipping ... "
+                    {% endif %}
+                {% endif %}
+            {% else %}
+                log_info "Skipping Scheduler because SCHEDULER_ID_TO_INSTALL is set and {{ SCHEDULER_VARS.get('IDENTIFIER') }} is not configured for this host. Only ${SCHEDULER_ID_TO_INSTALL} will be installed"
+            {% endif %}
+
+        {% elif SCHEDULER_VARS.get("PROVIDER") == "lsf" %}
+            {% if not SCHEDULER_ID_TO_INSTALL or SCHEDULER_ID_TO_INSTALL == SCHEDULER_VARS.get("IDENTIFIER") %}
+                {% include "templates/linux/scheduler/lsf/install.sh.j2" %}
+                {% if context.get("/job/NodeType") == "controller" %}
+                    log_info "[LSF] Installing and configuring {{ scheduler_id }} on the SOCA Controller (server setup)"
+                    {% include "templates/linux/scheduler/lsf/configure_server.sh.j2" %}
+                {% else %}
+                    {% if SCHEDULER_VARS.get("SOCA_MANAGED_NODES_PROVISIONING") == True %}
+                        log_info "[LSF] Installing and configuring {{ scheduler_id }} on non SOCA Controller machine (client setup)"
+                        {% include "templates/linux/scheduler/lsf/configure_client.sh.j2" %}
+                    {% else %}
+                        log_info "[LSF] {{scheduler_id}} is enabled but not configured for SOCA Nodes Provisioning, skipping ... "
+                    {% endif %}
+                {% endif %}
+            {% else %}
+                log_info "Skipping Scheduler because SCHEDULER_ID_TO_INSTALL is set and {{ SCHEDULER_VARS.get("IDENTIFIER") }} is not configured for this host. Only ${SCHEDULER_ID_TO_INSTALL} will be installed"
+            {% endif %}
+
+        {% else %}
+          exit_fail "Unsupported scheduler: {{ SCHEDULER_VARS.get('PROVIDER') }}"
+        {% endif %}
+
+    {% else %}
+        log_info f"{{ scheduler_id }} is not enabled, skipping ..."
+    {% endif %}
+
+{% endfor %}

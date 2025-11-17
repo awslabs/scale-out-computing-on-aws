@@ -1,0 +1,142 @@
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: Apache-2.0
+from __future__ import annotations
+
+from typing import Optional 
+from pydantic import Field
+from utils.datamodels.hpc.shared.job import SocaHpcJob
+
+class SocaHpcJobSlurm(SocaHpcJob):
+    # Required attributes are inherited from SocaHpcJob
+
+    # Optional Slurm job attributes, not needed for SOCA, but added here in case you want to add additional customization
+    # This map the attributes of /opt/slurm/latest/bin/squeue --json
+    account: Optional[str] = None
+    accrue_time: Optional[dict] = Field(default_factory=dict) 
+    admin_comment: Optional[str] = None
+    allocating_node: Optional[str] = None
+    array_job_id: Optional[dict] = Field(default_factory=dict)
+    array_max_tasks: Optional[dict] = Field(default_factory=dict)
+    array_task_string: Optional[str] = None
+    association_id: Optional[int] = None
+    batch_features: Optional[str] = None
+    batch_flag: Optional[bool] = None
+    batch_host: Optional[str] = None
+    flags: Optional[list] = Field(default_factory=list)
+    burst_buffer: Optional[str] = None
+    burst_buffer_state: Optional[str] = None
+    cluster: Optional[str] = None
+    cluster_features: Optional[str] = None
+    command: Optional[str] = None
+    comment: Optional[str] = None
+    container: Optional[str] = None
+    container_id: Optional[str] = None
+    contiguous: Optional[bool] = None
+    core_spec: Optional[int] = None
+    thread_spec: Optional[int] = None
+    cores_per_socket: Optional[dict] = Field(default_factory=dict)
+    billable_tres: Optional[dict] = Field(default_factory=dict)
+    cpus_per_task: Optional[dict] = Field(default_factory=dict)
+    cpu_frequency_minimum: Optional[dict] = Field(default_factory=dict)
+    cpu_frequency_maximum: Optional[dict] = Field(default_factory=dict)
+    cpu_frequency_governor: Optional[dict] = Field(default_factory=dict)
+    cpus_per_tres: Optional[str] = None
+    cron: Optional[str] = None
+    deadline: Optional[dict] = Field(default_factory=dict)
+    delay_boot: Optional[dict] = Field(default_factory=dict)
+    dependency: Optional[str] = None
+    derived_exit_code: Optional[dict] = Field(default_factory=dict)
+    eligible_time: Optional[dict] = Field(default_factory=dict)
+    end_time: Optional[dict] = Field(default_factory=dict)
+    excluded_nodes: Optional[str] = None
+    exit_code: Optional[dict] = Field(default_factory=dict)
+    extra: Optional[str] = None
+    failed_node: Optional[str] = None
+    features: Optional[str] = None
+    federation_origin: Optional[str] = None
+    federation_siblings_active: Optional[str] = None
+    federation_siblings_viable: Optional[str] = None
+    gres_detail: Optional[list] = Field(default_factory=list)
+    group_id: Optional[int] = None
+    group_name: Optional[str] = None
+    het_job_id: Optional[dict] = Field(default_factory=dict)
+    het_job_id_set: Optional[str] = None
+    het_job_offset: Optional[dict] = Field(default_factory=dict)
+    job_id: Optional[int] = None
+    job_resources: Optional[str] = None
+    job_size_str: Optional[list] =  Field(default_factory=list)
+    last_sched_evaluation: Optional[dict] = Field(default_factory=dict)
+    licenses: Optional[str] = None
+    licenses_allocated: Optional[str] = None
+    mail_type: Optional[list] = Field(default_factory=list)
+    mail_user: Optional[str] = None
+    max_cpus: Optional[dict] = Field(default_factory=dict)
+    max_nodes: Optional[dict] = Field(default_factory=dict)
+    mcs_label: Optional[str] = None
+    memory_per_tres: Optional[str] = None
+    name: Optional[str] = None
+    network: Optional[str] = None
+    nice: Optional[int] = None
+    tasks_per_core: Optional[dict] = Field(default_factory=dict)
+    tasks_per_tres: Optional[dict] = Field(default_factory=dict)
+    tasks_per_node: Optional[dict] = Field(default_factory=dict)
+    tasks_per_socket: Optional[dict] = Field(default_factory=dict)
+    tasks_per_board: Optional[dict] = Field(default_factory=dict)
+    node_count: Optional[dict] = Field(default_factory=dict)
+    tasks: Optional[dict] = Field(default_factory=dict)
+    partition: Optional[str] = None
+    prefer: Optional[str] = None
+    memory_per_cpu: Optional[dict] = Field(default_factory=dict)
+    memory_per_node: Optional[dict] = Field(default_factory=dict)
+    minimum_cpus_per_node: Optional[dict] = Field(default_factory=dict)
+    minimum_tmp_disk_per_node: Optional[dict] = Field(default_factory=dict)
+    power: Optional[dict] = Field(default_factory=dict)
+    preempt_time: Optional[dict] = Field(default_factory=dict)
+    preemptable_time: Optional[dict] = Field(default_factory=dict)
+    pre_sus_time: Optional[dict] = Field(default_factory=dict)
+    hold: Optional[bool] = None
+    priority: Optional[dict] = Field(default_factory=dict)
+    priority_by_partition: Optional[list] = Field(default_factory=list)
+    profile: Optional[list] = Field(default_factory=list)
+    qos: Optional[str] = None
+    reboot: Optional[bool] = None
+    required_nodes: Optional[str] = None
+    required_switches: Optional[int] = None
+    requeue: Optional[bool] = None
+    resize_time: Optional[dict] = Field(default_factory=dict)
+    restart_cnt: Optional[int] = None
+    resv_name: Optional[str] = None
+    scheduled_nodes: Optional[str] = None
+    segment_size: Optional[int] = None
+    selinux_context: Optional[str] = None
+    shared: Optional[list] = Field(default_factory=list)
+    sockets_per_board: Optional[int] = None
+    sockets_per_node: Optional[dict] = Field(default_factory=dict)
+    start_time: Optional[dict] = Field(default_factory=dict)
+    state_description: Optional[str] = None
+    state_reason: Optional[str] = None
+    standard_input: Optional[str] = None
+    standart_output: Optional[str] = None
+    standard_error: Optional[str] = None
+    stdin_expanded: Optional[str] = None
+    stdout_expanded: Optional[str] = None
+    stderr_expanded: Optional[str] = None
+    submit_time: Optional[dict] = Field(default_factory=dict)
+    suspend_time: Optional[dict] = Field(default_factory=dict)
+    system_comment: Optional[str] = None
+    time_limit: Optional[dict] = Field(default_factory=dict)
+    time_minimum: Optional[dict] = Field(default_factory=dict)
+    threads_per_core: Optional[dict] = Field(default_factory=dict)
+    tres_bind: Optional[str] = None
+    tres_freq: Optional[str] = None
+    tres_per_job: Optional[str] = None
+    tres_per_node: Optional[str] = None
+    tres_per_socket: Optional[str] = None
+    tres_per_task: Optional[str] = None
+    tres_req_str: Optional[str] = None
+    tres_alloc_str: Optional[str] = None
+    user_id: Optional[int] = None
+    user_name: Optional[str] = None
+    maximum_switch_wait_time: Optional[int] = None
+    wckey: Optional[str] = None
+    current_working_directory: Optional[str] = None

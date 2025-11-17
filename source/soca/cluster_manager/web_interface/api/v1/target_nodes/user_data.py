@@ -314,6 +314,7 @@ class TargetNodeUserDataManager(Resource):
             db.session.add(_new_template_request)
             db.session.commit()
         except Exception as err:
+            db.session.rollback()
             return SocaError.DB_ERROR(
                 query=_new_template_request,
                 helper=f"Unable to add new user data template to DB due to {err}",
@@ -464,6 +465,7 @@ class TargetNodeUserDataManager(Resource):
                 _check_template_id.deactivated_by = _user
                 db.session.commit()
             except Exception as err:
+                db.session.rollback()
                 return SocaError.DB_ERROR(
                     query=_check_template_id,
                     helper=f"Unable to deactivate User Data Template {_check_template_id} due to {err}",
@@ -646,6 +648,7 @@ class TargetNodeUserDataManager(Resource):
             _template_to_update.user_data = _user_data_encoded_string
             db.session.commit()
         except Exception as err:
+            db.session.rollback()
             return SocaError.DB_ERROR(
                 query=_template_to_update,
                 helper=f"Unable to update user data template to DB due to {err}",

@@ -1,5 +1,5 @@
 # This file is used to prevent job submission when budget allocated to a project exceed your threshold
-# This file is not used by default and must be configured manually using /opt/soca/cluster_hooks/queuejob/check_project_budget.py
+# This file is not used by default and must be configured manually using /opt/soca/cluster_hooks/pbs/queuejob/check_project_budget.py
 # See documentation for examples
 #
 #

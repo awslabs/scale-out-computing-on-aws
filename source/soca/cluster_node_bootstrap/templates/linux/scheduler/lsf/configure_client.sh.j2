@@ -1,0 +1,72 @@
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# SCHEDULER_VARS are forwarded from templates/linux/schedulers/install_schedulers.sh.j2:
+
+# Begin: LSF Configure Client
+function lsf_configure_client_{{ SCHEDULER_VARS.get("IDENTIFIER") }} {
+    # Default path for LSF_TOP variable, folder where LSF will be installed.
+    # We recommend you not to change this path. If you do, make sure to edit all other references in send_logs_s3.sh and others 
+    local LSF_INSTALL_DIR="{{ SCHEDULER_VARS.get("LSF_CONFIGURATION").get("lsf_top") }}"
+    local SCHEDULER_IDENTIFIER="{{ SCHEDULER_VARS.get("IDENTIFIER") }}"
+
+    # lsf_daemon is a wrapper for the following commands:`
+    # - lsadmin limrestart # LIM (Local Information Manager)
+    # - lsadmin resrestart # RES (Resource Execution Service)
+    # - badmin hrestart # SBATCHD (Job Execution Daemon ->  ( Not needed for DCV & Login Node as we don't run simulations on these nodes)
+    
+    {% if context.get("/job/NodeType") == "compute_node" %}
+        log_info "Creating  /etc/systemd/system/soca_scheduler_${SCHEDULER_IDENTIFIER}.service for HPC node, LIM, RES and SBATCHD will be started"
+        cat <<EOF > /etc/systemd/system/soca_scheduler_${SCHEDULER_IDENTIFIER}.service
+[Unit]
+Description=Manage SOCA LSF Daemons - Client Node
+After=network.target
+
+[Service]
+Type=oneshot
+ExecStart=/bin/bash -c "source ${LSF_INSTALL_DIR}/conf/profile.lsf && lsf_daemons restart"
+ExecStop=/bin/bash -c "source ${LSF_INSTALL_DIR}/conf/profile.lsf && lsf_daemons stop"
+RemainAfterExit=yes
+User=root
+Group=root
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+    {% else %}
+        log_info "Creating  /etc/systemd/system/soca_scheduler_${SCHEDULER_IDENTIFIER}.service for DCV/VDI node, only LIM/RES are needed, not SBATCHD"
+        cat <<EOF > /etc/systemd/system/soca_scheduler_${SCHEDULER_IDENTIFIER}.service
+[Unit]
+Description=Manage SOCA LSF Daemons - Client Node
+After=network.target
+
+[Service]
+Type=oneshot
+ExecStart=/bin/bash -c "source ${LSF_INSTALL_DIR}/conf/profile.lsf && lsadmin limstartup && lsadmin resstartup"
+ExecStop=/bin/bash -c "source ${LSF_INSTALL_DIR}/conf/profile.lsf && lsadmin limshutdown && lsadmin resshutdown"
+RemainAfterExit=yes
+User=root
+Group=root
+
+[Install]
+WantedBy=multi-user.target
+
+EOF
+
+    {% endif %}
+    
+    systemctl daemon-reload
+    log_info "Checking if LSF can be started successfully"
+    if ! systemctl start soca_scheduler_${SCHEDULER_IDENTIFIER}.service; then
+        journalctl -xeu soca_scheduler_${SCHEDULER_IDENTIFIER}.service
+        exit_fail "Unable to start LSF via soca_scheduler_${SCHEDULER_IDENTIFIER}.service, check logs"
+    else
+        log_info "LSF successfully started on client node, stopping it to finalize installation"
+        systemctl stop soca_scheduler_${SCHEDULER_IDENTIFIER}.service
+    fi 
+    log_info "soca_scheduler_${SCHEDULER_IDENTIFIER}.service created and tested successfully. Services will automatically be started at the end of 03_setup_post_reboot.sh.j2"
+    log_info "Completed LSF Client Configuration"
+
+}
+lsf_configure_client_{{ SCHEDULER_VARS.get("IDENTIFIER") }}

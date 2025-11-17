@@ -1,0 +1,39 @@
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# Simple wrapper for compute node to easily stop/start schedulers
+# Use this if you are importing an AMI with pre-baked SOCA schedulers to avoid them restarting 
+# before the entire SOCA boostrap sequence is finished
+
+function stop_soca_scheduler_services {
+    log_info "Checking SOCA Scheduler service status and stopping them if running"
+
+    # Find all services starting with 'soca_scheduler_'
+    local SCHEDULER_SERVICES=$(systemctl list-unit-files | grep '^soca_scheduler_' | awk '{print $1}')
+
+    if [[ -z "${SCHEDULER_SERVICES}" ]]; then
+        log_info "No SOCA Scheduler services found, skipping"
+    else
+        for svc in ${SCHEDULER_SERVICES}; do
+            log_info "Processing service: ${svc}"
+
+            if systemctl list-unit-files | grep -q "^${svc}"; then
+                # Check if the service is running
+                if systemctl is-active "${svc}" &>/dev/null; then
+                    log_info "${svc} is currently running. Attempting to stop..."
+                    if ! systemctl stop "${svc}"; then
+                        journalctl -xeu "${svc}"
+                        exit_fail "Unable to stop ${svc}, check logs for details"
+                    else
+                        log_info "${svc} stopped successfully"
+                    fi
+                else
+                    log_info "${svc} is already stopped"
+                fi
+            else
+                log_info "${svc} not found, skipping"
+            fi
+        done
+    fi
+}
+stop_soca_scheduler_services

@@ -22,6 +22,7 @@ function install_gpu_drivers () {
 
   local NVIDIA_TESLA_PUBLIC_DRIVER_PRODUCTION="535.104.05"
   local NVIDIA_TESLA_PUBLIC_DRIVER_LTSB="470.199.02" # Long Term Servicing Branch, for older instance type
+  
   {% if context.get("/configuration/BaseOS") in ("amazonlinux2") %}
     # 18.1+ will not work on ALI2, driver does not support kernel 4.14
     local NVIDIA_GRID_DRIVER_VERSION="grid-17.1"
@@ -52,14 +53,13 @@ function install_gpu_drivers () {
       log_info "This instance family ${INSTANCE_FAMILY} use an old NVIDIA GPU, using LTSB drivers ..."
       install_nvidia_public_tesla_drivers ${NVIDIA_TESLA_PUBLIC_DRIVER_LTSB}
 
-    elif [[ "${INSTANCE_FAMILY}" =~ ^"${INSTANCE_SUPPORT_TESLA_DRIVERS_ONLY}"$  ]]; then
+    elif [[ "${INSTANCE_FAMILY}" =~ ^${INSTANCE_SUPPORT_TESLA_DRIVERS_ONLY}$  ]]; then
       log_info "This instance family ${INSTANCE_FAMILY} only supports Tesla public driver"
       install_nvidia_public_tesla_drivers ${NVIDIA_TESLA_PUBLIC_DRIVER_PRODUCTION}
 
     else
 
       log_info "${INSTANCE_FAMILY} supports both GRID and Tesla drivers"
-
 
       {% if context.get("/job/NodeType") == "dcv_node" %}
         log_info "DCV Virtual Desktop Machine detected for ${INSTANCE_FAMILY}, Installing NVIDIA Grid drivers"

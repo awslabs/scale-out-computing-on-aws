@@ -99,14 +99,16 @@ class SocaEKSClient:
         except Exception as err:
             logger.error(f"Unable to describe cluster {self.cluster_name}: {err}")
             return False
-    
+
     def healthcheck(self) -> bool:
         if self._api_server is None:
             self.build()
         health_check = SocaHttpClient(
             endpoint=f"{self._api_server}/healthz", timeout=2
         ).get()
-        logger.info(f"healthcheck for {self._api_server}/healthz response: {health_check}")
+        logger.info(
+            f"healthcheck for {self._api_server}/healthz response: {health_check}"
+        )
         if health_check.get("success") is False:
             logger.error(f"Cluster unreachable: {health_check}")
             return False
@@ -117,7 +119,7 @@ class SocaEKSClient:
 
         if not self._describe_cluster():
             return {"success": False, "message": "Failed to describe cluster."}
-        
+
         if not self.healthcheck():
             return {
                 "success": False,
@@ -147,14 +149,17 @@ class SocaEKSClient:
 
         self._api_client = client.ApiClient(configuration)
         return {"success": True, "message": self._api_client}
-        
+
     def _get_batch_api(self) -> client.BatchV1Api:
         return client.BatchV1Api(self._api_client)
 
     def _get_core_api(self) -> client.CoreV1Api:
         return client.CoreV1Api(self._api_client)
 
-    # Jobs
+    def _get_apps_api(self) -> client.AppsV1Api:
+        return client.AppsV1Api(self._api_client)
+
+    # --- Jobs ---
     @k8s_api_wrapper("Unable to read job. See logs for details.")
     def read_namespaced_job(self, name: str, namespace: str) -> V1Job:
         return self._get_batch_api().read_namespaced_job(name=name, namespace=namespace)
@@ -184,7 +189,7 @@ class SocaEKSClient:
             namespace=namespace,
         )
 
-    # Pods
+    # --- Pods ---
     @k8s_api_wrapper("Unable to read pod. See logs for details.")
     def read_namespaced_pod(self, name: str, namespace: str) -> V1Pod:
         return self._get_core_api().read_namespaced_pod(name=name, namespace=namespace)
@@ -195,4 +200,139 @@ class SocaEKSClient:
     ) -> V1PodList:
         return self._get_core_api().list_namespaced_pod(
             namespace=namespace, label_selector=label_selector
+        )
+
+    # --- PodTemplates ---
+    @k8s_api_wrapper("Unable to read pod template. See logs for details.")
+    def read_namespaced_pod_template(self, name: str, namespace: str):
+        return self._get_core_api().read_namespaced_pod_template(
+            name=name, namespace=namespace
+        )
+
+    @k8s_api_wrapper("Unable to list pod templates. See logs for details.")
+    def list_namespaced_pod_template(
+        self, namespace: str, label_selector: Optional[str] = None
+    ):
+        return self._get_core_api().list_namespaced_pod_template(
+            namespace=namespace, label_selector=label_selector
+        )
+
+    @k8s_api_wrapper("Unable to create pod template. See logs for details.")
+    def create_namespaced_pod_template(self, body: dict, namespace: str):
+        return self._get_core_api().create_namespaced_pod_template(
+            body=body, namespace=namespace
+        )
+
+    @k8s_api_wrapper("Unable to delete pod template. See logs for details.")
+    def delete_namespaced_pod_template(self, name: str, namespace: str):
+        return self._get_core_api().delete_namespaced_pod_template(
+            name=name, namespace=namespace, body=client.V1DeleteOptions()
+        )
+
+    # --- ReplicaSets ---
+    @k8s_api_wrapper("Unable to read ReplicaSet. See logs for details.")
+    def read_namespaced_replica_set(self, name: str, namespace: str):
+        return self._get_apps_api().read_namespaced_replica_set(
+            name=name, namespace=namespace
+        )
+
+    @k8s_api_wrapper("Unable to list ReplicaSets. See logs for details.")
+    def list_namespaced_replica_set(
+        self, namespace: str, label_selector: Optional[str] = None
+    ):
+        return self._get_apps_api().list_namespaced_replica_set(
+            namespace=namespace, label_selector=label_selector
+        )
+
+    @k8s_api_wrapper("Unable to create ReplicaSet. See logs for details.")
+    def create_namespaced_replica_set(self, body: dict, namespace: str):
+        return self._get_apps_api().create_namespaced_replica_set(
+            body=body, namespace=namespace
+        )
+
+    @k8s_api_wrapper("Unable to delete ReplicaSet. See logs for details.")
+    def delete_namespaced_replica_set(self, name: str, namespace: str):
+        return self._get_apps_api().delete_namespaced_replica_set(
+            name=name, namespace=namespace, body=client.V1DeleteOptions()
+        )
+
+    # --- Deployments ---
+    @k8s_api_wrapper("Unable to read Deployment. See logs for details.")
+    def read_namespaced_deployment(self, name: str, namespace: str):
+        return self._get_apps_api().read_namespaced_deployment(
+            name=name, namespace=namespace
+        )
+
+    @k8s_api_wrapper("Unable to list Deployments. See logs for details.")
+    def list_namespaced_deployment(
+        self, namespace: str, label_selector: Optional[str] = None
+    ):
+        return self._get_apps_api().list_namespaced_deployment(
+            namespace=namespace, label_selector=label_selector
+        )
+
+    @k8s_api_wrapper("Unable to create Deployment. See logs for details.")
+    def create_namespaced_deployment(self, body: dict, namespace: str):
+        return self._get_apps_api().create_namespaced_deployment(
+            body=body, namespace=namespace
+        )
+
+    @k8s_api_wrapper("Unable to delete Deployment. See logs for details.")
+    def delete_namespaced_deployment(self, name: str, namespace: str):
+        return self._get_apps_api().delete_namespaced_deployment(
+            name=name, namespace=namespace, body=client.V1DeleteOptions()
+        )
+
+    # --- StatefulSets ---
+    @k8s_api_wrapper("Unable to read StatefulSet. See logs for details.")
+    def read_namespaced_stateful_set(self, name: str, namespace: str):
+        return self._get_apps_api().read_namespaced_stateful_set(
+            name=name, namespace=namespace
+        )
+
+    @k8s_api_wrapper("Unable to list StatefulSets. See logs for details.")
+    def list_namespaced_stateful_set(
+        self, namespace: str, label_selector: Optional[str] = None
+    ):
+        return self._get_apps_api().list_namespaced_stateful_set(
+            namespace=namespace, label_selector=label_selector
+        )
+
+    @k8s_api_wrapper("Unable to create StatefulSet. See logs for details.")
+    def create_namespaced_stateful_set(self, body: dict, namespace: str):
+        return self._get_apps_api().create_namespaced_stateful_set(
+            body=body, namespace=namespace
+        )
+
+    @k8s_api_wrapper("Unable to delete StatefulSet. See logs for details.")
+    def delete_namespaced_stateful_set(self, name: str, namespace: str):
+        return self._get_apps_api().delete_namespaced_stateful_set(
+            name=name, namespace=namespace, body=client.V1DeleteOptions()
+        )
+
+    # --- DaemonSets ---
+    @k8s_api_wrapper("Unable to read DaemonSet. See logs for details.")
+    def read_namespaced_daemon_set(self, name: str, namespace: str):
+        return self._get_apps_api().read_namespaced_daemon_set(
+            name=name, namespace=namespace
+        )
+
+    @k8s_api_wrapper("Unable to list DaemonSets. See logs for details.")
+    def list_namespaced_daemon_set(
+        self, namespace: str, label_selector: Optional[str] = None
+    ):
+        return self._get_apps_api().list_namespaced_daemon_set(
+            namespace=namespace, label_selector=label_selector
+        )
+
+    @k8s_api_wrapper("Unable to create DaemonSet. See logs for details.")
+    def create_namespaced_daemon_set(self, body: dict, namespace: str):
+        return self._get_apps_api().create_namespaced_daemon_set(
+            body=body, namespace=namespace
+        )
+
+    @k8s_api_wrapper("Unable to delete DaemonSet. See logs for details.")
+    def delete_namespaced_daemon_set(self, name: str, namespace: str):
+        return self._get_apps_api().delete_namespaced_daemon_set(
+            name=name, namespace=namespace, body=client.V1DeleteOptions()
         )

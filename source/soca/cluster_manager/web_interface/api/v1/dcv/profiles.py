@@ -344,7 +344,7 @@ class VirtualDesktopProfilesManager(Resource):
         _allowed_subnet_ids = args["allowed_subnet_ids"]
         _max_root_size = args["max_root_size"]
         _description = args.get("description", "")
-        if len(_description) > 500:
+        if _description and len(_description) > 500:
             return SocaError.GENERIC_ERROR(
                 helpers="Description cannot be greater than 500 characters"
             ).as_flask()
@@ -374,7 +374,7 @@ class VirtualDesktopProfilesManager(Resource):
 
         try:
             _proposed_subnets = [
-                item.strip() for item in args["allowed_subnet_ids"].split(",")
+                item.strip() for item in _allowed_subnet_ids.split(",")
             ]
         except Exception:
             return SocaError.GENERIC_ERROR(
@@ -432,6 +432,7 @@ class VirtualDesktopProfilesManager(Resource):
             db.session.add(_new_profile_creation)
             db.session.commit()
         except Exception as err:
+            db.session.rollback()
             return SocaError.DB_ERROR(
                 query=_new_profile_creation,
                 helper=f"Unable to add VDI Profile {_profile_name} to DB due to {err}",
@@ -603,6 +604,7 @@ class VirtualDesktopProfilesManager(Resource):
                 _check_profile.deactivated_by = _user
                 db.session.commit()
             except Exception as err:
+                db.session.rollback()
                 return SocaError.DB_ERROR(
                     query=_check_profile,
                     helper=f"Unable to deactivate software stack {_profile_id} due to {err}",
@@ -772,7 +774,7 @@ class VirtualDesktopProfilesManager(Resource):
         _max_root_size = args["max_root_size"]
         _profile_id = args["profile_id"]
         _description = args.get("description", "")
-        if len(_description) > 500:
+        if _description and len(_description) > 500:
             return SocaError.GENERIC_ERROR(
                 helpers="Description cannot be greater than 500 characters"
             ).as_flask()
@@ -863,6 +865,7 @@ class VirtualDesktopProfilesManager(Resource):
             db.session.add(_profile_to_update)
             db.session.commit()
         except Exception as err:
+            db.session.rollback()
             return SocaError.DB_ERROR(
                 query=_profile_to_update,
                 helper=f"Unable to edit VDI Profile to DB due to {err}",

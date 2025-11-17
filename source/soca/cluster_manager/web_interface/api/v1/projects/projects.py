@@ -578,12 +578,14 @@ class ProjectsManager(Resource):
                 logger.error(
                     f"Project {_project_name} created but failed to manage project membership due to {err}"
                 )
+                db.session.rollback()
                 return SocaError.DB_ERROR(
                     query="membership",
                     helper="Project created but failed to manage group membership. See log for details",
                 ).as_flask()
 
         except Exception as err:
+            db.session.rollback()
             return SocaError.DB_ERROR(
                 query=_new_project_creation,
                 helper=f"Unable to add new project to DB due to {err}",
@@ -738,6 +740,7 @@ class ProjectsManager(Resource):
                 _check_project.deactivated_by = _user
                 db.session.commit()
             except Exception as err:
+                db.session.rollback()
                 return SocaError.DB_ERROR(
                     query=_check_project,
                     helper=f"Unable to deactivate project {_project_id} due to {err}",
@@ -1147,16 +1150,14 @@ class ProjectsManager(Resource):
                 logger.error(
                     f"Project {_project_to_update} updated but failed to manage project membership due to: {err}"
                 )
+                db.session.rollback()
                 return SocaError.DB_ERROR(
                     query="membership",
                     helper="Project updated but failed to manage project membership. See log for details",
                 ).as_flask()
 
-            
-            
-            
-
         except Exception as err:
+            db.session.rollback()
             return SocaError.DB_ERROR(
                 query=_project_to_update,
                 helper=f"Unable to edit project to DB due to {err}",

@@ -35,7 +35,8 @@ class SocaConfigKeyVerifier:
         "list_of_ec2_instances",
         "list_of_ec2_subnet_ids",
         "validate_feature_flags",
-        "validate_custom_tags"
+        "validate_custom_tags",
+        "validate_schedulers",
     ]
 
     _KEY_CONFIG_FILE = f"/opt/soca/{os.environ.get('SOCA_CLUSTER_ID')}/cluster_manager/utils/settings/socaconfig_key_validator.yml"
@@ -95,11 +96,14 @@ class SocaConfigKeyVerifier:
         _validation_test = self.get_validation_test(
             _schema, [item for item in key.split("/") if item]
         )
-        
-        # CustomTags are unique to each customer, so we cannot pre-populate socaconfig_key_validator.yml in advance 
+
+        # CustomTags are unique to each customer, so we cannot pre-populate socaconfig_key_validator.yml in advance
         if "/configuration/CustomTags/" in key:
             _validation_test = "validate_custom_tags"
-        
+
+        if "/configuration/Schedulers/" in key:
+            _validation_test = "validate_schedulers"
+
         logger.debug(f"Detected Validation Test for {key} -> {_validation_test}")
         if _validation_test is None:
             return SocaError.SOCA_CONFIG_KEY_VERIFIER(
@@ -129,8 +133,13 @@ class SocaConfigKeyVerifier:
 
                 elif _validation_test == "validate_feature_flags":
                     _result = self.validate_feature_flags(flag_value=value)
+
                 elif _validation_test == "validate_custom_tags":
                     _result = self.validate_custom_tags(flag_value=value)
+
+                elif _validation_test == "validate_schedulers":
+                    _result = self.validate_schedulers(flag_value=value)
+
                 elif _validation_test == "list_of_ec2_subnet_ids":
                     _list_of_subnets = ast.literal_eval(value)
                     if not isinstance(_list_of_subnets, list):
@@ -146,6 +155,81 @@ class SocaConfigKeyVerifier:
                 return SocaResponse(success=True, message="")
             else:
                 return SocaResponse(success=False, message=_result)
+
+    @staticmethod
+    def validate_schedulers(flag_value: str):
+        try:
+            _flag_value = ast.literal_eval(flag_value)
+        except Exception as err:
+            return f"{flag_value} invalid syntax."
+
+        _required_keys = [
+            "enabled",
+            "provider",
+            "endpoint",
+            "soca_managed_nodes_provisioning",
+            "identifier",
+        ]
+
+        _lsf_configuration_keys = ["version", "lsf_top"]
+        _pbs_configuration_keys = ["install_prefix_path", "pbs_home"]
+        _slurm_configuration_keys = ["install_prefix_path", "pbs_home"]
+
+        if not isinstance(_flag_value, dict):
+            return f"{_flag_value} does not seems to be a valid dictionary"
+        else:
+
+            for key in _required_keys:
+                if _flag_value.get(key, None) is None:
+                    return f"{key} is missing or empty"
+
+            if str(_flag_value.get("enabled")).lower() not in ["true", "false"]:
+                return "enabled value is not a boolean, must be either True or False"
+
+            if _flag_value.get("provider").lower() not in ["slurm", "lsf", "openpbs"]:
+                return "provider value is not a valid scheduler, must be either slurm, openpbs or lsf"
+
+            if "lsf_configuration" in _flag_value.keys():
+                try:
+                    _lsf_configuration_as_dict = ast.literal_eval(
+                        _flag_value.get("lsf_configuration")
+                    )
+                    if not isinstance(_lsf_configuration_as_dict, dict):
+                        return "lsf_configuration is not a valid dictionary"
+                except Exception as err:
+                    return f"Unable to cast lsf_configuration as valid a valid dictionary due to {err}"
+                for _k in _lsf_configuration_keys:
+                    if _lsf_configuration_as_dict.get(_k, None) is None:
+                        return f"lsf_configuration.{_k} is missing or empty"
+
+            if "pbs_configuration" in _flag_value.keys():
+                try:
+                    _pbs_configuration_as_dict = ast.literal_eval(
+                        _flag_value.get("pbs_configuration")
+                    )
+                    if not isinstance(_pbs_configuration_as_dict, dict):
+                        return "pbs_configuration is not a valid dictionary"
+                except Exception as err:
+                    return f"Unable to cast pbs_configuration as valid a valid dictionary due to {err}"
+
+                for _k in _pbs_configuration_keys:
+                    if _pbs_configuration_as_dict.get(_k, None) is None:
+                        return f"pbs_configuration.{_k} is missing or empty"
+
+            if "slurm_configuration" in _flag_value.keys():
+                try:
+                    _slurm_configuration_as_dict = ast.literal_eval(
+                        _flag_value.get("slurm_configuration")
+                    )
+                    if not isinstance(_slurm_configuration_as_dict, dict):
+                        return "slurm_configuration is not a valid dictionary"
+                except Exception as err:
+                    return f"Unable to cast slurm_configuration as valid a valid dictionary due to {err}"
+                for _k in _slurm_configuration_keys:
+                    if _slurm_configuration_as_dict.get(_k, None) is None:
+                        return f"slurm_configuration.{_k} is missing or empty"
+
+        return True
 
     @staticmethod
     def validate_custom_tags(flag_value: str):
@@ -172,17 +256,21 @@ class SocaConfigKeyVerifier:
                 if not isinstance(_flag_value.get("Key"), str):
                     return f"Key is not a str"
                 else:
-                    if _flag_value.get('Key').startswith("soca:") or _flag_value.get('Key').startswith("aws:") or _flag_value.get('Key') == "Name":
+                    if (
+                        _flag_value.get("Key").startswith("soca:")
+                        or _flag_value.get("Key").startswith("aws:")
+                        or _flag_value.get("Key") == "Name"
+                    ):
                         return f"Key cannot start with soca: or aws: or be 'Name'"
-                
+
             if "Value" not in _flag_value.keys():
                 return f"Value is missing in {_flag_value}"
             else:
                 if not isinstance(_flag_value.get("Value"), str):
                     return f"Value value is not a str"
-                
+
             return True
-        
+
     @staticmethod
     def validate_feature_flags(flag_value: str):
         try:
@@ -335,4 +423,4 @@ class SocaConfigKeyVerifier:
         if re.match(regex_pattern, value):
             return True
         else:
-            return f"{value} is does not match {regex_pattern}"
+            return f"Verify regex: {value} is does not match {regex_pattern}"

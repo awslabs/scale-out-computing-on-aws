@@ -1,15 +1,6 @@
-######################################################################################################################
-#  Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.                                                #
-#                                                                                                                    #
-#  Licensed under the Apache License, Version 2.0 (the "License"). You may not use this file except in compliance    #
-#  with the License. A copy of the License is located at                                                             #
-#                                                                                                                    #
-#      http://www.apache.org/licenses/LICENSE-2.0                                                                    #
-#                                                                                                                    #
-#  or in the 'license' file accompanying this file. This file is distributed on an 'AS IS' BASIS, WITHOUT WARRANTIES #
-#  OR CONDITIONS OF ANY KIND, express or implied. See the License for the specific language governing permissions    #
-#  and limitations under the License.                                                                                #
-######################################################################################################################
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: Apache-2.0
+
 
 import urllib
 from functools import wraps
@@ -18,38 +9,55 @@ from models import ApiKeys
 from flask import request, redirect, session, flash, abort
 from requests import get, post
 import logging
+from typing import Optional
 from utils.http_client import SocaHttpClient
 import feature_flags
 
 logger = logging.getLogger("soca_logger")
 
 
-def validate_token(user, token, check_sudo=False):
-    # Validate if token supplied is used by Flask or if the pair of username/token is valid
+def validate_token(
+    user: Optional[str] = None, token: Optional[str] = None, check_sudo: bool = False
+) -> bool:
+    logger.debug(
+        "Validate if token supplied is used by Flask or if the pair of username/token is valid"
+    )
     if token == config.Config.API_ROOT_KEY:
         return True
     else:
         if user is None or token is None:
+            logger.debug("No user or token supplied")
             return False
         else:
-            if check_sudo:
-                if ApiKeys.query.filter_by(
-                    token=token, user=user, scope="sudo", is_active=True
-                ).first():
-                    return True
+            if ApiKeys.query.filter_by(token=token, user=user, is_active=True).first():
+                logger.debug(f"{user=} is a valid user, checking {check_sudo=}")
+                if check_sudo is True:
+                    _validate_sudo = SocaHttpClient(
+                        endpoint="/api/ldap/sudo",
+                        headers={"X-SOCA-TOKEN": token, "X-SOCA-USER": user},
+                    ).get(params={"user": user})
+
+                    if _validate_sudo.get("success") is True:
+                        logger.debug(
+                            f"{user=} is a valid user and {check_sudo=} is valid"
+                        )
+                        return True
+                    else:
+                        logger.error(f"{user=} is a valid user but no SUDO permission")
+                        return False
                 else:
-                    return False
+                    logger.debug(
+                        f"{user=} is a valid user and {check_sudo=} is not required"
+                    )
+                    return True
             else:
-                if ApiKeys.query.filter_by(
-                    token=token, user=user, is_active=True
-                ).first():
-                    return True
-                else:
-                    return False
+                return False
 
 
-def validate_password(user, password, check_sudo=False):
-    # Validate if pair or username/password is valid
+def validate_password(
+    user: Optional[str] = None, password: Optional[str] = None
+) -> bool:
+    logger.debug(f"Validate if pair or username/password is valid for {user}")
     if user is None or password is None:
         return False
     else:
@@ -59,20 +67,11 @@ def validate_password(user, password, check_sudo=False):
             headers={"X-SOCA-TOKEN": config.Config.API_ROOT_KEY},
         ).post(data={"user": user, "password": password})
 
-        if check_auth.status_code == 200:
-            if check_sudo:
-                check_sudo_permission = SocaHttpClient(
-                    endpoint="/api/ldap/sudo",
-                    headers={"X-SOCA-TOKEN": config.Config.API_ROOT_KEY},
-                ).get(param={"user": user})
-
-                if check_sudo_permission.status_code == 200:
-                    return True
-                else:
-                    return False
-            else:
-                return True
+        if check_auth.get("success") is True:
+            logger.debug(f"Valid login received for {user}")
+            return True
         else:
+            logger.error(f"Invalid login received for {user}")
             return False
 
 
@@ -140,9 +139,9 @@ def restricted_api(f):
 def admin_api(f):
     @wraps(f)
     def admin_resource(*args, **kwargs):
-        user = request.headers.get("X-SOCA-USER", None)
-        token = request.headers.get("X-SOCA-TOKEN", None)
-        if validate_token(user, token, check_sudo=True):
+        _user = request.headers.get("X-SOCA-USER", None)
+        _token = request.headers.get("X-SOCA-TOKEN", None)
+        if validate_token(user=_user, token=_token, check_sudo=True):
             return f(*args, **kwargs)
 
         return {"success": False, "message": "Not authorized"}, 401
@@ -150,7 +149,8 @@ def admin_api(f):
     return admin_resource
 
 
-# This is the only decorator that accept X-SOCA-PASSWORD. Used to query /api/user/api_key
+# This is the only decorator that accept X-SOCA-PASSWORD.
+#  Used to query /api/user/api_key
 def retrieve_api_key(f):
     @wraps(f)
     def get_key(*args, **kwargs):
@@ -160,12 +160,13 @@ def retrieve_api_key(f):
         if token == config.Config.API_ROOT_KEY:
             return f(*args, **kwargs)
 
-        # Ensure request can only retrieve her/his own key
+        # Ensure requester can only retrieve her/his own key
         get_key_for_user = request.args.get("user", None)
         if get_key_for_user != user:
+            logger.error(f"{user=} is not authorized to retrieve {get_key_for_user=} key")
             return {"success": False, "message": "Not authorized"}, 401
         else:
-            if validate_password(user, password, check_sudo=False):
+            if validate_password(user, password):
                 return f(*args, **kwargs)
 
         return {"success": False, "message": "Not authorized"}, 401
@@ -173,16 +174,13 @@ def retrieve_api_key(f):
     return get_key
 
 
-# Private API can only be accessed with a valid pair of token or web app
+# Private API can only be accessed with a valid pair of token
 def private_api(f):
     @wraps(f)
     def private_resource(*args, **kwargs):
-        user = request.headers.get("X-SOCA-USER", None)
-        token = request.headers.get("X-SOCA-TOKEN", None)
-        if token == config.Config.API_ROOT_KEY:
-            return f(*args, **kwargs)
-        get_request_for_user = request.args.get("user", None)
-        if validate_token(user, token, check_sudo=False):
+        _user = request.headers.get("X-SOCA-USER", None)
+        _token = request.headers.get("X-SOCA-TOKEN", None)
+        if validate_token(user=_user, token=_token, check_sudo=False):
             return f(*args, **kwargs)
         return {"success": False, "message": "Not authorized"}, 401
 
@@ -193,6 +191,7 @@ def private_api(f):
 def login_required(f):
     @wraps(f)
     def validate_account():
+        
         if "user" in session:
             if "api_key" in session:
                 # If a new API key has been issued,
@@ -269,6 +268,7 @@ def admin_only(f):
     return check_admin
 
 
+# To be removed, used feature_flag instead https://awslabs.github.io/scale-out-computing-on-aws-documentation/documentation/web-interface/feature-flags/ 
 def disabled(f):
     @wraps(f)
     def disable_feature(*args, **kwargs):

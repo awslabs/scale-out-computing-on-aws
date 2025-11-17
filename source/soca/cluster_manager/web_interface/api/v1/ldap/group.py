@@ -620,7 +620,6 @@ class Group(Resource):
         # Modifying resources on ActiveDirectory require to supply the full DN for the user
         if config.Config.DIRECTORY_AUTH_PROVIDER in [
             "aws_ds_managed_activedirectory",
-            "aws_ds_simple_activedirectory",
         ]:
             if not config.Config.DIRECTORY_PEOPLE_SEARCH_BASE.lower() in user.lower():
                 user_dn = f"cn={user},{config.Config.DIRECTORY_PEOPLE_SEARCH_BASE}"

@@ -13,7 +13,7 @@
 
 import os
 from datetime import timedelta
-import utils.cache as utils_cache
+import utils.cache.client as utils_cache
 from utils.aws.secrets_manager import SocaSecret
 from utils.aws.ssm_parameter_store import SocaConfig
 from utils.cast import SocaCastEngine
@@ -356,10 +356,15 @@ class Config(object):
         sys.exit(1)
 
     # PBS
-    PBS_QSTAT = "/opt/pbs/bin/qstat"
-    PBS_QDEL = "/opt/pbs/bin/qdel"
-    PBS_QSUB = "/opt/pbs/bin/qsub"
-    PBS_QMGR = "/opt/pbs/bin/qmgr"
+    CLUSTER_ID = (
+        SocaConfig(key="/configuration/ClusterId")
+        .get_value()
+        .get("message")
+    )
+    PBS_QSTAT = f"/opt/soca/{CLUSTER_ID}/schedulers/default/pbs/bin/qstat"
+    PBS_QDEL = f"/opt/soca/{CLUSTER_ID}/schedulers/default/pbs/bin/qdel"
+    PBS_QSUB = f"/opt/soca/{CLUSTER_ID}/schedulers/default/pbs/bin/qsub"
+    PBS_QMGR = f"/opt/soca/{CLUSTER_ID}/schedulers/default/pbs/bin/qmgr"
 
     # SSH
     SSH_PRIVATE_KEY_LOCATION = "tmp/ssh"

@@ -1,0 +1,39 @@
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# Begin: Hostname Functions. Added via common.sh.j2
+
+# Determine the IPv4 host IP of the host for host files and config files
+function get_ipv4_host_address () {
+  # Using hostname -I , we get a list of all IPv4/IPv6 addresses and no specific order
+  # So we have to process the output a little bit first
+
+  read -ra host_ipaddrs <<< "$(hostname -I)"
+  log_info "get_ipv4_host_address() - Scanning Host IP addresses for first IPv4 address: ${host_ipaddrs[*]}"
+
+  for i in "${host_ipaddrs[@]}"; do
+          # Does the entry pass a basic IPv4 RE test?
+          hostipv4=$(echo "$i" | grep -E '^(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$')
+          if [ -n "${hostipv4}" ]; then
+                  log_info "get_ipv4_host_address() - Found IPv4 address ${hostipv4}"
+                  FOUND_IP=$hostipv4
+                  # Exit the for loop on the first found
+                  break
+          else
+            log_info "get_ipv4_host_address() - Skipping non-IPv4 address: ${i}"
+            continue
+          fi
+  done
+
+  if [ -n "${FOUND_IP}" ]; then
+    log_info "Selected IPv4 host address: ${FOUND_IP}"
+    echo -n "${FOUND_IP}"
+  else
+    log_error "Unable to determine best IPv4 address for host representation. Configurations may not be complete."
+    echo -n ""
+  fi
+
+}
+
+
+# End: Hostname Functions

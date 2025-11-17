@@ -1,0 +1,106 @@
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# Begin: Common Scheduler Configure Queue Mapping
+function configure_queue_mapping () {
+    log_info "[BEGIN] configure_queue_mapping .. "
+    local SOCA_CLUSTER_ID="{{ context.get("/configuration/ClusterId") }}"
+    local SOCA_BASE_OS="{{ context.get("/configuration/BaseOS") }}"
+    local SOCA_INSTALL_AMI="{{ context.get("/configuration/CustomAMI") }}"
+
+    cat <<EOT >> /opt/soca/"${SOCA_CLUSTER_ID}"/cluster_manager/orchestrator/settings/queue_mapping.yml
+# This manage automatic provisioning for your queues
+# These are default values. Users can override them at job submission
+# https://awslabs.github.io/scale-out-computing-on-aws-documentation/tutorials/create-your-own-queue/
+queue_type:
+  compute:
+    queues: ["high", "normal", "low"]
+    # Uncomment to limit the number of concurrent running jobs
+    # max_running_jobs: 50
+    # Uncomment to limit the number of concurrent running instances
+    # max_provisioned_instances: 30
+    # Queue ACLs:  https://awslabs.github.io/scale-out-computing-on-aws-documentation/documentation/tutorials/manage-queue-acls/
+    allowed_users: [] # empty list = all users can submit job
+    excluded_users: [] # empty list = no restriction, ["*"] = only allowed_users can submit job
+    # Queue mode (can be either fifo or fairshare)
+    # queue_mode: "fifo"
+    # Instance types restrictions: https://awslabs.github.io/scale-out-computing-on-aws-documentation/documentation/security/manage-queue-instance-types/
+    allowed_instance_types: [] # Empty list, all EC2 instances allowed. You can restrict by instance type (Eg: ["c5.4xlarge"]) or instance family (eg: ["c5"])
+    excluded_instance_types: [] # Empty list, no EC2 instance types prohibited.  You can restrict by instance type (Eg: ["c5.4xlarge"]) or instance family (eg: ["c5"])
+    # List of parameters user can not override: https://awslabs.github.io/scale-out-computing-on-aws-documentation/documentation/security/manage-queue-restricted-parameters/
+    restricted_parameters: []
+    # Scaling mode (can be either single_job, or multiple_jobs): single_job runs a single job per EC2 instance, multiple_jobs allows running multiple jobs on the same EC2 instance
+    scaling_mode: "single_job" # Allowed values: single_job, multiple_jobs
+    # List of additional security groups / IAM instance profile that can be used https://awslabs.github.io/scale-out-computing-on-aws/security/use-custom-sgs-roles/
+    allowed_security_group_ids: []
+    allowed_instance_profiles: []
+    # Default job parameters: https://awslabs.github.io/scale-out-computing-on-aws-documentation/tutorials/integration-ec2-job-parameters/
+    #instance_ami: "$SOCA_INSTALL_AMI" # If you want to enforce a default AMI, make sure it match value of base_os
+    base_os: "$SOCA_BASE_OS" # To enforce a specific operating system for your HPC nodes
+    instance_type: "c6i.large" # Required
+    ht_support: "false"
+    root_size: "40"
+    #scratch_size: "100"
+    #scratch_iops: "3600"
+    #efa_support: "false"
+    # .. Refer to the doc for more supported parameters
+  job-shared:
+    queues: ["job-shared"]
+    # Uncomment to limit the number of concurrent running jobs
+    # max_running_jobs: 50
+    # Queue ACLs:  https://awslabs.github.io/scale-out-computing-on-aws-documentation/documentation/manage-queue-acls/
+    allowed_users: [] # empty list = all users can submit job
+    excluded_users: [] # empty list = no restriction, ["*"] = only allowed_users can submit job
+    # Queue mode (can be either fifo or fairshare)
+    # queue_mode: "fifo"
+    # Instance types restrictions: https://awslabs.github.io/scale-out-computing-on-aws-documentation/documentation/security/manage-queue-instance-types/
+    allowed_instance_types: [] # Empty list, all EC2 instances allowed. You can restrict by instance type (Eg: ["c5.4xlarge"]) or instance family (eg: ["c5"])
+    excluded_instance_types: [] # Empty list, no EC2 instance types prohibited.  You can restrict by instance type (Eg: ["c5.4xlarge"]) or instance family (eg: ["c5"])
+    # List of parameters user can not override: https://awslabs.github.io/scale-out-computing-on-aws-documentation/documentation/security/manage-queue-restricted-parameters/
+    restricted_parameters: []
+    # Default job parameters: https://awslabs.github.io/scale-out-computing-on-aws-documentation/tutorials/integration-ec2-job-parameters/
+    # Scaling mode (can be either single_job, or multiple_jobs): single_job runs a single job per EC2 instance, multiple_jobs allows running multiple jobs on the same EC2 instance
+    scaling_mode: "multiple_jobs" # Allowed values: single_job, multiple_jobs
+    instance_type: "c6i.large+c6i.xlarge+c6i.2xlarge" # Required
+    #instance_ami: "$SOCA_INSTALL_AMI" # If you want to enforce a default AMI, make sure it match value of base_os
+    base_os: "$SOCA_BASE_OS" # To enforce a specific operating system for your HPC nodes
+    # Terminate when idle: The value specifies the default duration (in mins) where the compute instances would be terminated after being detected as free (no jobs running) for N consecutive minutes
+    terminate_when_idle: 3 # Required when scaling_mode is set to multiple_jobs
+    ht_support: "true"
+    placement_group: "false"
+    root_size: "40"
+    # .. Refer to the doc for more supported parameters
+  test:
+    queues: ["test"]
+    # Uncomment to limit the number of concurrent running jobs
+    # max_running_jobs: 50
+    # Uncomment to limit the number of concurrent running instances
+    # max_provisioned_instances: 30
+    # Queue ACLs:  https://awslabs.github.io/scale-out-computing-on-aws-documentation/documentation/tutorials/manage-queue-acls/
+    allowed_users: [] # empty list = all users can submit job
+    excluded_users: [] # empty list = no restriction, ["*"] = only allowed_users can submit job
+    # Queue mode (can be either fifo or fairshare)
+    # queue_mode: "fifo"
+    # Instance types restrictions: https://awslabs.github.io/scale-out-computing-on-aws-documentation/documentation/security/manage-queue-instance-types/
+    allowed_instance_types: [] # Empty list, all EC2 instances allowed. You can restrict by instance type (Eg: ["c5.4xlarge"]) or instance family (eg: ["c5"])
+    excluded_instance_types: [] # Empty list, no EC2 instance types prohibited.  You can restrict by instance type (Eg: ["c5.4xlarge"]) or instance family (eg: ["c5"])
+    # List of parameters user can not override: https://awslabs.github.io/scale-out-computing-on-aws-documentation/documentation/security/manage-queue-restricted-parameters/
+    restricted_parameters: []
+    # List of additional security groups / IAM instance profile that can be used https://awslabs.github.io/scale-out-computing-on-aws-documentation/documentation/security/use-custom-sgs-roles/
+    allowed_security_group_ids: []
+    allowed_instance_profiles: []
+    # Default job parameters: https://awslabs.github.io/scale-out-computing-on-aws-documentation/tutorials/integration-ec2-job-parameters/
+    #instance_ami: "$SOCA_INSTALL_AMI" # If you want to enforce a default AMI, make sure it match value of base_os
+    base_os: "$SOCA_BASE_OS" # To enforce a specific operating system for your HPC nodes
+    instance_type: "c6i.large"  # Required
+    ht_support: "false"
+    root_size: "40"
+    #spot_price: "auto"
+    #placement_group: "false"
+    # .. Refer to the doc for more supported parameters
+EOT
+ log_info "[END] configure_queue_mapping .. "
+}
+
+configure_queue_mapping
+# End: Common Scheduler Configure Queue Mapping

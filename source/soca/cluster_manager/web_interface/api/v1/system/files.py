@@ -21,7 +21,7 @@ import base64
 import binascii
 from utils.error import SocaError
 from utils.response import SocaResponse
-from helpers.user_acls import check_user_permission, Permissions
+from utils.user_filesystems_acls import check_user_permission, Permissions
 from pathlib import Path
 import config
 
@@ -116,6 +116,7 @@ class Files(Resource):
                     user=request.headers.get("X-SOCA-USER"),
                     permissions=Permissions.READ,
                     path=file_to_read,
+                    paths_to_restrict=config.Config.PATH_TO_RESTRICT,
                 )
                 is True
             ):

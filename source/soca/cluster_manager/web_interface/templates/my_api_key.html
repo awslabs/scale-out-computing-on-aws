@@ -52,7 +52,7 @@
                                 <h2>Example: How to submit/query and delete a job via HTTP API</h2>
 
                                 <h4>Prepare the input</h4>
-                                Let's assume you want to submit a simple job
+                                Let's assume you want to submit a simple job on the default OpenPBS
                                 <pre><code class="language-bash">
 #!/bin/bash
 #PBS -N testjob
@@ -100,6 +100,7 @@ $ echo "IyEvYmluL2Jhc2gKI1BCUyAtTiB0ZXN0am9iCiNQQlMgLVYgLWogb2UgLW8gdGVzdGpvYl9v
 curl -k -X POST \
    -H "X-SOCA-TOKEN: {{ user_token }}" \
    -H "X-SOCA-USER: {{ user }}" \
+   -F interpreter="{{openpbs_scheduler}}" \
    -F payload="IyEvYmluL2Jhc2gKI1BCUyAtTiB0ZXN0am9iCiNQQlMgLVYgLWogb2UgLW8gdGVzdGpvYl9vdXRwdXQucWxvZwojUEJTIC1QIG15cHJvamVjdAojUEJTIC1xIG5vcm1hbAojUEJTIC1sIG5vZGVzPTEsaW5zdGFuY2VfdHlwZT1jNS5sYXJnZQovYmluL2VjaG8gIkhlbGxvIFdvcmxkIgo="  \
    {{ scheduler_host }}api/scheduler/job</code></pre>
                                     </div>
@@ -111,7 +112,7 @@ import json
 hdrs = {"X-SOCA-TOKEN": "{{ user_token }}",
         "X-SOCA-USER": "{{ user }}"}
 api_endpoint="{{ scheduler_host }}api/scheduler/job"
-payload = {"payload": "IyEvYmluL2Jhc2gKI1BCUyAtTiB0ZXN0am9iCiNQQlMgLVYgLWogb2UgLW8gdGVzdGpvYl9vdXRwdXQucWxvZwojUEJTIC1QIG15cHJvamVjdAojUEJTIC1xIG5vcm1hbAojUEJTIC1sIG5vZGVzPTEsaW5zdGFuY2VfdHlwZT1jNS5sYXJnZQovYmluL2VjaG8gIkhlbGxvIFdvcmxkIgo="}
+payload = {"interpreter": "{{openpbs_scheduler}}", "payload": "IyEvYmluL2Jhc2gKI1BCUyAtTiB0ZXN0am9iCiNQQlMgLVYgLWogb2UgLW8gdGVzdGpvYl9vdXRwdXQucWxvZwojUEJTIC1QIG15cHJvamVjdAojUEJTIC1xIG5vcm1hbAojUEJTIC1sIG5vZGVzPTEsaW5zdGFuY2VfdHlwZT1jNS5sYXJnZQovYmluL2VjaG8gIkhlbGxvIFdvcmxkIgo="}
 req = requests.post(api_endpoint,
                    headers=hdrs,
                    data=payload,
@@ -134,7 +135,7 @@ print(req.json())
 curl -k -X GET  \
    -H "X-SOCA-TOKEN: {{ user_token }}" \
    -H "X-SOCA-USER: {{ user }}" \
-   {{ scheduler_host }}api/scheduler/job?job_id=%YOUR_JOB_ID%</code></pre>
+   {{ scheduler_host }}api/scheduler/job?job_id=%YOUR_JOB_ID%&scheduler_id={{openpbs_scheduler}}</code></pre>
                                     </div>
                                     <div class="col-md-6">
                                         <h5>Using Python</h5>
@@ -144,7 +145,7 @@ import json
 hdrs = {"X-SOCA-TOKEN": "{{ user_token }}",
         "X-SOCA-USER": "{{ user }}",}
 api_endpoint="{{ scheduler_host }}api/scheduler/job"
-data = {"job_id": "%YOUR_JOB_ID%"}
+data = {"job_id": "%YOUR_JOB_ID%", "scheduler_id": "{{openpbs_scheduler}}"}
 req = requests.get(api_endpoint, headers=hdrs, params=data, verify=False) # change verify=True when using a trusted SSL cert
 print(req.status_code)
 print(req.json())
@@ -164,7 +165,8 @@ print(req.json())
 curl -k -X DELETE  \
    -H "X-SOCA-TOKEN: {{ user_token }}" \
    -H "X-SOCA-USER: {{ user }}" \
-   -F job_id=%YOUR_JOB_ID%
+   -F job_id=%YOUR_JOB_ID% \
+   -F scheduler_id="{{openpbs_scheduler}}" \
    {{ scheduler_host }}api/scheduler/job</code></pre>
                                     </div>
                                     <div class="col-md-6">
@@ -175,7 +177,7 @@ import json
 hdrs = {"X-SOCA-TOKEN": "{{ user_token }}",
         "X-SOCA-USER": "{{ user }}"}
 api_endpoint="{{ scheduler_host }}api/scheduler/job"
-data = {"job_id": "%YOUR_JOB_ID%"}
+data = {"job_id": "%YOUR_JOB_ID%", "scheduler_id": "{{openpbs_scheduler}}"}
 req = requests.delete(api_endpoint, headers=hdrs, data=data, verify=False) # change verify=True when using a trusted SSL cert
 print(req.status_code)
 print(req.json())

@@ -3,8 +3,9 @@
 
 import click
 from commands.common import print_output, is_controller_instance
-from utils.cache import SocaCacheClient
+from utils.cache.client import SocaCacheClient
 import sys
+import json
 
 
 def cache_client(is_admin: bool = False) -> SocaCacheClient:
@@ -55,7 +56,10 @@ def get(key, output):
     if _q == "CACHE_MISS":
         print_output("Key not found in cache", error=True)
     else:
-        print_output(_q.decode(), output=output)
+        if isinstance(_q, bytes):
+            print_output(str(_q), output=output)
+        else:
+            print_output(_q.decode(), output=output)
 
 
 @cache.command()

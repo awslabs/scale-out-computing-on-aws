@@ -25,7 +25,7 @@ def snapshot(output):
     """
     Output entire configuration.
 
-    Recommended to run this command on a regular basis to backup you entire SOCA configuration tree
+    Recommended to run this command on a regular basis to back up your entire SOCA configuration tree
     """
     _ctx = click.get_current_context()
     _ctx.invoke(get, key="/", output=output)

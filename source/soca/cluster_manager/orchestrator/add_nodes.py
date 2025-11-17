@@ -30,7 +30,9 @@ import cloudformation_builder
 from utils.aws.ssm_parameter_store import SocaConfig
 from utils.aws.boto3_wrapper import get_boto
 from utils.cast import SocaCastEngine
+import logging
 
+logger = logging.getLogger("soca_logger")
 cloudformation = get_boto(service_name="cloudformation").message
 s3 = get_boto(service_name="s3").message
 ec2 = get_boto(service_name="ec2").message
@@ -271,17 +273,16 @@ def can_launch_capacity(
 ):
     # Allow skipping DryRun and Quotas - default to False if they are not set in the config
     skip_dryrun: bool = (
-        SocaConfig(key="/configuration/SkipDryRun")
+        SocaConfig(key="/configuration/FeatureFlags/Hpc/EnableDryRun")
         .get_value(return_as=bool, default=False)
         .get("message")
     )
     enforce_quota: bool = (
-        SocaConfig(key="/configuration/FeatureFlags/EnableAWSQuotaChecks")
+        SocaConfig(key="/configuration/FeatureFlags/Hpc/EnableQuotasCheck")
         .get_value(return_as=bool, default=True)
         .get("message")
     )
 
-    
     _custom_tags = []
     if custom_tags:
         for tag in custom_tags.values():
@@ -309,7 +310,11 @@ def can_launch_capacity(
                     .get("message")
                 },
                 DryRun=True,
-                TagSpecifications=[{"ResourceType": "instance", "Tags": _custom_tags}] if _custom_tags else [],
+                TagSpecifications=(
+                    [{"ResourceType": "instance", "Tags": _custom_tags}]
+                    if _custom_tags
+                    else []
+                ),
             )
 
         except ClientError as e:
@@ -363,12 +368,12 @@ def check_config(**kwargs):
             )
             if len(instance_attributes["InstanceTypes"]) == 0:
                 skip = True
-                error.append(f"No instance returned from DescribeInstanceTypes")
+                error.append("No instance returned from DescribeInstanceTypes")
         except ClientError as e:
             skip = True
             if e.response["Error"].get("Code") == "InvalidInstanceType":
                 error.append(
-                    f"Instance type does not seem to be valid. Update boto3 to refresh the list if needed"
+                    "Instance type does not seem to be valid. Update boto3 to refresh the list if needed"
                 )
             else:
                 error.append(f"Unable to get instance information due to {e}")
@@ -1224,13 +1229,13 @@ def main(**kwargs):
 
         # Get custom tags if specified
         _tags_allowed = SocaConfig(
-            key="/configuration/FeatureFlags/AllowCustomTagsHPC"
+            key="/configuration/FeatureFlags/Hpc/AllowCustomTags"
         ).get_value(return_as=bool)
         if _tags_allowed.get("success") is True:
             if _tags_allowed.get("message") is True:
-                _get_tags = SocaConfig(
-                    key="/configuration/Tags/CustomTags/"
-                ).get_value(allow_unknown_key=True)
+                _get_tags = SocaConfig(key="/configuration/Tags/CustomTags/").get_value(
+                    allow_unknown_key=True
+                )
                 if _get_tags.get("success") is True:
                     _tag_dict = SocaCastEngine(data=_get_tags.get("message")).autocast(
                         preserve_key_name=True
@@ -1240,7 +1245,7 @@ def main(**kwargs):
                     else:
                         print(f"Unable to autocast custom tags {_tag_dict=} ")
                 else:
-                  print(
+                    print(
                         "/configuration/CustomTags/ does not exist in this environment"
                     )
             else:
@@ -1249,9 +1254,7 @@ def main(**kwargs):
                 )
 
         else:
-            print(
-                "Custom tags are not allowed. AllowCustomTagsHPC is set to false"
-            )
+            print("Custom tags are not allowed. AllowCustomTagsHPC is set to false")
 
         cfn_stack_body = cloudformation_builder.main(**cfn_stack_parameters)
         if cfn_stack_body["success"] is False:
@@ -1267,7 +1270,7 @@ def main(**kwargs):
             cfn_stack_parameters["ImageId"],
             cfn_stack_parameters["SubnetId"][0],
             cfn_stack_parameters["SecurityGroupId"],
-            cfn_stack_parameters["CustomTags"]
+            cfn_stack_parameters["CustomTags"],
         )
 
         if cfn_stack_parameters.get("SpotPrice") is None:

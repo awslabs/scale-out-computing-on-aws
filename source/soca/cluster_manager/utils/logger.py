@@ -96,8 +96,8 @@ class SocaLogger:
         return self.get_logger()
 
     def rotating_file_handler(
-        self, file_path: str, max_bytes: int = 1024 * 1024 * 5, backup_count: int = 5
-    ):
+        self, file_path: str, max_bytes: int = 1024 * 1024 * 50, backup_count: int = 5
+    ):  # create chunk of 50 mb
         os.makedirs(os.path.dirname(file_path), exist_ok=True)
         _handler = logging.handlers.RotatingFileHandler(
             file_path, maxBytes=max_bytes, backupCount=backup_count
@@ -110,9 +110,9 @@ class SocaLogger:
     def timed_rotating_file_handler(
         self,
         file_path: str,
-        when: str = "midnight",
+        when: str = "W0",  # https://docs.python.org/3/library/logging.handlers.html#logging.handlers.TimedRotatingFileHandler
         interval: int = 1,
-        backup_count: int = 30,
+        backup_count: int = 5,
     ):
         os.makedirs(os.path.dirname(file_path), exist_ok=True)
         _handler = logging.handlers.TimedRotatingFileHandler(

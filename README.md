@@ -1,6 +1,6 @@
 # Scale-Out Computing on AWS - CAE Made Easy :palm_tree:
 
-Scale-Out Computing on AWS (SOCA) is a complete environment designed to help you run and operate a Computer Aided Simulations (CAE) environment on AWS and run CAE simulations at scale.
+Scale-Out Computing on AWS (SOCA) is a complete environment designed to help you run your engineering workloads on AWS and run your simulations at scale.
 Key Features:
 
 - Web Interface
@@ -8,6 +8,7 @@ Key Features:
 - CAE Simulations job submission via CLI or Web portal
 - Integration with OpenLDAP or Microsoft Active Directory
 - Multi Operating System Support (Windows, Amazon Linux, Red Hat Enterprise Linux, CentOS, Rocky, Ubuntu ...)
+- Multi Compute Orchestration support (OpenPBS, Kubernetes, LSF, Slurm ...)
 - Native support for Engineering Licenses Server (e.g: FlexLM)
 - Smart Instance Provisioning (on-demand, spot, alwayson ...)
 - Integration with all storage providers (EBS, FSx Lustre/NetApp ONTAP, local NVME, Elastic File System ...)

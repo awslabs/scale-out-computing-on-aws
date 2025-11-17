@@ -74,7 +74,7 @@ def submit_job():
     ).post(request.form.to_dict())
     if _submit_job.get("success") is True:
         flash(f"Your job was submitted successfully", "success")
-        return redirect("/containers/my_jobs")
+        return redirect("/containers/my_containers")
     else:
         flash(
             _submit_job.get("message"),
@@ -83,7 +83,7 @@ def submit_job():
         return redirect("/containers")
 
 
-@containers.route("/containers/my_jobs", methods=["GET"])
+@containers.route("/containers/my_containers", methods=["GET"])
 @login_required
 @feature_flag(flag_name="CONTAINERS_MANAGEMENT", mode="view")
 def list_jobs():
@@ -92,7 +92,7 @@ def list_jobs():
     )
     _namespace = request.args.get("namespace", "default")
     _cluster = request.args.get("cluster", "")
-    _jobs = {}
+    _containers = {}
 
     try:
 
@@ -127,7 +127,7 @@ def list_jobs():
                 },
             ).get(params={"cluster": cluster, "namespace": _namespace})
             if _get_job_for_cluster.get("success") is True:
-                _jobs[cluster] = _get_job_for_cluster.get("message")
+                _containers[cluster] = _get_job_for_cluster.get("message")
             else:
                 logger.error(
                     f"Unable to list job for cluster {cluster} because of {_get_job_for_cluster}"
@@ -138,13 +138,13 @@ def list_jobs():
                 )
 
     except Exception as err:
-        logger.error(f"Error listing jobs: {err}")
-        flash(f"Failed to list jobs: {err}", "error")
+        logger.error(f"Error listing containers: {err}")
+        flash(f"Failed to list containers: {err}", "error")
 
-    logger.debug(f"Detected jobs {_jobs}")
+    logger.debug(f"Detected jobs {_containers}")
     return render_template(
-        "containers/my_jobs.html",
-        jobs=_jobs,
+        "containers/my_containers.html",
+        containers=_containers,
         page="containers",
     )
 
@@ -165,4 +165,4 @@ def delete_job():
             _delete_job.get("message"),
             "error",
         )
-    return redirect("/containers/my_jobs")
+    return redirect("/containers/my_containers")

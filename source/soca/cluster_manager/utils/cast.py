@@ -4,37 +4,54 @@
 from typing import Any, Type
 import logging
 import ast
+from typing import Dict
 from utils.response import SocaResponse
 from utils.error import SocaError
 import os
 import sys
 import json
+import yaml
+import enum
 logger = logging.getLogger("soca_logger")
 
 
-def auto_cast(data: Any) -> Any:
+def auto_cast(data: Any, type_overrides: Dict[str, Type] = None, _path: str = "") -> Any:
     """
-    This function automatically cast a data to its original type.
-    Support nested list/dictionary
+    Automatically cast a data to its intended type.
+    - Supports nested list/dictionary.
+    - Respects nested key overrides, e.g. {"key1.version": str} -> will force {"key1": {"version": "10.1"}} to be a str and not automatically casted to float or such
     """
+    type_overrides = type_overrides or {}
+
+    if _path in type_overrides:
+        desired_type = type_overrides[_path]
+        try:
+            return desired_type(data)
+        except Exception:
+            return data
+
     if isinstance(data, str):
         try:
-            if data.lower() in SocaCastEngine.ALLOWED_TRUE_VALUES:
+            low = data.lower()
+            if low in SocaCastEngine.ALLOWED_TRUE_VALUES:
                 return True
-            elif data.lower() in SocaCastEngine.ALLOWED_FALSE_VALUES:
+            elif low in SocaCastEngine.ALLOWED_FALSE_VALUES:
                 return False
             else:
                 parsed_value = ast.literal_eval(data)
                 return parsed_value
         except (ValueError, SyntaxError):
-            # If parsing fails, just return the original string value
             return data
+
     elif isinstance(data, list):
-        # Recursively process each element in the list
-        return [auto_cast(item) for item in data]
+        return [auto_cast(item, type_overrides, _path) for item in data]
+
     elif isinstance(data, dict):
-        # Recursively process each key-value pair in the dictionary
-        return {k: auto_cast(v) for k, v in data.items()}
+        result = {}
+        for k, v in data.items():
+            new_path = f"{_path}.{k}" if _path else k
+            result[k] = auto_cast(v, type_overrides, new_path)
+        return result
 
     return data
 
@@ -44,8 +61,8 @@ class SocaCastEngine:
     Return None if we cannot cast the data as requested type
     """
 
-    ALLOWED_FALSE_VALUES = ["false", "no", "off", "0", "disabled"]
-    ALLOWED_TRUE_VALUES = ["true", "yes", "on", "1", "enabled"]
+    ALLOWED_FALSE_VALUES = ["false", "no", "off", "disabled"]
+    ALLOWED_TRUE_VALUES = ["true", "yes", "on", "enabled"]
 
     def __init__(self, data: Any):
         self._data = data
@@ -137,7 +154,15 @@ class SocaCastEngine:
                 helper=f"Unable to cast {self._data} as json due to {err}"
             )
 
-    def autocast(self, preserve_key_name: bool = False) -> dict:
+    def as_yaml(self):
+        try:
+            return SocaResponse(success=True, message=yaml.safe_load(self._data))
+        except Exception as err:
+            return SocaError.CAST_ERROR(
+                helper=f"Unable to cast {self._data} as YAML due to {err}"
+            )
+
+    def autocast(self, type_overrides: Dict[str, Type] = None, preserve_key_name: bool = False) -> dict:
         # This function will try to automatically cast self._data as its best type
         # Support nested list and dictionary
         _result = {}
@@ -159,7 +184,7 @@ class SocaCastEngine:
             self._data.update(_updated_dict)
 
         try:
-            _result = auto_cast(self._data)
+            _result = auto_cast(data=self._data, type_overrides=type_overrides)
             return SocaResponse(success=True, message=_result)
 
         except Exception as err:
@@ -167,4 +192,40 @@ class SocaCastEngine:
             fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
             return SocaError.CAST_ERROR(
                 helper=f"Unable to autocast {self._data} due to {err}, {exc_type}, {fname}, {exc_tb.tb_lineno}"
+            )
+
+
+    def serialize_json(self, indent: int = 2):
+        """
+        Safely serialize any object (including custom classes, Enums, etc.) into JSON.
+        Recursively converts attributes to make them JSON serializable.
+        """
+        def _make_serializable(obj):
+            # Handle Enums
+            if isinstance(obj, enum.Enum):
+                return obj.value
+
+            # Handle dicts
+            elif isinstance(obj, dict):
+                return {k: _make_serializable(v) for k, v in obj.items()}
+
+            # Handle lists, tuples, sets
+            elif isinstance(obj, (list, tuple, set)):
+                return [_make_serializable(v) for v in obj]
+
+            # Handle custom classes
+            elif hasattr(obj, "__dict__"):
+                return {k: _make_serializable(v) for k, v in obj.__dict__.items()}
+
+            # Handle other primitive types (int, str, float, bool, None)
+            else:
+                return obj
+
+        try:
+            serializable_obj = _make_serializable(self._data)
+            json_str = json.dumps(serializable_obj, indent=indent)
+            return SocaResponse(success=True, message=json_str)
+        except Exception as err:
+            return SocaError.CAST_ERROR(
+                helper=f"Unable to serialize {type(self._data)} to JSON due to {err}"
             )

@@ -227,8 +227,9 @@ class StartTargetNode(Resource):
                     ]
                     logging.info("Requesting new ODCR for this EC2 instance")
                     _request_on_demand_capacity_reservation = (
-                        odcr_helper.create_capacity_reservation_vdi(
+                        odcr_helper.create_capacity_reservation(
                             instance_type=_instance_info.get("InstanceType"),
+                            desired_capacity=1,
                             capacity_reservation_name=_check_session.stack_name,
                             subnet_id=_instance_info.get("SubnetId"),
                             instance_ami=_instance_info.get("ImageId"),
@@ -241,31 +242,9 @@ class StartTargetNode(Resource):
                         ).as_flask()
                     else:
                         logger.info(
-                            f"ODCR successfully created {_request_on_demand_capacity_reservation.get('message')}"
+                            f"Capacity reservation successfully validated {_request_on_demand_capacity_reservation.get('message')}"
                         )
-
-                        _new_reservation_id = (
-                            _request_on_demand_capacity_reservation.get("message")
-                        )
-                        logger.info(f"Applying {_new_reservation_id=} to the instance")
-                        _modify_odcr = (
-                            odcr_helper.modify_instance_capacity_reservation_attributes(
-                                instance_id=_instance_id,
-                                reservation_id=_new_reservation_id,
-                            )
-                        )
-                        if _modify_odcr.get("success") is False:
-                            logger.error(
-                                f"Unable to apply new ODCR to the instance due to {_modify_odcr.get('message')}, canceling all ODCR for this job"
-                            )
-                            odcr_helper.cancel_capacity_reservation(
-                                reservation_id=_new_reservation_id
-                            )
-
-                            return SocaError.GENERIC_ERROR(
-                                helper=f"Unable to re-assign a new capacity reservation when trying to restart your desktop due to {_modify_odcr.get('message')}"
-                            )
-
+                        
                 client_ec2.start_instances(InstanceIds=[_instance_id])
                 try:
                     _check_session.session_state = "pending"
@@ -274,6 +253,7 @@ class StartTargetNode(Resource):
                     )
                     db.session.commit()
                 except Exception as err:
+                    db.session.rollback()
                     return SocaError.DB_ERROR(
                         query=_check_session,
                         helper=f"Unable to update session state to 'pending' due to {err}",

@@ -28,24 +28,24 @@ configuration:
   SolutionMetricsLambda: *immutable_key
   CustomAMI: '^ami-[0-9a-f]{8,17}$'
   FeatureFlags:
-    EnableCapacityReservation: *bool
-    EnableAWSQuotaChecks: *bool
+    EnableCapacityReservation: *bool 
+    Hpc:
+      AllowCustomTags: *bool
+      EnableDryRun: *bool
+      EnableQuotasCheck: *bool
+      JoinEphemeralNodesToAD: *bool
+
     Networking:
-      EnableIPv6: *bool
+      EnableIPv6: *bool  
       AutoManagedPrefixList: *bool
-    WebInterface:
-      VirtualDesktops: *validate_feature_flags
-      TargetNodes: *validate_feature_flags
-      LoginNodes: *validate_feature_flags
-      Hpc: *validate_feature_flags
-      FileBrowser: *validate_feature_flags
-      UsersGroupsManagement: *validate_feature_flags
-      ContainersManagement: *validate_feature_flags
-      MyApiKeyManagement: *validate_feature_flags
-      SftpInstructions: *validate_feature_flags
-      MyAccountManagement: *validate_feature_flags
-      AnalyticsCostManagement: *validate_feature_flags
     
+    VirtualDesktops:
+       AllowCustomTags: *bool
+
+    TargetNodes:
+      AllowCustomTags: *bool
+
+
 
   FileSystemDataProvider: '^(efs|fsx_lustre)$'
   LdapBase: *str
@@ -71,8 +71,12 @@ configuration:
     on_mount_failure: *str
   OSDomainEndpoint: *str
   AnalyticsEngine: '^(opensearch|elasticsearch)$'
+  Analytics:
+    enabled: *bool
+    engine: '^(opensearch|elasticsearch)$'
+    endpoint: *str
   UserDirectory:
-    provider: '^(aws_ds_managed_activedirectory|aws_ds_simple_activedirectory|openldap)$'
+    provider: '^(aws_ds_managed_activedirectory|openldap)$'
     admins_search_base: '((?:[a-zA-Z]+\s*=\s*[^,+=<>#;]+)(?:\+[a-zA-Z]+\s*=\s*[^,+=<>#;]+)*)'
     people_search_base: '((?:[a-zA-Z]+\s*=\s*[^,+=<>#;]+)(?:\+[a-zA-Z]+\s*=\s*[^,+=<>#;]+)*)'
     group_search_base: '((?:[a-zA-Z]+\s*=\s*[^,+=<>#;]+)(?:\+[a-zA-Z]+\s*=\s*[^,+=<>#;]+)*)'

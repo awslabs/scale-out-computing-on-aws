@@ -4,7 +4,7 @@
 # Begin - Wrapper IMDS. Added via common.sh.j2
 function imds_get () {
   local SLASH=''
-  local IMDS_HOST="http://169.254.169.254"
+  local IMDS_HOST="http://169.254.169.254" #  [fd00:ec2::254] for IPv6
   local IMDS_TTL="300"
   # prepend a slash if needed
   if [[ "${1:0:1}" == '/' ]]; then

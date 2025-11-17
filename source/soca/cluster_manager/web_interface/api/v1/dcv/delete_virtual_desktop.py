@@ -20,9 +20,8 @@ from decorators import private_api, feature_flag
 from utils.error import SocaError
 from models import db, VirtualDesktopSessions
 import utils.aws.boto3_wrapper as utils_boto3
-import utils.aws.cloudformation_helper as cloudformation_helper
-import utils.aws.odcr_helper as odcr_helper
-from utils.aws.ssm_parameter_store import SocaConfig
+from utils.aws.cloudformation_helper import SocaCfnClient
+
 
 logger = logging.getLogger("soca_logger")
 client_ec2 = utils_boto3.get_boto(service_name="ec2").message
@@ -219,19 +218,8 @@ class DeleteVirtualDesktop(Resource):
                 f"Found session {_check_session} about to delete {_check_session.session_name} and associated CloudFormation {_check_session.stack_name}"
             )
 
-            if (
-                SocaConfig(key="/configuration/FeatureFlags/EnableCapacityReservation")
-                .get_value(return_as=bool)
-                .get("message")
-                is True
-            ):
-                logger.info("Releasing ODCR associated to this cloudformation stack")
-                odcr_helper.cancel_capacity_reservation_by_stack(
-                    stack_name=_check_session.stack_name
-                )
-
             logger.info(f"Deleting DCV CloudFormation Stack {_stack_name}")
-            _delete_stack = cloudformation_helper.delete_stack(stack_name=_stack_name)
+            _delete_stack = SocaCfnClient(stack_name=_stack_name).delete_stack()
             if _delete_stack.get("success") is False:
                 return SocaError.AWS_API_ERROR(
                     service_name="cloudformation",
@@ -249,6 +237,7 @@ class DeleteVirtualDesktop(Resource):
                 db.session.commit()
 
             except Exception as e:
+                db.session.rollback()
                 return SocaError.DB_ERROR(
                     helper=f"Unable to deactivate DCV desktop session due to {e}",
                     query=_check_session,

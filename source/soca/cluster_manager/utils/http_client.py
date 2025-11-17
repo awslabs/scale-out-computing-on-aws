@@ -15,7 +15,7 @@ class SocaHttpClient:
     def __init__(
         self,
         endpoint: str,
-        timeout: int = 10,
+        timeout: int = 30,
         headers: Optional[dict] = None,
         verify: Optional[
             bool
@@ -67,6 +67,7 @@ class SocaHttpClient:
             "token",
             "auth",
             "csrf_token",
+            "secret"
         ]
         _req_header_to_log = {}
         _req_data_to_log = {}

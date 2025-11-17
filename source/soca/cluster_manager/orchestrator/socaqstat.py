@@ -64,7 +64,7 @@ if __name__ == "__main__":
     )
     parser.add_argument("-f", "--format", nargs="?", help="json format")
     arg = parser.parse_args()
-    qstat_output = run_command("/opt/pbs/bin/qstat -f -F json")
+    qstat_output = run_command(f"/opt/soca/{os.environ['SOCA_CLUSTER_ID']}/schedulers/default/pbs/bin/qstat -f -F json")
     desktop_queue = ["desktop"]
     job_id_order = []
     output = []
@@ -225,7 +225,7 @@ if __name__ == "__main__":
                 else:
                     t = (instance_type, instance_ami, ht_support, job_queue, spot_price)
                 for item in t:
-                    h.update(item.encode("utf-8"))
+                    h.update(str(item).encode("utf-8"))
                 job_id_hash = h.hexdigest()
 
             if ignore is False:

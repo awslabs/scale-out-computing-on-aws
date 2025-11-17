@@ -6,6 +6,8 @@ function file_download() {
 
   # file_download --download-url="https://link/file.txt" --save-as="file.txt" <-- will download from internet via https
   # file_download --download-url="s3://mybucket/file.txt" --save-as="file.txt"  <-- will download from s3 via awscli
+  # file_download --download-url="https://github.com/user/repo.git" --save-as="repo" <-- will clone git repo
+
   # Optional: Specify --sha256-checksum to verify data integrity
   # Optional: Specify --wget-options to add any addition options (note: --quiet is enabled by default)
 
@@ -27,11 +29,15 @@ function file_download() {
     esac
   done
 
-  if [[ ${DOWNLOAD_URL} =~ ^s3:// ]]; then
+  # Determine download type
+  if [[ ${DOWNLOAD_URL} =~ \.git$ ]]; then
+      log_info "${DOWNLOAD_URL} seems to be a Git repository"
+      DOWNLOAD_TYPE="git"
+  elif [[ ${DOWNLOAD_URL} =~ ^s3:// ]]; then
       log_info "${DOWNLOAD_URL} seems to be a S3 URL"
       DOWNLOAD_TYPE="s3"
   else
-       log_info "${DOWNLOAD_URL} seems to be an HTTP URL"
+      log_info "${DOWNLOAD_URL} seems to be an HTTP URL"
       DOWNLOAD_TYPE="http"
   fi
 
@@ -43,37 +49,51 @@ function file_download() {
     exit_fail "SAVE_AS not found, for file_download. Please specify --save-as"
   fi
 
-  if [[ ${DOWNLOAD_TYPE} == "http" ]]; then
-    # HTTP
-    if ! verify_package_installed wget; then
-      packages_install wget
-    fi
+  case "${DOWNLOAD_TYPE}" in
+    http)
+      # HTTP download
+      if ! verify_package_installed wget; then
+        packages_install wget
+      fi
 
-    # note: Do not add WGET_OPTIONS between quotes to avoid them being treated as string
-    if wget --quiet ${WGET_OPTIONS} "${DOWNLOAD_URL}" -O "${SAVE_AS}"; then
-      log_info "${DOWNLOAD_URL} downloaded successfully and saved as ${SAVE_AS}"
-    else
-      exit_fail "Error downloading [${DOWNLOAD_URL}] wget returned an error, check the logs for more details"
-    fi
+      if wget --quiet ${WGET_OPTIONS} "${DOWNLOAD_URL}" -O "${SAVE_AS}"; then
+        log_info "${DOWNLOAD_URL} downloaded successfully and saved as ${SAVE_AS}"
+      else
+        exit_fail "Error downloading [${DOWNLOAD_URL}] wget returned an error, check the logs for more details"
+      fi
+      ;;
 
-  else
-    # S3
-    local S3_ACTION
+    s3)
+      # S3 download
+      local S3_ACTION
+      if [[ "${DOWNLOAD_URL}" =~ /$ ]]; then
+          log_info "${DOWNLOAD_URL} ends with /, using s3 sync"
+          S3_ACTION="sync"
+      else
+          log_info "${DOWNLOAD_URL} does not end with /, using s3 cp"
+          S3_ACTION="cp"
+      fi
 
-    if [[ "${DOWNLOAD_URL}" =~ /$ ]]; then
-        log_info "${DOWNLOAD_URL} ends with /, using s3 sync"
-        S3_ACTION="sync"
-    else
-        log_info "${DOWNLOAD_URL} does not ends with /, using s3 cp"
-        S3_ACTION="cp"
-    fi
+      if aws_cli s3 ${S3_ACTION} ${DOWNLOAD_URL} ${SAVE_AS} --quiet; then
+        log_info "${DOWNLOAD_URL} downloaded successfully and saved as ${SAVE_AS}"
+      else
+        exit_fail "Error downloading ${DOWNLOAD_URL}. aws_cli returned an error"
+      fi
+      ;;
 
-    if aws_cli s3 ${S3_ACTION} ${DOWNLOAD_URL} ${SAVE_AS} --quiet; then
-      log_info "${DOWNLOAD_URL} downloaded successfully and saved as ${SAVE_AS}"
-    else
-      exit_fail "Error downloading ${DOWNLOAD_URL}. aws_cli returned an error"
-    fi
-  fi
+    git)
+      # Git clone
+      if ! verify_package_installed git; then
+        packages_install git
+      fi
+
+      if git clone "${DOWNLOAD_URL}" "${SAVE_AS}"; then
+        log_info "Git repository ${DOWNLOAD_URL} cloned successfully into ${SAVE_AS}"
+      else
+        exit_fail "Error cloning git repository ${DOWNLOAD_URL}"
+      fi
+      ;;
+  esac
 
   # If --sha256-checksum is provided, proceed to an integrity check
   if [[ -n ${SHA256_CHECKSUM_EXPECTED} ]]; then

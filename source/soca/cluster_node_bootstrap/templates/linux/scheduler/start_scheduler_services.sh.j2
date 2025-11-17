@@ -1,0 +1,43 @@
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# Simple wrapper for compute node to easily start schedulers
+function start_soca_scheduler_services {
+    log_info "Checking SOCA Scheduler service status and starting them if stopped"
+
+    # Find all services starting with 'soca_scheduler_'
+    local SCHEDULER_SERVICES=$(systemctl list-unit-files | grep '^soca_scheduler_' | awk '{print $1}')
+
+    if [[ -z "${SCHEDULER_SERVICES}" ]]; then
+        log_info "No SOCA Scheduler services found, skipping ... "
+    else
+        for svc in ${SCHEDULER_SERVICES}; do
+            log_info "Processing service: ${svc}"
+
+            if systemctl list-unit-files | grep -q "^${svc}"; then
+                
+                # Enable service if not already enabled
+                if ! systemctl is-enabled "${svc}" &>/dev/null; then
+                    log_info "Enabling ${svc}"
+                    systemctl enable "${svc}" --quiet
+                else
+                    log_info "${svc} is already enabled"
+                fi
+
+                # Start service if not already running
+                if ! systemctl is-active "${svc}" &>/dev/null; then
+                    log_info "Starting ${svc}"
+                    if ! systemctl start "${svc}"; then
+                        journalctl -xeu "${svc}"
+                        exit_fail "Unable to start ${svc}, check logs for details"
+                    fi
+                else
+                    log_info "${svc} is already running"
+                fi
+            else
+                log_info "${svc} not found, skipping"
+            fi
+        done
+    fi
+}
+start_soca_scheduler_services

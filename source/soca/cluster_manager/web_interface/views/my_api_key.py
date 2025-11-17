@@ -1,21 +1,15 @@
-######################################################################################################################
-#  Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.                                                #
-#                                                                                                                    #
-#  Licensed under the Apache License, Version 2.0 (the "License"). You may not use this file except in compliance    #
-#  with the License. A copy of the License is located at                                                             #
-#                                                                                                                    #
-#      http://www.apache.org/licenses/LICENSE-2.0                                                                    #
-#                                                                                                                    #
-#  or in the 'license' file accompanying this file. This file is distributed on an 'AS IS' BASIS, WITHOUT WARRANTIES #
-#  OR CONDITIONS OF ANY KIND, express or implied. See the License for the specific language governing permissions    #
-#  and limitations under the License.                                                                                #
-######################################################################################################################
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: Apache-2.0
+
 
 import logging
 import config
 from flask import render_template, Blueprint, request, redirect, session, flash
 from requests import get, delete
 from decorators import login_required, feature_flag
+from utils.aws.ssm_parameter_store import SocaConfig
+from utils.http_client import SocaHttpClient
+from utils.datamodels.hpc.scheduler import get_schedulers, SocaHpcSchedulerProvider
 
 logger = logging.getLogger("soca_logger")
 my_api_key = Blueprint("my_api_key", __name__, template_folder="templates")
@@ -25,21 +19,32 @@ my_api_key = Blueprint("my_api_key", __name__, template_folder="templates")
 @login_required
 @feature_flag(flag_name="MY_API_KEY_MANAGEMENT", mode="view")
 def index():
-    check_user_key = get(
-        config.Config.FLASK_ENDPOINT + "/api/user/api_key",
+    _check_user_key = SocaHttpClient(
+        endpoint="/api/user/api_key",
         headers={"X-SOCA-TOKEN": config.Config.API_ROOT_KEY},
-        params={"user": session["user"]},
-        verify=False,
-    )  # nosec
-    if check_user_key.status_code == 200:
-        user_token = check_user_key.json()["message"]
-    else:
-        user_token = "UNKNOWN"
-        flash("Unable to retrieve API key for user", "error")
+    ).get(params={"user": session.get("user", "")})
 
+    if _check_user_key.get("success") is False:
+        logger.error(f"Unable to retrieve API key for user due to {_check_user_key}")
+        _user_token = "UNKNOWN"
+        flash(
+            "Unable to retrieve API key for user. See logs for additional details.",
+            "error",
+        )
+    else:
+        _user_token = _check_user_key.get("message")
+
+    _openpbs_scheduler = ""
+    for _scheduler in get_schedulers():
+        if _scheduler.provider in [
+            SocaHpcSchedulerProvider.OPENPBS,
+            SocaHpcSchedulerProvider.PBSPRO,
+        ]:
+            _openpbs_scheduler = _scheduler.identifier
     return render_template(
         "my_api_key.html",
-        user_token=user_token,
+        user_token=_user_token,
+        openpbs_scheduler=_openpbs_scheduler,
         scheduler_host=request.host_url,
     )
 

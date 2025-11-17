@@ -1,0 +1,55 @@
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# SCHEDULER_VARS are forwarded from templates/linux/schedulers/install_schedulers.sh.j2:
+
+# Begin: Slurm Configure Server
+function slurm_configure_server_{{ SCHEDULER_VARS.get("IDENTIFIER") }} {
+    local SCHEDULER_HOSTNAME="{{ SCHEDULER_VARS.get("ENDPOINT") }}"
+    local SCHEDULER_IDENTIFIER="{{ SCHEDULER_VARS.get("IDENTIFIER") }}"
+    local CLUSTER_ID="{{ context.get("/configuration/ClusterId") }}"
+    local SLURM_SOCA_INSTALL_SYSCONFIG_DIR="{{ SCHEDULER_VARS.get("SLURM_CONFIGURATION").get("install_sysconfig_path") }}"
+    local SLURM_SOCA_INSTALL_DIR="{{ SCHEDULER_VARS.get("SLURM_CONFIGURATION").get("install_prefix_path") }}"
+
+    log_info "Creating ${SLURM_SOCA_INSTALL_SYSCONFIG_DIR}/slurm.conf server version"
+    mkdir -p ${SLURM_SOCA_INSTALL_SYSCONFIG_DIR}/var/spool/slurmctld
+    mkdir -p ${SLURM_SOCA_INSTALL_SYSCONFIG_DIR}/var/spool/slurmd
+
+    cat << EOF > "${SLURM_SOCA_INSTALL_SYSCONFIG_DIR}/slurm.conf"
+# Cluster Configuration
+ClusterName=${CLUSTER_ID}
+ControlMachine=${SCHEDULER_HOSTNAME}
+SlurmUser=root
+SlurmdUser=root
+SlurmctldPort=6817
+SlurmdPort=6818
+
+StateSaveLocation=${SLURM_SOCA_INSTALL_SYSCONFIG_DIR}/var/spool/slurmctld
+SlurmdSpoolDir=${SLURM_SOCA_INSTALL_SYSCONFIG_DIR}/var/spool/slurmd
+SwitchType=switch/none
+MpiDefault=none
+ProctrackType=proctrack/pgid
+ReturnToService=0
+SlurmctldDebug=info
+SlurmdDebug=info
+
+AuthType=auth/munge
+SchedulerType=sched/backfill
+SelectType=select/cons_tres
+SelectTypeParameters=CR_Core
+
+# Define one node. We are not using it, it's just to apply Features we need for SOCA
+# Do not delete them
+NodeName=localhost CPUs=1 RealMemory=2 State=DOWN Features=COMPUTE_NODE=TBD,ALWAYS_ON=False
+
+
+# Partitions
+PartitionName=low Nodes= State=UP
+PartitionName=normal Nodes=localhost Default=YES State=UP
+PartitionName=high Nodes= State=UP
+PartitionName=alwayson Nodes= State=UP
+EOF
+    
+    log_info "Completed Slurm Server Configuration"
+}
+slurm_configure_server_{{ SCHEDULER_VARS.get("IDENTIFIER") }}

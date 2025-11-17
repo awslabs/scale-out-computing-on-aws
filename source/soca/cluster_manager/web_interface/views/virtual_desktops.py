@@ -1,15 +1,5 @@
-######################################################################################################################
-#  Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.                                                #
-#                                                                                                                    #
-#  Licensed under the Apache License, Version 2.0 (the "License"). You may not use this file except in compliance    #
-#  with the License. A copy of the License is located at                                                             #
-#                                                                                                                    #
-#      http://www.apache.org/licenses/LICENSE-2.0                                                                    #
-#                                                                                                                    #
-#  or in the 'license' file accompanying this file. This file is distributed on an 'AS IS' BASIS, WITHOUT WARRANTIES #
-#  OR CONDITIONS OF ANY KIND, express or implied. See the License for the specific language governing permissions    #
-#  and limitations under the License.                                                                                #
-######################################################################################################################
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: Apache-2.0
 
 import time
 import logging
@@ -41,62 +31,6 @@ import json
 
 virtual_desktops = Blueprint("virtual_desktops", __name__, template_folder="templates")
 logger = logging.getLogger("soca_logger")
-
-
-def get_instance_types_by_architecture() -> dict:
-
-    ec2_client = get_boto(service_name="ec2").get("message")
-
-    _dcv_allowed_instance_types = (
-        SocaConfig(key="/configuration/DCVAllowedInstances")
-        .get_value(return_as=list)
-        .get("message")
-    )
-
-    logger.info(
-        f"Building all supported EC2 instance type based on Allowed Pattern /configuration/DCVAllowedInstances: {_dcv_allowed_instance_types}"
-    )
-
-    # load all EC2 instance from botocore
-    ec2_model = botocore.loaders.Loader().load_service_model("ec2", "service-2")
-    all_instance_types = ec2_model["shapes"]["InstanceType"]["enum"]
-
-    # Handle case where we use instance family wildcard such as c5.*
-    _all_allowed_instance_types = []
-    for pattern in _dcv_allowed_instance_types:
-        matches = fnmatch.filter(all_instance_types, pattern)
-        _all_allowed_instance_types.extend(matches)
-
-    logger.info(
-        f"list of all EC2 instance types to group by arch: {sorted(set(_all_allowed_instance_types))}"
-    )
-    _matching_instances = {"x86_64": [], "arm64": []}
-
-    try:
-        paginator = ec2_client.get_paginator("describe_instance_types")
-        for page in paginator.paginate(
-            Filters=[
-                {
-                    "Name": "instance-type",
-                    "Values": sorted(set(_all_allowed_instance_types)),
-                },
-            ]
-        ):
-            for instance_type in page["InstanceTypes"]:
-                _instance_type = instance_type["InstanceType"]
-                _instance_arch = instance_type["ProcessorInfo"][
-                    "SupportedArchitectures"
-                ][0]
-                _matching_instances[_instance_arch].append(_instance_type)
-
-    except botocore.exceptions.ClientError as e:
-        logger.error(
-            f"Error fetching instance types: {e}. Verify if the instance type and if there is any newer version of boto {boto3.__version__}"
-        )
-    except Exception as e:
-        logger.error(f"Unexpected error querying describe_instance_types: {e}")
-
-    return _matching_instances
 
 
 @virtual_desktops.route("/virtual_desktops", methods=["GET"])
@@ -367,7 +301,6 @@ def generate_client():
             "message"
         ) in [
             "aws_ds_managed_activedirectory",
-            "aws_ds_simple_activedirectory",
             "existing_active_directory",
         ]:
             logger.info(

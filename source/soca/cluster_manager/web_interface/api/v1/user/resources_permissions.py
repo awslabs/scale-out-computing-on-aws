@@ -465,7 +465,7 @@ class GetUserResourcesPermissions(Resource):
         openapi: 3.1.0
         operationId: getUserResourcePermissionsAdmin
         tags:
-          - User Permissions
+          - User
         summary: Get resource permissions for a specific user
         description: Retrieves resource permissions for a specified user (admin access required)
         parameters:

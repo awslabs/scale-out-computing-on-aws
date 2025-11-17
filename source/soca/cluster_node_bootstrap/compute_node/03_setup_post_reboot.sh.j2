@@ -15,8 +15,8 @@
 # Validate umask
 {% include "templates/linux/umask.sh.j2" %}
 
-log_info "Stopping OpenPBS services"
-systemctl stop pbs
+# Stop/Disable scheduler if running
+{% include "templates/linux/scheduler/stop_scheduler_services.sh.j2" %}
 
 log_info "Setup Post Reboot Start Date: $(date)"
 
@@ -52,7 +52,7 @@ fi
 {% endif %}
 
 # Configure FSx for Lustre if needed
-{% if context.get("/job/FSxLustreConfiguration", False) %}
+{% if context.get("/job/FSxLustreConfiguration", {}) %}
   {% if context.get("/job/FSxLustreConfiguration").get("fsx_lustre") or context.get("/job/FSxLustreConfiguration").get("existing_fsx") %}
     {% include "templates/linux/shared_storage/mount_fsx_lustre.sh.j2" %}
     # FSx_Lustre will be mounted on this path
@@ -62,9 +62,9 @@ fi
     # Deploy an ephemeral FSxL, filesystem will be destroyed once the job is completed
     {% if context.get("/job/FSxLustreConfiguration").get("fsx_lustre") %}
       log_info "detected Ephemeral FSx for Lustre specific to this job"
-      # Retrieve FSX DNS assigned to this job
+      # Retrieve FSxL Arn assigned to this job
       FSX_ARN=$(aws_cli resourcegroupstaggingapi get-resources \
-        --tag-filters "Key=soca:FSx,Values=true" "Key=soca:JobId,Values={{ context.get("/job/JobId") }}" "Key=soca:ClusterId,Values={{ context.get("/configuration/ClusterId") }}"  \
+        --tag-filters "Key=soca:FSxL,Values=true" "Key=soca:JobId,Values={{ context.get("/job/JobId") }}" "Key=soca:ClusterId,Values={{ context.get("/configuration/ClusterId") }}"  \
         --query ResourceTagMappingList[].ResourceARN --output text)
       log_info "Retrieved FSx Arn: ${FSX_ARN}"
       FSX_ID="$(echo "${FSX_ARN}" | cut -d/ -f2)"
@@ -106,35 +106,61 @@ log_info "Setup Post Reboot End Date: $(date)"
 # Check if a final reboot is needed, otherwise mount all disks and start scheduler
 REBOOT_REQUIRED=$(get_reboot_required)
 if [[ "${REBOOT_REQUIRED}" == "no" ]]; then
-   log_info "No final reboot needed, mounting all disks and starting PBS"
-  systemctl enable pbs
-  systemctl start pbs
-  log_info "Bootstrap Sequence Completed: Node Ready"
+    # Start schedulers
+    {% include "templates/linux/scheduler/start_scheduler_services.sh.j2" %}
+    log_info "Bootstrap Sequence Completed: Node Ready"
 else
-  log_info "Final reboot needed, preparing rc.local to be executed post final reboot"
-  cat << 'EOF' >> /etc/rc.local
-{% if context.get("/job/FSxLustreConfiguration", False) %}
-{% if context.get("/job/FSxLustreConfiguration").get("fsx_lustre") or context.get("/job/FSxLustreConfiguration").get("existing_fsx") %}
-# Post-Mount FSxL perf tuning
-{% include "templates/linux/shared_storage/fsx/lustre/client_tuning_postmount.sh.j2" %}
-{% endif %}
-{% endif %}
-{% if not context.get("/job/ThreadsPerCore", False) %}
-{% include "templates/linux/disable_hyperthreading.sh.j2" %}
+    # One last reboot is needed, SOCA will create a run-once service
+    FINAL_SCRIPT_PATH="/root/soca_final_reboot_setup.sh"
+    SERVICE_NAME="soca-final-reboot-run-once.service"
+    log_info "Final reboot needed, preparing ${FINAL_SCRIPT_PATH} to be executed post final reboot, this will only be executed after the next reboot via ${SERVICE_NAME} service"
+    
+    # import use 'EOF' and not EOF as we do not want to do shell variables expansion here 
+    cat << 'EOF' > ${FINAL_SCRIPT_PATH}
+#!/bin/bash
+
+{% if context.get("/job/FSxLustreConfiguration", {}) %}
+  {% if context.get("/job/FSxLustreConfiguration").get("fsx_lustre") or context.get("/job/FSxLustreConfiguration").get("existing_fsx") %}
+    # Post-Mount FSxL perf tuning
+   {% include "templates/linux/shared_storage/fsx/lustre/client_tuning_postmount.sh.j2" %}
+  {% endif %}
 {% endif %}
 
-# Start OpenPBS
-systemctl enable pbs
-systemctl start pbs
-source /etc/environment
-echo "Node Ready - ${SOCA_NODE_TYPE}" > /etc/motd
+{% if not context.get("/job/ThreadsPerCore", False) %}
+  {% include "templates/linux/disable_hyperthreading.sh.j2" %}
+{% endif %}
+
+{% include "templates/linux/scheduler/start_scheduler_services.sh.j2" %}
+
+echo "Disable this service so it won't run again, do not use bash variable expansion here"
+systemctl disable __SERVICE_NAME__
+rm -f /etc/systemd/system/__SERVICE_NAME__
+systemctl daemon-reload
+
+echo "Final Post Reboot script executed."
+EOF
+    # Replacing the value as we do not want to render shell variable at the cat << 'EOF' ophase
+    sed -i "s#__SERVICE_NAME__#${SERVICE_NAME}#g" ${FINAL_SCRIPT_PATH}
+
+    cat << EOF > /etc/systemd/system/${SERVICE_NAME}
+[Unit]
+Description=Run very final SOCA configuration after the 2nd reboot -if needed-. This is meant to be only executed one
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/bin/bash ${FINAL_SCRIPT_PATH} >> ${FINAL_SCRIPT_PATH}.log
+RemainAfterExit=no
+
+[Install]
+WantedBy=multi-user.target
 EOF
 
-  chmod +x /etc/rc.d/rc.local
-  systemctl enable rc-local
-  unset_reboot_required
-  log_info "/etc/rc.d/rc.local created, final reboot triggered"
-  reboot
+    systemctl daemon-reload
+    systemctl enable ${SERVICE_NAME}
+    unset_reboot_required
+    reboot
 fi
 
 

@@ -28,17 +28,26 @@ from utils.aws.ssm_parameter_store import SocaConfig
 from utils.logger import SocaLogger
 import pathlib
 import json
+import time
+
+
+def get_perfcounter_ms() -> float:
+    """
+    Returns the current performance counter in milliseconds
+    """
+    return time.perf_counter_ns() / 1_000_000
 
 
 def run_command(cmd: list, cmd_type: str):
     try:
         logger.info(f"About to run {cmd} with cmd_type {cmd_type}")
+        _start_time: float = get_perfcounter_ms()
+
         if cmd_type == "check_output":
             command = subprocess.check_output(cmd)
-            return json.loads(command.decode("utf-8"))
+            _return = json.loads(command.decode("utf-8"))
         elif cmd_type == "call":
-            command = subprocess.call(cmd)
-            return command
+            _return = subprocess.call(cmd)
         else:
             logger.error("subprocess command not defined, must be check_output or call")
             exit(1)
@@ -46,11 +55,22 @@ def run_command(cmd: list, cmd_type: str):
     except subprocess.CalledProcessError as _e:
         return ""
 
+    _duration: float = get_perfcounter_ms() - _start_time
+    logger.info(f"Command completed in {_duration:.3f} ms")
+
+    return _return
+
+
+
 
 def get_all_compute_instances(cluster_id: str):
     job_stack = {}
     # ATTENTION /!\
     # CHANGING THIS FILTER COULD POSSIBLY BRING DOWN OTHER EC2 INSTANCES IN YOUR AWS ACCOUNT
+
+    logger.info(f"Looking for all instances part of cluster {cluster_id}")
+    _start: float = get_perfcounter_ms()
+
     ec2_paginator = ec2_client.get_paginator("describe_instances")
     ec2_iterator = ec2_paginator.paginate(
         Filters=[
@@ -61,12 +81,18 @@ def get_all_compute_instances(cluster_id: str):
                 ],
             },
             {"Name": "tag:soca:NodeType", "Values": ["compute_node"]},
-            {"Name": "tag:soca:KeepForever", "Values": ["true", "false"]},
+            {
+                "Name": "tag:soca:KeepForever",
+                "Values": ["true", "false", "True", "False"],
+            },
             {"Name": "tag:soca:ClusterId", "Values": [cluster_id]},
         ],
     )
 
+    _page_n: int = 0
     for page in ec2_iterator:
+        _page_start: float = get_perfcounter_ms()
+        _page_n += 1
         for reservation in page.get("Reservations"):
             for instance in reservation.get("Instances"):
                 try:
@@ -77,6 +103,11 @@ def get_all_compute_instances(cluster_id: str):
                         "AvailabilityZone"
                     )
 
+
+                    #
+                    # TODO FIXME - too many loops over the tags
+                    # convert this to something better
+                    #
                     job_id = [
                         x.get("Value")
                         for x in instance.get("Tags")
@@ -117,29 +148,33 @@ def get_all_compute_instances(cluster_id: str):
 
                     if cloudformation_stack == "":
                         cloudformation_stack = stack_id
-                    private_dns = instance.get("PrivateDnsName").split(".")[0]
-
+                    private_ip_address = instance.get("PrivateIpAddress")
                     if not job_id:
                         job_id = "do_not_delete"
                     else:
                         job_id = job_id[0]
 
                     if job_id in job_stack.keys():
-                        job_stack[job_id]["instances"][private_dns] = {
+                        #
+                        # This instance belongs to a job we have seen
+                        #
+                        job_stack[job_id]["instances"][private_ip_address] = {
                             "instance_id": instance_id,
                             "instance_type": instance_type,
                             "subnet_id": subnet_id,
                             "availability_zone": availability_zone,
                         }
                     else:
-
+                        #
+                        # An instance belonging to a new job
+                        #
                         job_stack[job_id] = {
                             "stack_name": cloudformation_stack,
                             "terminate_when_idle": terminate_when_idle,
                             "asg_spotfleet_id": asg_spotfleet_id,
                             "keep_forever": keep_forever,
                             "instances": {
-                                private_dns: {
+                                private_ip_address: {
                                     "instance_id": instance_id,
                                     "instance_type": instance_type,
                                     "subnet_id": subnet_id,
@@ -155,6 +190,11 @@ def get_all_compute_instances(cluster_id: str):
                     logger.error(
                         f"Unable to get get_all_compute_instances because of {exc_type}, {fname}, {exc_tb.tb_lineno}"
                     )
+        _page_duration = get_perfcounter_ms() - _page_start
+        logger.info(f"Page-{_page_n} duration: {_page_duration:.3f} ms")
+
+    _duration: float = get_perfcounter_ms() - _start
+    logger.info(f"Completed API query of {len(job_stack)} jobs in {_duration:.3f} ms")
 
     if logger.isEnabledFor(logging.DEBUG):
         logger.debug(f"Returning job_stack: {job_stack=}")
@@ -165,9 +205,13 @@ def get_all_compute_instances(cluster_id: str):
 def get_scheduler_jobs_in_queue() -> list:
     qstat_args = " -f -F json"
 
+    logger.debug(f"Running PBS query for scheduler jobs in queue")
+    _start: float = get_perfcounter_ms()
     check_current_jobs = run_command(
         cmd=(sbins["qstat"] + qstat_args).split(), cmd_type="check_output"
     )
+    _duration: float = get_perfcounter_ms() - _start
+    logger.info(f"Completed PBS query for scheduler jobs in {_duration:.3f} ms")
 
     logger.debug(f"Got back current jobs: {check_current_jobs=}")
 
@@ -185,6 +229,8 @@ def get_scheduler_all_nodes() -> dict:
     pbs_hosts_free = {}
     pbs_hosts_offline = []
 
+    logger.debug("Running PBS query for pbsnodes")
+    _start: float = get_perfcounter_ms()
     try:
         pbsnodes_output = run_command(
             cmd=(sbins["pbsnodes"] + pbsnodes_args).split(), cmd_type="check_output"
@@ -220,6 +266,9 @@ def get_scheduler_all_nodes() -> dict:
     except Exception as _e:
         logger.error(f"Unable to get_scheduler_all_nodes because of {_e}")
 
+    _duration: float = get_perfcounter_ms() - _start
+    logger.info(f"Completed PBS query for pbsnodes (pbs_hosts={len(pbs_hosts)}, pbs_hosts_down={len(pbs_hosts_down)}, pbs_hosts_free={len(pbs_hosts_free)}, pbs_hosts_offline={len(pbs_hosts_offline)}) in {_duration:.3f} ms")
+
     return {
         "pbs_hosts": pbs_hosts,
         "pbs_hosts_down": pbs_hosts_down,
@@ -229,24 +278,35 @@ def get_scheduler_all_nodes() -> dict:
 
 
 def delete_stack(stacks_to_delete: list):
+    _start = get_perfcounter_ms()
     for stack_name in stacks_to_delete:
         logger.info(f"Deleting CloudFormation Stack {stack_name}")
+        _stack_del_start = get_perfcounter_ms()
         cloudformation_client.delete_stack(StackName=stack_name)
+        _stack_del_duration = get_perfcounter_ms() - _stack_del_start
+        logger.debug(f"Stack deletion duration for {stack_name=} {_stack_del_duration:.3f} ms")
+
+    _duration = get_perfcounter_ms() - _start
+    logger.info(f"Completed CloudFormation deletion of {len(stacks_to_delete)} stack(s) in {_duration:.3f} ms")
 
 
 def delete_hosts(hosts):
+    _start = get_perfcounter_ms()
     for host in hosts:
         cmd = [sbins["qmgr"], "-c", "delete node " + host]
         try:
-            run_command(cmd, "call")
+            run_command(cmd=cmd, cmd_type="call")
         except Exception as e:
-            logger.error(f"Command failed due to {e}")
+            logger.error(f"Command failed deleting node {host} due to error: {e}")
+    _duration = get_perfcounter_ms() - _start
+    logger.info(f"Completed deletion of {len(hosts)} hosts in {_duration:.3f} ms")
 
 
 def add_hosts(hosts, compute_instances):
     """
     Add a host via OpenPBS / qmgr.
     """
+    _start = get_perfcounter_ms()
 
     for host in hosts:
         logger.debug(f"Adding host {host}")
@@ -286,9 +346,12 @@ def add_hosts(hosts, compute_instances):
                         run_command(cmd=cmd, cmd_type="call")
                     except Exception as e:
                         logger.info(f"Unable to run command because of {e}")
+    _duration = get_perfcounter_ms() - _start
+    logger.info(f"Completed adding {len(hosts)} hosts in {_duration:.3f} ms")
 
 
 def set_hosts_offline(hosts: dict):
+    _start = get_perfcounter_ms()
     for _host in hosts.keys():
         logger.info(
             f"Setting host {_host} offline as it has been idle for more than {hosts[_host]} minutes "
@@ -301,9 +364,13 @@ def set_hosts_offline(hosts: dict):
 
         except Exception as e:
             logger.info(f"Unable to offline host {_host} - error {e}")
+    _duration = get_perfcounter_ms() - _start
+    logger.info(f"Completed offline of {len(hosts)} hosts in {_duration:.3f} ms")
 
 
 def remove_offline_nodes_spotfleet(spotfleets):
+    _start = get_perfcounter_ms()
+
     for spotfleet in spotfleets.keys():
         hosts_to_delete = []
         instances_to_delete = []
@@ -410,8 +477,14 @@ def remove_offline_nodes_spotfleet(spotfleets):
             )
             logger.debug(f"Modify response: {resp}")
 
+    _duration = get_perfcounter_ms() - _start
+    logger.info(f"Completed offline of nodes/spotfleet in {_duration:.3f} ms")
+
+
 
 def remove_offline_nodes_asg(asgs):
+    _start = get_perfcounter_ms()
+
     for asg in asgs.keys():
         hosts_to_delete = []
         instances_to_delete = []
@@ -502,11 +575,17 @@ def remove_offline_nodes_asg(asgs):
             resp = ec2_client.terminate_instances(InstanceIds=instances_to_delete)
             logger.debug(f"Terminating hosts response: {resp=}")
 
+    _duration = get_perfcounter_ms() - _start
+    logger.info(f"Completed remove_offline_nodes_asg in {_duration} ms")
+
 
 def remove_offline_nodes(hosts):
     asgs = {}
     spotfleets = {}
 
+    #
+    # TODO - this shouldn't be single qmgr/grep/awk pipelines to get vars
+    #
     for host in hosts:
         asg_spotfleet_id = (
             subprocess.check_output(
@@ -564,14 +643,17 @@ def remove_offline_nodes(hosts):
 
 
 if __name__ == "__main__":
+
+    _main_start: float = get_perfcounter_ms()
+
     _log_file_location = f"{pathlib.Path(__file__).parent}/logs/nodes_manager.log"
     logger = SocaLogger().rotating_file_handler(file_path=_log_file_location)
 
     ec2_client = get_boto(service_name="ec2").message
     cloudformation_client = get_boto(service_name="cloudformation").message
     autoscaling_client = get_boto(service_name="autoscaling").message
-
-    _pbs_bin_path: str = "/opt/pbs/bin"
+    _cluster_id = SocaConfig(key="/configuration/ClusterId").get_value().get("message")
+    _pbs_bin_path: str = f"/opt/soca/{_cluster_id}/schedulers/default/pbs/bin/"
     sbins: dict = {
         "qstat": f"{_pbs_bin_path}/qstat",
         "qmgr": f"{_pbs_bin_path}/qmgr",
@@ -580,7 +662,7 @@ if __name__ == "__main__":
 
     # 1 - get all running EC2 instances
     compute_instances = get_all_compute_instances(
-        cluster_id=SocaConfig(key="/configuration/ClusterId").get_value().get("message")
+        cluster_id=_cluster_id
     )
     # Get all current instances private DNS
     current_ec2_compute_nodes_dns = [
@@ -605,7 +687,7 @@ if __name__ == "__main__":
 
     for job_id, stack_data in compute_instances.items():
         if (
-            stack_data.get("keep_forever") == "false"
+            stack_data.get("keep_forever").lower() == "false"
             and stack_data.get("terminate_when_idle") == "0"
         ):
             if job_id not in scheduler_jobs_in_queue:
@@ -683,7 +765,11 @@ if __name__ == "__main__":
 
     if legacy_host_to_delete:
         logger.info(f"Need to qmgr delete legacy host: {legacy_host_to_delete}")
+        _del_start: float = get_perfcounter_ms()
         delete_hosts(hosts=legacy_host_to_delete)
+        _del_duration: float = get_perfcounter_ms() - _del_start
+        logger.debug(f"Deleted {len(legacy_host_to_delete)} legacy hosts in {_del_duration:.3f} ms")
+
 
     compute_nodes_to_add = list(
         (set(current_ec2_compute_nodes_dns) - set(pbs_nodes))
@@ -692,4 +778,12 @@ if __name__ == "__main__":
 
     if compute_nodes_to_add:
         logger.info(f"need to qmgr add: {compute_nodes_to_add}")
+        _add_start: float = get_perfcounter_ms()
         add_hosts(hosts=compute_nodes_to_add, compute_instances=compute_instances)
+        _add_duration: float = get_perfcounter_ms() - _add_start
+
+        logger.debug(f"Added {len(compute_nodes_to_add)} hosts in {_add_duration:.3f} ms")
+
+
+    _main_duration: float = get_perfcounter_ms() - _main_start
+    logger.info(f"All work cycles completed in {_main_duration:.3f} ms")

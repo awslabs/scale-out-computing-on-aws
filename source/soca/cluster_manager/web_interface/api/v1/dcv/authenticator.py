@@ -234,7 +234,6 @@ class DcvAuthenticator(Resource):
 
             if _ds_auth_provider in [
                 "aws_ds_managed_activedirectory",
-                "aws_ds_simple_activedirectory",
                 "existing_active_directory",
             ]:
                 xml_response = f'<auth result="yes"><username>{_ds_domain_netbios}\\{user}</username></auth>'

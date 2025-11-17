@@ -1,0 +1,263 @@
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# SCHEDULER_VARS are forwarded from templates/linux/schedulers/install_schedulers.sh.j2:
+
+function lsf_install_{{  SCHEDULER_VARS.get("IDENTIFIER") }} {
+    local SCHEDULER_HOSTNAME="{{ SCHEDULER_VARS.get("ENDPOINT") }}"
+    local SCHEDULER_IDENTIFIER="{{ SCHEDULER_VARS.get("IDENTIFIER") }}"
+    local INSTALLER_DIR="${SOCA_BOOTSTRAP_ASSETS_FOLDER}/lsf"
+    local CLUSTER_ID="{{ context.get("/configuration/ClusterId") }}"
+    
+    # Default path for LSF_TOP variable, folder where LSF will be installed.
+    # We recommend you not to change this path. If you do, make sure to edit all other references in send_logs_s3.sh and others 
+    local LSF_SOCA_INSTALL_DIR="{{ SCHEDULER_VARS.get("LSF_CONFIGURATION").get("lsf_top") }}"
+    
+    # Note: Do not use LSF_<VARIABLE_NAME> as sourcing profile.lsf may override them if they already exist in the LSF configuration. 
+    # e.g: LSF_VERSION is reserved by LSF whereas LSF_SOCA_VERSION is safe to use
+    local LSF_SOCA_VERSION="{{ SCHEDULER_VARS.get("LSF_CONFIGURATION").get("version") }}"
+    local LSF_SOCA_INSTALLER_S3_URI="{{ context.get("/system/scheduler/lsf/lsf_installer_s3_uri") }}"
+    local LSF_SOCA_ENTITLEMENT_FILE_NAME="{{ context.get("/system/scheduler/lsf/lsf_entitlement_file_name") }}"
+    local LSF_SOCA_INSTALLER_FILE_NAME="{{ context.get("/system/scheduler/lsf/lsf_installer_file_name") }}"
+
+    local MACHINE=$(uname -m)
+    local INSTANCE_ID=$(instance_id) # from common/wrapper_imds
+    local INSTANCE_AZ=$(instance_az) # from common/wrapper_imds
+    
+    if [[ ! -d "${LSF_SOCA_INSTALL_DIR}" ]]; then
+        log_info "LSF Not Detected, Installing LSF"
+        mkdir -p ${INSTALLER_DIR}
+        pushd ${INSTALLER_DIR}
+        log_info "Downloading required LSF binary and entitlement number"
+        file_download --download-url="${LSF_SOCA_INSTALLER_S3_URI}" --save-as="." # save all files in the current working directory
+        tar xf ${LSF_SOCA_INSTALLER_FILE_NAME}
+        pushd lsf${LSF_SOCA_VERSION}_lsfinstall
+        log_info "Creating LSF installer config file"
+        # https://www.ibm.com/docs/en/spectrum-lsf/10.1.0?topic=linux-installconfig
+
+        {% if context.get("/configuration/BaseOS") in ["ubuntu2204", "ubuntu2404"] %}
+           local LSF_ADMINS="ubuntu root"
+        {% else %}
+            local LSF_ADMINS="ec2-user root"
+        {% endif %}
+        
+        cat << EOF > soca_install.config
+
+# Full path to the top-level installation directory 
+LSF_TOP="${LSF_SOCA_INSTALL_DIR}"
+
+# List of LSF administrator(s)
+# root cannot be the primary
+LSF_ADMINS="${LSF_ADMINS}"
+
+# Name of the LSF cluster - cannot exceed 39 characters.
+LSF_CLUSTER_NAME="${CLUSTER_ID}"
+
+LSF_MASTER_LIST="${SCHEDULER_HOSTNAME}"
+
+# Enables silent LSF installation.
+SILENT_INSTALL="Y"
+
+# List of silent install package names
+LSF_SILENT_INSTALL_TARLIST="ALL"
+
+# Enables dynamically adding and removing hosts
+ENABLE_DYNAMIC_HOSTS="Y"
+
+# Time in seconds that the server host LIM waits after startup before it calls the management host LIM to dynamically add the server host.
+LSF_DYNAMIC_HOST_WAIT_TIME=60
+
+#  Agree to the IBM Spectrum LSF end user license agreement.
+ACCEPT_LICENSE="Y"
+
+# You must specify a full path to the LSF entitlement file.
+LSF_ENTITLEMENT_FILE="${INSTALLER_DIR}/${LSF_SOCA_ENTITLEMENT_FILE_NAME}"
+EOF
+
+        log_info "Installing LSF"
+        if ! ./lsfinstall -f soca_install.config; then
+            exit_fail "Unable to install LSF. Check Install.err and Install.log on ${INSTALLER_DIR}"
+        else
+            log_info "LSF ${LSF_SOCA_VERSION} installed successfully"
+        fi
+
+        popd
+ 
+        # Note: you must source profile.lsf prior to applying fix pack
+        log_info "Sourcing ${LSF_SOCA_INSTALL_DIR}/conf/profile.lsf"
+        source ${LSF_SOCA_INSTALL_DIR}/conf/profile.lsf
+
+        {% if context.get("/system/scheduler/lsf/lsf_fixpack_x86_file_name") %}
+            local LSF_FIX_PACK_X86_FILE_NAME="{{ context.get("/system/scheduler/lsf/lsf_fixpack_x86_file_name") }}"
+            if [[ ${MACHINE} != "x86_64" ]]; then
+                log_warning "LSF Fix Pack x86 provided but machine is ${MACHINE}, ignoring ..."
+            else 
+                log_info "Installing LSF Fix Pack ${LSF_FIX_PACK_X86_FILE_NAME}"
+                if [[ -f "${LSF_FIX_PACK_X86_FILE_NAME}" ]]; then
+                    cp ${LSF_FIX_PACK_X86_FILE_NAME} ${LSF_SOCA_INSTALL_DIR}/${LSF_SOCA_VERSION}/install
+                    pushd ${LSF_SOCA_INSTALL_DIR}/${LSF_SOCA_VERSION}/install
+                    echo "schmod_demand.so" >> patchlib/daemonlists.thl
+                    if ! ./patchinstall --silent ${LSF_FIX_PACK_X86_FILE_NAME}; then
+                        exit_fail "Error while trying to install ${LSF_FIX_PACK_X86}, check the LSF logs"
+                    fi
+                    popd
+                else
+                    echo "${LSF_FIX_PACK_X86_FILE_NAME} provided but file does not exist in ${LSF_SOCA_INSTALLER_S3_URI}, ignoring"
+                fi
+            fi
+        {% endif %}
+
+        {% if context.get("/system/scheduler/lsf/lsf_fixpack_aarch64_s3_uri") %}
+            local LSF_FIX_PACK_AARCH64_FILE_NAME="{{ context.get("/system/scheduler/lsf/lsf_fixpack_aarch64_file_name") }}"
+            if [[ ${MACHINE} != "aarch64" ]]; then
+                log_warning "LSF Fix Pack aarch64 provided but machine is ${MACHINE}, ignoring ..."
+            else 
+                log_info "Installing LSF Fix Pack ${LSF_FIX_PACK_AARCH64_FILE_NAME}"
+                if [[ -f "${LSF_FIX_PACK_AARCH64_FILE_NAME}" ]]; then
+                    cp ${LSF_FIX_PACK_AARCH64_FILE_NAME} ${LSF_SOCA_INSTALL_DIR}/${LSF_SOCA_VERSION}/install
+                    pushd ${LSF_SOCA_INSTALL_DIR}/${LSF_SOCA_VERSION}/install
+                    echo "schmod_demand.so" >> patchlib/daemonlists.tbl
+                    if ! ./patchinstall --silent ${LSF_FIX_PACK_AARCH64_FILE_NAME}; then
+                        exit_fail "Error while trying to install ${LSF_FIX_PACK_AARCH64_FILE_NAME}, check the LSF logs"
+                    fi
+                    popd
+                else
+                    echo "${LSF_FIX_PACK_AARCH64_FILE_NAME} provided but file does not exist in ${LSF_SOCA_INSTALLER_S3_URI}, ignoring"
+                fi
+            fi
+        {% endif %}
+
+        popd
+    else
+        log_info "LSF is already installed on this machine $(lsid)"
+    fi
+
+     # Add additional parameters
+    {% if context.get("/job/NodeType") == "controller" %}
+        log_info "Controller Host detected, configuring LSF_ROOT_USER / LSF_DYNAMIC_HOSTS and LSF_DYNAMIC_HOST_TIMEOUT on ${LSF_SOCA_INSTALL_DIR}/conf/lsf.conf"
+        # Comment out existing lines (if present)
+        sed -i 's/^\s*LSF_ROOT_USER/#&/' "${LSF_SOCA_INSTALL_DIR}/conf/lsf.conf"
+        sed -i 's/^\s*LSF_DYNAMIC_HOSTS/#&/' "${LSF_SOCA_INSTALL_DIR}/conf/lsf.conf"
+        sed -i 's/^\s*LSF_DYNAMIC_HOST_TIMEOUT/#&/' "${LSF_SOCA_INSTALL_DIR}/conf/lsf.conf"
+        echo "LSF_ROOT_USER=Y # [SOCA] Allow Controller to performs tasks on behalf of LSF" >> "${LSF_SOCA_INSTALL_DIR}/conf/lsf.conf"
+        echo "LSF_DYNAMIC_HOSTS=Y # [SOCA] Allow Dynamic Host" >> "${LSF_SOCA_INSTALL_DIR}/conf/lsf.conf"
+        echo "LSF_DYNAMIC_HOST_TIMEOUT=60m # [SOCA] Automatically remove orphaned nodes from bhosts" >> "${LSF_SOCA_INSTALL_DIR}/conf/lsf.conf"
+    {% endif %}
+
+    {% if context.get("/job/NodeType") == "compute_node" %}
+        log_info "Compute Node Detected, applying custom LSF_LOCAL_RESOURCE"
+        # Comment out existing lines (if present)
+        sed -i 's/^\s*LSF_LOCAL_RESOURCES/#&/' "${LSF_SOCA_INSTALL_DIR}/conf/lsf.conf"
+        # Specify a compute_node resource for this job. Only this job can use this machine
+        # note: boolean = resource, string/numeric -> resourcemap
+        echo 'LSF_LOCAL_RESOURCES="[resource soca_hpc_node] [resourcemap '{{ context.get("/job/JobId") }}'*compute_node] [resourcemap {{ context.get("/job/KeepForever") }}*keep_forever] [resourcemap {{ context.get("/job/TerminateWhenIdle") }}*terminate_when_idle] [resourcemap '"${INSTANCE_AZ}"'*availability_zone] [resourcemap {{ context.get("/job/StackId") }}*stack_id] [resourcemap '"${INSTANCE_ID}"'*instance_id]"' >> "${LSF_SOCA_INSTALL_DIR}/conf/lsf.conf"
+
+    {% endif %}
+    
+    log_info 'Creating custom /bin/soca_lsf_${SCHEDULER_IDENTIFIER}'
+    cat << EOF > "/bin/soca_lsf_${SCHEDULER_IDENTIFIER}"
+source ${LSF_SOCA_INSTALL_DIR}/conf/profile.lsf
+echo "========= SOCA ========= "
+echo ">> LSF environment loaded, you can now run commands such as bsub/bjobs/lshosts etc ..."
+echo ">> LSF is installed under: ${LSF_SOCA_INSTALL_DIR}"
+echo ">> Add /bin/soca_lsf to your .bashrc / .bash_profile to automatically run this script"
+echo ">> Type exit to close this shell"
+echo "======================== "
+export PS1="(soca_lsf) \u@\h:\w# "
+exec "$SHELL" -i
+EOF
+    chmod +x /bin/soca_lsf_${SCHEDULER_IDENTIFIER}
+
+    log_info "Creating custom SOCA bsub"
+    local ORIGINAL_BSUB_PATH=$(command -v bsub)
+
+    mv "${ORIGINAL_BSUB_PATH}" "${ORIGINAL_BSUB_PATH}.lsf.default"
+    cat <<EOF > "${ORIGINAL_BSUB_PATH}"
+#!/opt/soca/{{ context.get("/configuration/ClusterId") }}/python/latest/bin/python3
+
+import sys
+import subprocess
+import re
+import shlex
+
+import sys
+import subprocess
+import re
+import shlex
+
+"""
+SOCA LSF bsub wrapper.
+
+Ensures that a compute_node constraint is applied to jobs submitted to on-demand queues.
+If -R is missing or missing compute_node, adds -R select[compute_node==-1] at the beginning
+so that the job does not accidentally start on other nodes.
+"""
+
+def main():
+    # Queues where custom -R is NOT required
+    _excluded_queues = ["alwayson", "awsrc"]
+    
+    # Numeric value, no SOCA_HPC_NODE will have a compute_node to -1 (compute_node = job_id). 
+    # This ensure the job will never run until dispatcher.py kicks in
+    default_compute_node = "-1" 
+    
+    # Path to the original bsub provided by LSF
+    _soca_lsf_bsub_path = "${ORIGINAL_BSUB_PATH}.lsf.default"
+
+    args = sys.argv[1:]
+
+    # Determine the queue name if provided
+    _queue_name = ""
+    if "-q" in args:
+        idx = args.index("-q")
+        if idx + 1 < len(args):
+            _queue_name = args[idx + 1]
+    elif "--queue" in args:
+        idx = args.index("--queue")
+        if idx + 1 < len(args):
+            _queue_name = args[idx + 1]
+
+    # Skip -R injection for excluded queues
+    skip_compute_node = _queue_name.lower() in _excluded_queues
+
+    if not skip_compute_node:
+        if "-R" in args:
+            idx = args.index("-R")
+            if idx + 1 < len(args):
+                r_value = args[idx + 1]
+                # Check if compute_node==number already present
+                if not re.search(r"compute_node\s*==\s*\d+", r_value):
+                    # Inject compute_node inside existing select[] or create new
+                    if "select[" in r_value:
+                        new_value = re.sub(
+                            r"select\[(.*?)\]",
+                            rf"select[\1 && compute_node=={default_compute_node}]",
+                            r_value,
+                        )
+                    else:
+                        new_value = f"select[compute_node=={default_compute_node}]"
+                    args[idx + 1] = new_value
+        else:
+            # No -R specified → add it at the very beginning
+            args = ["-R", f"select[compute_node=={default_compute_node}]"] + args
+
+    # uncomment for logging
+    # _exec_bsub = f"{_soca_lsf_bsub_path} " + " ".join([shlex.quote(a) for a in args])
+    # print(f"Running: {_exec_bsub}")
+
+    # Execute the real LSF bsub
+    try:
+        subprocess.run([_soca_lsf_bsub_path] + args)
+    except Exception as err:
+        print(f"Error running SOCA bsub: {err}")
+
+if __name__ == "__main__":
+    main()
+EOF
+    
+    # make new bsub executable
+    chmod +x ${ORIGINAL_BSUB_PATH}
+    log_info "Completed LSF installation"
+
+}
+lsf_install_{{ SCHEDULER_VARS.get("IDENTIFIER") }}

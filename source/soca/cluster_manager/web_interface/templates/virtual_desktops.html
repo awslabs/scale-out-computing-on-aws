@@ -913,7 +913,7 @@
             const allowedSubnetIds = selectedAMI.profile.allowed_subnet_ids.split(',');
 
             allowedSubnetIds.sort(() => Math.random() - 0.5);
-
+            allowedSubnetIds.unshift("auto");
             selectProject.innerHTML = '';
             divSelectProject.style.display = 'none';
             divSelectReview.style.display = 'none';

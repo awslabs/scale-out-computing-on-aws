@@ -1,37 +1,43 @@
 # Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 # SPDX-License-Identifier: Apache-2.0
 
+# SCHEDULER_VARS are forwarded from templates/linux/schedulers/install_schedulers.sh.j2:
+
 # Begin: OpenPBS Configure Client
-function openpbs_configure_client () {
+function openpbs_configure_client_{{  SCHEDULER_VARS.get("IDENTIFIER") }} () {
     log_info "[BEGIN] openpbs_configure_client... "
-    local SCHEDULER_HOSTNAME="{{ context.get("/configuration/ControllerPrivateDnsName") }}"
-    # PBS_SERVER must use short name
-    local SCHEDULER_HOSTNAME_ALT=$(echo "${SCHEDULER_HOSTNAME}" | cut -d. -f1)
-    local SERVER_HOSTNAME=$(hostname)
-    cp /etc/pbs.conf /etc/pbs.conf.original."$(date +%s)"
-    echo -e "PBS_SERVER=${SCHEDULER_HOSTNAME_ALT}
+    local SCHEDULER_HOSTNAME="{{ SCHEDULER_VARS.get("ENDPOINT") }}"
+    local OPENPBS_PBS_HOME="{{ SCHEDULER_VARS.get("PBS_CONFIGURATION").get("pbs_home") }}"
+    local OPENPBS_INSTALL_DIR="{{ SCHEDULER_VARS.get("PBS_CONFIGURATION").get("install_prefix_path") }}"
+    local CLIENT_SERVER_IP=$(echo -n $(imds_get /latest/meta-data/local-ipv4)) # IMDS is safest vs hostname -I, especially if you have multiple network interfaces
+    cp ${OPENPBS_PBS_HOME}/pbs.conf ${OPENPBS_PBS_HOME}/pbs.conf.original."$(date +%s)"
+    echo -e "PBS_SERVER=${SCHEDULER_HOSTNAME}
 PBS_START_SERVER=0
 PBS_START_SCHED=0
 PBS_START_COMM=0
 PBS_START_MOM=1
-PBS_EXEC=/opt/pbs
-PBS_LEAF_NAME=${SERVER_HOSTNAME}
-PBS_HOME=/var/spool/pbs
+PBS_EXEC=${OPENPBS_INSTALL_DIR}
+PBS_LEAF_NAME=${CLIENT_SERVER_IP}
+PBS_HOME=${OPENPBS_PBS_HOME}
 PBS_CORE_LIMIT=unlimited
 PBS_SCP=/usr/bin/scp
-" > /etc/pbs.conf
+" > ${OPENPBS_PBS_HOME}/pbs.conf
 
-  cp /var/spool/pbs/mom_priv/config /var/spool/pbs/mom_priv/config.original."$(date +%s)"
+  # to be removed after we switch to SOCA Multi Scheduler framework (eg: new dispatcher)
+  # new framework will export PBS_CONF_FILE for all commands and won't rely on the default and incorrect /etc/pbs.conf
+  ln -sf ${OPENPBS_PBS_HOME}/pbs.conf /etc/pbs.conf
+
+  cp ${OPENPBS_PBS_HOME}/mom_priv/config ${OPENPBS_PBS_HOME}/mom_priv/config.original."$(date +%s)"
   echo -e "
-\$clienthost ${SCHEDULER_HOSTNAME_ALT}
+\$clienthost ${SCHEDULER_HOSTNAME}
 \$usecp *:/dev/null /dev/null
 \$usecp *:/data /data
 \$usecp *:/apps /apps
 # Shared scratch directories should also be added here
 # \$usecp *:/fsx /fsx
-"  > /var/spool/pbs/mom_priv/config
+"  > ${OPENPBS_PBS_HOME}/mom_priv/config
   log_info "[COMPLETED] openpbs_post_install_mom_config_client... "
 }
 
-openpbs_configure_client
+openpbs_configure_client_{{  SCHEDULER_VARS.get("IDENTIFIER") }}
 # End: OpenPBS Configure Client

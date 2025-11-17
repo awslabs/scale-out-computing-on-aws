@@ -226,8 +226,8 @@ class FindExistingResource:
 
     def find_elasticsearch(self, vpc_id):
         try:
-            es = {}
-            count = 1
+            es: dict = {}
+            count: int = 1
             # No Paginator support 27 Sep 2024
             for _analytics_cluster in self.es.list_domain_names(EngineType="OpenSearch").get("DomainNames", []):
                 _domain_name = _analytics_cluster.get("DomainName", "")
@@ -407,23 +407,44 @@ class FindExistingResource:
                 ]
             )
             for page in subnet_iterator:
-                for subnet in page["Subnets"]:
-                    resource_name = subnet.get("SubnetId", "")
+                for subnet in page.get("Subnets", []):
+                    _subnet_id: str = subnet.get("SubnetId", "")
+                    _subnet_name: str = _subnet_id
                     if "Tags" in subnet.keys():
-                        for tag in subnet["Tags"]:
-                            if tag["Key"] == "Name":
-                                resource_name = tag["Value"]
-                    # This would previously skip unnamed subnets
-                    # This now should allow for subnets to be default
-                    # named of their ID, or their Name tag
-                    if not resource_name:
+                        for _tag in subnet["Tags"]:
+                            if _tag["Key"] == "Name":
+                                _subnet_name = _tag["Value"]
+                                break
+                    if not _subnet_id:
                         continue
-                    subnets_by_name[resource_name] = subnet
+                    # This inserts a quick SubnetName into our dict for sorting purposes later
+                    subnet["SubnetName"] = _subnet_name if _subnet_name else _subnet_id
+                    subnets_by_name[_subnet_id] = subnet
             subnets = {}
             count = 1
 
-            for resource_name in sorted(subnets_by_name):
+            # print(f"DEBUG: pre-sort: {subnets_by_name=}")
+            # We now resort the entries based on the inserted SubnetName to keep similar named subnets together
+            subnets_by_name: dict = dict(
+                sorted(
+                    subnets_by_name.items(),
+                    key=lambda _sn: _sn[1].get("SubnetName", "")
+                )
+            )
+            # print(f"DEBUG: post-sorting subnets_by_name: {subnets_by_name=}")
+
+            for resource_name in subnets_by_name:
                 subnet = subnets_by_name[resource_name]
+
+                # What should we list as the Name?
+                # Name tag is pref - but fallback to the ID if needed
+                _subnet_name: str = resource_name
+                if "Tags" in subnet.keys():
+                    for _tag in subnet["Tags"]:
+                        if _tag["Key"] == "Name":
+                            print(f"Found a Name tag for a subnet: {resource_name} - {_tag['Value']}")
+                            _subnet_name = _tag["Value"]
+
                 if (
                     f"{subnet['SubnetId']},{subnet['AvailabilityZone']}"
                     not in selected_subnets
@@ -434,7 +455,7 @@ class FindExistingResource:
 
                     is_default = True if subnet.get("DefaultForAz", False) else False
 
-                    outpost_arn = subnet.get("OutpostArn", '')
+                    outpost_arn = subnet.get("OutpostArn", "")
                     is_outpost = True if outpost_arn else False
                     outpost_str = f"Outpost" if is_outpost else ""
 
@@ -475,13 +496,13 @@ class FindExistingResource:
                         _feature_list.append("SOCA")
 
                     if is_outpost:
-                        outpost_arn = ':'.join(outpost_arn.split(':')[3:])
+                        outpost_arn = outpost_arn.split("/")[1]
                         _feature_list.append(f"Outpost:\n{outpost_arn}")
 
                     subnet_table.add_row(
                         f"[green]{count}[/green]",
                         f"[cyan]{subnet['SubnetId']}\nOwner: {_owner_str}[/cyan]",
-                        f"[magenta]{resource_name}[/magenta]",
+                        f"[magenta]{_subnet_name}[/magenta]",
                         _cidr_str,
                         f"[yellow]{_az_str}[/yellow]",
                         "\n".join(_feature_list),

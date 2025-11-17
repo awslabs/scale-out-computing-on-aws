@@ -1,0 +1,41 @@
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# Note: Any entries must have been created as scheduler resource first.
+# Refer to the documentation for instruction https://awslabs.github.io/scale-out-computing-on-aws-documentation/tutorials/job-licenses-flexlm/
+
+# See example below.
+ansys:
+  ansys_anshpc_pack: # Name of the SocaHpcJob resource
+    server: "my.license.endpoint" # Endpoint of your license server, can be an IP or DNS
+    port: 21055 # Port of your license server
+    feature: "anshpc_pack" # Name of the feature you will need to check out
+    minus: 0 # Optional: Reserve license for non HPC usage. For example, if you have 20 licenses, but set minus to 5, then SOCA will assume the total number of license for HPC usage is 15
+    provider: "flexlm" # only flexlm is supported as of today
+
+comsol:
+  comsol_lic_acoustic:
+    server: "example.license1.soca.dev"
+    port: 27718
+    feature: "ACOUSTICS"
+    provider: "flexlm"
+
+  comsol_lic_cadimport:
+    server: "example.license2.soca.dev"
+    port: 27718
+    feature: "CADIMPORT"
+    provider: "flexlm"
+
+synopsys:
+  synopsys_lic_testbenchruntime:
+    server: "10.1.1.1"
+    port: 27020
+    feature: "VT_TestbenchRuntime"
+    provider: "flexlm"
+
+  synopsys_lic_vcsruntime:
+    server: "example.license2.soca.dev"
+    port: 27020
+    feature: "VCSRuntime_Net"
+    provider: "flexlm"
+    minus: 5

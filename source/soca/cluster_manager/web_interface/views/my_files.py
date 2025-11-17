@@ -42,7 +42,7 @@ from werkzeug.utils import secure_filename
 from cachetools import TTLCache
 from datetime import datetime, timezone
 from utils.aws.ssm_parameter_store import SocaConfig
-from helpers.user_acls import check_user_permission, Permissions
+from utils.user_filesystems_acls import check_user_permission, Permissions
 import pathlib
 
 logger = logging.getLogger("soca_logger")
@@ -157,7 +157,10 @@ def index():
 
         if (
             check_user_permission(
-                path=path, permissions=Permissions.READ, user=session.get("user", None)
+                path=path,
+                permissions=Permissions.READ,
+                user=session.get("user", None),
+                paths_to_restrict=config.Config.PATH_TO_RESTRICT,
             )
             is False
         ):

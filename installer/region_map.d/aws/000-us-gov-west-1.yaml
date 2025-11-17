@@ -1,22 +1,24 @@
 ---
-# SOCA AMI List for govcloud partition generated 2025-06-05 15:24:16 UTC
+# SOCA AMI List for govcloud partition generated 2025-09-02 15:14:58 UTC
 us-gov-west-1:
   x86_64:
-    amazonlinux2: ami-00fd714e3562b85b3
-    amazonlinux2023: ami-0b42cfaf93bb657e3
+    amazonlinux2: ami-07426886d0d2d71a3
+    amazonlinux2023: ami-00a8d8b2010e7cbb9
+    rhel10: ami-094917869cbdd69c8
     rhel7: ami-0f89fe9d39cd3e03a
     rhel8: ami-063afa08f07cbad67
     rhel9: ami-06546a8879859039a
-    ubuntu2204: ami-090a044b76cb8851d
-    ubuntu2404: ami-069f2315dfb43f4a8
-    windows2019: ami-0aa372b169a0354d2
-    windows2022: ami-03868a1f1f3af1bfa
-    windows2025: ami-0560d2e0aa8b388fe
+    ubuntu2204: ami-05fa78411054afb97
+    ubuntu2404: ami-0074525def93676f0
+    windows2019: ami-093fc09e1d29d04f7
+    windows2022: ami-0c6c91781711bab7e
+    windows2025: ami-000ca67f388ba5afb
   arm64:
-    amazonlinux2: ami-06bc587fb1e1d6d9d
-    amazonlinux2023: ami-0c56cd68585e5ee6a
+    amazonlinux2: ami-07b09248d175ee1c4
+    amazonlinux2023: ami-0f53ccffaf702e990
+    rhel10: ami-05d9331aebd025f40
     rhel8: ami-058d6aa244c9c9e20
     rhel9: ami-0ddf794f6407372e6
-    ubuntu2204: ami-02e892824f44c957a
-    ubuntu2404: ami-0bf2261cbe476a33d
-# SOCA AMI List for govcloud partition generated 2025-06-05 15:24:16 UTC
+    ubuntu2204: ami-028e165c51801359c
+    ubuntu2404: ami-0eb3b569c4dc25063
+# SOCA AMI List for govcloud partition generated 2025-09-02 15:14:58 UTC

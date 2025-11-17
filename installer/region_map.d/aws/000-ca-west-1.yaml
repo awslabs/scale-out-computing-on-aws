@@ -1,28 +1,28 @@
 ---
-# SOCA AMI List for commercial partition generated 2025-08-01 20:57:46 UTC
+# SOCA AMI List for commercial partition generated 2025-11-13 21:04:43 UTC
 ca-west-1:
   x86_64:
-    amazonlinux2: ami-02061204cd21a5fa2
-    amazonlinux2023: ami-02610ca264e95a9db
-    rhel10: ami-02101a0eada767f25
+    amazonlinux2: ami-0a0a147e70c5a9769
+    amazonlinux2023: ami-0dfcecb69ccbeff90
+    rhel10: ami-07eeb4893a85dddcd
     rhel7: ami-0a0cb81826a7c8356
     rhel8: ami-0f04f31c12d5a5fd6
-    rhel9: ami-0a5c8f2448decf3ec
+    rhel9: ami-0bc501fef9d871d99
     rocky8: ami-039dafac71304f23a
     rocky9: ami-04f7e5d8d79202377
-    ubuntu2204: ami-0451ff5ff6522b497
-    ubuntu2404: ami-0c8e5508d9b19b367
-    windows2019: ami-027686dfb75da7f48
-    windows2022: ami-0b1642afdccfa26e0
-    windows2025: ami-0efc27870a0ae707f
+    ubuntu2204: ami-0c16ac8c5a2120cb9
+    ubuntu2404: ami-003ede18ac073c4aa
+    windows2019: ami-0668e9e1ece455222
+    windows2022: ami-0dd7b7f677a9bd366
+    windows2025: ami-006161bcb116b3419
   arm64:
-    amazonlinux2: ami-01120bb4263754ab3
-    amazonlinux2023: ami-039b8d7108bde7dce
-    rhel10: ami-0647d2c145bb60c9e
+    amazonlinux2: ami-0bc24f22be9bca40b
+    amazonlinux2023: ami-0396c047803c6871c
+    rhel10: ami-034656fcc55bb19dc
     rhel8: ami-0975e28fc1c31941c
-    rhel9: ami-08d7077f30b8066c9
+    rhel9: ami-05b5de195b2cb4a65
     rocky8: ami-00e5579c9701bba08
     rocky9: ami-000406714de73d585
-    ubuntu2204: ami-0c62ba0d6cc805ca7
-    ubuntu2404: ami-018981eec864669fa
-# SOCA AMI List for commercial partition generated 2025-08-01 20:57:46 UTC
+    ubuntu2204: ami-0821059bd91853ef4
+    ubuntu2404: ami-040c7e69f381871dd
+# SOCA AMI List for commercial partition generated 2025-11-13 21:04:43 UTC

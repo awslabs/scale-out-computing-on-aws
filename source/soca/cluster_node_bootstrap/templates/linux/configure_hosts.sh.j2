@@ -4,10 +4,10 @@
 # Begin: Configure /etc/hosts
 function configure_hosts_file () {
   log_info "Begin: Configure /etc/hosts"
-  local SERVER_IP=$(hostname -I)
-  local SERVER_HOSTNAME=$(hostname)
-  local SERVER_HOSTNAME_ALT=$(echo $SERVER_HOSTNAME | cut -d. -f1)
-  echo ${SERVER_IP} ${SERVER_HOSTNAME} ${SERVER_HOSTNAME_ALT} >> /etc/hosts
+  local -r SERVER_IP=$(get_ipv4_host_address)
+  local -r SERVER_HOSTNAME=$(hostname)
+  local -r SERVER_HOSTNAME_ALT=$(echo "${SERVER_HOSTNAME}" | cut -d. -f1)
+  echo "${SERVER_IP} ${SERVER_HOSTNAME} ${SERVER_HOSTNAME_ALT}" >> /etc/hosts
   log_info "End: Configure /etc/hosts"
 }
 configure_hosts_file

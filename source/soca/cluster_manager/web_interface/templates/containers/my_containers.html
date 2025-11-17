@@ -1,0 +1,265 @@
+<!-- Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+ SPDX-License-Identifier: Apache-2.0 -->
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    {% include 'common/header.html' %}
+</head>
+
+<body id="page-top">
+    <div id="wrapper">
+        {% include 'common/vertical_menu_bar.html' %}
+        <div id="content-wrapper" class="d-flex flex-column">
+            <div id="content">
+                <br>
+                <div class="container-fluid">
+                    {% include 'common/horizontal_menu_bar.html' %}
+                    {% include 'common/flashed_messages.html' %}
+                    <div class="card shadow mb-4">
+                        <div class="card-header py-3 d-flex justify-content-between align-items-center">
+                            <h6 class="m-0 font-weight-bold text-primary">Your EKS Containers</h6>
+                            <div class="d-flex ms-auto align-items-center">
+                                
+                                <a href="/containers"><button type="button" class="btn btn-success" >
+                                    Launch a New Container
+                                </button></a>
+                            </div>
+                        </div>
+
+                        <div class="card-body">
+                                {% if not containers %}
+                                    You don't have any containers.
+                                {% else %}
+                                    
+                                {% set status_explanations = {
+                                    "FAILED": "Job has failed. One or more pods exited with errors.",
+                                    "SUCCEEDED": "Job completed successfully and all pods exited with code 0.",
+                                    "RUNNING": "Job is actively running one or more pods.",
+                                    "SCALING": "Job is creating or terminating pods to match desired parallelism.",
+                                    "CREATING": "Job object just created, waiting to start pods.",
+                                    "WAITING FOR PODS": "Job is waiting for pods to be scheduled, likely due to resource constraints.",
+                                    "TERMINATING": "Job is being deleted and pods are shutting down.",
+                                    "PENDING": "Job is submitted but not yet started running pods.",
+                                    "UNKNOWN": "No status information is available."}
+                                  %}
+                               <div class="alert alert-info">
+                                   Job completed are automatically removed after 1 hour.
+                               </div>
+                             <br>
+                                    <table class="table table-striped">
+                                        <thead>
+                                        <tr>
+                                            <th scope="col">Cluster</th>
+                                            <th scope="col">Job Name</th>
+                                            <th scope="col">Namespace</th>
+                                            <th scope="col">Image</th>
+                                            <th scope="col">Job State</th>
+                                            <th scope="col">Pod(s) IP(s)</th>
+                                            <th>Job Details</th>
+                                        </tr>
+                                        </thead>
+                                        <tbody>
+                                        {% for job_dict in containers.values() %}
+                                            {% for job_uuid, job_info in job_dict.items() %}
+                                                <tr>
+                                                    <td>{{ job_info.get('eks_cluster') }}</td>
+                                                    <td>{{ job_info.get('metadata', {}).get('name') }}</td>
+                                                    <td>{{ job_info.get('metadata', {}).get('namespace') }}</td>
+
+                                                    <td>
+                                                        {% for image in job_info.get('images', []) %}
+                                                            {{ image }}<br>
+                                                        {% else %}
+                                                            <em>No image</em>
+                                                        {% endfor %}
+                                                    </td>
+                                                    <td>
+                                                        {% set status = job_info.get('status', {}) %}
+                                                        {% set conditions = status.get('conditions') or [] %}
+
+                                                        {# Extract cond_types and cond_reasons safely #}
+                                                        {% set cond_types = [] %}
+                                                        {% set cond_reasons = [] %}
+                                                        {% for c in conditions %}
+                                                            {% set _ = cond_types.append(c.get('type')) %}
+                                                            {% set _ = cond_reasons.append(c.get('reason', '')) %}
+                                                        {% endfor %}
+
+                                                        {# Detect unschedulable condition #}
+                                                        {% set unschedulable = false %}
+                                                        {% for reason in cond_reasons %}
+                                                            {% if reason == "Unschedulable" %}
+                                                                {% set unschedulable = true %}
+                                                            {% endif %}
+                                                        {% endfor %}
+
+            
+                                                        {% set pod_ips = job_info.get('pod_ips', []) %}
+
+                                                        {% if status.get('failed')|default(0)|int > 0 or 'Failed' in cond_types %}
+                                                            {% set state = "FAILED" %}
+                                                        {% elif status.get('succeeded')|default(0)|int > 0 or 'Complete' in cond_types %}
+                                                            {% set state = "SUCCEEDED" %}
+                                                        {% elif status.get('active')|default(0)|int > 0 and pod_ips|length == 0 %}
+                                                            {% set state = "WAITING FOR PODS" %}
+                                                        {% elif status.get('active')|default(0)|int > 0 and pod_ips|length > 0 %}
+                                                            {% set state = "RUNNING" %}
+                                                        {% elif job_info.get('metadata', {}).get('deletionTimestamp') %}
+                                                            {% set state = "TERMINATING" %}
+                                                        {% elif unschedulable %}
+                                                            {% set state = "WAITING FOR PODS" %}
+                                                        {% elif status.get('pending')|default(0)|int > 0 and status.get('active')|default(0)|int == 0 %}
+                                                            {% set state = "SCALING" %}
+                                                        {% elif job_info.get('metadata', {}).get('creation_timestamp') %}
+                                                            {% set state = "CREATING" %}
+                                                        {% elif not status %}
+                                                            {% set state = "UNKNOWN" %}
+                                                        {% else %}
+                                                            {% set state = "PENDING" %}
+                                                        {% endif %}
+                                                        {% set tooltip_text = status_explanations[state] %}
+                                                        <span class="badge badge-{{
+                                                            'danger' if state == 'FAILED' else
+                                                            'success' if state == 'SUCCEEDED' else
+                                                            'primary' if state == 'RUNNING' else
+                                                            'info' if state == 'SCALING' else
+                                                            'light' if state == 'CREATING' else
+                                                            'secondary' if state in ['WAITING FOR PODS', 'PENDING'] else
+                                                            'warning' if state == 'TERMINATING' else
+                                                            'light'
+                                                        }}"
+                                                            data-toggle="tooltip"
+                                                            data-placement="top"
+                                                            title="{{ tooltip_text }}">
+                                                            {{ state }}
+                                                        </span>
+                                                                                                                
+
+                                                        
+                                                    </td>
+                                                    <td>
+                                                        {% for pod_ip in job_info.get('pod_ips', []) %}
+                                                            {{ pod_ip }}<br>
+                                                        {% else %}
+                                                            <em>None</em>
+                                                        {% endfor %}
+                                                    </td>
+                                                    <td>
+                                                        <button type="button" class="btn btn-primary" data-bs-toggle="modal"
+                                                                data-bs-target="#job{{ loop.index0 }}">Job Info</button>
+                                                        <button type="button" class="btn btn-danger" data-bs-toggle="modal"
+                                                                data-bs-target="#deletejob{{ loop.index0 }}">Delete Job</button>
+                                                    </td>
+                                                </tr>
+
+                                                <!-- Modal Info -->
+                                                <div class="modal fade" id="job{{ loop.index0 }}" tabindex="-1"
+                                                     role="dialog" aria-labelledby="jobModalLabel{{ loop.index0 }}" aria-hidden="true">
+                                                    <div class="modal-dialog modal-lg" role="document">
+                                                        <div class="modal-content modal-lg">
+                                                            <div class="modal-header">
+                                                                <h5 class="modal-title">Job Info</h5>
+                                                                <button type="button" class="close" data-bs-dismiss="modal" aria-label="Close">
+                                                                   <span aria-hidden="true">×</span>
+                                                                </button>
+                                                            </div>
+                                                            <div class="modal-body container">
+                                                                <pre>{{ job_info | tojson(indent=2) }}</pre>
+                                                            </div>
+                                                            <div class="modal-footer">
+                                                                <button type="button" class="btn btn-secondary"
+                                                                        data-bs-dismiss="modal">Close</button>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+
+                                                <!-- Modal Delete -->
+                                                <div class="modal fade" id="deletejob{{ loop.index0 }}" tabindex="-1"
+                                                     role="dialog" aria-labelledby="deleteModalLabel{{ loop.index0 }}" aria-hidden="true">
+                                                    <div class="modal-dialog" role="document">
+                                                        <div class="modal-content">
+                                                            <div class="modal-header">
+                                                                <h5 class="modal-title">Confirm Delete</h5>
+                                                                <button type="button" class="close" data-bs-dismiss="modal" aria-label="Close">
+                                                                    <span aria-hidden="true">×</span>
+                                                                </button>
+                                                            </div>
+                                                            <div class="modal-body container">
+                                                                <div class="alert alert-danger">
+                                                                    <strong>Attention</strong><br>
+                                                                    You are about to remove this job from your EKS cluster.
+                                                                </div>
+                                                                <a href="/containers/delete_job?job_name={{ job_info.get('metadata', {}).get('name') }}&eks_cluster={{ job_info.get('eks_cluster') }}&namespace={{ job_info.get('metadata').get('namespace')}}">
+                                                                    <button type="button" class="btn btn-danger form-control">Delete Job: {{ job_info.get('metadata', {}).get('name') }}</button>
+                                                                </a>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            {% endfor %}
+                                        {% endfor %}
+
+
+                                        </tbody>
+                                    </table>
+
+
+                                    <hr>
+                                    <div class="row">
+                                        <div class="col-md-6">
+                                            <h6 class="font-weight-bold">Job Status Legend</h6>
+                                            <ul class="list-unstyled">
+                                            {% for key, explanation in status_explanations.items() %}
+                                            <li>
+                                                <span class="badge badge-{{
+                                                'danger' if key == 'FAILED' else
+                                                'success' if key == 'SUCCEEDED' else
+                                                'primary' if key == 'RUNNING' else
+                                                'info' if key == 'SCALING' else
+                                                'light' if key == 'CREATING' else
+                                                'secondary' if key in ['WAITING FOR PODS', 'PENDING'] else
+                                                'warning' if key == 'TERMINATING' else
+                                                'light'
+                                                }}">
+                                                {{ key }}
+                                                </span>
+                                                &nbsp; — {{ explanation }}
+                                            </li>
+                                            {% endfor %}
+                                            </ul>
+                                        </div>
+                                    </div>
+
+                                 
+                                                                    
+                            {% endif %}
+                        </div>
+                    </div>
+
+
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <a class="scroll-to-top rounded" href="#page-top">
+        <i class="fas fa-angle-up"></i>
+    </a>
+
+        {% include 'common/footer.html' %}
+
+    <script>
+        $(document).ready(function () {
+            // enable tooltip
+            $(function () {
+                $('[data-toggle="tooltip"]').tooltip()
+            })
+        })
+    </script>
+
+
+</body>
+
+</html>

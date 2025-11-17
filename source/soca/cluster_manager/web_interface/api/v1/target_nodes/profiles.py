@@ -251,10 +251,11 @@ class TargetNodeProfilesManager(Resource):
         _allowed_subnet_ids = args["allowed_subnet_ids"]
         _max_root_size = args["max_root_size"]
         _description = args.get("description", "")
-        if len(_description) > 500:
+        if _description and len(_description) > 500:
             return SocaError.GENERIC_ERROR(
                 helpers="Description cannot be greater than 500 characters"
             ).as_flask()
+            
         _user = request.headers.get("X-SOCA-USER")
         if _user is None:
             return SocaError.CLIENT_MISSING_HEADER(header="X-SOCA-USER").as_flask()
@@ -337,6 +338,7 @@ class TargetNodeProfilesManager(Resource):
             db.session.add(_new_profile_creation)
             db.session.commit()
         except Exception as err:
+            db.session.rollback()
             return SocaError.DB_ERROR(
                 query=_new_profile_creation,
                 helper=f"Unable to add Target Node Profile {_profile_name} to DB due to {err}",
@@ -463,6 +465,7 @@ class TargetNodeProfilesManager(Resource):
                 _check_profile.deactivated_by = _user
                 db.session.commit()
             except Exception as err:
+                db.session.rollback()
                 return SocaError.DB_ERROR(
                     query=_check_profile,
                     helper=f"Unable to deactivate target node profile {_profile_id} due to {err}",
@@ -581,7 +584,7 @@ class TargetNodeProfilesManager(Resource):
         _max_root_size = args["max_root_size"]
         _profile_id = args["profile_id"]
         _description = args.get("description", "")
-        if len(_description) > 500:
+        if _description and len(_description) > 500:
             return SocaError.GENERIC_ERROR(
                 helpers="Description cannot be greater than 500 characters"
             ).as_flask()
@@ -670,6 +673,7 @@ class TargetNodeProfilesManager(Resource):
             db.session.add(_profile_to_update)
             db.session.commit()
         except Exception as err:
+            db.session.rollback()
             return SocaError.DB_ERROR(
                 query=_profile_to_update,
                 helper=f"Unable to edit Target Node Profile to DB due to {err}",

@@ -57,13 +57,16 @@ tar -xvf ${SOCA_BOOTSTRAP_ASSETS_FOLDER}/soca.tar.gz -C /opt/soca/{{ context.get
 mkdir -p /opt/soca/{{ context.get("/configuration/ClusterId") }}/cluster_manager/orchestrator/logs
 
 # Apply permissions
-chmod -R 600 /opt/soca/{{ context.get("/configuration/ClusterId") }}/
+chmod -R 600 /opt/soca/{{ context.get("/configuration/ClusterId") }}/cluster_manager/
 
 # Set up executable flag
 chmod +x /opt/soca/{{ context.get("/configuration/ClusterId") }}/cluster_manager/orchestrator/socaqstat.py
 chmod +x /opt/soca/{{ context.get("/configuration/ClusterId") }}/cluster_manager/tools/j2generator/j2generator.sh
 chmod +x /opt/soca/{{ context.get("/configuration/ClusterId") }}/cluster_manager/socactl
 chmod +x /opt/soca/{{ context.get("/configuration/ClusterId") }}/cluster_manager/analytics/wrapper.sh
+chmod +x /opt/soca/{{ context.get("/configuration/ClusterId") }}/cluster_manager/orchestrator/jobs_dispatcher.sh
+chmod +x /opt/soca/{{ context.get("/configuration/ClusterId") }}/cluster_manager/orchestrator/nodes_manager.sh
+
 
 # Install SQLite (deps for SOCA Python)
 {% include "templates/linux/sqlite.sh.j2" %}
@@ -86,6 +89,7 @@ done
 # This shared location will be used to centralize bootstrap logs for easy troubleshooting as well as other automation tools
 log_info "Creating /apps/soca/{{ context.get("/configuration/ClusterId") }}/shared"
 mkdir -p /apps/soca/{{ context.get("/configuration/ClusterId") }}/shared/
+
 chmod -R 600 /apps/soca/{{ context.get("/configuration/ClusterId") }}/
 
 log_info "Generating ${SOCA_BOOTSTRAP_ASSETS_FOLDER}/03_setup.sh from ${SOCA_BOOTSTRAP_ASSETS_FOLDER}/03_setup.sh.j2"

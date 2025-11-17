@@ -59,14 +59,12 @@
                                                     <td> {{image_info.imageTag}}</td>
                                                     <td>
                                                          <a style="text-decoration: none;" href="javascript:void(0);" onclick="toggleDigest({{ loop.index }})" id="toggle-link-{{ loop.index }}">
-  <span class="badge badge-secondary" id="digest-short-{{ loop.index }}">{{ image_info.imageDigest[-30:] }} (show more)</span>
-  <span class="badge badge-secondary" id="digest-full-{{ loop.index }}" style="display:none;">{{ image_info.imageDigest }} (show less)</span>
-</a>
-
-                                                      <td>{{image_info.pushedAt }}</td>
-                                                     <td>{{image_info.imageSizeInMB}}</td>
-                                                     <td> <button type="button" class="btn btn-success" data-bs-toggle="modal"
-                                                                 data-image-uri="{{image_info.imageUri }}" data-bs-target="#LaunchJob">Launch Job</button></td>
+                                                            <span class="badge badge-secondary" id="digest-short-{{ loop.index }}">{{ image_info.imageDigest[-30:] }} (show more)</span>
+                                                            <span class="badge badge-secondary" id="digest-full-{{ loop.index }}" style="display:none;">{{ image_info.imageDigest }} (show less)</span>
+                                                        </a>
+                                                    <td>{{image_info.pushedAt }}</td>
+                                                    <td>{{image_info.imageSizeInMB}}</td>
+                                                    <td> <button type="button" class="btn btn-success" data-bs-toggle="modal" data-image-uri="{{image_info.imageUri }}" data-bs-target="#LaunchJob">Launch Container</button></td>
                                                  </tr>
                                             {% endif %}
                                         {% endfor %}
@@ -82,7 +80,7 @@
                                 <div class="modal-dialog modal-xl" role="document">
                                     <div class="modal-content">
                                         <div class="modal-header">
-                                            <h5 class="modal-title">Submit a new EKS job</h5>
+                                            <h5 class="modal-title">Launch a new EKS container</h5>
                                             <button type="button" class="close" data-bs-dismiss="modal" aria-label="Close">
                                                 <span aria-hidden="true">×</span>
                                             </button>
@@ -178,6 +176,32 @@
       Runtime Arguments <span class="badge bg-info ms-1" style="color: white;font-size:0.7em;">Optional</span>
     </button>
   </div>
+
+  <div class="col-md-3">
+    <button class="btn btn-secondary w-100" type="button" data-bs-toggle="collapse" data-bs-target="#collapseEnvVars" aria-expanded="false" aria-controls="collapseEnvVars">
+      Environment Variables <span class="badge bg-info ms-1" style="color: white;font-size:0.7em;">Optional</span>
+    </button>
+  </div>
+</div>
+
+<div class="collapse mb-3" id="collapseEnvVars">
+  <div class="card card-body">
+    <label class="form-label" data-bs-toggle="tooltip" data-bs-placement="top" title="Add environment variables for your job"></label>
+    <div id="envInputs">
+      <div class="input-group mb-2">
+        <input type="text" class="form-control" placeholder="KEY">
+        <input type="text" class="form-control" placeholder="VALUE">
+        <button type="button" class="btn btn-danger" onclick="removeInput(this)">Remove</button>
+      </div>
+    </div>
+    <button type="button" class="btn btn-info btn-sm mb-2" onclick="addEnvInput()">Add Variable</button>
+    <input type="hidden" name="envVars" id="envVarsArray">
+    <small class="form-text text-muted">
+      Define environment variables as key-value pairs.<br>
+      Example:<br>
+      <code>MY_ENV</code> → <code>Hello</code>
+    </small>
+  </div>
 </div>
 
 <div class="collapse mb-3" id="collapseEntryPoint">
@@ -190,7 +214,7 @@
       </div>
     </div>
     <button type="button" class="btn btn-info btn-sm mb-2" onclick="addInput()">Add Argument</button>
-    <input type="hidden" name="command" id="commandArray">
+    <input type="hidden" name="overrideCommands" id="commandArray">
     <small class="form-text text-muted">
       Each line is one argument.<br>
       Example:<br>
@@ -211,7 +235,7 @@
       </div>
     </div>
     <button type="button" class="btn btn-info btn-sm mb-2" onclick="addArgsInput()">Add Argument</button>
-    <input type="hidden" name="args" id="argsArray">
+    <input type="hidden" name="overrideArgs" id="argsArray">
     <small class="form-text text-muted">
       Each line is one argument.<br>
       Example:<br>
@@ -325,6 +349,19 @@
   }
 </script>
 <script>
+
+     function addEnvInput() {
+    const container = document.getElementById('envInputs');
+    const div = document.createElement('div');
+    div.className = 'input-group mb-2';
+    div.innerHTML = `
+      <input type="text" class="form-control" placeholder="Key">
+      <input type="text" class="form-control" placeholder="Value">
+      <button type="button" class="btn btn-danger" onclick="removeInput(this)">Remove</button>
+    `;
+    container.appendChild(div);
+  }
+
   function addInput() {
     const container = document.getElementById('commandInputs');
     const div = document.createElement('div');
@@ -365,6 +402,18 @@
       .map(input => input.value.trim())
       .filter(val => val !== "");
     document.getElementById('argsArray').value = JSON.stringify(argsArray);
+
+    // handle env
+    // Handle env vars
+    const envInputs = document.querySelectorAll('#envInputs .input-group');
+    const envArray = Array.from(envInputs).map(group => {
+      const inputs = group.querySelectorAll('input');
+      const key = inputs[0].value.trim();
+      const value = inputs[1].value.trim();
+      return key && value ? { name: key, value: value } : null;
+    }).filter(item => item !== null);
+
+    document.getElementById('envVarsArray').value = JSON.stringify(envArray);
   });
 </script>
 <script>

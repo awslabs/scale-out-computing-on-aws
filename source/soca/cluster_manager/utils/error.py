@@ -71,17 +71,16 @@ class SocaError:
         # These returns are displayed to the user via web interface or CLI
         # We omit technical details such as system trace only available on the relevant log file
 
-        _full_message = f"{error_message} "
-
         # Handle case where response is dict (e.g: SocaSubprocessClient)
         # we can't append Request ID otherwise it will break the dictionary
         # instead we add a new request_id key and cast back as str
         _error_message_as_str = str(_error_message)
         try:
-            _error_dict = json.loads(_error_message_as_str)
+            _error_dict = ast.literal_eval(_error_message_as_str)
             if isinstance(_error_dict, dict):
                 _error_dict["request_id"] = f"Request ID: {_request_uuid}"
                 _error_dict["error_documentation_url"] = f"{error_doc_url}"
+                # serialize back for logging.
                 message = str(_error_dict)
             else:
                 if error_doc_url is not None:
@@ -90,9 +89,9 @@ class SocaError:
                     message = f"{_error_message} (Request ID: {_request_uuid})"
 
         except Exception as err:
-            # handle case with str breaking literal_eval such as "Unable to search due to NotFoundError(404, 'index_not_found_exception', 'no such index [soca_jobs]', soca_jobs, index_or_alias)" c
-            logger.info(
-                f"Unable to literal_eval {_error_message_as_str} due to {err}, defaulting to str"
+            # handle case with str breaking json.loads such as "Unable to search due to NotFoundError(404, 'index_not_found_exception', 'no such index [soca_jobs]', soca_jobs, index_or_alias)" c
+            logger.debug(
+                f"Unable to cast {_error_message_as_str} as dictionary  due to {err}, defaulting to str"
             )
 
             if error_doc_url is not None:
@@ -126,9 +125,9 @@ class SocaError:
 
     @staticmethod
     def SOCA_CONFIG_KEY_VERIFIER(
-            helper: Optional[str] = None,
-            status_code: Optional[int] = 500,
-            error_doc_url: Optional[str] = None,
+        helper: Optional[str] = None,
+        status_code: Optional[int] = 500,
+        error_doc_url: Optional[str] = None,
     ):
         return SocaError.return_error(
             error_id=inspect.currentframe().f_code.co_name,
@@ -140,9 +139,9 @@ class SocaError:
 
     @staticmethod
     def JINJA_GENERATOR_ERROR(
-            helper: Optional[str] = None,
-            status_code: Optional[int] = 500,
-            error_doc_url: Optional[str] = None,
+        helper: Optional[str] = None,
+        status_code: Optional[int] = 500,
+        error_doc_url: Optional[str] = None,
     ):
         return SocaError.return_error(
             error_id=inspect.currentframe().f_code.co_name,
@@ -154,9 +153,9 @@ class SocaError:
 
     @staticmethod
     def ANALYTICS_ERROR(
-            helper: Optional[str] = None,
-            status_code: Optional[int] = 500,
-            error_doc_url: Optional[str] = None,
+        helper: Optional[str] = None,
+        status_code: Optional[int] = 500,
+        error_doc_url: Optional[str] = None,
     ):
         return SocaError.return_error(
             error_id=inspect.currentframe().f_code.co_name,

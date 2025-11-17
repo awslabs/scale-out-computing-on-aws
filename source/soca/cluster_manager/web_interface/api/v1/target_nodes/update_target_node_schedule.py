@@ -236,6 +236,7 @@ class UpdateTargetNodeSchedule(Resource):
                     message=f"Your target node schedule has been updated",
                 ).as_flask()
             except Exception as err:
+                db.session.rollback()
                 return SocaError.DB_ERROR(
                     query=_check_session,
                     helper=f"Unable to update session schedule due to {err}",

@@ -37,7 +37,7 @@ class ApiKey(Resource):
         openapi: 3.1.0
         operationId: getUserApiKey
         tags:
-          - User API Keys
+          - User
         parameters:
           - name: X-SOCA-USER
             in: header
@@ -89,8 +89,9 @@ class ApiKey(Resource):
         parser = reqparse.RequestParser()
         parser.add_argument("user", type=str, location="args")
         args = parser.parse_args()
-        logger.debug("Retrieving HTTP API Key")
         user = args["user"]
+        logger.debug(f"Retrieving HTTP API Key for user {user}")
+
         if user is None:
             return SocaError.CLIENT_MISSING_PARAMETER(parameter="user").as_flask()
 
@@ -135,6 +136,7 @@ class ApiKey(Resource):
                             db.session.add(new_key)
                             db.session.commit()
                         except Exception as err:
+                            db.session.rollback()
                             return SocaError.DB_ERROR(
                                 query=new_key,
                                 helper=f"Unable to save new API key on DB due to {err}",
@@ -244,6 +246,7 @@ class ApiKey(Resource):
                     try:
                         db.session.commit()
                     except Exception as err:
+                        db.session.rollback()
                         return SocaError.DB_ERROR(
                             query=key,
                             helper=f"Unable to deactivate key in DB due to {err}",

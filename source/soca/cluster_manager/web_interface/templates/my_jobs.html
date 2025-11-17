@@ -21,193 +21,270 @@
             <div class="container-fluid">
                 {% include 'common/horizontal_menu_bar.html' %}
                 <main role="main">
-                    {% with messages = get_flashed_messages(with_categories=true) %}
-                        {% if messages %}
-                            {% for category, message in messages %}
-                                <br>
-                                {% if category == "success" %}
-                                    <div class="alert alert-success">
-                                        <strong>{{ message | safe }} </strong>
-                                    </div>
-                                {% elif category == "info" %}
-                                    <div class="alert alert-info">
-                                        <strong>{{ message | safe }} </strong>
-                                    </div>
-                                {% else %}
-                                    <div class="alert alert-danger">
-                                        <strong>{{ message | safe }} </strong>
-                                    </div>
-                                {% endif %}
-                            {% endfor %}
-                        {% endif %}
-                    {% endwith %}
+                    {% include 'common/flashed_messages.html' %}
                     <div class="col-md-12">
                         <div class="card shadow mb-4">
-                            <div class="card-header py-3">
-                                <h6 class="m-0 font-weight-bold text-primary">Your job queue</h6>
+                            <div class="card-header py-3 d-flex justify-content-between align-items-center">
+                                <h6 class="m-0 font-weight-bold text-primary">Job Queue</h6>
+
+                                <div class="d-flex ms-auto align-items-center">
+                                    <!-- Dropdown Button -->
+                                    <div class="dropdown">
+                                        <button class="btn btn-success dropdown-toggle" type="button" id="launchJobDropdown" data-bs-toggle="dropdown" aria-expanded="false">
+                                            Launch a new Job
+                                        </button>
+                                        <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="launchJobDropdown">
+                                            <li>
+                                                <a class="dropdown-item" href="/submit_job">Via SOCA Web Portal</a>
+                                            </li>
+                                            <li>
+                                                <a class="dropdown-item" target="_blank" href="https://awslabs.github.io/scale-out-computing-on-aws-documentation/tutorials/launch-your-first-job/">
+                                                    Via command line (CLI)
+                                                </a>
+                                            </li>
+                                        </ul>
+                                    </div>
+                                </div>
                             </div>
+
+
+     
                             <div class="card-body">
+                                  <form method="get" action="">
+                                    <div class="row g-3 align-items-end">
+
+                                        <div class="col-auto">
+                                            <label for="schedulerId" class="form-label">Scheduler ID</label>
+                                            <select class="form-control" id="scheduler_id" name="scheduler_id" style="width: 200px;">
+                                                <option value="all" selected>all</option>
+                                                {% for scheduler in scheduler_list %}
+                                                <option value="{{scheduler}}">{{scheduler}}</option>
+                                                {% endfor %}
+                                            </select>
+                                        </div>
+
+                                        <div class="col-auto">
+                                            <label for="jobQueue" class="form-label">Job Queue</label>
+                                            <input class="form-control" type="text" id="queue" name="queue" size="10" value="">
+                                        </div>
+
+                                        <div class="col-auto">
+                                            <label for="username" class="form-label">User</label>
+                                            <input class="form-control" type="text" id="user" size="10" name="user">
+                                        </div>
+
+                                        <div class="col-auto">
+                                        <button type="submit" class="btn btn-primary"> <i class="fas fa-filter me-1"></i> Filter</button>
+                                        <a href="/my_jobs?user={{user}}"><button class="btn btn-warning"><i class="fa-solid fa-user-tag"></i> View my jobs</button></a>
+                                        </div>
+
+                                    </div>
+                                    <br>
+                                    </form>
                                 {% if not jobs %}
-                                    You don't have any jobs in the queue.
+                                  No jobs found.
                                 {% else %}
+                                  
 
-                                    <table class="table table-striped">
-                                        <thead>
-                                        <tr>
-                                            <th scope="col">Job Id</th>
-                                            <th>Name</th>
-                                            <th>Queue</th>
-                                            <th>Status</th>
-                                            <th>CPUs</th>
-                                            <th>Nodes</th>
-                                            <th>Actions</th>
-                                        </tr>
-                                        </thead>
-                                        <tbody>
-                                        {% for job_id, job_data in jobs.items() %}
+
+                                    <table class="table align-middle">
+                                              <thead class="table-dark">
                                             <tr>
-                                                <th>{{ job_id.split(".")[0] }}</th>
-                                                <th>{{ job_data.Job_Name }}</th>
-                                                <th>{{ job_data.queue }}</th>
-                                                <th>
-                                                    {% if job_data.job_state == 'R' %}
-                                                        <span class="badge badge-success">RUNNING</span>
-                                                    {% elif job_data.job_state == 'Q' %}
-                                                        <span class="badge badge-warning">QUEUED</span>
-                                                        {% if "compute_node=job" in job_data.Resource_List.select %}
-                                                            <span class="badge badge-info">Capacity being provisioned</span>
-                                                        {% endif %}
-                                                    {% elif job_data.job_state == 'E' %}
-                                                        <span class="badge badge-danger">EXIT</span>
-                                                    {% else %}
-                                                        <span class="badge badge-primary">{{ job_data.job_state }}</span>
-                                                    {% endif %}
-                                                </th>
-                                                <th>{{ job_data.Resource_List.ncpus }}</th>
-                                                <th>{{ job_data.Resource_List.nodect }}</th>
-                                                <th>
-                                                    <button type="button" class="btn btn-primary" data-bs-toggle="modal"
-                                                            data-bs-target="#job{{ job_id.split('.')[0] }}">Job Info
-                                                    </button>
-                                                    {% if job_data.job_state != 'E' %}
-                                                        <button type="button" class="btn btn-danger"
-                                                                data-bs-toggle="modal"
-                                                                data-bs-target="#delete{{ job_id.split('.')[0] }}">
-                                                            Delete Job
-                                                        </button>
-                                                    {% endif %}
-                                                    {% if job_data.Variable_List.PBS_O_WORKDIR %}
-                                                        <a target="_blank" rel="noopener,noreferrer"
-                                                           href="/my_files?path={{ job_data.Variable_List.PBS_O_WORKDIR }}">
-                                                            <button type="button" class="btn btn-warning">Job
-                                                                Directory
-                                                            </button>
-                                                        </a>
-                                                    {% endif %}
+                                                <th> Scheduler</th>
+                                                <th>Id</th>
+                                                <th>Owner</th>
+                                                <th>Name</th>
+                                                <th>Queue</th>
+                                                <th>Status</th>
+                                                <th>Resources</th>
+                                                <th>Actions</th>
+                                            </tr>
+                                            </thead>
+                                            <tbody>
+                                                {% for job in jobs %}
+                                                    <tr>
+                                                        <th>
+                                                            {% if job.job_scheduler_info.provider == "lsf" %}
+                                                                {{job.job_scheduler_info.identifier}} <span class="badge badge-dark">LSF</span>
+                                                            {% elif job.job_scheduler_info.provider == "slurm" %}
+                                                                {{job.job_scheduler_info.identifier}} <span class="badge badge-primary">Slurm</span>                             
+                                                            {% elif job.job_scheduler_info.provider == "openpbs" %}
+                                                                {{job.job_scheduler_info.identifier}}  <span class="badge badge-info">OpenPBS</span>
+                                                            {% endif %}
+                                                            
+                                                        </th>
+                                                        <th> {{ job.job_id }} </th>
+                                                        <th> {{ job.job_owner }} </th>
+                                                        <th> {{ job.job_name }} </th>
+                                                        <th> {{ job.job_queue }} </th>
+                                                        <th> 
+                                                            {% if job.job_state == "PENDING" %}
+                                                                <span class="badge badge-warning">PENDING</span> 
+                                                            {% elif job.job_state == "RUNNING" %}
+                                                                <span class="badge badge-success">RUNNING</span> 
+                                                            {% else %}
+                                                                <span class="badge badge-primary">{{ job.job_state }}</span> 
+                                                            {% endif %}
+                                                            
+                                                            {% if job.job_state == "QUEUED" %}
+                                                                {% if job.job_provisioning_state in ["COMPUTE_PROVISIONING_IN_PROGRESS", "COMPUTE_PROVISIONING_COMPLETE"] %}
+                                                                <span class="badge badge-info">Capacity being provisioned</span>
+                                                                {% endif %}
 
-                                                    {% if job_data.Resource_List.error_message %}
-                                                        <button type="button" class="btn btn-info"
-                                                                data-bs-toggle="modal"
-                                                                data-bs-target="#error{{ job_id.split('.')[0] }}"><i
-                                                                class="fas fa-exclamation-triangle"></i> JOB CANNOT
-                                                            START
-                                                        </button>
-                                                        <!-- Modal error -->
-                                                        <div class="modal fade" id="error{{ job_id.split('.')[0] }}"
-                                                             tabindex="-1" role="dialog"
-                                                             aria-labelledby="exampleModalLabel" aria-hidden="true">
-                                                            <div class="modal-dialog" role="document">
-                                                                <div class="modal-content">
-                                                                    <div class="modal-body">
-                                                                        <div class="alert alert-danger">
-                                                                            <strong>Attention: Your job cannot
-                                                                                run</strong>
+                                                                {% if job.job_provisioning_state in ["COMPUTE_PROVISIONING_BLOCKED", "COMPUTE_PROVISIONING_ERROR"] %}
+                                                                <span class="badge badge-danger">Capacity provisioning blocked</span>
+                                                                {% endif %}
+
+
+                                                                {% if job.error_message %}
+                                                                <span class="badge badge-warning" style="cursor: pointer;" data-bs-toggle="modal" data-bs-target="#error-{{job.job_scheduler_info.identifier}}-{{ job.job_id  }}">
+                                                                    <i class="fas fa-exclamation-triangle"></i> JOB CANNOT START
+                                                                </span>
+                                                            
+                                                                    <div class="modal fade" id="error-{{job.job_scheduler_info.identifier}}-{{ job.job_id  }}"
+                                                                        tabindex="-1" role="dialog"
+                                                                        aria-labelledby="exampleModalLabel" aria-hidden="true">
+                                                                        <div class="modal-dialog" role="document">
+                                                                            <div class="modal-content">
+                                                                                <div class="modal-body">
+                                                                                    <div class="alert alert-danger">
+                                                                                        <strong>Attention: Your job cannot run</strong>
+                                                                                    </div>
+                                                                                    
+                                                                                    {{ job.error_message | replace("_"," ") }}
+                                                                                    <hr>
+                                                                                    Your job will stay in the queue until the issue
+                                                                                    is fixed.
+                                                                                </div>
+                                                                            </div>
                                                                         </div>
-                                                                        {{ job_data.Resource_List.error_message | replace("_"," ") }}
-                                                                        <hr>
-                                                                        Your job will stay in the queue until the issue
-                                                                        is fixed.
+                                                                    </div>
+                                                                {% endif %}
+                                                                                                                                                                           
+                                                            {% endif %}                                                     
+
+                                                        </th>
+                                                        <th> {{ job.cpus }} vCPU{{'s' if job.cpus > 1 else ''}} ({{ job.nodes }} node{{'s' if job.nodes > 1 else ''}}) </th>
+                                                        <th>
+
+                                                             <div class="dropdown">
+                                                            <button class="btn dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                                                              <i class="fa-solid fa-bars"></i>
+                                                            </button>
+                                                            <ul class="dropdown-menu">
+                                                              <li>
+                                                                <a class="dropdown-item" style="cursor: pointer" data-bs-toggle="modal" data-bs-target="#job-{{job.job_scheduler_info.identifier}}-{{ job.job_id }}"><i class="fa-solid fa-magnifying-glass"></i> Job Info</a>
+                                                                <a class="dropdown-item" style="cursor: pointer; color:#858796" target="_blank" rel="noopener,noreferrer"  href="/my_files?path={{ job.job_working_directory }}"><i class="fa-solid fa-up-right-from-square"></i> Job Directory</a>
+                                                                {% if job.job_owner == user %}
+                                                                    {% if job.job_state not in ["FINISHED"] %}
+                                            
+                                                                        <a class="dropdown-item" style="cursor: pointer" data-bs-toggle="modal" data-bs-target="#delete-{{job.job_scheduler_info.identifier}}-{{ job.job_id }}"><i class="fa-solid fa-trash-can"></i> Delete Job </a>
+                                                                
+                                                                    {% else %}
+                                                                        <a class="dropdown-item" style="color: #b3bcc5 !important;" data-toggle="tooltip" data-placement="top" title="Job is finished or in invalid state"><i class="fa-solid fa-trash-can"></i> Delete Job </a>
+                                                                    {% endif %}
+                                                                {% else %}
+                                                                    <a class="dropdown-item" style="color: #b3bcc5 !important;" data-toggle="tooltip" data-placement="top" title="You are not the job owner"><i class="fa-solid fa-trash-can"></i> Delete Job </a>
+                                                                {% endif %}
+                                                            </li>
+                                                            </ul>
+                                                          </div>
+
+                                                                    {% if job.job_owner == user and  job.job_state not in ["FINISHED"]  %}                                            
+                                                                        <!-- Modal Delete -->
+                                                                        <div class="modal fade" id="delete-{{job.job_scheduler_info.identifier}}-{{ job.job_id }}" tabindex="-1" role="dialog" aria-labelledby="exampleModalLabel" aria-hidden="true">
+                                                                            <div class="modal-dialog" role="document">
+                                                                                <div class="modal-content">
+                                                                                    <div class="modal-header">
+                                                                                        <h5 class="modal-title">Entering the Danger Zone</h5>
+                                                                                        <button type="button" class="close" data-bs-dismiss="modal"
+                                                                                                aria-label="Close">
+                                                                                            <span aria-hidden="true">&times;</span>
+                                                                                        </button>
+                                                                                    </div>
+                                                                                    <div class="modal-body container">
+                                                                                        <div class="alert alert-danger">
+                                                                                            <strong>Attention</strong> <br>
+                                                                                            You are about to remove this job from the queue. Any
+                                                                                            logs/output created by this job may be lost if not
+                                                                                            copied to a persistent storage.
+                                                                                            This action cannot be reversed.
+                                                                                        </div>
+                                                                                        <a href="/my_jobs/delete?job_id={{ job.job_id }}&scheduler_id={{job.job_scheduler_info.identifier}}">
+                                                                                            <button type="button"
+                                                                                                    class="btn btn-danger form-control">Delete
+                                                                                                job {{ job.job_id }}</button>
+                                                                                        </a>
+                                                                                    </div>
+                                                                                </div>
+                                                                            </div>
+                                                                        </div>
+                                                                        <!-- End --> 
+                                                                         {% endif %}
+
+                                                           
+                                                         
+                        
+
+                                                            
+                                                                <!-- Modal Info -->
+                                                                <div class="modal fade" id="job-{{job.job_scheduler_info.identifier}}-{{ job.job_id  }}" tabindex="-1"
+                                                                    role="dialog" aria-labelledby="exampleModalLabel" aria-hidden="true">
+                                                                    <div class="modal-dialog modal-fullscreen" role="document">
+                                                                        <div class="modal-content modal-fullscreen">
+                                                                            <div class="modal-header">
+                                                                                <h5 class="modal-title">Job {{ job.job_id }}</h5>
+                                                                                <button type="button" class="close" data-bs-dismiss="modal"
+                                                                                        aria-label="Close">
+                                                                                    <span aria-hidden="true">&times;</span>
+                                                                                </button>
+                                                                            </div>
+                                                                            <div class="modal-body">
+                                                                                  <div class="table-responsive"></div>
+                                                                                 <table class="table table-striped">                       
+                                                                                    <tbody>
+                                                                                        {% for k,v in job.items() %}
+                                                                                        <tr>
+                                                                                            <th>{{k}}</th>
+                                                                                            <th>{{v}}</th>
+                                                                                        </tr>                                                                  
+                                                                                        {% endfor %}   
+                                                                                    </tbody>
+                                                                                </table>
+                                                                                </div>
+                                                                                                                                               
+                                                                            <div class="modal-footer">
+                                                                                <button type="button" class="btn btn-secondary"
+                                                                                        data-bs-dismiss="modal">Close
+                                                                                </button>
+                                                                            </div>
+                                                                        </div>
                                                                     </div>
                                                                 </div>
-                                                            </div>
-                                                        </div>
-                                                        <!-- End -->
-                                                    {% endif %}
-                                                </th>
-                                            </tr>
-                                            <!-- Modal Delete -->
-                                            <div class="modal fade" id="delete{{ job_id.split('.')[0] }}" tabindex="-1"
-                                                 role="dialog" aria-labelledby="exampleModalLabel" aria-hidden="true">
-                                                <div class="modal-dialog" role="document">
-                                                    <div class="modal-content">
-                                                        <div class="modal-header">
-                                                            <h5 class="modal-title">Entering the Danger Zone</h5>
-                                                            <button type="button" class="close" data-bs-dismiss="modal"
-                                                                    aria-label="Close">
-                                                                <span aria-hidden="true">&times;</span>
-                                                            </button>
-                                                        </div>
-                                                        <div class="modal-body container">
-                                                            <div class="alert alert-danger">
-                                                                <strong>Attention</strong> <br>
-                                                                You are about to remove this job from the queue. Any
-                                                                logs/output created by this job may be lost if not
-                                                                copied to a persistent storage.
-                                                                This action cannot be reversed.
-                                                            </div>
-                                                            <a href="/my_jobs/delete?job_id={{ job_id.split('.')[0] }}">
-                                                                <button type="button"
-                                                                        class="btn btn-danger form-control">Delete
-                                                                    job {{ job_id.split(".")[0] }}</button>
-                                                            </a>
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                            <!-- End -->
-                                            <!-- Modal Info -->
-                                            <div class="modal fade" id="job{{ job_id.split('.')[0] }}" tabindex="-1"
-                                                 role="dialog" aria-labelledby="exampleModalLabel" aria-hidden="true">
-                                                <div class="modal-dialog modal-lg" role="document">
-                                                    <div class="modal-content modal-lg">
-                                                        <div class="modal-header">
-                                                            <h5 class="modal-title">Job {{ job_id.split(".")[0] }}</h5>
-                                                            <button type="button" class="close" data-bs-dismiss="modal"
-                                                                    aria-label="Close">
-                                                                <span aria-hidden="true">&times;</span>
-                                                            </button>
-                                                        </div>
-                                                        <div class="modal-body container">
-                                                            {% for key, value in job_data.items() %}
-                                                                {% if key == "Variable_List" or key == "Resource_List" %}
-                                                                    <strong>{{ key }}</strong>:
-                                                                    {% for resource_name, resource_value in value.items() %}
-                                                                        <li style="margin-left: 30px">
-                                                                            <strong>{{ resource_name }}:</strong> {{ resource_value }}
-                                                                        </li>
-                                                                    {% endfor %}
-                                                                {% else %}
-                                                                    <strong>{{ key }}</strong>: {{ value }}<br>
-                                                                {% endif %}
-                                                            {% endfor %}
-                                                        </div>
-                                                        <div class="modal-footer">
-                                                            <button type="button" class="btn btn-secondary"
-                                                                    data-bs-dismiss="modal">Close
-                                                            </button>
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                            <!-- End -->
-                                        {% endfor %}
+                                                                <!-- End -->
+                                                        </th>
+                                                    </tr>
+                                                {% endfor %}
+                                        
 
-
-                                        </tbody>
-                                    </table>
+                                            </tbody>
+                                        </table>
                                 {% endif %}
 
+                                  <div class="card-footer py-3 d-flex justify-content-end align-items-center">
+                                     <div class="d-flex ms-auto align-items-center">
+                                        <div class="col-auto">                                       
+                                            <button type="button" id="refreshButton" class="btn btn-sm btn-secondary" onclick="manualRefresh()">
+                                                <i class="fas fa-sync-alt me-1"></i> Refresh (<span id="countdown">120</span>s)
+                                            </button>
+                                            <button type="button" id="toggleAuto" class="btn btn-sm btn-outline-danger" onclick="toggleAutoRefresh()">Disable Auto-Refresh
 
+                                            </button>
+                                        </div>
+                                    </div>
+                                    
+                                </div>
+                            
                             </div>
                         </div>
                     </div>
@@ -223,7 +300,54 @@
     <i class="fas fa-angle-up"></i>
 </a>
 {% include 'common/footer.html' %}
+ <script>
+                    $(document).ready(function () {
+                        // enable tooltip
+                        $(function () {
+                            $('[data-toggle="tooltip"]').tooltip()
+                        })
+                    })
+                </script>
+                <script>
+  let refreshInterval = 120; // seconds
+  let counter = refreshInterval;
+  let autoRefreshEnabled = true;
+  let countdownElement = document.getElementById('countdown');
+  let toggleButton = document.getElementById('toggleAuto');
+  let timer;
 
+  function startCountdown() {
+    timer = setInterval(() => {
+      if (!autoRefreshEnabled) return; // stop counting if disabled
+      counter--;
+      countdownElement.textContent = counter;
+      if (counter <= 0) {
+        window.location.reload();
+      }
+    }, 1000);
+  }
+
+  function manualRefresh() {
+    window.location.reload();
+  }
+
+  function toggleAutoRefresh() {
+    autoRefreshEnabled = !autoRefreshEnabled;
+    if (autoRefreshEnabled) {
+      toggleButton.textContent = 'Disable Auto-Refresh';
+      toggleButton.classList.remove('btn-outline-success');
+      toggleButton.classList.add('btn-outline-danger');
+      counter = refreshInterval; // reset counter
+    } else {
+      toggleButton.textContent = 'Enable Auto-Refresh';
+      toggleButton.classList.remove('btn-outline-danger');
+      toggleButton.classList.add('btn-outline-success');
+    }
+  }
+
+  // Start the countdown when the page loads
+  startCountdown();
+</script>
 
 </body>
 

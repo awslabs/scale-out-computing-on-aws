@@ -16,7 +16,7 @@ Set-Location -Path $SOCABootstrapAssetsFolder
 # Install Chocolatey package manager
 {% include "templates/windows/chocolatey.ps.j2" %}
 
-{% if  context.get('/configuration/UserDirectory/provider') in ("aws_ds_managed_activedirectory", "aws_ds_simple_activedirectory", "existing_active_directory") %}
+{% if  context.get('/configuration/UserDirectory/provider') in ("aws_ds_managed_activedirectory", "existing_active_directory") %}
     Log-Info -Message "Using Active Directory"
     # DOMAIN\<SOCA_user>
     $SOCAUser = "{{ context.get('/configuration/UserDirectory/short_name') }}\{{ context.get('/dcv/SessionOwner') }}"

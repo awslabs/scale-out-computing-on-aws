@@ -29,4 +29,25 @@ function set_environment_variable () {
   # Reload your env
   source /etc/environment
 }
+
+function set_environment_command () {
+  local COMMAND=${1}
+  local SOCA_IDENTIFIER="# SOCA Environment Command, [SOCA_DO_NOT_DELETE]" # added to each entry
+
+  if [[ -z ${COMMAND} ]]; then
+    exit_fail "set_environment_command. COMMAND (first argument) not found"
+  fi
+
+  log_info "Setting ${COMMAND} to /etc/environment"
+  if grep -q "^[^#]*${COMMAND}" /etc/environment; then
+      log_info "${COMMAND}already found in  /etc/environment, ignoring ..."
+  else
+      log_info "Adding ${COMMAND} to /etc/environment"
+      {
+        printf "${SOCA_IDENTIFIER}\n${COMMAND}\n"
+      } >> /etc/environment
+  fi
+  # Reload your env
+  source /etc/environment
+}
 # End - Setup /etc/environment

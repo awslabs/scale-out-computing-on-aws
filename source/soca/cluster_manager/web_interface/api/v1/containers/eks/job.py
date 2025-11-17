@@ -364,16 +364,21 @@ class EKSJob(Resource):
                     pattern: '^[a-z0-9]+\.[a-z0-9]+$'
                     description: EC2 instance type for node selection
                     example: "m5.large"
-                  commandArray:
+                  overrideCommands:
                     type: string
                     format: json
                     description: JSON array of command to execute
                     example: '["echo", "hello"]'
-                  argsArray:
+                  overrideArgs:
                     type: string
                     format: json
                     description: JSON array of arguments for the command
                     example: '["world"]'
+                  envVars:
+                    type: string
+                    format: json
+                    description: JSON array of Key;Value for Environemtn Variable
+                    example: f' [{"name": "MY_ENV", "value": "Hello"}, {"name": "API_KEY", "value": "12345"}]'
                   namespace:
                     type: string
                     minLength: 1
@@ -472,8 +477,10 @@ class EKSJob(Resource):
         parser.add_argument("memory", type=str, location="form")
         parser.add_argument("gpu", type=str, location="form")
         parser.add_argument("instance_type", type=str, location="form")
-        parser.add_argument("commandArray", type=str, location="form")
-        parser.add_argument("argsArray", type=str, location="form")
+        parser.add_argument("overrideCommands", type=str, location="form")
+        parser.add_argument("overrideArgs", type=str, location="form")
+        parser.add_argument("envVars", type=str, location="form")
+
         parser.add_argument("namespace", type=str, location="form")
 
         args = parser.parse_args()
@@ -498,30 +505,38 @@ class EKSJob(Resource):
         if not _job_name:
             return SocaError.CLIENT_MISSING_PARAMETER(parameter="job_name").as_flask()
 
-        if args.get("commandArray", None) is None:
+        if args.get("envVars", None) is None:
+            _env = []
+        else:
+            try:
+                _env = json.loads(args.get("envVars"))
+            except json.JSONDecodeError:
+                _env = []
+
+        if args.get("overrideCommands", None) is None:
             _command = []
         else:
             try:
-                _command = json.loads(args.get("commandArray"))
+                _command = json.loads(args.get("overrideCommands"))
             except Exception as err:
                 logger.error(
-                    f"Unable to parse command {args.get('commandArray', '[]')} as JSON: {err}"
+                    f"Unable to parse overrideCommands {args.get('overrideCommands', '[]')} as JSON: {err}"
                 )
                 return SocaError.GENERIC_ERROR(
-                    helper=f"Unable to parse command {args.get('commandArray', '[]')}"
+                    helper=f"Unable to parse overrideCommands {args.get('overrideCommands', '[]')}"
                 ).as_flask()
 
-        if args.get("argsArray", None) is None:
+        if args.get("overrideArgs", None) is None:
             _args = []
         else:
             try:
-                _args = json.loads(args.get("argsArray", "[]"))
+                _args = json.loads(args.get("overrideArgs", "[]"))
             except Exception as err:
                 logger.error(
-                    f"Unable to parse command {args.get('argsArray', '[]')} as JSON: {err}"
+                    f"Unable to parse overrideArgs {args.get('overrideArgs', '[]')} as JSON: {err}"
                 )
                 return SocaError.GENERIC_ERROR(
-                    helper=f"Unable to parse command {args.get('argsArray', '[]')}"
+                    helper=f"Unable to parse overrideArgs {args.get('overrideArgs', '[]')}"
                 ).as_flask()
 
         _user = request.headers.get("X-SOCA-USER")
@@ -613,6 +628,7 @@ class EKSJob(Resource):
                                     },
                                     "limits": {"cpu": _cpu_str, "memory": _memory_str},
                                 },
+                                "env": _env,
                             }
                         ],
                         "restartPolicy": "Never",
@@ -627,7 +643,7 @@ class EKSJob(Resource):
         )
         if _job_submit_response.get("success") is False:
             return SocaError.GENERIC_ERROR(
-                helper=f"Unable to submit job due to {_job_submit_response.get('message')}"
+                helper=f"{_job_submit_response.get('message')}"
             ).as_flask()
         else:
             return SocaResponse(

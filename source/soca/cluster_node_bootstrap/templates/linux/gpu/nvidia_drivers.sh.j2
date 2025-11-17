@@ -13,9 +13,14 @@ function install_nvidia_grid_drivers () {
   fi
 
   log_info "Installing NVIDIA GRID Drivers"
+
+  log_info "Installing additional packages"
   {% if context.get("/configuration/BaseOS") in ("rhel8", "rhel9", "rocky8", "rocky9") %}
     packages_install vulkan-loader
+  {% elif context.get("/configuration/BaseOS") in ("ubuntu2204", "ubuntu2404") %}
+    packages_install dkms linux-headers-aws linux-modules-extra-aws 
   {% endif %}
+
   mkdir -p "${SOCA_BOOTSTRAP_ASSETS_FOLDER}/gpu_drivers"
   pushd "${SOCA_BOOTSTRAP_ASSETS_FOLDER}/gpu_drivers"
   rm -rf NVIDIA-Linux-x86_64*.run || log_info "No previous .run file detected"
@@ -32,7 +37,7 @@ function install_nvidia_grid_drivers () {
     --accept-license \
     --silent;
   then
-    log_error "Unable to install GPU driver, check /var/log/nvidia-installer.log for more info. Trying to install a compatibility driver ..."
+    log_error "Unable to install GPU driver, check /var/log/nvidia-installer.log for more info.."
   fi
 
   log_info "X server configuration for GPU start..."

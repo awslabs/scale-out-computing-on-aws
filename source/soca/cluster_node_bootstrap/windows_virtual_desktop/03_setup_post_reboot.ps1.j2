@@ -39,7 +39,7 @@ if ($task) {
     Log-Info -Message "Scheduled Task '$taskName' does not exist. No action required."
 }
 
-{% if  context.get('/configuration/UserDirectory/provider') in ("aws_ds_managed_activedirectory", "aws_ds_simple_activedirectory", "existing_active_directory") %}
+{% if  context.get('/configuration/UserDirectory/provider') in ("aws_ds_managed_activedirectory", "existing_active_directory") %}
     # DOMAIN\<SOCA_user>
     $SOCAUser = "{{ context.get('/configuration/UserDirectory/short_name') }}\{{ context.get('/dcv/SessionOwner') }}"
 {% else %}

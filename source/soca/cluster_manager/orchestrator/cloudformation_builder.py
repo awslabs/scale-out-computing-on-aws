@@ -17,7 +17,6 @@ import re
 
 from troposphere import GetAtt
 from troposphere import Ref, Template
-from troposphere import Tags as base_Tags  # without PropagateAtLaunch
 from troposphere.autoscaling import (
     AutoScalingGroup,
     LaunchTemplateSpecification,
@@ -41,7 +40,8 @@ from troposphere.ec2 import (
     SpotOptions,
     CpuOptions,
     LaunchTemplateBlockDeviceMapping,
-    Tag
+    Tag,
+    Tags
 )
 
 from troposphere.fsx import FileSystem, LustreConfiguration
@@ -51,12 +51,16 @@ import pathlib
 
 from utils.aws.ssm_parameter_store import SocaConfig
 from utils.jinjanizer import SocaJinja2Generator
+from utils.cast import SocaCastEngine
 
 import logging
 import boto3
 import uuid
+import json
+import datetime
 
 from utils.response import SocaResponse
+from utils.subprocess_client import SocaSubprocessClient
 
 # FIXME TODO - ExtraConfig / API / versioning?
 ec2_client = boto3.client("ec2")
@@ -159,11 +163,12 @@ def is_ebs_optimized(instance_type: str) -> bool:
 
 def main(**params):
     try:
+        logger.info("Building CloudFormation stack")
         # Metadata
         t = Template()
         t.set_version("2010-09-09")
         t.set_description(
-            "(SOCA) - Base template to deploy compute nodes. Version 25.8.0"
+            "(SOCA) - Base template to deploy compute nodes. Version 25.11.0"
         )
 
         _cluster_id: str = params.get("ClusterId", "unknown-cluster")
@@ -244,6 +249,76 @@ def main(**params):
             parents=True, exist_ok=True
         )
 
+        # Check if using AD, if yes check if we need to auto join the HPC nodes
+        if soca_parameters.get("/configuration/UserDirectory/provider") in [
+            "aws_ds_managed_activedirectory",
+            "aws_ds_simple_activedirectory",
+            "existing_activedirectory",
+        ]:
+
+            if (
+                _join_epehmeral_nodes_to_ad := SocaCastEngine(
+                    data=soca_parameters.get(
+                        "/configuration/FeatureFlags/Hpc/JoinEphemeralNodesToAD"
+                    )
+                ).cast_as(expected_type=bool)
+            ).get("success"):
+                logger.info(
+                    "AD is enabled and JoinEphemeralNodesToAD is false will attempt to sync AD users"
+                )
+                _json_output_file = f"/apps/soca/{_cluster_id}/shared/active_directory/sync/users_info.json"
+                if pathlib.Path(_json_output_file).exists() is False:
+                    logger.error(
+                        f"Unable to sync AD users because {_json_output_file} does not exist, creating it automatically"
+                    )
+                    _create_user_mapping_file = SocaSubprocessClient(
+                        run_command=f"/opt/soca/{_cluster_id}/cluster_manager/socactl ad export"
+                    ).run()
+                    if _create_user_mapping_file.get("success") is False:
+                        logger.error(
+                            f"Unable to create {_json_output_file} because of {_create_user_mapping_file.get('message')}"
+                        )
+                        return SocaResponse(
+                            success=False,
+                            message=f"Unable to create {_json_output_file} because of {_create_user_mapping_file.get('message')}",
+                        )
+                else:
+                    logger.info(f"Found {_json_output_file}")
+                    # Update the file if older than 60 minutes
+                    with open(_json_output_file) as f:
+                        _local_user_to_sync = json.load(f)
+                        
+                    last_sync_str = _local_user_to_sync["last_sync"]
+                    last_sync_dt = datetime.datetime.fromisoformat(last_sync_str)
+
+                    if last_sync_dt.tzinfo is None:
+                        last_sync_dt = last_sync_dt.replace(
+                            tzinfo=datetime.timezone.utc
+                        )
+
+                    now_utc = datetime.datetime.now(datetime.timezone.utc)
+                    age = now_utc - last_sync_dt
+                    if age > datetime.timedelta(minutes=60):
+                        logger.info(
+                            "AD Local User Last sync is older than 60 minutes, updating file ..."
+                        )
+                        _create_user_mapping_file = SocaSubprocessClient(
+                            run_command=f"/opt/soca/{_cluster_id}/cluster_manager/socactl ad export"
+                        ).run()
+                        if _create_user_mapping_file.get("success") is False:
+                            logger.error(
+                                f"Unable to create {_json_output_file} because of {_create_user_mapping_file.get('message')}"
+                            )
+                            return SocaResponse(
+                                success=False,
+                                message=f"Unable to create {_json_output_file} because of {_create_user_mapping_file.get('message')}",
+                            )
+
+            else:
+                logger.debug(
+                    f"AD is enabled and JoinEphemeralNodesToAD is true will not attempt to sync AD users. {_join_epehmeral_nodes_to_ad.get('message')}"
+                )
+
         # Bootstrap Sequence: Generate template and upload them to S3
         _templates_to_render = [
             "templates/linux/system_packages/install_required_packages",
@@ -287,17 +362,21 @@ def main(**params):
             "soca:TerminateWhenIdle": str(params["TerminateWhenIdle"]),
             "soca:KeepForever": str(params["KeepForever"]),
         }
-        
+
         if params.get("CustomTags"):
             for tag in params.get("CustomTags").values():
                 if tag.get("Enabled", ""):
                     if tag["Key"] in _base_tags.keys():
-                        logger.warning(f"Specified custom tags {tag.get('Key')} is already defined in tag list, skipping ...")
+                        logger.warning(
+                            f"Specified custom tags {tag.get('Key')} is already defined in tag list, skipping ..."
+                        )
                     else:
                         _base_tags[tag["Key"]] = tag["Value"]
                 else:
-                    logger.warning(f"{tag} does not have Enabled key or Enabled is False.") 
-        
+                    logger.warning(
+                        f"{tag} does not have Enabled key or Enabled is False."
+                    )
+
         # Specify the security groups to assign to the compute nodes. Max 5 per instance
         # TODO - the length vs. maxlength should be checked
         security_groups = [params["SecurityGroupId"]]
@@ -387,7 +466,7 @@ def main(**params):
         _ebs_scratch_device_name = "/dev/xvdbx"
 
         # What is our default root volume_type?
-        _volume_type: str = params.get("VolumeType", "gp2")
+        _volume_type: str = params.get("VolumeType", "gp3")
 
         ltd.BlockDeviceMappings = [
             LaunchTemplateBlockDeviceMapping(
@@ -424,15 +503,14 @@ def main(**params):
                     ),
                 )
             )
-            
+
         ltd.TagSpecifications = [
             ec2.TagSpecifications(
                 ResourceType="instance",
                 Tags=[Tag(Key=k, Value=v) for k, v in _base_tags.items()],
             )
         ]
-        
-        
+
         ltd.MetadataOptions = MetadataOptions(
             HttpEndpoint="enabled", HttpTokens=params["MetadataHttpTokens"]
         )
@@ -645,7 +723,7 @@ def main(**params):
                     )
 
                 fsx_lustre.LustreConfiguration = fsx_lustre_configuration
-                fsx_lustre.Tags = [base_Tags(Key=k, Value=v) for k, v in _base_tags.items()] + [base_Tags(Key="soca:FSX", Value="true")]
+                fsx_lustre.Tags = Tags({**_base_tags, "soca:FSxL": "true"})
                 t.add_resource(fsx_lustre)
         # End FSx For Lustre
 

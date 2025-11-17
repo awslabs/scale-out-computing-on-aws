@@ -8,8 +8,18 @@
 
 <head>
     {% include 'common/header.html' %}
+<style>
+    
+.card-selectable:hover {
+  transform: translateY(-3px);          
+  box-shadow: 0 8px 20px rgba(0,0,0,0.15);  
+  border: 1px solid #0044ff;           
+  background-color: #f8f9fa; 
+  transition: transform 0.2s ease, box-shadow 0.2s ease, border 0.2s ease, background-color 0.2s ease;
+  cursor: pointer;
 
-
+}
+</style>
 </head>
 
 <body id="page-top">
@@ -21,56 +31,42 @@
             <div class="container-fluid">
                 {% include 'common/horizontal_menu_bar.html' %}
                 <main role="main">
-                    {% with messages = get_flashed_messages(with_categories=true) %}
-                        {% if messages %}
-                            {% for category, message in messages %}
-                                <br>
-                                {% if category == "success" %}
-                                    <div class="alert alert-success">
-                                        <strong>{{ message | safe }} </strong>
-                                    </div>
-                                {% elif category == "info" %}
-                                    <div class="alert alert-info">
-                                        <strong>{{ message | safe }} </strong>
-                                    </div>
-                                {% else %}
-                                    <div class="alert alert-danger">
-                                        <strong>{{ message | safe }} </strong>
-                                    </div>
-                                {% endif %}
-                            {% endfor %}
-                        {% endif %}
-                    {% endwith %}
+                    {% include 'common/flashed_messages.html' %}
+
                     <div class="row">
                         <div class="col-md-12">
                             <div class="card shadow mb-6">
                                 <div class="card-body">
                                     <form id="search-application">
-                                        <input class="form-control" type="text"
-                                               placeholder="What software do you want to run?" aria-label="Search">
+                                        <input class="form-control" type="text" placeholder="What software do you want to run?" aria-label="Search">
                                     </form>
                                     <hr>
+
                                     <div class="row">
-                                        {% if not application_profiles %}
-                                        No applications found. Please verify that you’ve been added to the appropriate <a href="/admin/projects">SOCA projects</a>. If the issue persists, contact your SOCA administrator.
-                                        {% else %}
-                                            {% for app_data in application_profiles %}
-                                                <div id="{{ application }}" class="col-md-auto"
-                                                     style="margin-top: 5px">
-                                                    <form action="/submit_job" method="post">
-                                                        <input type="image" style="width: 150px;" class="card"
-                                                               src="{{ app_data.profile_thumbnail }}" alt="Application Logo">
-                                                        <div>
-                                                            <app_name>{{ app_data.profile_name }}</app_name>
-                                                        </div>
-                                                        <input type="hidden" name="csrf_token"
-                                                               value="{{ csrf_token() }}">
-                                                        <input type="hidden" name="input_file" value="{{ input_file }}">
-                                                        <input type="hidden" name="app" value="{{ app_data.id }}">
-                                                    </form>
+                                    {% if not application_profiles %}
+                                        No applications found. Please verify that you’ve been added to the appropriate 
+                                        <a href="/admin/projects">SOCA projects</a>. 
+                                        If the issue persists, contact your SOCA administrator.
+                                    {% else %}
+                                        {% for app_data in application_profiles %}
+                                        <form action="/submit_job" method="post" class="card shadow-sm border-0 mr-3 card-selectable">
+                                            <div id="{{ application }}">
+                                                <div class="card h-100 text-center">                                                                          
+                                                    <div style="display: flex; justify-content: center;">
+                                                        <img src="{{ app_data.profile_thumbnail }}" class="card-img-top" style="height: 150px; object-fit: contain;">
+                                                    </div>
+                                                    <div class="card-body" style="padding: 0.2rem;">
+                                                        <app_name>{{ app_data.profile_name }}</app_name>
+                                                    </div>                                                                   
                                                 </div>
-                                            {% endfor %}
-                                        {% endif %}
+                                            </div>
+                                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                            <input type="hidden" name="input_file" value="{{ input_file }}">
+                                            <input type="hidden" name="app" value="{{ app_data.id }}">
+                                        </form>
+
+                                        {% endfor %}
+                                    {% endif %}
                                     </div>
                                 </div>
                             </div>
@@ -89,22 +85,38 @@
 {% include 'common/footer.html' %}
 
 <script>
-    /* search bar autocomplete */
-    const searchBar = document.forms['search-application'].querySelector('input');
-    searchBar.addEventListener('keyup', function (e) {
-        const term = e.target.value.toLocaleLowerCase();
-        const software_list = document.getElementsByTagName('app_name');
-        Array.from(software_list).forEach(function (software_list) {
-            const title = software_list.textContent;
-            if (title.toLowerCase().indexOf(term) != -1) {
-                software_list.parentElement.parentElement.style.display = 'block';
-            } else {
-                software_list.parentElement.parentElement.style.display = 'none';
-            }
-        });
+  const searchBar = document.forms['search-application'].querySelector('input');
+
+  searchBar.addEventListener('keyup', function (e) {
+    const term = e.target.value.toLowerCase();
+    const softwareList = document.getElementsByTagName('app_name');
+
+    Array.from(softwareList).forEach(function(software) {
+      const title = software.textContent.toLowerCase();
+      const cardForm = software.closest('form');
+
+      if (title.includes(term)) {
+        cardForm.style.display = 'inline-block'; // or 'block'
+      } else {
+        cardForm.style.display = 'none';
+      }
     });
+  });
 </script>
 
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  const cards = document.querySelectorAll('.card-selectable');
+
+  cards.forEach(card => {
+    card.addEventListener('click', function(e) {
+      if (e.target.tagName.toLowerCase() !== 'input') {
+        this.submit(); // Submit only this card's form
+      }
+    });
+  });
+});
+</script>
 </body>
 
 </html>

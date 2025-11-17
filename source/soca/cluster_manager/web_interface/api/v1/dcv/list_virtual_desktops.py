@@ -293,7 +293,6 @@ class ListVirtualDesktops(Resource):
                 if _soca_parameters.get("/configuration/UserDirectory/provider") in [
                     "existing_active_directory",
                     "aws_ds_managed_activedirectory",
-                    "aws_ds_simple_activedirectory",
                 ]:
                     if session_info.os_family == "windows":
                         _username = f"{_soca_parameters.get('/configuration/UserDirectory/short_name')}\\{session_info.session_owner}"

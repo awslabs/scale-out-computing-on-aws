@@ -3,8 +3,6 @@
 
 from typing import Any, Union
 import logging
-from flask import has_app_context, has_request_context
-import datetime
 
 logger = logging.getLogger("soca_logger")
 

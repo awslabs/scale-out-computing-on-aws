@@ -246,8 +246,8 @@
                                               </button>
                                               <div class="collapse" id="ApplicationProfileSelect">
                                                 <select class="form-control" style="height: 500px;" id="application_profile_ids" name="application_profile_ids" multiple>
-                                                  {% for application_id, application_data in application_profiles.items() %}
-                                                  <option selected value="{{ application_id }}">ID: {{application_id}} - {{ application_data.profile_name }}</option>
+                                                  {% for application in application_profiles %}
+                                                  <option selected value="{{ application.id }}">ID: {{application.id}} - {{ application.profile_name }}</option>
                                                   {% endfor %}
                                                 </select>
                                               </div>

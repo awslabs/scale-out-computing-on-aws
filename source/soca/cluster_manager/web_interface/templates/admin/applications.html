@@ -41,23 +41,8 @@
                 <br>
                 <div class="container-fluid">
                     {% include 'common/horizontal_menu_bar.html' %}
+                    {% include 'common/flashed_messages.html' %}
 
-                    {% with messages = get_flashed_messages(with_categories=true) %}
-                    {% if messages %}
-                    {% for category, message in messages %}
-                    <br>
-                    {% if category == "success" %}
-                    <div class="alert alert-success">
-                        <strong>{{ message | safe }} </strong>
-                    </div>
-                    {% else %}
-                    <div class="alert alert-danger">
-                        <strong>{{ message | safe }} </strong>
-                    </div>
-                    {% endif %}
-                    {% endfor %}
-                    {% endif %}
-                    {% endwith %}
                     <div class="col-md-12">
                         <nav>
                             <div class="nav nav-tabs" id="nav-tab" role="tablist">
@@ -98,15 +83,11 @@
                                                 <a class="nav-item nav-link" id="nav-contact-tab" data-bs-toggle="tab"
                                                     href="#nav-designscript" role="tab" aria-controls="nav-designscript"
                                                     aria-selected="false">Step2: Design the job script</a>
-                                                {% if action == "edit" %}
+                                                
                                                 <a class="nav-item nav-link" id="nav-contact-tab" data-bs-toggle="tab"
                                                     href="#nav-save" role="tab" aria-controls="nav-sav"
-                                                    aria-selected="false">Step3: Update the profile</a>
-                                                {% else %}
-                                                <a class="nav-item nav-link" id="nav-contact-tab" data-bs-toggle="tab"
-                                                    href="#nav-save" role="tab" aria-controls="nav-sav"
-                                                    aria-selected="false">Step3: Create the profile</a>
-                                                {% endif %}
+                                                    aria-selected="false">Step3: {% if action == "edit" %}Update{% else %}Create{% endif %} the profile</a>
+                                               
 
                                             </div>
                                         </nav>
@@ -146,7 +127,7 @@
                                                                         <li><code>job_name</code>: If present, auto-filled with the input file name</li>
                                                                         <li><code>input_name</code>: Auto-filled with the input file path</li>
                                                                         <li><code>instance_type</code>: Used to calculate the number of nodes to provision</li>
-                                                                        <li><code>cpus</code>: Used to calculate the number of node(s) to provision</li>
+                                                                        <li><code>vcpus</code>: Used to calculate the number of node(s) to provision</li>
                                                                         <li><code>scratch_size</code>, <code>root_size</code>, <code>fsx_size</code>, <code>wall_time</code>: Used to estimate cost</li>
                                                                     </ul>
                                                                 </div>
@@ -163,7 +144,7 @@
                                                             <div id="collapseNodes" class="collapse">
                                                                 <div class="card card-body">
                                                                     <p>
-                                                                    If <code>instance_type</code> and <code>cpus</code> parameters are specified, SOCA will automatically
+                                                                    If <code>instance_type</code> and <code>vcpus</code> parameters are specified, SOCA will automatically
                                                                     calculate the number of node(s) to provision. Otherwise, you must define the <code>nodes</code> resource manually.
                                                                     </p>
                                                                 </div>
@@ -182,7 +163,7 @@
                                                                     Parameters used to estimate the simulation cost:
                                                                     <ul>
                                                                         <li><code>instance_type</code>: Instance type (default: c5.large)</li>
-                                                                        <li><code>cpus</code>: Number of CPUs (default: 1)</li>
+                                                                        <li><code>vcpus</code>: Number of vCPUs (default: 1)</li>
                                                                         <li><code>scratch_size</code>: /scratch size in GB (default: 0)</li>
                                                                         <li><code>root_size</code>: /root size in GB (default: 10)</li>
                                                                         <li><code>fsx_size</code>: FSx for Lustre size in GB (default: 0)</li>
@@ -194,8 +175,9 @@
                                                             </div>
                                                         </div>
                                                     </div>
+                                                    
                                                     <!-- Form Builder -->
-                                            
+                                        
                                                     <div class="form-build"></div>
                                             
                                                     <!-- Form Builder -->
@@ -214,30 +196,24 @@
                                                         (e.g. if your form input name is <code>my_param</code>,
                                                         retrieve the value via <kbd>{% raw %}{{my_param}}{% endraw %}</kbd>)
                                                     </div>
-                                                    Choose what interpreter you want to use:
+                                                    Choose what interpreter you want to use to execute the code below:
                                                     <div class="form-group">
                                                         <select class="form-control" name="interpreter" id="interpreter">
-                                                            {% if profile_interpreter == "qsub" %}
-                                                            <option value="qsub" selected>This is a PBS job script (will use
-                                                                qsub)
-                                                            </option>
-                                                            <option value="/bin/bash">This is a Linux script (will use
-                                                                /bin/bash)
-                                                            </option>
-                                                            {% else %}
-                                                            <option value="qsub">This is a PBS job script (will use qsub)
-                                                            </option>
-                                                            <option value="/bin/bash" selected>This is a Linux script (will use
-                                                                /bin/bash)
-                                                            </option>
-                                                            {% endif %}
-
+                                                            <option disabled>──── Schedulers ───────</option>
+                                                            {% for scheduler in schedulers %}
+                                                            <option value="{{scheduler.identifier}}" {% if profile_interpreter == scheduler.identifier %} selected {% endif %}> {{scheduler.identifier}} ({{scheduler.provider}})</option>
+                                                            {% endfor %}
+                                                            <option disabled>──── System Interpreters ───────</option>
+                                                            <option value="/bin/bash" {% if profile_interpreter == "/bin/bash" %} selected {% endif %}>This is a Linux script (will use /bin/bash)</option>
+                                                            <option value="/bin/zsh" {% if profile_interpreter == "/bin/zsh" %} selected {% endif %}>This is a Linux script (will use /bin/zsh)</option>
+                                                            <option value="/bin/csh" {% if profile_interpreter == "/bin/csh" %} selected {% endif %}>This is a Linux script (will use /bin/csh)</option>
+                                                            <option value="/bin/sh" {% if profile_interpreter == "/bin/sh" %} selected {% endif %}>This is a Linux script (will use /bin/sh)</option>
                                                         </select>
                                                     </div>
                                                     <div id="text-editor"
                                                         style="width:100%;height:600px;padding-bottom: 50px;"></div>
                                                     <div class="alert alert-primary">
-                                                        PBS parameters are optional. If not set, your job will use the
+                                                        Scheduler parameters are optional. If not set, your job will use the
                                                         default
                                                         settings configured for your queue (if no queue is specified, the
                                                         job
@@ -286,7 +262,6 @@
                                                         <input type="hidden" value="{{ app_id }}" id="app_id" name="app_id">
                                                         <input type="hidden" value="" id="thumbnail_b64"
                                                             name="thumbnail_b64">
-                                                        <input type="hidden" value="edit" id="action" name="action">
 
                                                         <div>
                                                             <br>
@@ -333,7 +308,6 @@
                                                             name="submit_job_form">
                                                         <input type="hidden" value="" id="submit_job_interpreter"
                                                             name="submit_job_interpreter">
-                                                        <input type="hidden" value="create" id="action" name="action">
                                                         <input type="hidden" value="" id="thumbnail_b64"
                                                             name="thumbnail_b64">
 
@@ -364,8 +338,8 @@
                                             <div class="form-group col-md-6">
                                                 <label for="walltime"> Select the application to edit</label>
                                                 <select class="form-control" name='app' id="app">
-                                                    {% for app_id, app_data in application_profiles.items() %}
-                                                    <option value="{{ app_id }}">{{ app_data.profile_name }}</option>
+                                                    {% for app in application_profiles %}
+                                                    <option value="{{ app.id }}">{{ app.profile_name }}</option>
                                                     {% endfor %}
                                                 </select>
                                             </div>
@@ -391,9 +365,9 @@
                                         <form action="/admin/applications/delete" method="post">
                                             <div class="form-group col-md-6">
                                                 <label for="walltime"> Select the application to delete</label>
-                                                <select class="form-control" name='app' id="app">
-                                                    {% for app_id, app_data in application_profiles.items() %}
-                                                    <option value="{{ app_id }}">{{ app_data.profile_name }}</option>
+                                                <select class="form-control" name='application_id' id="application_id">
+                                                    {% for app in application_profiles %}
+                                                    <option value="{{ app.id }}">{{ app.profile_name }}</option>
                                                     {% endfor %}
                                                 </select>
                                             </div>
@@ -432,11 +406,11 @@
                                             <div class="col-md-6">
                                                 <h5>Export existing application profile</h5>
                                                 {% if application_profiles %}
-                                                <form action="/admin/applications/export" method="post">
+                                                <form action="/admin/applications/export" method="get">
                                                     <div class="form-group">
-                                                        <select class="form-control" name='app' id="app">
-                                                            {% for app_id, app_data in application_profiles.items() %}
-                                                            <option value="{{ app_id }}">{{ app_data.profile_name }}
+                                                        <select class="form-control" name='application_id' id="application_id">
+                                                            {% for app in application_profiles %}
+                                                            <option value="{{ app.id }}">{{ app.profile_name }}
                                                             </option>
                                                             {% endfor %}
                                                         </select>
@@ -458,7 +432,7 @@
                                                 <form action="/admin/applications/import" method="post"
                                                     enctype="multipart/form-data">
                                                     <div class="form-group">
-                                                        <input type="text" class="form-control" name="name" id="name"
+                                                        <input type="text" class="form-control" name="profile_name" id="profile_name"
                                                             placeholder="Application name" required>
                                                     </div>
                                                     <div class="form-group">
@@ -526,21 +500,21 @@
                                             "required": true,
                                             "label": "What type of instance do you want to use? (instance_type)",
                                             "className": "form-control",
-                                            "description": "EC2 instance type to provision. This will be used along with cpus to calculate the number of nodes to provision",
+                                            "description": "EC2 instance type to provision. This will be used along with vcpus to calculate the number of nodes to provision",
 
                                             "name": "instance_type",
                                             "multiple": false,
                                             "values": [
                                                 {
-                                                    "label": "Small ( 1 CPUs, 8GB RAM)",
+                                                    "label": "Small (2 vCPUs, 8GB RAM)",
                                                     "value": "m6i.large"
                                                 },
                                                 {
-                                                    "label": "Medium ( 2 CPUs, 16 GB RAM)",
+                                                    "label": "Medium (4 vCPUs, 16 GB RAM)",
                                                     "value": "m6i.xlarge"
                                                 },
                                                 {
-                                                    "label": "Large ( 4 CPUs, 32 GB RAM)",
+                                                    "label": "Large (8 vCPUs, 32 GB RAM)",
                                                     "value": "m6i.2xlarge"
                                                 }
                                             ]
@@ -567,12 +541,12 @@
                                         {
                                             "type": "text",
                                             "required": true,
-                                            "label": "How many CPUs do you want ? (cpus)",
-                                            "placeholder": "Number of EC2 instance will automatically be calculated based on Instance Type and CPUs count",
+                                            "label": "How many Virtual CPUs do you want ? (vcpus)",
+                                            "placeholder": "Number of EC2 instance will automatically be calculated based on Instance Type and vCPUs count",
                                             "className": "form-control",
-                                            "description": "Number of CPUs to allocate to the simulation. This will be used along with instance_type to calculate the number of nodes to provision",
+                                            "description": "Number of vCPUs to allocate to the simulation. This will be used along with instance_type to calculate the number of nodes to provision",
 
-                                            "name": "cpus",
+                                            "name": "vcpus",
                                             "subtype": "text",
                                             "maxlength": 255
                                         },
@@ -782,19 +756,26 @@
                                     {% else %}
                                     value: `#!/bin/bash
 {% raw %}
+### EXAMPLE FOR OPENPBS/PBSPRO
 #PBS -q {{queue_name}}
 #PBS -N {{job_name}}
 # https://awslabs.github.io/scale-out-computing-on-aws-documentation/tutorials/integration-ec2-job-parameters/
 #PBS -l instance_type={{instance_type}}
 #PBS -l walltime={{wall_time}}
 #PBS -l force_ri={{force_ri}}
+#############################
+
+### EXAMPLE FOR LSF
+#BSUB -J {{job_name}}            
+#BSUB -q {{queue_name}}
+# https://awslabs.github.io/scale-out-computing-on-aws-documentation/tutorials/integration-ec2-job-parameters/
+#BSUB -Jd "instance_type={{instance_type}} root_size30"
+#BSUB -n 1                     
+#############################
 
 ## [Begin: Commands to be added before the solver. This cannot be changed by the users]
 # export custom path such as (PATH, LD_LIBRARY_PATH), configure license server variables etc ...
 ## [End: Commands to be added before the solver. This cannot be changed by the users]
-
-# Change path to current working directory
-cd $PBS_O_WORKDIR
 
 {{user_pre_exec}}
 
@@ -805,7 +786,6 @@ cd $PBS_O_WORKDIR
 --param3 {{param3}} \\
 # Enter  here any command to be added to the solver command that changed be edited by the users #
 ## [End: Actual solver command]
-
 
 {{user_post_exec}}
 

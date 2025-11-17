@@ -3,6 +3,8 @@
 
 {% include "templates/linux/common/log.sh.j2" %}
 
+{% include "templates/linux/common/hostname_functions.sh.j2" %}
+
 {% include "templates/linux/common/file_download.sh.j2" %}
 
 {% include "templates/linux/system_packages/packages_management.sh.j2" %}
@@ -19,7 +21,8 @@
 
 {% include "templates/linux/common/setup_environment_file.sh.j2" %}
 
-{% set PATH = '/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin:/opt/pbs/bin:/opt/pbs/sbin:/opt/soca/' ~ context.get("/configuration/ClusterId") %}
+
+{% set PATH = '/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin:/opt/soca/' ~ context.get("/configuration/ClusterId") ~ ':/opt/soca/' ~ context.get("/configuration/ClusterId") ~ '/packages/sqlite/bin' %}
 export PATH={{ PATH }}:${PATH}
 
 # Source environment

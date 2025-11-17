@@ -13,6 +13,9 @@
 {% elif context.get("/job/NodeType") == "compute_node" %}
   # Add any customization you only want to run on compute_node nodes
   log_info "No additional customization found for compute_node."
+
 {% endif %}
 
 # Code written below this line  will be executed on all machines
+
+# Remember: Use context.get("/configuration/BaseOS") to create automation based on the different operating system you are planning to use

@@ -12,12 +12,8 @@
 ######################################################################################################################
 
 import logging
-import config
-import json
-from flask import render_template, Blueprint, request, redirect, session, flash
-from requests import get, delete
+from flask import render_template, Blueprint, session
 from decorators import login_required, feature_flag
-from datetime import datetime, timezone, timedelta
 from utils.aws.ssm_parameter_store import SocaConfig
 
 logger = logging.getLogger("soca_logger")

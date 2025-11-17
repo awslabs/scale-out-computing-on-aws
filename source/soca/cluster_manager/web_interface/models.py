@@ -137,7 +137,7 @@ class ApplicationProfiles(BaseModel):
     __tablename__ = "application_profiles"
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     created_by = db.Column(db.String(255), nullable=False)
-    profile_name = db.Column(db.String(255), nullable=False)
+    profile_name = db.Column(db.String(255), nullable=False, unique=True)
     profile_form = db.Column(db.Text, nullable=False)
     profile_job = db.Column(db.Text, nullable=False)
     profile_interpreter = db.Column(db.Text, nullable=False)

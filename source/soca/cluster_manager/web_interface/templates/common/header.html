@@ -35,9 +35,6 @@
 {% elif page in ['admin_virtual_desktop_list_all', 'containers_list_images', 'admin_projects_per_user'] %}
     <script src="{{ url_for('static', filename='vendor/datatables-bs/datatables.min.css') }}"></script>
 
-{% elif page == 'my_jobs' %}
-    <meta http-equiv="refresh" content="60">
-
 {% elif page == 'my_files' %}
     <script src="{{ url_for('static', filename='js/jquery.dataTables.min.js') }}"></script>
     <script src="{{ url_for('static', filename='js/dataTables.min.js') }}"></script>

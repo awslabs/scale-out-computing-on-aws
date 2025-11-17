@@ -43,7 +43,7 @@ def use_existing_security_group(
 
 def create_ingress_rule(
     security_group: ec2.SecurityGroup,
-    peer: ec2.Peer,
+    peer: list | ec2.Peer,
     connection: ec2.Port,
     description: str,
 ):

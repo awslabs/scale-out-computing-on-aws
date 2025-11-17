@@ -1,0 +1,44 @@
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# SCHEDULER_VARS are forwarded from templates/linux/schedulers/install_schedulers.sh.j2:
+
+# Begin: Slurm Configure Client
+function slurm_configure_client_{{ SCHEDULER_VARS.get("IDENTIFIER") }} {
+    local SCHEDULER_HOSTNAME="{{ SCHEDULER_VARS.get("ENDPOINT") }}"
+    local SCHEDULER_IDENTIFIER="{{ SCHEDULER_VARS.get("IDENTIFIER") }}"
+    local SLURM_SOCA_INSTALL_SYSCONFIG_DIR="{{ SCHEDULER_VARS.get("SLURM_CONFIGURATION").get("install_sysconfig_path") }}"
+    local SLURM_SOCA_INSTALL_DIR="{{ SCHEDULER_VARS.get("SLURM_CONFIGURATION").get("install_prefix_path") }}"
+
+    local CLUSTER_ID="{{ context.get("/configuration/ClusterId") }}"
+    local NODE_HOSTNAME=$(hostname)
+
+    # Note: ownership must be changed if you are using user other than root
+    mkdir -p ${SLURM_SOCA_INSTALL_SYSCONFIG_DIR}/var/spool/slurmctld
+    mkdir -p ${SLURM_SOCA_INSTALL_SYSCONFIG_DIR}/var/spool/slurmd
+
+    cat << EOF > "${SLURM_SOCA_INSTALL_SYSCONFIG_DIR}/slurm.conf"
+ControlMachine=${SCHEDULER_HOSTNAME}
+SlurmUser=root
+SlurmdUser=root
+AuthType=auth/munge
+StateSaveLocation=${SLURM_SOCA_INSTALL_SYSCONFIG_DIR}/var/spool/slurmctld
+SlurmdSpoolDir=${SLURM_SOCA_INSTALL_SYSCONFIG_DIR}/var/spool/slurmd
+NodeName=${NODE_HOSTNAME}
+EOF
+
+    cat << EOF > "${SLURM_SOCA_INSTALL_SYSCONFIG_DIR}/slurm.aws-pcs.sample.conf"
+ControlMachine="REPLACE WITH YOUR PCS CONTROLLER IP/DNS"
+SlurmUser=root
+SlurmdUser=root
+# PCS uses auth/slurm and not auth/munge
+# Download the PCS key from Secrets Manager, decoded it via base64 --decode and save it as slurm.key (+ chmod 600) the same directory where your slurm.conf is located
+AuthType=auth/slurm
+State SaveLocation=${SLURM_SOCA_INSTALL_SYSCONFIG_DIR}/var/spool/slurmctld
+SlurmdSpoolDir=${SLURM_SOCA_INSTALL_SYSCONFIG_DIR}/var/spool/slurmd
+NodeName=${NODE_HOSTNAME}
+EOF
+
+    log_info "Completed Slurm Client Configuration"
+}
+slurm_configure_client_{{ SCHEDULER_VARS.get("IDENTIFIER") }}

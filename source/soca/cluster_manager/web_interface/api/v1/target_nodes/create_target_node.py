@@ -10,7 +10,6 @@
 #  OR CONDITIONS OF ANY KIND, express or implied. See the License for the specific language governing permissions    #
 #  and limitations under the License.                                                                                #
 ######################################################################################################################
-import botocore.exceptions
 import config
 from flask_restful import Resource, reqparse
 import logging
@@ -25,29 +24,22 @@ import uuid
 import sys
 import os
 from botocore.exceptions import ClientError
-from models import db, TargetNodeSessions, SoftwareStacks
+from models import db, TargetNodeSessions
 import target_nodes_cloudformation_builder
 import utils.aws.boto3_wrapper as utils_boto3
-from utils.aws.odcr_helper import (
-    create_capacity_reservation_vdi,
-    cancel_capacity_reservation,
-)
-import remote_desktop_common
-import utils.aws.cloudformation_helper as cloudformation_helper
+from utils.aws.odcr_helper import create_capacity_reservation
+from utils.aws.ec2_helper import create_capacity_dry_run
+from utils.aws.cloudformation_helper import SocaCfnClient
 from utils.error import SocaError
 from utils.cast import SocaCastEngine
 from utils.response import SocaResponse
 from utils.jinjanizer import SocaJinja2Renderer
 from helpers.target_node_software_stacks import TargetNodeSoftwareStacksHelper
-import pathlib
 import base64
 import random
-import string
 from pathlib import Path
 import base64
 import re
-
-from werkzeug.debug.repr import helper
 
 logger = logging.getLogger("soca_logger")
 client_ec2 = utils_boto3.get_boto(service_name="ec2").message
@@ -243,6 +235,10 @@ class CreateTargetNode(Resource):
                     string=str(args["session_name"])[:32],
                 )[:32]
 
+            if not args["subnet_id"]:
+                logger.info("No subnet_id specified, default to 'auto'")
+                args["subnet_id"] = "auto"
+
             logger.debug(f"Session name {_session_name}")
 
             # Validate input
@@ -274,6 +270,9 @@ class CreateTargetNode(Resource):
                     helper="Unable to query SSM for this SOCA environment",
                 ).as_flask()
 
+            _stack_name = f"{_get_soca_parameters.get('/configuration/ClusterId')}-{_session_name}-{_user}"
+            logger.debug(f"VDI will be provisioned by {_stack_name=}")
+
             _max_session_count = config.Config.TARGET_NODE_SESSION_COUNT
             logger.debug(
                 f"Max Target Node Session Count per user: {_max_session_count}"
@@ -292,18 +291,6 @@ class CreateTargetNode(Resource):
                 return SocaError.GENERIC_ERROR(
                     helper=f"User already has {_find_active_target_nodes_sessions} target nodes. Delete one of contact SOCA admin to increase the quota."
                 ).as_flask()
-
-            _selected_subnet = (
-                random.choice(
-                    SocaCastEngine(
-                        _get_soca_parameters.get("/configuration/PrivateSubnets")
-                    )
-                    .cast_as(expected_type=list)
-                    .get("message")
-                )
-                if not args["subnet_id"]
-                else args["subnet_id"]
-            )
 
             # Get all public key for the user
             _user_public_keys = get_user_pubkeys(username=_user)  # return a list
@@ -347,11 +334,111 @@ class CreateTargetNode(Resource):
                     helper=f"disk_size error: {_check_disk_size.message} ",
                 ).as_flask()
 
+            # Note: if subnet_id is set to `auto`, SOCA will cycle trough the list until capacity is available
+            _selected_subnet = None
+            _soca_private_subnets = (
+                SocaCastEngine(
+                    _get_soca_parameters.get("/configuration/PrivateSubnets")
+                )
+                .cast_as(expected_type=list)
+                .get("message")
+            )
+
+            if (
+                SocaConfig(key="/configuration/FeatureFlags/EnableCapacityReservation")
+                .get_value(return_as=bool)
+                .get("message")
+                is False
+            ):
+                logger.info(
+                    "/configuration/FeatureFlags/EnableCapacityReservation flag is set to False, SOCA will NOT verify capacity availability"
+                )
+
+                if args["subnet_id"] == "auto":
+                    logger.info(
+                        f"subnet_id is 'auto' and capacity reservation check is not enabled, SOCA will pick a random subnet from {_soca_private_subnets}"
+                    )
+                    _selected_subnet = random.choice(_soca_private_subnets)
+                else:
+                    _selected_subnet = args["subnet_id"]
+
+                logger.info(f"Selected Subnet: {_selected_subnet}")
+
+            else:
+                logger.info(
+                    "/configuration/FeatureFlags/EnableCapacityReservation flag is set to True, SOCA will verify capacity availability"
+                )
+                if args["subnet_id"] != "auto":
+                    logger.info(
+                        f"Specific subnet_id has been specified {args.get('subnet_id')}, checking if capacity is available"
+                    )
+                    _selected_subnet = args.get("subnet_id")
+                    logger.info(
+                        f"Requesting ODCR for {args.get('instance_type')}, instance_count=1, capacity_reservation_name={_stack_name}, subnet_ids={[_selected_subnet]}, {_software_stack_info.get('ami_id')}"
+                    )
+                    _request_on_demand_capacity_reservation = (
+                        create_capacity_reservation(
+                            desired_capacity=1,
+                            capacity_reservation_name=_stack_name,
+                            instance_type=args.get("instance_type"),
+                            subnet_id=_selected_subnet,
+                            instance_ami=_software_stack_info.get("ami_id"),
+                            tenancy=args.get("tenancy"),
+                        )
+                    )
+                    if _request_on_demand_capacity_reservation.get("success") is True:
+                        logger.info(
+                            f"ODCR succeeded, capacity is available in subnet_id {_selected_subnet}: {_request_on_demand_capacity_reservation.get('message')}"
+                        )
+
+                    else:
+                        return SocaError.GENERIC_ERROR(
+                            helper=f"Unable to create capacity reservation due to {_request_on_demand_capacity_reservation.message}"
+                        ).as_flask()
+
+                else:
+                    logger.info(
+                        "subnet_id is 'auto'. SOCA will try pick a random subnet and cycle through others subnet id until capacity is available"
+                    )
+                    random.shuffle(_soca_private_subnets)
+                    for _subnet_id in _soca_private_subnets:
+                        logger.info(
+                            f"Requesting ODCR for {args.get('instance_type')}, instance_count=1, capacity_reservation_name={_stack_name}, subnet_id={_subnet_id}, {_software_stack_info.get('ami_id')}"
+                        )
+                        _request_on_demand_capacity_reservation = (
+                            create_capacity_reservation(
+                                desired_capacity=1,
+                                instance_type=args.get("instance_type"),
+                                capacity_reservation_name=_stack_name,
+                                subnet_id=_subnet_id,
+                                instance_ami=_software_stack_info.get("ami_id"),
+                                tenancy=args.get("tenancy"),
+                            )
+                        )
+                        if (
+                            _request_on_demand_capacity_reservation.get("success")
+                            is True
+                        ):
+                            _selected_subnet = _subnet_id
+                            logger.info(
+                                f"ODCR succeeded, capacity is available in subnet_id {_selected_subnet} : {_request_on_demand_capacity_reservation.get("message")}"
+                            )
+                            break
+                        else:
+                            logger.warning(
+                                f"Unable to create capacity reservation due to {_request_on_demand_capacity_reservation.message}, trying the next subnet in list"
+                            )
+
+            if _selected_subnet is None:
+                return SocaError.GENERIC_ERROR(
+                    helper=f"Unable to find available capacity in all subnets provided {_soca_private_subnets}. Try again later."
+                ).as_flask()
+
             # Validate Software Stack Permissions
             _get_software_stack_permissions = _get_software_stack.validate(
                 instance_type=instance_type,
                 root_size=args["disk_size"],
-                subnet_id=args["subnet_id"],
+                subnet_id=_selected_subnet,
                 session_owner=_user,
                 project=args.get("project"),
             )
@@ -427,6 +514,9 @@ class CreateTargetNode(Resource):
                     helper=f"Unable to generate User data due to {get_user_data.get('message')}"
                 )
 
+            _stack_name = f"{_get_soca_parameters.get('/configuration/ClusterId')}-{_session_name}-{_user}"
+            logger.debug(f"VDI will be provisioned by {_stack_name=}")
+
             launch_parameters = {
                 "security_group_id": _get_soca_parameters.get(
                     "/configuration/TargetNodeSecurityGroup"
@@ -466,32 +556,44 @@ class CreateTargetNode(Resource):
                 "user_data": base64.b64encode(
                     _rendered_user_data.encode("utf-8")
                 ).decode("utf-8"),
-                "capacity_reservation_id": None,
-                "custom_tags": {}
+                "custom_tags": {},
             }
-            
+
             # Get custom tags if specified
-            _tags_allowed = SocaConfig(key="/configuration/FeatureFlags/AllowCustomTagsTargetNodes").get_value(return_as=bool)
+            _tags_allowed = SocaConfig(
+                key="/configuration/FeatureFlags/TargetNodes/AllowCustomTags"
+            ).get_value(return_as=bool)
             if _tags_allowed.get("success") is True:
                 if _tags_allowed.get("message") is True:
-                    _get_tags = SocaConfig(key="/configuration/CustomTags/").get_value(allow_unknown_key=True)
+                    _get_tags = SocaConfig(key="/configuration/CustomTags/").get_value(
+                        allow_unknown_key=True
+                    )
                     if _get_tags.get("success") is True:
-                        _tag_dict = SocaCastEngine(data=_get_tags.get("message")).autocast(preserve_key_name=True)
+                        _tag_dict = SocaCastEngine(
+                            data=_get_tags.get("message")
+                        ).autocast(preserve_key_name=True)
                         if _tag_dict.get("success") is True:
                             logger.info(f"Adding new tags: {_tag_dict.get('message')}")
                             launch_parameters["custom_tags"] = _tag_dict.get("message")
                         else:
-                            logger.error(f"Unable to autocast custom tags {_tag_dict=} ")
+                            logger.error(
+                                f"Unable to autocast custom tags {_tag_dict=} "
+                            )
                     else:
-                        logger.warning("/configuration/CustomTags/ does not exist in this environment, ignoring ...")
+                        logger.warning(
+                            "/configuration/CustomTags/ does not exist in this environment, ignoring ..."
+                        )
                 else:
-                    logger.warning(f"Unable to determine if tags are allowed because of: {_tags_allowed=} ")
-                     
+                    logger.warning(
+                        f"Unable to determine if tags are allowed because of: {_tags_allowed=} "
+                    )
+
             else:
-                logger.warning("Custom tags are not allowed. AllowCustomTagsTargetNodes is set to false")
+                logger.warning(
+                    "Custom tags are not allowed. AllowCustomTagsTargetNodes is set to false"
+                )
 
             logger.debug(f"Launch parameters for target node: {launch_parameters}")
-
 
             _custom_tags = []
             if launch_parameters.get("custom_tags"):
@@ -499,69 +601,27 @@ class CreateTargetNode(Resource):
                     if tag.get("Enabled", ""):
                         _custom_tags.append({"Key": tag["Key"], "Value": tag["Value"]})
                     else:
-                        logger.warning(f"{tag} does not have Enabled key or Enabled is False.")
-            
-            try:
-                logger.debug(f"Trying to perform DryRun with {launch_parameters}")
-                client_ec2.run_instances(
-                    MaxCount=1,
-                    MinCount=1,
-                    SecurityGroupIds=[launch_parameters["security_group_id"]],
-                    InstanceType=launch_parameters["instance_type"],
-                    IamInstanceProfile={"Arn": launch_parameters["instance_profile"]},
-                    SubnetId=(
-                        random.choice(launch_parameters["soca_private_subnets"])
-                        if not launch_parameters["subnet_id"]
-                        else launch_parameters["subnet_id"]
-                    ),
-                    Placement={"Tenancy": launch_parameters["tenancy"]},
-                    UserData=launch_parameters["user_data"],
-                    ImageId=launch_parameters["image_id"],
-                    DryRun=True,
-                    TagSpecifications=[{"ResourceType": "instance", "Tags": _custom_tags}] if _custom_tags else [],
-                    )
-            except ClientError as err:
-                if err.response["Error"].get("Code") == "DryRunOperation":
-                    dry_run_launch = {"success": True, "message": "DryRun succeeded"}
-                else:
-                    dry_run_launch = {"success": True, "message": err}
-                    
+                        logger.warning(
+                            f"{tag} does not have Enabled key or Enabled is False."
+                        )
+
+            logger.debug(f"Trying to perform DryRun with {launch_parameters}")
+            dry_run_launch = create_capacity_dry_run(
+                disk_size=launch_parameters.get("disk_size"),
+                instance_type=launch_parameters.get("instance_type"),
+                image_id=launch_parameters.get("image_id"),
+                security_group_id=[launch_parameters.get("security_group_id")],
+                subnet_id=launch_parameters.get("subnet_id"),
+                user_data=launch_parameters.get("user_data"),
+                instance_profile=launch_parameters.get("instance_profile"),
+                custom_tags=launch_parameters.get("custom_tags"),
+                volume_type=launch_parameters.get("volume_type"),
+                hibernate=launch_parameters.get("hibernate", False),
+                metadata_http_tokens=launch_parameters.get("metadata_http_tokens"),
+                key_name=_get_soca_parameters.get("/configuration/SSHKeyPair"),
+                desired_capacity=1,
+            )
             if dry_run_launch.get("success"):
-                _stack_name = f"{launch_parameters['cluster_id']}-{launch_parameters['session_name']}-{launch_parameters['user']}"
-                # Request On-Demand Capacity Reservation
-                # This is to ensure capacity is available on the selected subnet.
-                if (
-                    SocaConfig(key="/configuration/FeatureFlags/EnableCapacityReservation")
-                    .get_value(return_as=bool)
-                    .get("message")
-                    is False
-                ):
-                    logger.info(
-                        "/configuration/FeatureFlags/EnableCapacityReservation flag is set to False, SOCA will not request a new capacity reservation"
-                    )
-                else:
-                    logger.info(
-                        f"Requesting ODCR for {launch_parameters['instance_type']=}, instance_count=1, capacity_reservation_name={_stack_name}, subnet_ids={[_selected_subnet]}, {launch_parameters["image_id"]}"
-                    )
-                    _request_on_demand_capacity_reservation = (
-                        create_capacity_reservation_vdi(
-                            instance_type=launch_parameters["instance_type"],
-                            capacity_reservation_name=_stack_name,
-                            subnet_id=_selected_subnet,
-                            instance_ami=launch_parameters["image_id"],
-                            tenancy=launch_parameters["tenancy"],
-                        )
-                    )
-                    if _request_on_demand_capacity_reservation.get("success") is True:
-                        launch_parameters["capacity_reservation_id"] = (
-                            _request_on_demand_capacity_reservation.get("message")
-                        )
-
-                    else:
-                        return SocaError.GENERIC_ERROR(
-                            helper=f"Unable to create capacity reservation due to {_request_on_demand_capacity_reservation.message}"
-                        ).as_flask()
-
                 launch_template = target_nodes_cloudformation_builder.main(
                     **launch_parameters
                 )
@@ -590,8 +650,9 @@ class CreateTargetNode(Resource):
                         {"Key": "soca:NodeType", "Value": "target_node"},
                     ]
 
-                    _create_stack = cloudformation_helper.create_stack(
-                        stack_name=_cfn_stack_name,
+                    _create_stack = SocaCfnClient(
+                        stack_name=_cfn_stack_name
+                    ).create_stack(
                         template_body=launch_template.get("message"),
                         tags=_cfn_stack_tags,
                     )
@@ -606,13 +667,8 @@ class CreateTargetNode(Resource):
                         ).as_flask()
 
                 else:
-                    for _reservation_id in launch_parameters[
-                        "capacity_reservation_id"
-                    ].split(","):
-                        cancel_capacity_reservation(reservation_id=_reservation_id)
-                    return SocaError.VIRTUAL_DESKTOP_LAUNCH_ERROR(
-                        session_number=_session_name,
-                        session_owner=_user,
+
+                    return SocaError.GENERIC_ERROR(
                         helper=f"{launch_template.get('message')}.",
                     ).as_flask()
             else:
@@ -622,7 +678,7 @@ class CreateTargetNode(Resource):
                 ).as_flask()
 
             logger.info(
-                "New Virtual Desktop CloudFormation request successful, adding session on the database"
+                "New Target Node CloudFormation request successful, adding session on the database"
             )
 
             # Adding Software Stack thumbnail, maybe one day we will add a live screenshot from DCV
@@ -658,15 +714,13 @@ class CreateTargetNode(Resource):
                 logger.error(
                     "Cloudformation stack created but DB error, deleting cloudformation stack"
                 )
-                _delete_stack = cloudformation_helper.delete_stack(
-                    stack_name=_cfn_stack_name
-                )
+                _delete_stack = SocaCfnClient(stack_name=_cfn_stack_name).delete_stack()
                 if _delete_stack.get("success") is False:
                     return SocaError.AWS_API_ERROR(
                         service_name="cloudformation",
                         helper=f"Unable to delete CloudFormation stack {_cfn_stack_name} due to {_delete_stack.get("success")}",
                     ).as_flask()
-
+                db.session.rollback()
                 return SocaError.DB_ERROR(
                     query=new_session,
                     helper=f"Unable to add desktop db entry due to {err}",

@@ -1,16 +1,8 @@
 #!/usr/bin/python
-######################################################################################################################
-#  Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.                                                #
-#                                                                                                                    #
-#  Licensed under the Apache License, Version 2.0 (the "License"). You may not use this file except in compliance    #
-#  with the License. A copy of the License is located at                                                             #
-#                                                                                                                    #
-#      http://www.apache.org/licenses/LICENSE-2.0                                                                    #
-#                                                                                                                    #
-#  or in the 'license' file accompanying this file. This file is distributed on an 'AS IS' BASIS, WITHOUT WARRANTIES #
-#  OR CONDITIONS OF ANY KIND, express or implied. See the License for the specific language governing permissions    #
-#  and limitations under the License.                                                                                #
-######################################################################################################################
+
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: Apache-2.0
+
 import sys
 import json
 import ast
@@ -24,7 +16,9 @@ from utils.logger import SocaLogger
 if __name__ == "__main__":
     _index_name = "soca_nodes"
 
-    _log_file_location = f"/opt/soca/{SocaConfig(key='/configuration/ClusterId').get_value().message}/cluster_manager/analytics/logs/cluster_nodes_tracking.log"
+    _cluster_id = SocaConfig(key="/configuration/ClusterId").get_value().message
+
+    _log_file_location = f"/opt/soca/{_cluster_id}/cluster_manager/analytics/logs/cluster_nodes_tracking.log"
     logger = SocaLogger(name="analytics_cluster_nodes_tracking").rotating_file_handler(
         file_path=_log_file_location
     )
@@ -52,7 +46,7 @@ if __name__ == "__main__":
     # This is not a fatal problem for dynamic clusters that are cloud native
     # nodes come and go - and there may be times when there are simply no nodes yet.
     _command = SocaSubprocessClient(
-        run_command="/opt/pbs/bin/pbsnodes -a -F json",
+        run_command=f"/opt/soca/{_cluster_id}/schedulers/default/pbs/bin/pbsnodes -a -F json",
     ).run(non_fatal_rcs=[1])
     if _command.success is False:
         # _message = ast.literal_eval(_command.message)

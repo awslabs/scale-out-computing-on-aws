@@ -69,7 +69,7 @@ def main(**launch_parameters):
         t = Template()
         t.set_version("2010-09-09")
         t.set_description(
-            "(SOCA) - Base template to deploy Target nodes version 25.8.0"
+            "(SOCA) - Base template to deploy Target nodes version 25.11.0"
         )
         allow_anonymous_data_collection = launch_parameters["DefaultMetricCollection"]
         # Launch Actual Capacity
@@ -120,7 +120,7 @@ def main(**launch_parameters):
                         if launch_parameters["disk_size"] is False
                         else int(launch_parameters["disk_size"])
                     ),
-                    VolumeType=launch_parameters.get("volume_type", "gp2"),
+                    VolumeType=launch_parameters.get("volume_type", "gp3"),
                     DeleteOnTermination=True,
                     Encrypted=True,
                 ),

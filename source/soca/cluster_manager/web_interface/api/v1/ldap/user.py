@@ -695,7 +695,6 @@ class User(Resource):
             _password_reset_request = 0
             if config.Config.DIRECTORY_AUTH_PROVIDER in [
                 "aws_ds_managed_activedirectory",
-                "aws_ds_simple_activedirectory",
             ]:
                 logger.info(
                     "Set up Password reset for AWS Directory Service AD provider"
@@ -761,7 +760,6 @@ class User(Resource):
                 ).as_flask()
             else:
                 if config.Config.DIRECTORY_AUTH_PROVIDER in [
-                    "aws_ds_simple_activedirectory",
                     "aws_ds_managed_activedirectory",
                 ]:
                     # Default GroupID point to "Domain Users". We update this to match the group we just have created for the user

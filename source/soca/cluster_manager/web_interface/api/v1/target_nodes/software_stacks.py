@@ -19,6 +19,7 @@ from datetime import datetime, timezone
 from models import db, TargetNodeSoftwareStacks
 import math
 import utils.aws.boto3_wrapper as utils_boto3
+import utils.aws.ec2_helper  as ec2_helper
 from utils.error import SocaError
 from utils.cast import SocaCastEngine
 from utils.response import SocaResponse
@@ -412,23 +413,14 @@ class TargetNodeSoftwareStacksManager(Resource):
                 helper=f"AMI label {_stack_name} already exists, pick a different name or deactivate the existing one",
             ).as_flask()
 
-        try:
-            ec2_response = client_ec2.describe_images(
-                ImageIds=[_ami_id],
-                Filters=[{"Name": "state", "Values": ["available"]}],
-            )
-        except Exception as err:
-            return SocaError.AWS_API_ERROR(
-                service_name="ec2",
-                helper=f"Unable to describe AMI {_ami_id} due to {err}",
-            ).as_flask()
-
-        logger.debug(f"API response - AMI {_ami_id}: {ec2_response}")
-        if len(ec2_response["Images"]) > 0:
+        _get_image = ec2_helper.describe_images(image_ids=[_ami_id])
+        logger.debug(f"API response - AMI {_ami_id}: {_get_image}")
+        if _get_image.get("success") is True:
             # Grab the root size from the AMI to make sure our admin-input size is at least that size.
             # This prevents situations where the admin may undersize the AMI setting.
             # The size is taken from the first (0th) EBS volume within the AMI.
-            _ami_root_size: int = ec2_response["Images"][0]["BlockDeviceMappings"][0][
+            _image_details = _get_image.get("message")
+            _ami_root_size: int = _image_details["Images"][0].get("BlockDeviceMappings")[0][
                 "Ebs"
             ]["VolumeSize"]
             _extra_logging: str = ""
@@ -443,11 +435,11 @@ class TargetNodeSoftwareStacksManager(Resource):
                 _extra_logging = f"(root_size auto-adjusted to {_ami_root_size}GB)"
                 root_size = math.ceil(_ami_root_size)
 
-            _ami_arch = ec2_response["Images"][0]["Architecture"]
+            _ami_arch = _image_details["Images"][0].get("Architecture")
 
             _os_family = (
                 "windows"
-                if ec2_response["Images"][0].get("Platform", "").lower() == "windows"
+                if _image_details["Images"][0].get("Platform", "").lower() == "windows"
                 else "linux"
             )
             # thumbnail
@@ -505,6 +497,7 @@ class TargetNodeSoftwareStacksManager(Resource):
                 db.session.add(_new_software_stack)
                 db.session.commit()
             except Exception as err:
+                db.session.rollback()
                 return SocaError.DB_ERROR(
                     query=_new_software_stack,
                     helper=f"Unable to add new AMI {_stack_name} {_ami_id} to DB due to {err}",
@@ -633,6 +626,7 @@ class TargetNodeSoftwareStacksManager(Resource):
                 check_session.deactivated_by = _user
                 db.session.commit()
             except Exception as err:
+                db.session.rollback()
                 return SocaError.DB_ERROR(
                     query=check_session,
                     helper=f"Unable to deactivate software stack {_software_stack_id} due to {err}",
@@ -902,23 +896,15 @@ class TargetNodeSoftwareStacksManager(Resource):
                 f"{_software_stack_id=} does not seems to be a valid integer"
             ).as_flask()
 
-        try:
-            ec2_response = client_ec2.describe_images(
-                ImageIds=[_ami_id],
-                Filters=[{"Name": "state", "Values": ["available"]}],
-            )
-        except Exception as err:
-            return SocaError.AWS_API_ERROR(
-                service_name="ec2",
-                helper=f"Unable to describe AMI {_ami_id} due to {err}",
-            ).as_flask()
+        _get_image = ec2_helper.describe_images(image_ids=[_ami_id])
 
-        logger.debug(f"API response - AMI {_ami_id}: {ec2_response}")
-        if len(ec2_response["Images"]) > 0:
+        logger.debug(f"API response - AMI {_ami_id}: {_get_image}")
+        if _get_image.get("success") is True:
             # Grab the root size from the AMI to make sure our admin-input size is at least that size.
             # This prevents situations where the admin may undersize the AMI setting.
             # The size is taken from the first (0th) EBS volume within the AMI.
-            _ami_root_size: int = ec2_response["Images"][0]["BlockDeviceMappings"][0][
+            _image_details = _get_image.get('message')
+            _ami_root_size: int = _image_details["Images"][0].get("BlockDeviceMappings")[0][
                 "Ebs"
             ]["VolumeSize"]
             _extra_logging: str = ""
@@ -933,7 +919,7 @@ class TargetNodeSoftwareStacksManager(Resource):
                 _extra_logging = f"(root_size auto-adjusted to {_ami_root_size}GB)"
                 root_size = math.ceil(_ami_root_size)
 
-            _ami_arch = ec2_response["Images"][0]["Architecture"]
+            _ami_arch = _image_details["Images"][0].get("Architecture")
 
             # thumbnail
             if _thumbnail is not None:
@@ -997,6 +983,7 @@ class TargetNodeSoftwareStacksManager(Resource):
                 ).as_flask()
 
             except Exception as err:
+                db.session.rollback()
                 return SocaError.DB_ERROR(
                     query=_software_stack_to_update,
                     helper=f"Unable to edit software stack to DB due to {err}",

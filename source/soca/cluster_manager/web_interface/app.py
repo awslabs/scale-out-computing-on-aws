@@ -19,8 +19,8 @@ from flask_session import Session
 from werkzeug.debug import DebuggedApplication
 import validators
 
-from api.v1.scheduler.pbspro.job import Job
-from api.v1.scheduler.pbspro.jobs import Jobs
+from api.v1.scheduler.job import Job
+from api.v1.scheduler.jobs import Jobs
 from api.v1.scheduler.pbspro.queue import Queue
 from api.v1.scheduler.pbspro.queues import Queues
 
@@ -36,6 +36,7 @@ from api.v1.system.files import Files
 
 from api.v1.user.api_key import ApiKey
 from api.v1.user.resources_permissions import GetUserResourcesPermissions
+from api.v1.user.run_command import RunRemoteCommand
 
 from api.v1.cost_management.pricing import AwsPrice
 from api.v1.cost_management.budget import AwsBudgetInfo
@@ -56,7 +57,10 @@ from api.v1.dcv.profiles import VirtualDesktopProfilesManager
 
 from api.v1.projects.projects import ProjectsManager
 
-from api.v1.applications.list_applications import Applications
+from api.v1.applications.list_applications import ListApplications
+from api.v1.applications.application import Application
+from api.v1.applications.export_application import ExportApplication
+from api.v1.applications.import_application import ImportApplication
 
 from api.v1.target_nodes.create_target_node import CreateTargetNode
 from api.v1.target_nodes.user_data import TargetNodeUserDataManager
@@ -114,7 +118,6 @@ import config
 
 if config.Config.DIRECTORY_AUTH_PROVIDER in [
     "aws_ds_managed_activedirectory",
-    "aws_ds_simple_activedirectory",
 ]:
     from api.v1.ldap.activedirectory.reset_password import Reset
 else:
@@ -187,6 +190,7 @@ app.jinja_env.filters["from_json"] = from_json
 app.jinja_env.filters["folder_name_truncate"] = folder_name_truncate
 app.jinja_env.add_extension("jinja2.ext.do")
 
+
 @app.errorhandler(404)
 def page_not_found(_e):
     return redirect("/")
@@ -229,7 +233,7 @@ with app.app_context():
     # Add API
     api = Api(app, decorators=[csrf.exempt])
 
-    # Auth provider can be either openldap, aws_ds_simple_activedirectory, or activedirectory
+    # Auth provider can be either openldap, or activedirectory
     api.add_resource(Sudo, "/api/ldap/sudo")
     api.add_resource(Authenticate, "/api/ldap/authenticate")
     api.add_resource(Ids, "/api/ldap/ids")
@@ -241,6 +245,8 @@ with app.app_context():
     api.add_resource(ApiKey, "/api/user/api_key")
     api.add_resource(Reset, "/api/user/reset_password")
     api.add_resource(GetUserResourcesPermissions, "/api/user/resources_permissions")
+    api.add_resource(RunRemoteCommand, "/api/user/run_command")
+
     # System
     api.add_resource(Files, "/api/system/files")
 
@@ -274,8 +280,10 @@ with app.app_context():
     )
 
     # Applications
-    api.add_resource(Applications, "/api/applications/list_applications")
-
+    api.add_resource(ListApplications, "/api/applications/list_applications")
+    api.add_resource(Application, "/api/applications/application")
+    api.add_resource(ExportApplication, "/api/applications/export")
+    api.add_resource(ImportApplication, "/api/applications/import")
     # Target Nodes
     api.add_resource(CreateTargetNode, "/api/target_nodes/create")
     api.add_resource(DeleteTargetNode, "/api/target_nodes/delete")

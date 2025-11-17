@@ -177,17 +177,7 @@ class StopVirtualDesktop(Resource):
             logger.info(
                 f"About to stop/hibernate the instance. _hibernate_enabled flag {_hibernate_enabled}"
             )
-            if (
-                SocaConfig(key="/configuration/FeatureFlags/EnableCapacityReservation")
-                .get_value(return_as=bool)
-                .get("message")
-                is True
-            ):
-                logger.info("Releasing ODCR associated to this cloudformation stack")
-                odcr_helper.cancel_capacity_reservation_by_stack(
-                    stack_name=_check_session.stack_name
-                )
-
+        
             try:
                 client_ec2.stop_instances(
                     InstanceIds=[_instance_id], Hibernate=_hibernate_enabled
@@ -206,6 +196,7 @@ class StopVirtualDesktop(Resource):
                 )
                 db.session.commit()
             except Exception as err:
+                db.session.rollback()
                 return SocaError.DB_ERROR(
                     query=_check_session,
                     helper=f"Unable to set session_state to stopped due to {err}",

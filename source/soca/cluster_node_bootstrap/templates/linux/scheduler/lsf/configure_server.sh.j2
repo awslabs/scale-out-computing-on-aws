@@ -1,0 +1,405 @@
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# SCHEDULER_VARS are forwarded from templates/linux/schedulers/install_schedulers.sh.j2:
+
+# Begin: LSF Configure Server
+function lsf_configure_server_{{ SCHEDULER_VARS.get("IDENTIFIER") }} {
+    local SCHEDULER_HOSTNAME="{{ SCHEDULER_VARS.get("ENDPOINT") }}"
+    local SCHEDULER_IDENTIFIER="{{ SCHEDULER_VARS.get("IDENTIFIER") }}"
+    local LSF_SOCA_VERSION="{{ SCHEDULER_VARS.get("LSF_CONFIGURATION").get("version") }}"
+    local CLUSTER_ID="{{ context.get("/configuration/ClusterId") }}"
+    # Default path for LSF_TOP variable, folder where LSF will be installed.
+    # We recommend you not to change this path. If you do, make sure to edit all other references in send_logs_s3.sh and others 
+    local LSF_INSTALL_DIR="{{ SCHEDULER_VARS.get("LSF_CONFIGURATION").get("lsf_top") }}"
+
+    log_info "Creating ${LSF_INSTALL_DIR}/conf/lsf.shared"
+    cp ${LSF_INSTALL_DIR}/conf/lsf.shared ${LSF_INSTALL_DIR}/conf/lsf.shared.$(date +%s)
+    cat <<EOF > "${LSF_INSTALL_DIR}/conf/lsf.shared"
+Begin Cluster
+ClusterName                     # Keyword
+${CLUSTER_ID}
+End Cluster
+
+Begin HostType
+TYPENAME                        # Keyword
+DEFAULT                         # used by lsfsetup
+X86_64
+LINUXPPC64
+LINUXPPC64LE
+LINUX_ARM
+LINUX_ARM64
+IBMAIX64
+HPPA
+HPUXIA64
+MACOSX
+SOL64
+SOLX8664
+NTX64
+NTX86
+NTIA64
+CRAYX1
+DigitalUNIX
+ALPHA5
+ALPHASC
+IBMAIX532
+IBMAIX564
+LINUX
+LINUX2
+LINUXAXP
+LINUX86
+LINUXPPC
+LINUX64
+DLINUX
+DLINUX64
+DLINUXAXP
+SLINUX
+SLINUX64
+NECSX6
+NECSX8
+SGI6
+SGI658
+SUNSOL
+SOL732
+SGI64
+SGI65
+SOLX86
+HPPA11
+SX86_64
+IA64
+DIA64
+SIA64
+End HostType
+
+#
+# The CPU factor values are derived from SPECfp95 given by hardware vendors
+# or SpecBench (unless indicated otherwise)
+# See http://www.specbench.org for more information on CPU benchmarking
+# To find out an architecture string for a new model, run 'lim -t'
+#
+Begin HostModel
+MODELNAME  CPUFACTOR   ARCHITECTURE # keyword
+# x86 (Solaris, NT, Linux): approximate values, based on SpecBench results
+# for Intel processors (Sparc/NT) and BogoMIPS results (Linux).
+Intel_E5        12.5   (x6_4389_IntelRXeonRCPUE52699v4220GHz)
+Intel_Platinum  15.0   (x6_5405_IntelRXeonRPlatinum8168CPU270GHz)
+POWER8          25.0   (POWER8architectedaltivecsupported)
+POWER9          25.0   (POWER9rawaltivecsupported)
+ARM7l           6.0    (ARMv7Processorrev0v7l_709)
+ARM8l           6.0    (AArch64Processorrev0aarch64 CaviumThunderX)
+MacPro          60.0   (MacPro11_2990_i486)
+# For compatibility with old host models
+DEFAULT         1.0          ()   # used by lsfsetup
+End HostModel
+
+Begin Resource
+RESOURCENAME  TYPE    INTERVAL INCREASING  DESCRIPTION        # Keywords
+   sparc      Boolean ()       ()          (SPARC)
+   hpux       Boolean ()       ()          (HP-UX UNIX)
+   aix        Boolean ()       ()          (AIX UNIX)
+   cpuset     Boolean ()       ()          (CPUSET)
+   fs         Boolean ()       ()          (File server)
+   cs         Boolean ()       ()          (Compute server)
+   bigmem     Boolean ()       ()          (Hosts with very big memory)
+   diskless   Boolean ()       ()          (Diskless hosts)
+   linux      Boolean ()       ()          (LINUX UNIX)
+   nt         Boolean ()       ()          (Windows NT)
+   mvapich    Boolean ()       ()          (Infiniband MPI)
+   intelmpi   Boolean ()       ()          (Intel MPI)
+   mg         Boolean ()       ()          (Management hosts)
+   openmpi     Boolean ()       ()         (OPENMPI)
+   define_ncpus_procs   Boolean () ()      (ncpus := procs)
+   define_ncpus_cores   Boolean () ()      (ncpus := cores)
+   define_ncpus_threads Boolean () ()      (ncpus := threads)
+   vnode      Boolean ()       ()          (Simulation node used by integrations for example Cray Linux)
+   craylinux  Boolean ()       ()          (Cray Linux Environment: CRAY XT/XE login nodes and compute nodes)
+#  availcpufreqs  String 15      ()        (available CPU frequency)
+#  currcpufreqs   String 15      ()        (current CPU frequency)
+#  ostkhost   Boolean    ()       ()       (instances from OpenStack)
+#  egohost    Boolean    ()       ()       (instances from EGO)
+awshost    Boolean    ()       ()       (instances from AWS)
+#  softlayerhost Boolean ()       ()       (instances from SoftLayer)
+#  azurehost  Boolean    ()       ()       (instances from Azure)
+#  cyclecloudhost  Boolean    ()       ()  (instances from Azure Cycle Cloud)
+#  googlehost Boolean    ()       ()       (instances from Google Cloud)
+rc_account String     ()       ()       (account name for the external hosts)
+#  clusterName  String   ()       ()       (cluster name for the external hosts)
+#  templateID   String   ()       ()       (template ID for the external hosts)
+#  instanceID   String   ()       ()       (instance ID for the external hosts)
+#  providerName String   ()       ()       (provider name for the external hosts)
+#  LN         Boolean ()       ()          (CSM launch nodes)
+#  CN         Boolean ()       ()          (CSM compute nodes)
+#  gpus       Numeric ()       Y           (number of gpus on csm cn)
+#  vg_total_size  Numeric ()   Y           (total ssd on csm cn)
+#  vg_available_size        Numeric 15       N           (available ssd on csm cn)
+#  ssd0_wear   Numeric 15      Y           (ssd wear on csm cn)
+#  kubernetes    Boolean    ()       ()       (Kubernetes node)
+   mips       Boolean ()       ()          (MIPS architecture)
+   irix       Boolean ()       ()          (IRIX UNIX)
+   rms        Boolean ()       ()          (RMS)
+   pset       Boolean ()       ()          (PSET)
+   dist       Boolean ()       ()          (DIST)
+   slurm      Boolean ()       ()          (SLURM)
+   solaris    Boolean ()       ()          (SUN SOLARIS)
+   frame      Boolean ()       ()          (Hosts with FrameMaker licence)
+   alpha      Boolean ()       ()          (DEC alpha)
+   mpich_gm   Boolean ()       ()          (MPICH GM MPI)
+   lammpi     Boolean ()       ()          (LAM MPI)
+   mpichp4    Boolean ()       ()          (MPICH P4 MPI)
+   sca_mpimon Boolean ()       ()          (SCALI MPI)
+   ibmmpi     Boolean ()       ()          (IBM POE MPI)
+   hpmpi      Boolean ()       ()          (HP MPI)
+   sgimpi     Boolean ()       ()          (SGI MPI)
+   crayxt3    Boolean ()       ()          (Cray XT3 MPI)
+   crayx1     Boolean ()       ()          (Cray X1 MPI)
+   mpich_mx   Boolean ()       ()          (MPICH MX MPI)
+mpichsharemem Boolean ()       ()          (MPICH Shared Memory)
+   bluegene   Boolean ()       ()          (BLUEGENE)
+############## SOCA Custom Resources ##############
+soca_hpc_node               Boolean  ()        ()          (If host is a SOCA Compute Node available to serve job)
+compute_node                Numeric  ()        N           (Compute node associated to the node, MUST be numeric)
+stack_id                    String   ()        ()          (Associated CloudFormation Stack)
+instance_id                 String   ()        ()          (Associated Instance ID)
+availability_zone           String   ()        ()          (Availability Zone where the node is running)
+terminate_when_idle         String   ()        ()          (Auto-terminate when idle)
+keep_forever                String   ()        ()          (Define whether it is a persistent instance)
+End Resource
+EOF
+
+    log_info "Creating ${LSF_INSTALL_DIR}/conf/lsf.cluster.${CLUSTER_ID}"
+    cp ${LSF_INSTALL_DIR}/conf/lsf.cluster.${CLUSTER_ID} ${LSF_INSTALL_DIR}/conf/lsf.cluster.${CLUSTER_ID}.$(date +%s)
+    cat << EOF > ${LSF_INSTALL_DIR}/conf/lsf.cluster.${CLUSTER_ID}
+Begin   ClusterAdmins
+Administrators = ec2-user root
+End    ClusterAdmins
+
+Begin   Host
+HOSTNAME  model    type        server  RESOURCES    #Keywords
+${SCHEDULER_HOSTNAME}  !   !   1   (mg)
+End     Host
+
+Begin Parameters
+LSF_HOST_ADDR_RANGE=*.*.*.*
+End Parameters
+EOF
+
+    
+    # https://www.ibm.com/docs/en/spectrum-lsf/10.1.0?topic=files-lsbqueues
+    log_info "Creating ${LSF_INSTALL_DIR}/conf/lsbatch/${CLUSTER_ID}/configdir/lsb.queues"
+    cp ${LSF_INSTALL_DIR}/conf/lsbatch/${CLUSTER_ID}/configdir/lsb.queues ${LSF_INSTALL_DIR}/conf/lsbatch/${CLUSTER_ID}/configdir/lsb.queues.$(date +%s)
+    cat <<EOF > ${LSF_INSTALL_DIR}/conf/lsbatch/${CLUSTER_ID}/configdir/lsb.queues
+Begin Queue
+QUEUE_NAME   = awsrc
+DESCRIPTION  = LSF Resource Connector for AWS
+PRIORITY     = 30
+USERS        = all
+RES_REQ      = "select[awshost]"
+End Queue
+
+Begin Queue
+QUEUE_NAME   = normal
+DESCRIPTION  = SOCA Default Queue Normal Priority
+# Restrict 1 job per node
+HJOB_LIMIT   = 1
+# Force job on this queue to run on an node with a valid compute_node. SOCA will add a new select to machin the compute_node ID when available
+RES_REQ      = "select[defined(compute_node) && soca_hpc_node]"
+PRIORITY     = 30
+EXCLUSIVE    = Y 
+HOSTS        = all
+USERS        = all
+End Queue
+
+Begin Queue
+QUEUE_NAME   = low
+DESCRIPTION  = SOCA Queue Low Priority
+# Restrict 1 job per node
+HJOB_LIMIT   = 1
+# Force job on this queue to run on an node with a valid compute_node. SOCA will add a new select to machin the compute_node ID when available
+RES_REQ      = "select[defined(compute_node) && soca_hpc_node]"
+EXCLUSIVE    = Y 
+PRIORITY     = 20
+HOSTS        = all
+USERS        = all
+End Queue
+
+Begin Queue
+QUEUE_NAME   = high
+DESCRIPTION  = SOCA Queue High Priority
+EXCLUSIVE    = Y
+# Restrict 1 job per node
+HJOB_LIMIT   = 1
+# Force job on this queue to run on an node with a valid compute_node. SOCA will add a new select to machin the compute_node ID when available
+RES_REQ      = "select[defined(compute_node) && soca_hpc_node]"
+PRIORITY     = 40
+HOSTS        = all
+USERS        = all
+End Queue
+
+Begin Queue
+QUEUE_NAME   = alwayson
+DESCRIPTION  = SOCA Queue for AlwaysOn nodes
+RES_REQ      = "select[soca_hpc_node]"
+PRIORITY     = 40
+HOSTS        = all
+USERS        = all
+End Queue
+EOF
+    
+    log_info "Creating ${LSF_INSTALL_DIR}/conf/lsbatch/${CLUSTER_ID}/configdir/lsb.params"
+    cp ${LSF_INSTALL_DIR}/conf/lsbatch/${CLUSTER_ID}/configdir/lsb.params ${LSF_INSTALL_DIR}/conf/lsbatch/${CLUSTER_ID}/configdir/lsb.params.$(date +%s)
+    cat <<EOF > "${LSF_INSTALL_DIR}/conf/lsbatch/${CLUSTER_ID}/configdir/lsb.params"
+Begin Parameters
+DEFAULT_QUEUE  = normal      # Default job queue names
+MBD_SLEEP_TIME = 10          # Amount of time in seconds used for calculating parameter values 
+SBD_SLEEP_TIME = 7           # sbatchd scheduling interval 
+JOB_SCHEDULING_INTERVAL=1    # Interval between job scheduling sessions
+JOB_ACCEPT_INTERVAL = 0      # Interval for any host to accept a job 
+ABS_RUNLIMIT=Y               # Absolute run time is used instead of normalized one
+JOB_DEP_LAST_SUB=1           # LSF evaluates only the most recently submitted job name for dependency conditions
+
+MAX_CONCURRENT_QUERY=100     # Concurrent queries mbatchd can handle
+MAX_JOB_NUM=10000            # The maximum number of finished jobs whose events are to be stored in the lsb.events log file
+
+PARALLEL_SCHED_BY_SLOT=y     # Schedule parallel jobs based on slots
+NEWJOB_REFRESH=y             # Enhancement for query mbatchd new job information update
+RELAX_JOB_DISPATCH_ORDER = Y # enable relaxed job dispatch order in the cluster
+JOB_ARRAY_EVENTS_COMBINE = Y # enable generating combined event logs with the format of array index ranges for array jobs
+#AR_AVAILABLE_STATUS = "ok closed_Wind closed_Busy closed_Full" # Recommended host statuses to create advanced reservations
+End Parameters
+EOF
+
+    log_info "Creating ${LSF_INSTALL_DIR}/conf/lsbatch/${CLUSTER_ID}/configdir/lsb.hosts to enable Dynamic Hosts"
+    cp ${LSF_INSTALL_DIR}/conf/lsbatch/${CLUSTER_ID}/configdir/lsb.hosts ${LSF_INSTALL_DIR}/conf/lsbatch/${CLUSTER_ID}/configdir/lsb.hosts.$(date +%s)
+    cat <<EOF > "${LSF_INSTALL_DIR}/conf/lsbatch/${CLUSTER_ID}/configdir/lsb.hosts"
+Begin Host
+HOST_NAME MXJ   r1m     pg    ls    tmp  DISPATCH_WINDOW  AFFINITY  # Keywords
+default    !    ()      ()    ()     ()     ()            (Y)   # Example
+End Host
+
+Begin HostGroup
+GROUP_NAME        GROUP_MEMBER
+dyn_nodes    ip-* # you can apply addition restrictions if needed: e.g: ip-*-*-*-*.us-east-2.compute.internal etc ..
+End HostGroup 
+EOF
+
+    log_info "Creating ${LSF_INSTALL_DIR}/${LSF_SOCA_VERSION}/resource_connector/hostProviders.json"
+    cp ${LSF_INSTALL_DIR}/${LSF_SOCA_VERSION}/resource_connector/hostProviders.json ${LSF_INSTALL_DIR}/${LSF_SOCA_VERSION}/resource_connector/hostProviders.json.$(date +%s)
+    cat <<EOF > "${LSF_INSTALL_DIR}/${LSF_SOCA_VERSION}/resource_connector/hostProviders.json"
+{
+    "providers":[
+        {
+            "name": "aws",
+            "type": "awsProv",
+            "confPath": "resource_connector/aws",
+            "scriptPath": "resource_connector/aws"
+        }
+    ]
+}
+EOF
+
+    mkdir -p "${LSF_INSTALL_DIR}/conf/resource_connector/aws/conf"
+    log_info "Creating ${LSF_INSTALL_DIR}/conf/resource_connector/aws/conf/awsprov_templates.json"
+    cat <<EOF > "${LSF_INSTALL_DIR}/conf/resource_connector/aws/conf/awsprov_templates.json"
+{
+    "templates": [
+        {
+            "templateId": "m5-xlarge",
+            "priority": 7,
+            "maxNumber": 1000,
+            "attributes": {
+                "type":    ["String", "X86_64"],
+                "ncores":  ["Numeric", "2"],
+                "ncpus":   ["Numeric", "2"],
+                "mem":     ["Numeric", "15000"],
+                "awshost":     ["Boolean", "1"]
+            },
+            "imageId": "{{ context.get('/configuration/CustomAMI') }}",
+            "subnetId": "{{ context.get('/configuration/PrivateSubnets')[0] }}",
+            "vmType": "m5.xlarge",
+            "keyName": "{{ context.get('/configuration/SSHKeyPair') }}",
+            "securityGroupIds": ["{{ context.get('/configuration/ComputeNodeSecurityGroup') }}"],
+            "placementGroupName": "",
+            "tenancy": "default",
+            "instanceProfile":  "{{ context.get('/configuration/ComputeNodeInstanceProfileArn') }}",
+            "instanceTags":     "Name=SOCA LSF Exec Host;Cluster={{ context.get('/configuration/ClusterId') }}",
+            "userData":         ""
+        },
+        {
+            "templateId": "z1d-2xlarge",
+            "priority": 8,
+            "maxNumber": 1000,
+            "attributes": {
+                "type":    ["String", "X86_64"],
+                "ncores":  ["Numeric", "4"],
+                "ncpus":   ["Numeric", "4"],
+                "mem":     ["Numeric", "60000"],
+                "awshost":     ["Boolean", "1"]
+            },
+            "imageId": "{{ context.get('/configuration/CustomAMI') }}",
+            "subnetId": "{{ context.get('/configuration/PrivateSubnets')[0] }}",
+            "vmType": "z1d.2xlarge",
+            "keyName": "{{ context.get('/configuration/SSHKeyPair') }}",
+            "securityGroupIds": ["{{ context.get('/configuration/ComputeNodeSecurityGroup') }}"],
+            "placementGroupName": "",
+            "tenancy": "default",
+            "instanceProfile":  "{{ context.get('/configuration/ComputeNodeInstanceProfileArn') }}",
+            "instanceTags":     "Name=SOCA LSF Exec Host;Cluster={{ context.get('/configuration/ClusterId') }}",
+            "userData":         ""
+        },
+        {
+            "templateId": "r5-12xlarge",
+            "priority": 5,
+            "maxNumber": 1000,
+            "attributes": {
+                "type":    ["String", "X86_64"],
+                "ncores":  ["Numeric", "24"],
+                "ncpus":   ["Numeric", "24"],
+                "mem":     ["Numeric", "380000"],
+                "awshost":     ["Boolean", "1"]
+            },
+            "imageId": "{{ context.get('/configuration/CustomAMI') }}",
+            "subnetId": "{{ context.get('/configuration/PrivateSubnets')[0] }}",
+            "vmType": "r5.21xlarge",
+            "keyName": "{{ context.get('/configuration/SSHKeyPair') }}",
+            "securityGroupIds": ["{{ context.get('/configuration/ComputeNodeSecurityGroup') }}"],
+            "placementGroupName": "",
+            "tenancy": "default",
+            "instanceProfile":  "{{ context.get('/configuration/ComputeNodeInstanceProfileArn') }}",
+            "instanceTags":     "Name=SOCA LSF Exec Host;Cluster={{ context.get('/configuration/ClusterId') }}",
+            "userData":         ""
+        },
+    ]
+}
+EOF
+
+    log_info "Creating /etc/systemd/system/soca_scheduler_${SCHEDULER_IDENTIFIER}.service"
+    cat <<EOF > "/etc/systemd/system/soca_scheduler_${SCHEDULER_IDENTIFIER}.service"
+[Unit]
+Description=Manage SOCA LSF Daemons - Server Node
+After=network.target
+
+[Service]
+Type=oneshot
+ExecStart=/bin/bash -c "source ${LSF_INSTALL_DIR}/conf/profile.lsf && lsf_daemons restart"
+ExecStop=/bin/bash -c "source ${LSF_INSTALL_DIR}/conf/profile.lsf && lsf_daemons stop"
+RemainAfterExit=yes
+User=root
+Group=root
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+    systemctl daemon-reload
+    systemctl enable soca_scheduler_${SCHEDULER_IDENTIFIER}.service
+    if ! systemctl start soca_scheduler_${SCHEDULER_IDENTIFIER}.service; then
+        journalctl -xeu soca_scheduler_${SCHEDULER_IDENTIFIER}.service
+        exit_fail "Unable to start LSF via soca_scheduler_${SCHEDULER_IDENTIFIER}.service, check logs"
+    fi 
+    log_info "Waiting for LSF process to be healthy"
+    sleep 15
+    log_info "Closing SOCA_CONTROLLER to avoid running jobs on it"
+    badmin hclose ${SCHEDULER_HOSTNAME}
+    log_info "Completed LSF Server Configuration"
+}
+lsf_configure_server_{{ SCHEDULER_VARS.get("IDENTIFIER") }}
