@@ -63,7 +63,14 @@ def index():
 @login_required
 @admin_only
 def edit():
-    _application_id = request.get("application_id", "")
+    _application_id = request.args.get("app", "")
+    try:
+        _application_id = int(_application_id)
+    except Exception as err:
+        logger.error(f"Unable to parse application id due to {err}, verify if it's a valid integer")
+        flash("Unable to edit application. See logs for additional details.")
+        return redirect("/admin/applications")
+    
     logger.info(f"Edit application: {_application_id=}")
 
     _list_all_applications = SocaHttpClient(
@@ -86,7 +93,7 @@ def edit():
     else:
         _application_profile = None
         for _app in _list_all_applications.get("message"):
-            if _app.id == _application_id:
+            if _app.get("id") == _application_id:
                 _application_profile = _app
                 break
         
@@ -96,22 +103,22 @@ def edit():
             return redirect("/admin/applications")
         else:
             try:
-                profile_form = base64.b64decode(_application_profile.profile_form).decode()
+                profile_form = base64.b64decode(_application_profile.get("profile_form")).decode()
             except Exception as err:
                 logger.error(f"Unable to decode profile_form due to {err}")
                 flash("Unable to edit application. See logs for additional details.")
                 return redirect("/admin/applications")
             
             try:
-                profile_job = base64.b64decode(_application_profile.profile_job).decode()
+                profile_job = base64.b64decode(_application_profile.get("profile_job")).decode()
                 profile_job = json.dumps(profile_job)[1:-1]
             except Exception as err:
                 logger.error(f"Unable to decode profile_job due to {err}")
                 flash("Unable to edit application. See logs for additional details.")
                 return redirect("/admin/applications")
             
-            profile_interpreter = _application_profile.profile_interpreter
-            profile_name = _application_profile.profile_name
+            profile_interpreter = _application_profile.get("profile_interpreter")
+            profile_name = _application_profile.get("profile_name")
 
     return render_template(
         "admin/applications.html",
@@ -122,7 +129,7 @@ def edit():
         profile_name=profile_name,
         profile_interpreter=profile_interpreter,
         schedulers=get_schedulers(),
-        application_profiles=_list_all_applications,
+        application_profiles=_list_all_applications.get("message"),
         page="application",
         action="edit",
     )
@@ -158,6 +165,7 @@ def create_application():
 @login_required
 @admin_only
 def edit_application():
+    logger.info(f"About to edit application {request.form.get('app_id', '')}")
     _update_application = SocaHttpClient(
         "/api/applications/application",
         headers={
@@ -171,7 +179,7 @@ def edit_application():
             "submit_job_interpreter": request.form.get("submit_job_interpreter", ""),
             "profile_name": request.form.get("profile_name", ""),
             "thumbnail_b64": request.form.get("thumbnail_b64", ""),
-            "application_id": request.form.get("application_id", ""),
+            "application_id": request.form.get("app_id", ""),
         }
     )
     flash(
@@ -185,6 +193,7 @@ def edit_application():
 @login_required
 @admin_only
 def delete_application():
+    logger.info(f"About to delete application {request.form.get('application_id', '')}")
     _delete_application = SocaHttpClient(
         "/api/applications/application",
         headers={

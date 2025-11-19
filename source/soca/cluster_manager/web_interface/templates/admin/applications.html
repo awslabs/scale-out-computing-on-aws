@@ -229,7 +229,7 @@
                                                     <br>
                                                     {% if action == "edit" %}
                                                     <form name="manageprofile_edit" id="manageprofile_edit" method="post"
-                                                        action="/admin/applications/create">
+                                                        action="/admin/applications/edit">
                                                         <div class="form-group">
                                                             <label for="profile_name">How do you want to name this
                                                                 application profile?</label>
@@ -334,7 +334,7 @@
                                         <h6 class="m-0 font-weight-bold text-primary">Edit an existing application</h6>
                                     </div>
                                     <div class="card-body">
-                                        <form action="/admin/applications/edit" method="post">
+                                        <form action="/admin/applications/edit" method="get">
                                             <div class="form-group col-md-6">
                                                 <label for="walltime"> Select the application to edit</label>
                                                 <select class="form-control" name='app' id="app">
