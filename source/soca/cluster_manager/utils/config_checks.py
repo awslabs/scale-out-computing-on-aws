@@ -190,41 +190,52 @@ class SocaConfigKeyVerifier:
                 return "provider value is not a valid scheduler, must be either slurm, openpbs or lsf"
 
             if "lsf_configuration" in _flag_value.keys():
-                try:
-                    _lsf_configuration_as_dict = ast.literal_eval(
-                        _flag_value.get("lsf_configuration")
-                    )
-                    if not isinstance(_lsf_configuration_as_dict, dict):
-                        return "lsf_configuration is not a valid dictionary"
-                except Exception as err:
-                    return f"Unable to cast lsf_configuration as valid a valid dictionary due to {err}"
+                if isinstance(_flag_value.get("lsf_configuration"), dict):
+                    _lsf_configuration_as_dict = _flag_value.get("lsf_configuration")
+                else:
+                    try:
+                        _lsf_configuration_as_dict = ast.literal_eval(
+                            _flag_value.get("lsf_configuration")
+                        )
+                        if not isinstance(_lsf_configuration_as_dict, dict):
+                            return "lsf_configuration is not a valid dictionary"
+                    except Exception as err:
+                        return f"Unable to cast lsf_configuration as valid a valid dictionary due to {err}"
                 for _k in _lsf_configuration_keys:
                     if _lsf_configuration_as_dict.get(_k, None) is None:
                         return f"lsf_configuration.{_k} is missing or empty"
 
             if "pbs_configuration" in _flag_value.keys():
-                try:
-                    _pbs_configuration_as_dict = ast.literal_eval(
-                        _flag_value.get("pbs_configuration")
-                    )
-                    if not isinstance(_pbs_configuration_as_dict, dict):
-                        return "pbs_configuration is not a valid dictionary"
-                except Exception as err:
-                    return f"Unable to cast pbs_configuration as valid a valid dictionary due to {err}"
+                if isinstance(_flag_value.get("pbs_configuration"), dict):
+                    _pbs_configuration_as_dict = _flag_value.get("pbs_configuration")
+                else:
+                    try:
+                        _pbs_configuration_as_dict = ast.literal_eval(
+                            _flag_value.get("pbs_configuration")
+                        )
+                        if not isinstance(_pbs_configuration_as_dict, dict):
+                            return "pbs_configuration is not a valid dictionary"
+                    except Exception as err:
+                        return f"Unable to cast pbs_configuration as valid a valid dictionary due to {err}"
 
                 for _k in _pbs_configuration_keys:
                     if _pbs_configuration_as_dict.get(_k, None) is None:
                         return f"pbs_configuration.{_k} is missing or empty"
 
             if "slurm_configuration" in _flag_value.keys():
-                try:
-                    _slurm_configuration_as_dict = ast.literal_eval(
-                        _flag_value.get("slurm_configuration")
+                if isinstance(_flag_value.get("slurm_configuration"), dict):
+                    _slurm_configuration_as_dict = _flag_value.get(
+                        "slurm_configuration"
                     )
-                    if not isinstance(_slurm_configuration_as_dict, dict):
-                        return "slurm_configuration is not a valid dictionary"
-                except Exception as err:
-                    return f"Unable to cast slurm_configuration as valid a valid dictionary due to {err}"
+                else:
+                    try:
+                        _slurm_configuration_as_dict = ast.literal_eval(
+                            _flag_value.get("slurm_configuration")
+                        )
+                        if not isinstance(_slurm_configuration_as_dict, dict):
+                            return "slurm_configuration is not a valid dictionary"
+                    except Exception as err:
+                        return f"Unable to cast slurm_configuration as valid a valid dictionary due to {err}"
                 for _k in _slurm_configuration_keys:
                     if _slurm_configuration_as_dict.get(_k, None) is None:
                         return f"slurm_configuration.{_k} is missing or empty"
@@ -247,27 +258,27 @@ class SocaConfigKeyVerifier:
             else:
                 if str(_flag_value.get("Enabled")).lower() not in ["true", "false"]:
                     return (
-                        f"Enabled value is not a boolean, must be either True or False"
+                        "Enabled value is not a boolean, must be either True or False"
                     )
 
             if "Key" not in _flag_value.keys():
                 return f"Key is missing in {_flag_value}"
             else:
                 if not isinstance(_flag_value.get("Key"), str):
-                    return f"Key is not a str"
+                    return "Key is not a str"
                 else:
                     if (
                         _flag_value.get("Key").startswith("soca:")
                         or _flag_value.get("Key").startswith("aws:")
                         or _flag_value.get("Key") == "Name"
                     ):
-                        return f"Key cannot start with soca: or aws: or be 'Name'"
+                        return "Key cannot start with soca: or aws: or be 'Name'"
 
             if "Value" not in _flag_value.keys():
                 return f"Value is missing in {_flag_value}"
             else:
                 if not isinstance(_flag_value.get("Value"), str):
-                    return f"Value value is not a str"
+                    return "Value value is not a str"
 
             return True
 
@@ -287,14 +298,14 @@ class SocaConfigKeyVerifier:
             else:
                 if str(_flag_value.get("enabled")).lower() not in ["true", "false"]:
                     return (
-                        f"enabled value is not a boolean, must be either True or False"
+                        "enabled value is not a boolean, must be either True or False"
                     )
 
             if "allowed_users" not in _flag_value.keys():
                 return f"allowed_users key is missing in {_flag_value}"
             else:
                 if not isinstance(_flag_value.get("allowed_users"), list):
-                    return f"allowed_users value is not a list"
+                    return "allowed_users value is not a list"
                 else:
                     for item in _flag_value.get("allowed_users"):
                         if not isinstance(item, str):
@@ -306,7 +317,7 @@ class SocaConfigKeyVerifier:
                 return f"denied_users key is missing in {_flag_value}"
             else:
                 if not isinstance(_flag_value.get("denied_users"), list):
-                    return f"denied_users value is not a list"
+                    return "denied_users value is not a list"
                 else:
                     for item in _flag_value.get("denied_users"):
                         if not isinstance(item, str):
@@ -390,31 +401,31 @@ class SocaConfigKeyVerifier:
                     if all(isinstance(item, str) for item in value):
                         return True
                     else:
-                        return f"One or more items in the list are not strings"
+                        return "One or more items in the list are not strings"
 
             elif list_item_type == "int":
                 if all(isinstance(item, int) for item in value):
                     return True
                 else:
-                    return f"One or more items in the list are not integers"
+                    return "One or more items in the list are not integers"
 
             elif list_item_type == "float":
                 if all(isinstance(item, float) for item in value):
                     return True
                 else:
-                    return f"One or more items in the list are not floats"
+                    return "One or more items in the list are not floats"
 
             elif list_item_type == "dict":
                 if all(isinstance(item, dict) for item in value):
                     return True
                 else:
-                    return f"One or more items in the list are not dictionaries"
+                    return "One or more items in the list are not dictionaries"
 
             elif list_item_type == "list":
                 if all(isinstance(item, list) for item in value):
                     return True
                 else:
-                    return f"One or more items in the list are not lists"
+                    return "One or more items in the list are not lists"
 
         return False
 

@@ -32,7 +32,7 @@ def schedulers():
     help="Flatten Key as stored on SSM",
 )
 @click.pass_context
-def get(ctx, scheduler_identifier, output, flatten):
+def get(ctx, scheduler_identifier, output, flatten, return_output=False):
     if scheduler_identifier is not None:
         if "/configuration/Schedulers/" in scheduler_identifier:
             _ssm_key = scheduler_identifier
@@ -53,7 +53,10 @@ def get(ctx, scheduler_identifier, output, flatten):
             )
 
     if flatten:
-        print_output(message=_get_key, output=output)
+        if return_output:
+            return _get_key
+        else:
+            print_output(message=_get_key, output=output)
     else:
         if not isinstance(_get_key, dict):
             print_output(
@@ -70,7 +73,10 @@ def get(ctx, scheduler_identifier, output, flatten):
                 current_dict = current_dict[part]
 
             current_dict[parts[-1]] = value
-        print_output(message=_scheduler_data, output=output)
+        if return_output:
+            return _scheduler_data
+        else:
+            print_output(message=_scheduler_data, output=output)
 
 
 @schedulers.command()
@@ -191,13 +197,17 @@ def set(
                 error=True,
             )
         else:
-            try:
-                _config_as_dict = ast.literal_eval(lsf_configuration)
-            except Exception as err:
-                print_output(
-                    message=f"Unable to convert lsf_configuration to dict. Received error {err}",
-                    error=True,
-                )
+            if not isinstance(lsf_configuration, dict):
+                try:
+                    _config_as_dict = ast.literal_eval(lsf_configuration)
+                except Exception as err:
+                    print_output(
+                        message=f"Unable to convert lsf_configuration to dict. Received error {err}",
+                        error=True,
+                    )
+            else:
+                _config_as_dict = lsf_configuration
+
             for _key in _required_scheduler_specific["lsf"]:
                 if _key not in _config_as_dict.keys():
                     print_output(
@@ -214,7 +224,7 @@ def set(
                 error=True,
             )
         else:
-            for _key in _required_scheduler_specific["slurm"]:
+            if not isinstance(slurm_configuration, dict):
                 try:
                     _config_as_dict = ast.literal_eval(slurm_configuration)
                 except Exception as err:
@@ -222,6 +232,10 @@ def set(
                         message=f"Unable to convert slurm_configuration to dict. Received error {err}",
                         error=True,
                     )
+            else:
+                _config_as_dict = slurm_configuration
+
+            for _key in _required_scheduler_specific["slurm"]:
                 if _key not in _config_as_dict.keys():
                     print_output(
                         message=f"Missing {_key} in slurm_configuration",
@@ -237,13 +251,17 @@ def set(
                 error=True,
             )
         else:
-            try:
-                _config_as_dict = ast.literal_eval(pbs_configuration)
-            except Exception as err:
-                print_output(
-                    message=f"Unable to convert pbs_configuration to dict. Received error {err}",
-                    error=True,
-                )
+            if not isinstance(pbs_configuration, dict):
+                try:
+                    _config_as_dict = ast.literal_eval(pbs_configuration)
+                except Exception as err:
+                    print_output(
+                        message=f"Unable to convert pbs_configuration to dict. Received error {err}",
+                        error=True,
+                    )
+            else:
+                _config_as_dict = pbs_configuration
+
             for _key in _required_scheduler_specific[provider]:
                 if _key not in _config_as_dict.keys():
                     print_output(
@@ -267,13 +285,14 @@ def set(
                 print_output(message="Exiting", error=True)
             else:
                 break
-
-    if ctx.invoke(
-        config_key_exists, key=f"/configuration/Schedulers/{scheduler_identifier}"
-    ):
-        print_output(
-            message=f"Scheduler {scheduler_identifier} already exists", error=True
-        )
+    
+    if ctx.meta.get("ignore_key_already_exist", False) is False:
+        if ctx.invoke(
+            config_key_exists, key=f"/configuration/Schedulers/{scheduler_identifier}"
+        ):
+            print_output(
+                message=f"Scheduler {scheduler_identifier} already exists", error=True
+            )
     # proceed to scsheduler creation
     ctx.meta["echo"] = True
     ctx.invoke(
@@ -319,15 +338,18 @@ def update(ctx, scheduler_identifier, key, value):
         )
 
     _existing_config = ctx.invoke(
-        get, scheduler_identifier=f"{scheduler_identifier}", output="json"
+        get,
+        scheduler_identifier=f"{scheduler_identifier}",
+        output="json",
+        return_output=True,
     )
     if isinstance(_existing_config, dict):
         _existing_config[key] = value
         ctx.meta["echo"] = True
-
+        ctx.meta["ignore_key_already_exist"] = True # set will complain the key already exist, which is expected as we update an existing key
         ctx.invoke(
             set,
-            scheduler_identifier=_existing_config.get("scheduler_identifier", None),
+            scheduler_identifier=_existing_config.get("identifier", None),
             provider=_existing_config.get("provider", None),
             endpoint=_existing_config.get("endpoint", None),
             binary_folder_paths=_existing_config.get("binary_folder_paths", ""),
