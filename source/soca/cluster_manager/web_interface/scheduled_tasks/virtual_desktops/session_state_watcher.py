@@ -6,7 +6,7 @@ from extensions import db
 from models import VirtualDesktopSessions
 import utils.aws.boto3_wrapper as utils_boto3
 from utils.aws.ssm_parameter_store import SocaConfig
-import utils.aws.cloudformation_helper as cloudformation_helper
+from utils.aws.cloudformation_helper import SocaCfnClient
 from utils.http_client import SocaHttpClient
 from utils.response import SocaResponse
 from botocore.exceptions import ClientError
@@ -741,7 +741,7 @@ def delete_inactive_instances(
             logger.info(
                 f"{_session_instance_id=} is terminated, deleting stack if it exist"
             )
-            _delete_stack = cloudformation_helper.delete_stack(stack_name=_stack_name)
+            _delete_stack = SocaCfnClient(stack_name=_stack_name).delete_stack()
             if _delete_stack.get("success") is False:
                 logger.error(
                     f"Unable to delete stack {_stack_name}: {_delete_stack.get('message')}"
@@ -773,10 +773,7 @@ def delete_inactive_instances(
                 logger.info(
                     f"CloudFormation Stack associated does not exist or is being deleted, removing this session from the database"
                 )
-
-                _delete_stack = cloudformation_helper.delete_stack(
-                    stack_name=_stack_name
-                )
+                _delete_stack = SocaCfnClient(stack_name=_stack_name).delete_stack()
                 if _delete_stack.get("success") is False:
                     logger.error(
                         f"Unable to delete stack {_stack_name}: {_delete_stack.get('message')}"

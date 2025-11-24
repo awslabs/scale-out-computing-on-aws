@@ -10,7 +10,7 @@ from utils.error import SocaError
 from utils.response import SocaResponse
 from utils.cast import SocaCastEngine
 import utils.aws.boto3_wrapper as utils_boto3
-import utils.aws.cloudformation_helper as cloudformation_helper
+from utils.aws.cloudformation_helper import SocaCfnClient
 import time
 from datetime import datetime, timedelta, timezone
 import pytz
@@ -760,10 +760,7 @@ def auto_terminate_stopped_instance(app: Flask):
                     )
 
                     # TODO - try/except
-
-                    _delete_stack = cloudformation_helper.delete_stack(
-                        stack_name=_stack_name
-                    )
+                    _delete_stack = SocaCfnClient(stack_name=_stack_name).delete_stack()
                     if _delete_stack.get("success") is False:
                         return SocaError.GENERIC_ERROR(
                             helper=f"Unable to terminate instance {_stack_name}"
