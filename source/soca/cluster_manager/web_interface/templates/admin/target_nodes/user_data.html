@@ -203,7 +203,7 @@ chmod 700 /home/{{SOCA_USER}}/.ssh/authorized_keys
 chmod 700 /home/{{SOCA_USER}}/.ssh
 
 echo "Granting SOCA user SUDO passwordless on the system"
-echo {{SOCA_USER}} ALL=(ALL) NOPASSWD: ALL
+echo "{{SOCA_USER}} ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers
 
 # User can now run 'ssh IP_OF_THE_TARGET_NODE' from a login node / hpc node or virtual desktop node
 
