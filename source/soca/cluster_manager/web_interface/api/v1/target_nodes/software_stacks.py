@@ -971,7 +971,7 @@ class TargetNodeSoftwareStacksManager(Resource):
                     _software_stack_to_update.thumbnail = _thumbnail_b64
                 _software_stack_to_update.last_updated_on = datetime.now(timezone.utc)
                 _software_stack_to_update.last_updated_by = _user
-                _software_stack_to_update.connection_string = _connection_string
+                _software_stack_to_update.ami_connection_string = _connection_string
                 _software_stack_to_update.target_node_user_data_id = (
                     _target_node_user_data_id
                 )
