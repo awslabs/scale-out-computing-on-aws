@@ -3205,7 +3205,7 @@ if __name__ == "__main__":
                 f"Unable to automatically determine your IPv4 address. Manual specification will be required"
             )
     else:
-        install_parameters["client_ip"] = [args.client_ip]
+        install_parameters["client_ip"] = args.client_ip
         logger.debug(f"Client-IPv4: {args.client_ip}")
 
     # Repeat for IPv6 if enabled
