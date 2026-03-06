@@ -27,7 +27,7 @@ sys.path.append(
     f"/opt/soca/{os.environ.get('SOCA_CLUSTER_ID', 'SOCA_CONFIGURATION_NOT_FOUND')}/cluster_manager"
 )
 import cloudformation_builder
-from utils.aws.ssm_parameter_store import SocaConfig
+from utils.config import SocaConfig
 from utils.aws.boto3_wrapper import get_boto
 from utils.cast import SocaCastEngine
 import logging

@@ -7,7 +7,7 @@ import config
 from flask import render_template, Blueprint, request, redirect, session, flash
 from requests import get, delete
 from decorators import login_required, feature_flag
-from utils.aws.ssm_parameter_store import SocaConfig
+from utils.config import SocaConfig
 from utils.http_client import SocaHttpClient
 from utils.datamodels.hpc.scheduler import get_schedulers, SocaHpcSchedulerProvider
 

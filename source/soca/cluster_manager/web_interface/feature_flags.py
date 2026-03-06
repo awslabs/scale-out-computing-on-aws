@@ -1,7 +1,7 @@
 # Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-from utils.aws.ssm_parameter_store import SocaConfig
+from utils.config import SocaConfig
 import ast
 from typing import Any
 import logging

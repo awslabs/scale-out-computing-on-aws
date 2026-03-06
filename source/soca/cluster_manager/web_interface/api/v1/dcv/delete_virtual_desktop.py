@@ -20,7 +20,7 @@ from decorators import private_api, feature_flag
 from utils.error import SocaError
 from models import db, VirtualDesktopSessions
 import utils.aws.boto3_wrapper as utils_boto3
-from utils.aws.cloudformation_helper import SocaCfnClient
+from utils.aws.cloudformation_client import SocaCfnClient
 
 
 logger = logging.getLogger("soca_logger")

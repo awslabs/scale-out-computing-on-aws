@@ -5,7 +5,7 @@
             "Action": [
                 "logs:CreateLogGroup"
             ],
-            "Resource": "arn:%%AWS_PARTITION%%:logs:%%AWS_REGION%%:%%AWS_ACCOUNT_ID%%:log-group:/aws/lambda/%%CLUSTER_ID%%*",
+            "Resource": "arn:%%AWS_PARTITION%%:logs:%%AWS_REGION%%:%%AWS_ACCOUNT_ID%%:log-group:/soca/%%CLUSTER_ID%%/CreateACMCertificate/*",
             "Effect": "Allow",
             "Sid": "CloudWatchLogsPermissions"
         },
@@ -14,7 +14,7 @@
                 "logs:CreateLogStream",
                 "logs:PutLogEvents"
             ],
-            "Resource": "arn:%%AWS_PARTITION%%:logs:%%AWS_REGION%%:%%AWS_ACCOUNT_ID%%:log-group:/aws/lambda/%%CLUSTER_ID%%*:log-stream:*",
+            "Resource": "arn:%%AWS_PARTITION%%:logs:%%AWS_REGION%%:%%AWS_ACCOUNT_ID%%:log-group:/soca/%%CLUSTER_ID%%/CreateACMCertificate/*",
             "Effect": "Allow",
             "Sid": "CloudWatchLogStreamPermissions"
         },

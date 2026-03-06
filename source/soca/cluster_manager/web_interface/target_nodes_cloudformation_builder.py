@@ -33,7 +33,7 @@ from troposphere.ec2 import (
 )
 import troposphere.ec2 as ec2
 import logging
-from utils.aws.ssm_parameter_store import SocaConfig
+from utils.config import SocaConfig
 from utils.response import SocaResponse
 from utils.error import SocaError
 
@@ -69,7 +69,7 @@ def main(**launch_parameters):
         t = Template()
         t.set_version("2010-09-09")
         t.set_description(
-            "(SOCA) - Base template to deploy Target nodes version 25.11.0"
+            "(SOCA) - Base template to deploy Target nodes version 26.3.0"
         )
         allow_anonymous_data_collection = launch_parameters["DefaultMetricCollection"]
         # Launch Actual Capacity

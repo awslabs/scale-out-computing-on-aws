@@ -4,7 +4,7 @@
 import logging
 from decorators import login_required, feature_flag
 from flask import Blueprint, render_template, session, redirect
-from utils.aws.ssm_parameter_store import SocaConfig
+from utils.config import SocaConfig
 from utils.http_client import SocaHttpClient
 from utils.aws.boto3_wrapper import get_boto
 from flask import request, flash, redirect

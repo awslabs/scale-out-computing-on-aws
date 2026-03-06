@@ -5,8 +5,8 @@ import logging
 from extensions import db
 from models import VirtualDesktopSessions
 import utils.aws.boto3_wrapper as utils_boto3
-from utils.aws.ssm_parameter_store import SocaConfig
-from utils.aws.cloudformation_helper import SocaCfnClient
+from utils.config import SocaConfig
+from utils.aws.cloudformation_client import SocaCfnClient
 from utils.http_client import SocaHttpClient
 from utils.response import SocaResponse
 from botocore.exceptions import ClientError
@@ -155,13 +155,13 @@ def process_chunk(
                     _check_dcv_state = SocaHttpClient(
                         endpoint=_dcv_https_url, allow_redirects=False, timeout=5
                     ).get()
-                    logger.debug(
+                    logger.info(
                         f"LoadBalancer Result {_dcv_https_url} -> {_check_dcv_state}"
                     )
                     # We change status to 200 only if DCVEntryPointDNSName returns 200 and if we can get `dcv` as part of  returned headers
                     if _check_dcv_state.get("status_code") == 200:
                         _response_headers = _check_dcv_state.get("request").headers
-                        logger.debug(
+                        logger.info(
                             f"Headers response for {_session.id=} {_session.session_uuid=}: {_response_headers}"
                         )
                         if "Server" in _response_headers:
@@ -773,6 +773,7 @@ def delete_inactive_instances(
                 logger.info(
                     f"CloudFormation Stack associated does not exist or is being deleted, removing this session from the database"
                 )
+
                 _delete_stack = SocaCfnClient(stack_name=_stack_name).delete_stack()
                 if _delete_stack.get("success") is False:
                     logger.error(

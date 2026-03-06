@@ -29,6 +29,7 @@ configuration:
   CustomAMI: '^ami-[0-9a-f]{8,17}$'
   FeatureFlags:
     EnableCapacityReservation: *bool 
+    EnforceStrictCapacityReservation: *bool
     Hpc:
       AllowCustomTags: *bool
       EnableDryRun: *bool
@@ -44,8 +45,6 @@ configuration:
 
     TargetNodes:
       AllowCustomTags: *bool
-
-
 
   FileSystemDataProvider: '^(efs|fsx_lustre)$'
   LdapBase: *str
@@ -122,6 +121,25 @@ packages:
   user_extra: '\b[\w-]+\b(?:\s+\b[\w-]+\b)*'
 
 system:
+  scheduler:
+    openpbs:
+      compatibility_packages:
+        automake:
+          url: *url
+          sha256: '^[a-fA-F0-9]{64}$'
+        libtool:
+          url: *url
+          sha256: '^[a-fA-F0-9]{64}$'
+        pkgconfig:
+          url: *url
+          sha256: '^[a-fA-F0-9]{64}$'
+        cjson:
+          url: *url
+          sha256: '^[a-fA-F0-9]{64}$'
+
+  orchestration:
+    stack_grace_period_in_minutes: *int
+    stack_max_retry_attempts: *int
   awscliv2:
     aarch64: *url
     x86_64: *url
@@ -219,3 +237,4 @@ system:
   ssm:
     aarch64: *url
     x86_64: *url
+

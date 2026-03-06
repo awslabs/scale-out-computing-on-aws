@@ -1,6 +1,12 @@
 {
     "Version": "2012-10-17",
     "Statement": [
+         {
+            "Action": "s3:PutObject",
+            "Resource": "arn:%%AWS_PARTITION%%:s3:::%%BUCKET%%/%%CLUSTER_ID%%/%%VERSION%%/bootstrap_logs_pre_filesystem_mount/*",
+            "Effect": "Allow"
+        },
+      
         {
             "Action": [
                 "s3:GetObject",
@@ -69,14 +75,11 @@
                 "logs:PutLogEvents",
                 "logs:DescribeLogStreams"
             ],
-            "Resource": "arn:%%AWS_PARTITION%%:logs:%%AWS_REGION%%:*"
+            "Resource": "arn:%%AWS_PARTITION%%:logs:%%AWS_REGION%%:*:*"
         },
         {
             "Sid": "AllowSerialConsoleAccess",
-            "Action": [
-                "ec2-instance-connect:SendSerialConsoleSSHPublicKey",
-                "ec2-instance-connect:StartSerialConsoleSession"
-            ],
+            "Action": "ec2-instance-connect:SendSerialConsoleSSHPublicKey",
             "Resource": "arn:%%AWS_PARTITION%%:ec2:*:%%AWS_ACCOUNT_ID%%:instance/*",
             "Effect": "Allow",
             "Condition": {

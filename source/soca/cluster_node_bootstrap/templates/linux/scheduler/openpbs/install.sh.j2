@@ -8,7 +8,7 @@ function build_openpbs_{{  SCHEDULER_VARS.get("IDENTIFIER") }} {
   log_info "Building OpenPBS from $(pwd)"
   local NCPUS=$(nproc)
   local SOCA_PYTHON="/opt/soca/{{ context.get('/configuration/ClusterId') }}/python"
-  local OPENPBS_INSTALL_DIR="{{ SCHEDULER_VARS.get("PBS_CONFIGURATION").get("install_prefix_path") }}"
+  local OPENPBS_INSTALL_DIR="{{ SCHEDULER_VARS.get("PBS_CONFIGURATION").get("pbs_exec") }}"
   local OPENPBS_PBS_HOME="{{ SCHEDULER_VARS.get("PBS_CONFIGURATION").get("pbs_home") }}"
 
   
@@ -99,12 +99,12 @@ function build_openpbs_{{  SCHEDULER_VARS.get("IDENTIFIER") }} {
 
   log_info "Running Make"
 
-  if ! make -j${NCPU}; then
-    exit_fail "Unable to run make -j ${NCPU} for OpenPBS. See log for additional details"
+  if ! make -j${NCPUS}; then
+    exit_fail "Unable to run make -j ${NCPUS} for OpenPBS. See log for additional details"
   fi
 
-  if ! make install -j${NCPU}; then
-    exit_fail "Unable to run make install -j${NCPU} for OpenPBS. See log for additional details"
+  if ! make install -j${NCPUS}; then
+    exit_fail "Unable to run make install -j${NCPUS} for OpenPBS. See log for additional details"
   fi
 
   log_info "Post Build Command"
@@ -119,7 +119,7 @@ function build_openpbs_{{  SCHEDULER_VARS.get("IDENTIFIER") }} {
 
 
 function openpbs_install_{{  SCHEDULER_VARS.get("IDENTIFIER") }} {
-    local OPENPBS_INSTALL_DIR="{{ SCHEDULER_VARS.get("PBS_CONFIGURATION").get("install_prefix_path") }}"
+    local OPENPBS_INSTALL_DIR="{{ SCHEDULER_VARS.get("PBS_CONFIGURATION").get("pbs_exec") }}"
     local OPENPBS_PBS_HOME="{{ SCHEDULER_VARS.get("PBS_CONFIGURATION").get("pbs_home") }}"
 
 
@@ -211,38 +211,40 @@ function openpbs_install_{{  SCHEDULER_VARS.get("IDENTIFIER") }} {
     popd
 
     # Note: even with custom --prefix / --sysconfig, PBS compiler will generate a default /etc/pbs.conf and default services
-    log_info "Disabling default systemctl created by the compilation command"
+    log_info "Disabling default pbs service created by the compilation command. Use /etc/systemd/system/soca_scheduler_${SCHEDULER_IDENTIFIER}.service instead"
     systemctl stop pbs
     systemctl disable pbs
 
-    log_info "Creating custom /bin/soca_pbs_${SCHEDULER_IDENTIFIER} wrapper"
-    cat << EOF > "/bin/soca_pbs_${SCHEDULER_IDENTIFIER}"
+    log_info "Creating custom /bin/soca_${SCHEDULER_IDENTIFIER} wrapper"
+    cat << EOF > "/bin/soca_${SCHEDULER_IDENTIFIER}"
 export PATH=${OPENPBS_INSTALL_DIR}/bin:$PATH
-export PBS_CONF_FILE=${OPENPBS_PBS_HOME}/pbs.conf 
+export PBS_CONF_FILE=${OPENPBS_INSTALL_DIR}/pbs.conf 
 echo "========= SOCA ========= "
-echo ">> PBS environment loaded, you can now run commands such as qsub/qstat/qalter etc ..."
-echo ">> PBS is installed under: ${OPENPBS_INSTALL_DIR}"
-echo ">> Add /bin/soca_pbs to your .bashrc or .bash_profile to automatically run this script"
+echo ">> OpenPBS environment loaded, you can now run commands such as qsub/qstat/qalter etc ..."
+echo ">> OpenPBS is installed under: ${OPENPBS_INSTALL_DIR}"
+echo ">> Add /bin/soca_${SCHEDULER_IDENTIFIER} to your .bashrc or .bash_profile to automatically run this script"
 echo ">> Type exit to close this shell"
 echo "======================== "
-export PS1="(soca_openpbs) \u@\h:\w# "
+export PS1="(soca_openpbs) \u@\h:\w\$ "
 exec "$SHELL" -i
 
 EOF
-    chmod +x /bin/soca_pbs_${SCHEDULER_IDENTIFIER}
+    chmod +x /bin/soca_${SCHEDULER_IDENTIFIER}
 
     log_info "Creating new one with patched PBS_CONF_FILE /etc/systemd/system/soca_scheduler_${SCHEDULER_IDENTIFIER}.service"
     cat << EOF > "/etc/systemd/system/soca_scheduler_${SCHEDULER_IDENTIFIER}.service"
 [Unit]
 Documentation=man:pbs(8)
 SourcePath=${OPENPBS_INSTALL_DIR}/libexec/pbs_init.d
-Description=Manage Portable Batch System installed via SOCA
+Description=Manage OpenPBS installed via SOCA
 After=network-online.target remote-fs.target nss-lookup.target
 Wants=network-online.target
 DefaultDependencies=true
 
 [Service]
-Environment="PBS_CONF_FILE=${OPENPBS_PBS_HOME}/pbs.conf"
+Environment="PBS_CONF_FILE=${OPENPBS_INSTALL_DIR}/pbs.conf"
+Environment="PBS_EXEC=${OPENPBS_INSTALL_DIR}"
+Environment="PBS_HOME=${OPENPBS_PBS_HOME}"
 Type=forking
 Restart=no
 TimeoutStartSec=0

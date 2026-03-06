@@ -17,6 +17,7 @@ logger = logging.getLogger("soca_logger")
 
 class SocaConfigKeyVerifier:
     _IMMUTABLE_KEYS = [
+        "/configuration/AWSAccountId",
         "/configuration/ClusterId",
         "/configuration/Region",
         "/packages/controller",
@@ -37,6 +38,7 @@ class SocaConfigKeyVerifier:
         "validate_feature_flags",
         "validate_custom_tags",
         "validate_schedulers",
+        "validate_hooks",
     ]
 
     _KEY_CONFIG_FILE = f"/opt/soca/{os.environ.get('SOCA_CLUSTER_ID')}/cluster_manager/utils/settings/socaconfig_key_validator.yml"
@@ -101,8 +103,11 @@ class SocaConfigKeyVerifier:
         if "/configuration/CustomTags/" in key:
             _validation_test = "validate_custom_tags"
 
-        if "/configuration/Schedulers/" in key:
+        if "/configuration/HPC/schedulers/" in key:
             _validation_test = "validate_schedulers"
+
+        if "/configuration/HPC/hooks/" in key:
+            _validation_test = "validate_hooks"
 
         logger.debug(f"Detected Validation Test for {key} -> {_validation_test}")
         if _validation_test is None:
@@ -140,6 +145,9 @@ class SocaConfigKeyVerifier:
                 elif _validation_test == "validate_schedulers":
                     _result = self.validate_schedulers(flag_value=value)
 
+                elif _validation_test == "validate_hooks":
+                    _result = self.validate_hooks(flag_value=value)
+
                 elif _validation_test == "list_of_ec2_subnet_ids":
                     _list_of_subnets = ast.literal_eval(value)
                     if not isinstance(_list_of_subnets, list):
@@ -157,6 +165,14 @@ class SocaConfigKeyVerifier:
                 return SocaResponse(success=False, message=_result)
 
     @staticmethod
+    def validate_hooks(flag_value: str):
+        try:
+            bool(flag_value)
+            return True
+        except Exception as err:
+            return f"{flag_value} must be a boolean"
+
+    @staticmethod
     def validate_schedulers(flag_value: str):
         try:
             _flag_value = ast.literal_eval(flag_value)
@@ -172,7 +188,7 @@ class SocaConfigKeyVerifier:
         ]
 
         _lsf_configuration_keys = ["version", "lsf_top"]
-        _pbs_configuration_keys = ["install_prefix_path", "pbs_home"]
+        _pbs_configuration_keys = ["pbs_exec", "pbs_home"]
         _slurm_configuration_keys = ["install_prefix_path", "install_sysconfig_path"]
 
         if not isinstance(_flag_value, dict):
@@ -258,27 +274,27 @@ class SocaConfigKeyVerifier:
             else:
                 if str(_flag_value.get("Enabled")).lower() not in ["true", "false"]:
                     return (
-                        "Enabled value is not a boolean, must be either True or False"
+                        f"Enabled value is not a boolean, must be either True or False"
                     )
 
             if "Key" not in _flag_value.keys():
                 return f"Key is missing in {_flag_value}"
             else:
                 if not isinstance(_flag_value.get("Key"), str):
-                    return "Key is not a str"
+                    return f"Key is not a str"
                 else:
                     if (
                         _flag_value.get("Key").startswith("soca:")
                         or _flag_value.get("Key").startswith("aws:")
                         or _flag_value.get("Key") == "Name"
                     ):
-                        return "Key cannot start with soca: or aws: or be 'Name'"
+                        return f"Key cannot start with soca: or aws: or be 'Name'"
 
             if "Value" not in _flag_value.keys():
                 return f"Value is missing in {_flag_value}"
             else:
                 if not isinstance(_flag_value.get("Value"), str):
-                    return "Value value is not a str"
+                    return f"Value value is not a str"
 
             return True
 
@@ -298,14 +314,14 @@ class SocaConfigKeyVerifier:
             else:
                 if str(_flag_value.get("enabled")).lower() not in ["true", "false"]:
                     return (
-                        "enabled value is not a boolean, must be either True or False"
+                        f"enabled value is not a boolean, must be either True or False"
                     )
 
             if "allowed_users" not in _flag_value.keys():
                 return f"allowed_users key is missing in {_flag_value}"
             else:
                 if not isinstance(_flag_value.get("allowed_users"), list):
-                    return "allowed_users value is not a list"
+                    return f"allowed_users value is not a list"
                 else:
                     for item in _flag_value.get("allowed_users"):
                         if not isinstance(item, str):
@@ -317,7 +333,7 @@ class SocaConfigKeyVerifier:
                 return f"denied_users key is missing in {_flag_value}"
             else:
                 if not isinstance(_flag_value.get("denied_users"), list):
-                    return "denied_users value is not a list"
+                    return f"denied_users value is not a list"
                 else:
                     for item in _flag_value.get("denied_users"):
                         if not isinstance(item, str):
@@ -401,31 +417,31 @@ class SocaConfigKeyVerifier:
                     if all(isinstance(item, str) for item in value):
                         return True
                     else:
-                        return "One or more items in the list are not strings"
+                        return f"One or more items in the list are not strings"
 
             elif list_item_type == "int":
                 if all(isinstance(item, int) for item in value):
                     return True
                 else:
-                    return "One or more items in the list are not integers"
+                    return f"One or more items in the list are not integers"
 
             elif list_item_type == "float":
                 if all(isinstance(item, float) for item in value):
                     return True
                 else:
-                    return "One or more items in the list are not floats"
+                    return f"One or more items in the list are not floats"
 
             elif list_item_type == "dict":
                 if all(isinstance(item, dict) for item in value):
                     return True
                 else:
-                    return "One or more items in the list are not dictionaries"
+                    return f"One or more items in the list are not dictionaries"
 
             elif list_item_type == "list":
                 if all(isinstance(item, list) for item in value):
                     return True
                 else:
-                    return "One or more items in the list are not lists"
+                    return f"One or more items in the list are not lists"
 
         return False
 

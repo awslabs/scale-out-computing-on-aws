@@ -9,5 +9,5 @@ if [[ -z "${SOCA_CLUSTER_ID}" ]]; then
   exit 1
 else
   source "/opt/soca/${SOCA_CLUSTER_ID}/python/latest/soca_python.env"
-  "/opt/soca/${SOCA_CLUSTER_ID}/python/latest/bin/python3" "/opt/soca/${SOCA_CLUSTER_ID}/cluster_manager/tools/socactl/app.py"
+  "/opt/soca/${SOCA_CLUSTER_ID}/python/latest/bin/python3" "$@"
 fi

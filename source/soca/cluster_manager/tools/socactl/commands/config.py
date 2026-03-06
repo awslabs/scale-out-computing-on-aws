@@ -5,7 +5,7 @@ import click
 import sys
 from commands.common import print_output, is_controller_instance
 from commands.cache import set as cache_set
-from utils.aws.ssm_parameter_store import SocaConfig
+from utils.config import SocaConfig
 
 
 @click.group()
@@ -98,13 +98,13 @@ def set(ctx, key, value, called_from=False):
     if is_controller_instance():
         if "/configuration/FileSystems/" in key and called_from != "filesystems":
             print_output(
-                "/configuration/FileSystems/ tree can only be managed via 'socactl filesystems'.",
+                f"/configuration/FileSystems/ tree can only be managed via 'socactl filesystems'.",
                 error=True,
             )
         
-        if "/configuration/Schedulers/" in key and called_from != "schedulers":
+        if "/configuration/HPC/schedulers/" in key and called_from != "schedulers":
             print_output(
-                "/configuration/Schedulers/ tree can only be managed via 'socactl schedulers'.",
+                "/configuration/HPC/schedulers/ tree can only be managed via 'socactl schedulers'.",
                 error=True,
             )
         _update = SocaConfig(key=key).set_value(value=value)
@@ -112,11 +112,11 @@ def set(ctx, key, value, called_from=False):
         if _update.success:
             ctx.meta["echo"] = False
             ctx.invoke(cache_set, key=key, value=value, called_from="config")
-            print_output("Success: Key has been updated successfully")
+            print_output(f"Success: Key has been updated successfully")
         else:
             print_output(f"{_update.message}", error=True)
     else:
-        print_output("This command can only be executed from the SOCA controller host")
+        print_output(f"This command can only be executed from the SOCA controller host")
 
 
 @config.command()
@@ -212,4 +212,4 @@ def rollback(ctx, key, version, force):
                 f"Unable to get history for this key {_get_history}", error=True
             )
     else:
-        print_output("This command can only be executed from the SOCA controller host")
+        print_output(f"This command can only be executed from the SOCA controller host")

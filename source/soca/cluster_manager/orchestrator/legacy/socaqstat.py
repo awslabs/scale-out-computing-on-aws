@@ -20,6 +20,9 @@ import yaml
 import os
 import hashlib
 from datetime import datetime
+sys.path.append(
+    f"/opt/soca/{os.environ.get('SOCA_CLUSTER_ID', 'SOCA_CONFIGURATION_NOT_FOUND')}/cluster_manager"
+)
 from utils.cast import SocaCastEngine
 from prettytable import PrettyTable
 
@@ -64,7 +67,7 @@ if __name__ == "__main__":
     )
     parser.add_argument("-f", "--format", nargs="?", help="json format")
     arg = parser.parse_args()
-    qstat_output = run_command(f"/opt/soca/{os.environ['SOCA_CLUSTER_ID']}/schedulers/default/pbs/bin/qstat -f -F json")
+    qstat_output = run_command(f"/opt/soca/{os.environ['SOCA_CLUSTER_ID']}/schedulers/default/openpbs/bin/qstat -f -F json")
     desktop_queue = ["desktop"]
     job_id_order = []
     output = []

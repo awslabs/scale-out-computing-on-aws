@@ -4,9 +4,51 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Calendar Versioning](https://calver.org/).
 
+## [26.3.0] - 2026-03-06
+
+### Features
+- You can now attach your Virtual Desktop request to existing Capacity Reservation ID created outside of SOCA (either Capacity Reservation of ML Capacity Block)
+- You can now attach your HPC job request to existing Capacity Reservation ID created outside of SOCA (either Capacity Reservation of ML Capacity Block)
+- Adding support for `AlwaysOn` nodes for multi-schedulers (LSF and OpenPBS)
+- Preview support for Altair PBSPro
+- Added support for Image Alias when registering a VDI Software Stacks
+  - This improves the default SOCA installation by not having the Windows AMIs expire after 90-days
+  - For more information - https://docs.aws.amazon.com/ec2/latest/windows-ami-reference/windows-ami-versions.html and https://aws.amazon.com/blogs/mt/query-for-the-latest-windows-ami-using-systems-manager-parameter-store/
+- `orchestrator` transparent migration is now complete and is now the default capacity management mode. You can always use `legacy` mode if needed. Please note `legacy` mode is no longer supported and will be removed later this year.
+- `instance_type` has been superseded by `instance_types` for HPC job attributes. While both are supported for now, please migrate to `instance_types` as `instance_type` will be deprecated in the future. This change is to standardize `SocaHpcJob` naming convention as SOCA accepts a list of instance types for each job.
+- `subnet_id` has been superseded by `subnet_ids` for HPC job attributes. While both are supported for now, please migrate to `subnet_ids` as `subnet_id` will be deprecated in the future. This change is to standardize `SocaHpcJob` naming convention as SOCA accepts a list of subnet IDs for each job.
+- Introduced enforced capacity verification ahead of VDI and HPC node provisioning by leveraging ephemeral capacity reservations to ensure all requested capacity can be fully provisioned.
+- Support of Capacity Block for ML
+
+### Changed
+- `root` user cannot execute custom `bsub` on LSF. Job submission is enforced for LDAP users
+- `SocaConfig` has been moved to `utils.config` from `utils.aws.ssm_parameter_store`
+- `SocaSecret` has been moved to `utils.aws.secretsmanager_client.py` from `utils.aws.secrets_manager.py`
+- Updated AWS Elasticache Engine Version from `7` to `8` for the Valkey engine.
+- SOCA creates discrete log for each job id
+- Added backoff support to `aws_cli` wrappers to prevent bootstrap failures when AWS APIs return throttling errors
+- Bump Nvidia Grid Driver to `580.126.09` (from `570.172.08`)
+- Added Lustre driver support for EL9 kernels `5.14.0-611*`
+- Updated boto3 `1.40.16` to `1.42.29`
+- Capacity provisioning stops after three failed attempts if a job cannot start
+- Job Refresh Grace Time is now configurable (default to `30` minutes)
+- Enable`gr6f` and `g7e` instance families by default for virtual desktops / VDI
+- Updated AWS EFA Installer from `1.43.2` to `1.47.0`
+- Updated DCV to `2024.0` to `2025.0`
+
+### Fixes
+- Fixed a bug that prevented installation in some environments with strict AWS SCPs that require 'tag-on-create'.
+- Fixed IAM role permissions for certificate generation lambda not logging correctly.
+- Fixed a bug that prevented `connection_string` to be updated on target nodes
+- Fixed bootstrap code to support custom shell wrappers for multi-schedulers
+- Fixed a bug that caused the OpenPBS compilation phase to use more CPUs than was active on the instance.
+- Fixed an issue where `--client-ip` was incorrectly being cast as a list of array
+- Updated MUNGE from `0.5.16` to `0.5.18` to address `CVE-2026-25506`
+
+### Known Issues
+- When submitting a high volume of `Rocky8`, `RHEL8`, or `Amazon Linux 2` jobs, external endpoints may impose rate limits that prevent successful downloads of `automake` and `libtool`. If this occurs, download `system.scheduler.openpbs.compatibility_packages.automake` and `system.scheduler.openpbs.compatibility_packages.libtool` to `/apps` or `/data`, then update `cluster_node_boostrap/templates/linux/scheduler/openpbs/install.sh.j2` accordingly. We are planning to implement a better way to handle external dependency in the upcoming releases.
 
 ## [25.11.0] - 2025-11-17
-
 
 ### Features
 - Added support for `Asia Pacific (Taipei)` / `ap-east-2` to SOCA.
@@ -24,7 +66,6 @@ and this project adheres to [Calendar Versioning](https://calver.org/).
 - Preview support to optionally disable Active Directory domain join for ephemeral HPC compute nodes
 
 ### Changed
-
 - Updated `SOCA Controller` default instance type to `m8i-flex.large` in regions where it is available.
 - Updated `OpenSearch` default instance to `m7g.large.search` when SOCA is creating the OpenSearch/Analytics cluster.
 - Removed support for `AWS Directory Service - Simple AD` as a back-end user Directory (disabled in previous releases).
@@ -44,7 +85,6 @@ and this project adheres to [Calendar Versioning](https://calver.org/).
 - Updated OpenPBS installation via git to commit ID `2bf8f31fbd5bbd7fff4b1c620c625d2944b422b1`
 
 ### Fixes
-
 - NVIDIA drivers are now installed correctly on Ubuntu `-aws` kernels
 - Fixed TargetNode hibernation detection defect (seen during launch).
 - Added automatic AZ selection for the `SOCA Controller` based on the selected `Instance Type`. Previously the first AZ in a region was always used but this may change based on AZ-availability of a selected instance type.
@@ -53,7 +93,6 @@ and this project adheres to [Calendar Versioning](https://calver.org/).
 ## [25.8.0] - 2025-08-05
 
 ### In Preview
-
 Features in preview can be enabled in `default_config.yml` (or via `socactl` on running environment) via the new Feature Flags framework.
 These features are not yet considered stable but are available for experimental use.
 
@@ -61,7 +100,6 @@ These features are not yet considered stable but are available for experimental 
 - Introducing `SOCA Containers` management via Amazon Elastic Container Registry (ECR) and Elastic Kubernetes Services (EKS)
 
 ### Features
-
 - Introducing `SOCA Target Nodes`: Manage any AWS AMI directly within SOCA with the ability to create custom User Data for each node
 - Introducing `Feature Flags` and `Web User Personas`. Decide what Web Views and APIs you want to enable/disable per users 
 - SOCA Projects can now control visibility/access for Virtual Desktop Software Stacks, Target Nodes Software Stacks, and Application Profiles
@@ -73,7 +111,6 @@ These features are not yet considered stable but are available for experimental 
 - Added support for Fractional GPU instances (`g6f`)
 
 ### Changed
-
 - Rework how default AMIs are specified between the SOCA revisions and how SOCA Administrators can maintain local configuration files of over-rides. See `installer/region_map.d/README.md` for more information.
 - Endpoint for OpenLDAP now default to the private IP of the SOCA Controller instead of the DNS (handle case where instance has custom DNS)
 - You can now add a description for your Virtual Desktop Profiles
@@ -90,13 +127,11 @@ These features are not yet considered stable but are available for experimental 
 ## [25.5.0] - 2025-05-13
 
 ### Features
-
 - Amazon Linux 2023 can now be used as a Virtual Desktop node
 - Updated Python environment from `3.9.21` from `3.13.2`
 - You can now decide to configure `virtual` or `console` DCV sessions via the web interface
 
 ### Changed
-
 - Updated RHEL9 version from `9.3` to `9.5`
 - Updated Amazon Linux 2023 version from `2023.6` to `2023.7`
 - Misc `pip` package updates
@@ -104,7 +139,6 @@ These features are not yet considered stable but are available for experimental 
 ## [25.3.0] - 2025-03-31
 
 ### Features
-
 - New Base OSes supported:
   - `Windows Server 2022` and `Windows Server 2025` for Windows VDI
   - Ubuntu `22.04 LTS` and Ubuntu `24.04 LTS` for Linux VDI and HPC compute nodes
@@ -142,7 +176,6 @@ These features are not yet considered stable but are available for experimental 
 ## [25.1.0] - 2025-01-28
 
 ### Features
-
 - Introduction of [SOCA Storage AutoMount](https://awslabs.github.io/scale-out-computing-on-aws-documentation/documentation/storage/shared-storage/), a wrapper to simplify filesystems management
 - Added support for FSx for NetApp ONTAP for /apps & /data partitions (including ACL and CIFS automatic setup)
 - Added support for S3-Mountpoint (Mountpoint for Amazon S3 is a simple, high-throughput file client for mounting an Amazon S3 bucket as a local file system)
@@ -176,13 +209,11 @@ These features are not yet considered stable but are available for experimental 
 - Removed redundant/retired Lambdas (`ResetDSPassword`, `GetESPrivateIPLambda`) and associated resources as the functionality has been updated/replaced
 
 ### Fixes
-
 - Improve the experience during installation to regions with limited instance type options.
 - Various smaller fixes (typos, linting, etc)
 - CloudFormation outputs now returns the correct VPC Endpoint for OpenSearch
 
 ### Known Issues
-
 - Some BaseOS combinations may not work in all situations (Controller BaseOS, Compute Node, VDI, etc.) or features due to the age of the BaseOS. BaseOSes that are past their End of Life (EOL) support dates from the supplier may be removed in a future SOCA version.
 - If you select differing architectures (e.g. `x86_64` and `arm64` for the instance_types in the cluster - the cluster will fail). This will be addressed in a future release.
 - Linux VDI/DCV instances default to `Amazon Linux 2` - not the installed BaseOS of the cluster.

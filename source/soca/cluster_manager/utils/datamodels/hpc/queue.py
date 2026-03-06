@@ -11,11 +11,6 @@ logger = logging.getLogger("soca_logger")
 
 
 class SocaHpcQueue(SocaHpcJobResourceModel):
-    class Config:
-        arbitrary_types_allowed = (
-            True  # Allow Pydantic to use Custom types (e.g. FsxLustreConfig)
-        )
-
     queues: list =  Field(default_factory=list)
     max_running_jobs: int = None
     max_provisioned_instances: int = None

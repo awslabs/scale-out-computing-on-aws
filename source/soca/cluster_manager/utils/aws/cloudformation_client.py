@@ -15,6 +15,7 @@ client_cfn = utils_boto3.get_boto(service_name="cloudformation").message
 class SocaCfnClient:
     def __init__(self, stack_name: str):
         self._stack_name = stack_name
+        self._describe_stack = None
 
     def _call_cfn(
         self, action: str, ignore_missing_stack: bool = False, **kwargs
@@ -122,29 +123,48 @@ class SocaCfnClient:
         else:
             return resp  # already a SocaError
 
-
-    def is_stack_older_than(self, minutes: int = 30) -> SocaResponse:
-        resp = self._call_cfn(
-            action="describe_stacks",
-            StackName=self._stack_name
-        )
-        
+    def __describe_stack(self) -> bool:
+        resp = self._call_cfn(action="describe_stacks", StackName=self._stack_name)
         if not resp.get("success"):
-            return resp  # Return the error
-        
-        stack_info = resp.message["Stacks"][0]
-        creation_time = stack_info["CreationTime"]  
-        
+            return False
+        else:
+            self._describe_stack = resp.message
+            return True
+
+    def is_stack_older_than(
+        self, minutes: int = 30, force_describe: bool = False
+    ) -> SocaResponse:
+        if self._describe_stack is None or force_describe is True:
+            if not self.__describe_stack():
+                return SocaError.GENERIC_ERROR(
+                    helper=f"Unable to describe stack {self._stack_name}"
+                )
+
+        stack_info = self._describe_stack["Stacks"][0]
+        creation_time = stack_info["CreationTime"]
+
         current_time = datetime.now(timezone.utc)
         time_difference = (current_time - creation_time).total_seconds() / 60
-        
+
         if time_difference > minutes:
             return SocaResponse(
                 success=True,
-                message=f"Stack {self._stack_name} was created {int(time_difference)} minutes ago"
+                message=f"Stack {self._stack_name} was created {int(time_difference)} minutes ago",
             )
-        
+
         return SocaResponse(
             success=False,
-            message=f"Stack {self._stack_name} was created only {int(time_difference)} minutes ago"
+            message=f"Stack {self._stack_name} was created {int(time_difference)} minutes ago",
         )
+
+    def get_tags(self, force_describe: bool = False):
+        if self._describe_stack is None or force_describe is True:
+            if not self.__describe_stack():
+                return SocaError.GENERIC_ERROR(
+                    helper=f"Unable to describe stack {self._stack_name}"
+                )
+
+        stack_info = self._describe_stack["Stacks"][0]
+
+        _tags = {t["Key"]: t["Value"] for t in stack_info.get("Tags", [])}
+        return SocaResponse(success=True, message=_tags)

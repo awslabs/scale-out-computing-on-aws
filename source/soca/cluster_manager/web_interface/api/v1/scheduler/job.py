@@ -283,12 +283,12 @@ class Job(Resource):
 
             if _interpreter in _all_schedulers:
                 _submit_job = SocaHpcJobSubmit(
-                    scheduler_id=_interpreter, user=_user
+                    scheduler_id=_interpreter, user=_user, cwd=f"{config.Config.USER_HOME}/{_user}"
                 ).submit_encoded_payload(payload=_payload)
 
             elif _interpreter in _valid_system_interpreter:
                 _submit_job = SocaShellScriptSubmit(
-                    interpreter=_interpreter, user=_user
+                    interpreter=_interpreter, user=_user, cwd=f"{config.Config.USER_HOME}/{_user}"
                 ).submit_encoded_payload(payload=_payload)
 
             logger.debug(f"Submit Job Debug Result: {_submit_job}")

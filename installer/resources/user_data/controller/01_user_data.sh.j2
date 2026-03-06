@@ -9,6 +9,12 @@
 # Load common logging feature
 {% include "templates/linux/common/log.sh.j2" %}
 
+# Load  reboot management
+{% include "templates/linux/common/reboot_management.sh.j2" %}
+
+# Load cloud-init wrapper
+{% include "templates/linux/common/cloud_init.sh.j2" %}
+
 # Patch DNS Resolver when using Debian based distributions
 {% include "templates/linux/dns_resolver.sh.j2" %}
 
@@ -32,29 +38,42 @@
 # Remove any previous references of SOCA to the environment file (if any)
 cp /etc/environment /etc/environment.original.$(date +%s)
 sed -i '/SOCA_/d' /etc/environment
+log_info "Running Kernel $(uname -r)"
+unset_reboot_required
 
 # Create SOCA Bootstrap structure
 SOCA_BOOTSTRAP_ASSETS_FOLDER="/root/soca_bootstrap_$(instance_id)"
 SOCA_BOOTSTRAP_LOGS_FOLDER="${SOCA_BOOTSTRAP_ASSETS_FOLDER}/logs"
+
+if [[ ! -d "${SOCA_BOOTSTRAP_ASSETS_FOLDER}" ]]; then
+    log_info "First user data execution, downloading bootstrap sequence"
+    # Retrieve Boostrap sequence from S3
+    {% if context.get("/configuration/Region") in ("us-gov-east-1', 'us-gov-west-1")  %}
+    S3_BUCKET_REGION=$(curl -s --head {{ context.get("/configuration/S3Bucket") }}.s3.{{ context.get("/configuration/Region") }}.amazonaws.com | grep bucket-region | awk '{print $2}' | tr -d '\r\n')
+    {% elif context.get("/configuration/Region") in ("cn-north-1", "cn-northwest-1")  %}
+    S3_BUCKET_REGION=$(curl -s --head {{ context.get("/configuration/S3Bucket") }}.s3.amazonaws.com.cn | grep bucket-region | awk '{print $2}' | tr -d '\r\n')
+    {% else %}
+    S3_BUCKET_REGION=$(curl -s --head {{ context.get("/configuration/S3Bucket") }}.s3.amazonaws.com | grep bucket-region | awk '{print $2}' | tr -d '\r\n')
+    {% endif %}
+
+    log_info "Detected S3 Bucket Region: ${S3_BUCKET_REGION}"
+    # Retrieve Boostrap sequences
+    aws_cli s3 --region ${S3_BUCKET_REGION} sync s3://{{ context.get("/configuration/S3Bucket") }}/{{ context.get("/configuration/ClusterId") }}/config/do_not_delete/bootstrap/controller/ ${SOCA_BOOTSTRAP_ASSETS_FOLDER}
+fi
+
 mkdir -p ${SOCA_BOOTSTRAP_LOGS_FOLDER}
-
 log_info "EC2 UserData script is being executed, check logs in /var/log/cloud-init*" >> "${PRE_FILESYSTEM_MOUNT_LOGS_FOLDER}/01_user_data.sh.log" 2>&1
-
-# Retrieve Boostrap sequence from S3
-{% if context.get("/configuration/Region") in ("us-gov-east-1', 'us-gov-west-1")  %}
-  S3_BUCKET_REGION=$(curl -s --head {{ context.get("/configuration/S3Bucket") }}.s3.{{ context.get("/configuration/Region") }}.amazonaws.com | grep bucket-region | awk '{print $2}' | tr -d '\r\n')
-{% elif context.get("/configuration/Region") in ("cn-north-1", "cn-northwest-1")  %}
-  S3_BUCKET_REGION=$(curl -s --head {{ context.get("/configuration/S3Bucket") }}.s3.amazonaws.com.cn | grep bucket-region | awk '{print $2}' | tr -d '\r\n')
-{% else %}
-  S3_BUCKET_REGION=$(curl -s --head {{ context.get("/configuration/S3Bucket") }}.s3.amazonaws.com | grep bucket-region | awk '{print $2}' | tr -d '\r\n')
-{% endif %}
-
-log_info "Detected S3 Bucket Region: ${S3_BUCKET_REGION}"
-# Retrieve Boostrap sequences
-aws_cli s3 --region ${S3_BUCKET_REGION} sync s3://{{ context.get("/configuration/S3Bucket") }}/{{ context.get("/configuration/ClusterId") }}/config/do_not_delete/bootstrap/controller/ ${SOCA_BOOTSTRAP_ASSETS_FOLDER}
 
 # Install Required System library/packages
 /bin/bash ${SOCA_BOOTSTRAP_ASSETS_FOLDER}/install_required_packages.sh >> ${SOCA_BOOTSTRAP_LOGS_FOLDER}/install_required_packages.sh.log 2>&1
+
+if [[ "$(get_reboot_required)" == "yes" ]]; then
+    cp /var/log/cloud-init-output.log "${SOCA_BOOTSTRAP_LOGS_FOLDER}/cloud-init-output-post-install-required-packages-$(date +%s).log" || echo "/cloud-init-output not found"
+    log_info "Rebooting and re-running user data post install_required_packages"
+    cloud_init_rerun_user_data
+    reboot
+    exit 0 # force cloud-init to stop
+fi
 
 # Continue Bootstrap sequence
 /bin/bash ${SOCA_BOOTSTRAP_ASSETS_FOLDER}/02_prerequisites.sh >> ${SOCA_BOOTSTRAP_LOGS_FOLDER}/02_prerequisites.sh.log 2>&1

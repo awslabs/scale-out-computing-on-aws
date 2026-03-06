@@ -15,7 +15,7 @@ import logging
 import config
 from flask import render_template, Blueprint, request, redirect, session, flash
 from decorators import login_required, admin_only
-from utils.aws.ssm_parameter_store import SocaConfig
+from utils.config import SocaConfig
 from utils.error import SocaError
 from utils.response import SocaResponse
 from utils.http_client import SocaHttpClient

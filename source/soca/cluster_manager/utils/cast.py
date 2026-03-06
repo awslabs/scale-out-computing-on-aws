@@ -19,7 +19,7 @@ def auto_cast(data: Any, type_overrides: Dict[str, Type] = None, _path: str = ""
     """
     Automatically cast a data to its intended type.
     - Supports nested list/dictionary.
-    - Respects nested key overrides, e.g. {"key1.version": str} -> will force {"key1": {"version": "10.1"}} to be a str and not automatically casted to float or such
+    - Respects nested key overrides, e.g. {"key1.version": str} -> will force {"key1": {"version": "10.1"}} to be a str and not automatically cast to float or such
     """
     type_overrides = type_overrides or {}
 

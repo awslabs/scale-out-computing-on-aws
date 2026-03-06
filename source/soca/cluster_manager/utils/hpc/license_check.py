@@ -3,19 +3,23 @@
 
 import logging
 import re
+import pathlib
+import argparse
+import os
 from typing import Optional
 from utils.response import SocaResponse
 from utils.subprocess_client import SocaSubprocessClient
 from utils.error import SocaError
 from utils.cast import SocaCastEngine
-import pathlib
-import argparse
-import os
+
 
 logger = logging.getLogger("soca_logger")
 
 
 class SocaLicenseQuery:
+    """
+    This class returns the number of available licenses for a given feature
+    """
 
     def __init__(
         self,
@@ -32,22 +36,19 @@ class SocaLicenseQuery:
         self._feature = feature
         self._minus = minus
 
-    def flexlm(self, lmutil_path: Optional[str] = None):
-        # Check if SOCA_LMUTIL_PATH environment exist with a path to your lmutil, otherwise fallback to the path specified below
-        # eg: LMUTIL_PATH = os.environ.get("SOCA_LMUTIL_PATH", "/apps/flexlm/bin/lmutil")
-        if lmutil_path is None:
-            logger.info(
-                "lmutil_path not specified, checking if SOCA_LMUTIL_PATH env variable exist"
-            )
-            if (lmutil_path := os.environ.get("SOCA_LMUTIL_PATH", None)) is None:
-                return SocaError.GENERIC_ERROR(
-                    helper="Unable to find lmutil binary, SOCA_LMUTIL_PATH environment variable not set",
-                )
-
+    def flexlm(self, lmutil_path: str) -> SocaResponse:
         if pathlib.Path(lmutil_path).exists() is False:
             return SocaError.GENERIC_ERROR(
                 helper=f"Unable to find lmutil binary, {lmutil_path} does not seems to exisst",
             )
+        else:
+            if not pathlib.Path(lmutil_path).is_file():
+                return SocaError.GENERIC_ERROR(helper=f"{lmutil_path} is not a file")
+
+            if not os.access(lmutil_path, os.X_OK):
+                return SocaError.GENERIC_ERROR(
+                    helper=f"{lmutil_path} is not executable. Run chmod +x {lmutil_path}"
+                )
 
         _lmstat_output = SocaSubprocessClient(
             run_command=f"{lmutil_path} lmstat -a -c {self._port}@{self._server} -f {self._feature}"
@@ -60,6 +61,7 @@ class SocaLicenseQuery:
 
         else:
             _output = _lmstat_output.get("message").get("stdout")
+            logger.debug(f"Received lmstat output: {_lmstat_output}")
             _regex_license_in_use = re.search(
                 r".*Total of(.*)licenses? in use.*", _output, re.MULTILINE
             )
@@ -93,7 +95,7 @@ class SocaLicenseQuery:
                         helper=f"Unable to parse lmstat output {_output} for {_regex_license_issued=}. Error {_licenses_issued.get('message')}"
                     )
                 else:
-                    _licenses_in_use = _licenses_in_use.get("message")
+                    _licenses_issued = _licenses_issued.get("message")
             else:
                 return SocaError.GENERIC_ERROR(
                     helper=f"Unable to parse lmstat output {_output} for {_regex_license_in_use=}"

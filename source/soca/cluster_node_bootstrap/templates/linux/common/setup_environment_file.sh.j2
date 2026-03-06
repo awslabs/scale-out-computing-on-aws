@@ -13,19 +13,23 @@ function set_environment_variable () {
   if [[ -z ${VARIABLE_VALUE} ]]; then
     exit_fail "set_environment_variable. VARIABLE_VALUE (second argument) not found"
   fi
-  log_info "Setting ${VARIABLE_NAME}=${VARIABLE_VALUE} to /etc/environment"
-  if grep -q "^[^#]*${VARIABLE_NAME}=${VARIABLE_VALUE}" /etc/environment; then
-      log_info "${VARIABLE_NAME}=${VARIABLE_VALUE} already found in  /etc/environment, ignoring ..."
-  else
-      if grep -q "^[^#]*${VARIABLE_NAME}=" /etc/environment; then
-        log_info "${VARIABLE_NAME}= found but not pointing to ${VARIABLE_VALUE}, remove the line ... "
-        sed -i "/^[^#]*${VARIABLE_NAME}=/d" /etc/environment
-      fi
-      log_info "Adding ${VARIABLE_NAME}=${VARIABLE_VALUE} to /etc/environment"
-      {
-        printf "${SOCA_IDENTIFIER}\nexport ${VARIABLE_NAME}=${VARIABLE_VALUE}\n"
-      } >> /etc/environment
+
+  # Quote the value properly
+  local QUOTED_VALUE
+  QUOTED_VALUE=$(printf '%q' "$VARIABLE_VALUE")  # safely quotes spaces and special chars
+
+  log_info "Setting ${VARIABLE_NAME}=${QUOTED_VALUE} to /etc/environment"
+
+  if grep -q "^[^#]*${VARIABLE_NAME}=" /etc/environment; then
+      log_info "${VARIABLE_NAME}= found but not pointing to ${QUOTED_VALUE}, remove the line ... "
+      sed -i "/^[^#]*${VARIABLE_NAME}=/d" /etc/environment
   fi
+
+  log_info "Adding ${VARIABLE_NAME}=${QUOTED_VALUE} to /etc/environment"
+  {
+    printf "%s\nexport %s=%s\n" "$SOCA_IDENTIFIER" "$VARIABLE_NAME" "$QUOTED_VALUE"
+  } >> /etc/environment
+
   # Reload your env
   source /etc/environment
 }

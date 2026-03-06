@@ -22,6 +22,8 @@ if [[ -f "/root/.soca_bootstrap_controller_{{ context.get('/configuration/Cluste
 fi
 
 log_info "Pre-Requisite Start Date: $(date)"
+log_info "Running Kernel $(uname -r)"
+unset_reboot_required
 
 # Set Environment variables
 set_environment_variable "AWS_DEFAULT_REGION" "{{ context.get("/configuration/Region") }}"
@@ -32,7 +34,6 @@ set_environment_variable "SOCA_CLUSTER_ID" "{{ context.get("/configuration/Clust
 set_environment_variable "SOCA_INSTALL_BUCKET" "{{ context.get("/configuration/S3Bucket") }}" # needed for Logs backup
 set_environment_variable "SOCA_VERSION" "{{ context.get("/configuration/Version") }}" # needed for Logs backup
 set_environment_variable "SOCA_HOME" "/opt/soca/{{ context.get("/configuration/ClusterId") }}"
-set_environment_variable "SOCA_BOOTSTRAP_LOGS" "/apps/soca/{{ context.get("/configuration/ClusterId") }}/shared/logs/bootstrap/"
 
 # Create $SOCA_HOME if needed
 mkdir -p ${SOCA_HOME}
@@ -63,6 +64,7 @@ chmod -R 600 /opt/soca/{{ context.get("/configuration/ClusterId") }}/cluster_man
 chmod +x /opt/soca/{{ context.get("/configuration/ClusterId") }}/cluster_manager/orchestrator/socaqstat.py
 chmod +x /opt/soca/{{ context.get("/configuration/ClusterId") }}/cluster_manager/tools/j2generator/j2generator.sh
 chmod +x /opt/soca/{{ context.get("/configuration/ClusterId") }}/cluster_manager/socactl
+chmod +x /opt/soca/{{ context.get("/configuration/ClusterId") }}/cluster_manager/socapython
 chmod +x /opt/soca/{{ context.get("/configuration/ClusterId") }}/cluster_manager/analytics/wrapper.sh
 chmod +x /opt/soca/{{ context.get("/configuration/ClusterId") }}/cluster_manager/orchestrator/jobs_dispatcher.sh
 chmod +x /opt/soca/{{ context.get("/configuration/ClusterId") }}/cluster_manager/orchestrator/nodes_manager.sh
@@ -83,8 +85,14 @@ while ! aws_cli ssm get-parameter --name "/soca/{{ context.get("/configuration/C
     sleep 120
 done
 
-# Mount Filesystems
+# Mount Filesystems - Reboot may be needed for Lustre Client
 /bin/bash "${SOCA_BOOTSTRAP_ASSETS_FOLDER}/filesystems_automount.sh" >> "${SOCA_BOOTSTRAP_LOGS_FOLDER}/filesystems_mount.log" 2>&1
+if [[ "$(get_reboot_required)" == "yes" ]]; then
+    cp /var/log/cloud-init-output.log "${SOCA_BOOTSTRAP_LOGS_FOLDER}/cloud-init-output-post-filesystems-mount-$(date +%s).log" || echo "/cloud-init-output not found"
+    log_info "Rebooting and re-running user data post filesystems_automount"
+    cloud_init_rerun_user_data
+    reboot
+fi
 
 # This shared location will be used to centralize bootstrap logs for easy troubleshooting as well as other automation tools
 log_info "Creating /apps/soca/{{ context.get("/configuration/ClusterId") }}/shared"

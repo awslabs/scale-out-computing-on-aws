@@ -41,7 +41,7 @@ from flask import Flask
 from werkzeug.utils import secure_filename
 from cachetools import TTLCache
 from datetime import datetime, timezone
-from utils.aws.ssm_parameter_store import SocaConfig
+from utils.config import SocaConfig
 from utils.user_filesystems_acls import check_user_permission, Permissions
 import pathlib
 

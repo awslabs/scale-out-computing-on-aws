@@ -16,7 +16,7 @@ import logging
 import os
 import sqlite3
 import datetime
-from utils.aws.ssm_parameter_store import SocaConfig
+from utils.config import SocaConfig
 
 logger = logging.getLogger("scheduled_tasks_db_backup")
 

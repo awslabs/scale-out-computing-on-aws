@@ -160,7 +160,7 @@
                         const cost_compute_ondemand = cost_data.compute.estimated_on_demand_cost
 
                         const cost_response = '<h4>Estimated Cost: $' + cost_data.estimated_total_cost + ' <small>($' + cost_data.estimated_hourly_cost + ' / hour)</small></h4> \
-                          This estimate is based on a simulation time of ' + cost_data.compute.walltime + ' hour(s) \
+                          This estimate is based on a simulation time of ' + cost_data.compute.walltime + ' hour(s) with HyperThreading support set to True \
                          <hr> \
                          <div class="progress" style="height:30px"> \
                          <div class="progress-bar bg-primary" role="progressbar" style="width: ' + cost_data.compute_pct + '%;height:30px" aria-valuenow="' + cost_data.compute_pct + '" aria-valuemin="0" aria-valuemax="100"> Compute ($' + cost_data.compute.estimated_on_demand_cost + ') </div> \

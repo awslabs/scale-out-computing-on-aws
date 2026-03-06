@@ -69,6 +69,7 @@
                 "ec2:DescribeSpotFleetInstances",
                 "ec2:DescribeSpotFleetRequestHistory",
                 "ec2:ModifyFleet",
+                "ec2:ModifyInstancePlacement",
                 "elasticfilesystem:DescribeMountTargets",
                 "fsx:DescribeFileSystems",
                 "fsx:DescribeVolumes",
@@ -124,7 +125,8 @@
                 "arn:%%AWS_PARTITION%%:ec2:*:%%AWS_ACCOUNT_ID%%:network-interface/*",
                 "arn:%%AWS_PARTITION%%:ec2:*:%%AWS_ACCOUNT_ID%%:instance/*",
                 "arn:%%AWS_PARTITION%%:ec2:*:%%AWS_ACCOUNT_ID%%:fleet/*",
-                "arn:%%AWS_PARTITION%%:ec2:*:%%AWS_ACCOUNT_ID%%:capacity-reservation/*"
+                "arn:%%AWS_PARTITION%%:ec2:*:%%AWS_ACCOUNT_ID%%:capacity-reservation/*",
+                "arn:%%AWS_PARTITION%%:ec2:*:%%AWS_ACCOUNT_ID%%:placement-group/*"
             ],
             "Effect": "Allow"
         },

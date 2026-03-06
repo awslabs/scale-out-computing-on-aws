@@ -4,7 +4,7 @@
 import click
 import sys
 from commands.common import print_output, is_controller_instance
-from utils.aws.ssm_parameter_store import SocaConfig
+from utils.config import SocaConfig
 from utils.subprocess_client import SocaSubprocessClient
 import json
 import os
@@ -30,12 +30,14 @@ def get_user_groups(user: str) -> list:
     if _check_names_output.get("success"):
         group_names = _check_names_output.get("message").get("stdout").split()
     else:
-        print_output(message=_check_names_output, error=True)
+        group_names = []
+        print_output(message=_check_names_output)
 
     if _check_gids_output.get("success"):
         group_gids = _check_gids_output.get("message").get("stdout").split()
     else:
-        print_output(message=_check_gids_output, error=True)
+        group_gids = []
+        print_output(message=_check_gids_output)
 
     groups = []
     for name, gid in zip(group_names, group_gids):

@@ -36,6 +36,20 @@ function packages_install () {
   {% endif %}
 }
 
+function packages_install_file () {
+  # Install local package files (e.g: packages_install_file file1.rpm file2.rpm | file1.deb)
+  if [[ $# -eq 0 ]]; then
+    exit_fail "packages_install_file - No package files specified. Exiting..."
+  fi
+
+  {% if context.get("/configuration/BaseOS") in ("amazonlinux2", "amazonlinux2023", "centos7", "rhel7", "rhel8", "rhel9", "rocky8", "rocky9") %}
+    packages_exec_command rpm -Uvh "${@}"
+  {% elif context.get("/configuration/BaseOS") in ("ubuntu2204","ubuntu2404") %}
+    export DEBIAN_FRONTEND=noninteractive
+    packages_exec_command dpkg -i "${@}" || packages_exec_command apt-get -f install -y
+  {% endif %}
+}
+
 function verify_package_installed () {
   # Return "true" is a given package is installed (e.g: verify_package_installed pkg_name)
   if [[ $# -eq 0 ]]; then

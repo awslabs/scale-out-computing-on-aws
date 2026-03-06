@@ -2586,7 +2586,7 @@ if __name__ == "__main__":
     os.chdir(path=_install_directory)
 
     # Append Solution ID to Boto3 Construct
-    aws_solution_user_agent = {"user_agent_extra": "AwsSolution/SO0072/25.11.0"}
+    aws_solution_user_agent = {"user_agent_extra": "AwsSolution/SO0072/26.3.0"}
     boto_extra_config = config.Config(**aws_solution_user_agent)
 
     splash_info = f"""
@@ -3198,7 +3198,7 @@ if __name__ == "__main__":
 
         if install_parameters.get("client_ip", ""):
             logger.warning(
-                f"We determined your IPv4 address is {install_parameters['client_ip']}. You can change it later if you are running behind a proxy"
+                f"We determined your IPv4 address is {', '.join(install_parameters['client_ip'])}. You can change it later if you are running behind a proxy"
             )
         else:
             logger.warning(

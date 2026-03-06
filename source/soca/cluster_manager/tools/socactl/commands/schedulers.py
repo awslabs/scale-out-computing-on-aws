@@ -34,12 +34,12 @@ def schedulers():
 @click.pass_context
 def get(ctx, scheduler_identifier, output, flatten, return_output=False):
     if scheduler_identifier is not None:
-        if "/configuration/Schedulers/" in scheduler_identifier:
+        if "/configuration/HPC/schedulers/" in scheduler_identifier:
             _ssm_key = scheduler_identifier
         else:
-            _ssm_key = f"/configuration/Schedulers/{scheduler_identifier}"
+            _ssm_key = f"/configuration/HPC/schedulers/{scheduler_identifier}"
     else:
-        _ssm_key = "/configuration/Schedulers/"
+        _ssm_key = "/configuration/HPC/schedulers/"
 
     ctx.meta["echo"] = False
     _get_key = ctx.invoke(config_get, key=_ssm_key)
@@ -65,7 +65,7 @@ def get(ctx, scheduler_identifier, output, flatten, return_output=False):
             )
         _scheduler_data = {}
         for key, value in _get_key.items():
-            parts = key.replace("/configuration/Schedulers/", "").split("/")
+            parts = key.replace("/configuration/HPC/schedulers/", "").split("/")
             current_dict = _scheduler_data
             for part in parts[:-1]:
                 if part not in current_dict:
@@ -185,8 +185,8 @@ def set(
             "version",
             "lsf_top",
         ],
-        "openpbs": ["install_prefix_path", "pbs_home"],
-        "pbspro": ["install_prefix_path", "pbs_home"],
+        "openpbs": ["pbs_exec", "pbs_home"],
+        "pbspro": ["pbs_exec", "pbs_home"],
         "slurm": ["install_prefix_path", "install_sysconfig_path"],
     }
 
@@ -288,7 +288,7 @@ def set(
     
     if ctx.meta.get("ignore_key_already_exist", False) is False:
         if ctx.invoke(
-            config_key_exists, key=f"/configuration/Schedulers/{scheduler_identifier}"
+            config_key_exists, key=f"/configuration/HPC/schedulers/{scheduler_identifier}"
         ):
             print_output(
                 message=f"Scheduler {scheduler_identifier} already exists", error=True
@@ -297,7 +297,7 @@ def set(
     ctx.meta["echo"] = True
     ctx.invoke(
         config_set,
-        key=f"/configuration/Schedulers/{scheduler_identifier}",
+        key=f"/configuration/HPC/schedulers/{scheduler_identifier}",
         value=str(_scheduler_configuration),
         called_from="schedulers",
     )

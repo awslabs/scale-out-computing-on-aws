@@ -7,8 +7,9 @@ import os
 from utils.response import SocaResponse
 from utils.subprocess_client import SocaSubprocessClient
 from utils.error import SocaError
+from utils.config import SocaConfig
 from utils.datamodels.hpc.scheduler import SocaHpcSchedulerProvider
-from utils.aws.cloudformation_helper import SocaCfnClient
+from utils.aws.cloudformation_client import SocaCfnClient
 from utils.cast import SocaCastEngine
 from typing import Any, Optional, Literal
 from utils.hpc.scheduler_command_builder import (
@@ -16,6 +17,8 @@ from utils.hpc.scheduler_command_builder import (
     SocaHpcLSFJobCommandBuilder,
     SocaHpcSlurmJobCommandBuilder,
 )
+from utils.datamodels.hpc.shared.job_resources import SocaHpcJobProvisioningState
+
 import re
 
 logger = logging.getLogger("soca_logger")
@@ -25,7 +28,7 @@ class SocaHpcJobController:
 
     def __init__(
         self,
-        job: SocaHpcJobLSF | SocaHpcJobPBS,
+        job: "SocaHpcJobLSF" | "SocaHpcJobPBS" | "SocaHpcJobSlurm",
     ):
 
         self._job = job
@@ -37,11 +40,13 @@ class SocaHpcJobController:
         logger.debug(
             f"Receive set_error_message for Job {self._job.job_id} with errors {errors}"
         )
+        _sanitized_errors = []
+        for error in errors:
+            _sanitized_error = f"ERROR_{re.sub(r'[^a-zA-Z0-9_ ]', '', str(error)).replace(' ', '_')}_END_OF_ERROR"
+            if _sanitized_error not in _sanitized_errors:
+                _sanitized_errors.append(_sanitized_error)
 
-        _sanitized_errors = "".join(
-            f"ERROR_{re.sub(r'[^a-zA-Z0-9 ]', '', str(s)).replace(' ', '_')}_END_OF_ERROR_"
-            for s in list(set(errors))
-        )
+        _errors_list = "_".join(_sanitized_errors)
 
         if self._scheduler_info.provider in [
             SocaHpcSchedulerProvider.OPENPBS,
@@ -49,20 +54,27 @@ class SocaHpcJobController:
         ]:
             _update_error_message = self.pbs_update_resource(
                 resource_name="error_message",
-                resource_value=_sanitized_errors,
+                resource_value=_errors_list,
             )
 
         elif self._scheduler_info.provider == SocaHpcSchedulerProvider.LSF:
             _update_error_message = self.lsf_update_job_description(
                 resource_name="error_message",
-                resource_value=_sanitized_errors,
+                resource_value=_errors_list,
             )
 
         elif self._scheduler_info.provider == SocaHpcSchedulerProvider.SLURM:
             _update_error_message = self.slurm_update_comment(
                 resource_name="error_message",
-                resource_value=_sanitized_errors,
+                resource_value=_errors_list,
             )
+
+        logging.info(
+            "Error detected, setting job provisioning state to COMPUTE_PROVISIONING_BLOCKED"
+        )
+        self._job.job_provisioning_state = (
+            SocaHpcJobProvisioningState.COMPUTE_PROVISIONING_BLOCKED
+        )
 
         if _update_error_message.get("success") is True:
             return SocaResponse(
@@ -349,12 +361,17 @@ class SocaHpcJobController:
                 f"pbs_update_resource is only available if the scheduler is PBS, found {self._scheduler_info}"
             )
 
-        if resource_value is None:
-            resource_value = ""  # empty value = resource removed
-
-        _run_command = SocaHpcPBSJobCommandBuilder(
-            scheduler_info=self._scheduler_info
-        ).qalter(args=f"-l {resource_name}={resource_value} {self._job.job_id}")
+        if resource_value is None or resource_value == "":
+            logger.info(
+                f"Found empty value for {resource_name=}, removing it from job resource requirement"
+            )
+            _run_command = SocaHpcPBSJobCommandBuilder(
+                scheduler_info=self._scheduler_info
+            ).qalter(args=f"-l {resource_name} {self._job.job_id}")
+        else:
+            _run_command = SocaHpcPBSJobCommandBuilder(
+                scheduler_info=self._scheduler_info
+            ).qalter(args=f"-l {resource_name}={resource_value} {self._job.job_id}")
 
         if not _run_command:
             return SocaError.GENERIC_ERROR(
@@ -382,31 +399,49 @@ class SocaHpcJobController:
                 helper=f"Unable to update resource {resource_name} to {resource_value} for job {self._job.job_id} due to {_job_data.get('message')}"
             )
 
-    def refresh_cloudformation_stack(self) -> SocaResponse:
+    def reset_cloudformation_stack_creation(
+        self,
+    ) -> SocaResponse:
         """
-        In case CloudFormation Stack assigned for this job is in error state, try to delete the cloudformation stack and reset stack_id job resource
-        Dispatcher.py will automatically try to re-process this job during the next run
+        This function reset job.compute_node and delete the current associated cloudformation stack id for SOCA to create a new one for the job in the next cycle
         """
-        _stack_grace_period_in_minutes = 30
-        _max_retry_attempt = 3
-        _current_retry_count = self._job.job_failed_provisioning_retry_count
+        if (
+            _check_grace_period := SocaConfig(
+                key="/system/orchestration/stack_grace_period_in_minutes"
+            ).get_value(return_as=int)
+        ).get("success"):
+            stack_grace_period_in_minutes = _check_grace_period.get("message")
+        else:
+            logger.error(f"{_check_grace_period} is not a valid integer, default to 45")
+            stack_grace_period_in_minutes = 45
 
-        _stack_older_than = SocaCfnClient(
-            stack_name=self._job.stack_id
-        ).is_stack_older_than(minutes=_stack_grace_period_in_minutes)
-        if _stack_older_than.get("success") is False:
-            return SocaError.GENERIC_ERROR(
-                helper=f"Stack for job {self._job.job_id} won't be refreshed because it was created less than {_stack_grace_period_in_minutes} minutes ago.{_stack_older_than.get('message')}"
-            )
+        _current_retry_count = self._job.job_failed_provisioning_retry_count
+        logger.info(
+            f"Current retry Count for {self._job.job_id=} is {_current_retry_count}"
+        )
+        # Note: Grace priod does not apply if the stack state is in error. (e.g: no point in waiting 30 minutes if the stack is already CREATE_FAILED)
+        # Grace period only apply if the capacity is being/has been provisioned correctly
+        if (
+            self._job.job_provisioning_state
+            and self._job.job_provisioning_state
+            != SocaHpcJobProvisioningState.COMPUTE_PROVISIONING_BLOCKED
+        ):
+
+            _stack_older_than = SocaCfnClient(
+                stack_name=self._job.stack_id
+            ).is_stack_older_than(minutes=stack_grace_period_in_minutes)
+            if _stack_older_than.get("success") is False:
+                # Return HTTP 201. The stack cannot be rebuilt, but this is considered a non-blocking rewrite
+                # see dispatcher.py
+                return SocaResponse(
+                    success=True,
+                    status_code=201,
+                    message=f"Stack for job {self._job.job_id} won't be rebuilt because it was created less than {stack_grace_period_in_minutes} minutes ago.{_stack_older_than.get('message')}",
+                )
 
         logger.info(
-            f"Received Job CloudFormation Stack Refresh for {self._job.job_id}, ({_current_retry_count=} / {_max_retry_attempt=})"
+            f"Stack is outside of the grace period, received Job CloudFormation Stack Rebuild for {self._job.job_id}, ({_current_retry_count=})"
         )
-
-        if _current_retry_count >= _max_retry_attempt:
-            return SocaError.GENERIC_ERROR(
-                helper=f"Unable to refresh stack for job {self._job.job_id} due to max retry attempt ({_max_retry_attempt}) reached"
-            )
 
         _delete_stack = SocaCfnClient(stack_name=self._job.stack_id).delete_stack(
             ignore_missing_stack=True
@@ -475,6 +510,7 @@ class SocaHpcJobController:
                 logger.info(
                     f"Successfully updated resource {resource_name} to {resource_value} for job {self._job.job_id}"
                 )
+        return SocaResponse(success=True, message="Stack Refreshed")
 
     def delete_job(self) -> SocaResponse:
         if self._scheduler_info.provider in [

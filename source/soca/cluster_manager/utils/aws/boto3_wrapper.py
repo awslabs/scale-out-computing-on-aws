@@ -4,7 +4,7 @@
 import boto3
 import botocore
 import logging
-from typing import Optional
+from typing import Optional, Literal
 from utils.error import SocaError
 from utils.response import SocaResponse
 
@@ -37,15 +37,31 @@ def get_boto(
     extra_config: Optional[bool] = True,
     resource: Optional[bool] = False,
     endpoint_url: Optional[str] = None,
+    max_attempts: int = 10,
+    retry_mode: Literal[
+        "standard", "adaptive"
+    ] = "standard",  # note: adaptive is experimental  https://docs.aws.amazon.com/boto3/latest/guide/retries.html#standard-retry-mode
 ) -> boto3.session:
+
+    # https://docs.aws.amazon.com/boto3/latest/guide/retries.html
+    retry_config = {"max_attempts": max_attempts, "mode": retry_mode}
+
     if extra_config:
-        _extra_parameters = {"user_agent_extra": "AwsSolution/SO0072/25.11.0"}
+        _extra_parameters = {
+            "user_agent_extra": "AwsSolution/SO0072/26.3.0",
+            "retries": retry_config,
+        }
         _config = botocore.config.Config(**_extra_parameters)
     else:
-        _config = None
+        _config = botocore.config.Config(retries=retry_config)
 
     if not region_name:
         region_name = boto3.Session().region_name
+        if not region_name:
+            return SocaError.AWS_API_ERROR(
+                service_name="boto3",
+                helper="Unable to get boto3 region. Please source /etc/environment or export AWS_DEFAULT_REGION=<region_name>",
+            )
 
     _boto3_params = {
         "service_name": service_name,

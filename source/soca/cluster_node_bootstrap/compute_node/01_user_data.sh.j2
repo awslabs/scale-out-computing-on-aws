@@ -8,8 +8,11 @@
 # Load common logging feature
 {% include "templates/linux/common/log.sh.j2" %}
 
-# Validate umask
-{% include "templates/linux/umask.sh.j2" %}
+# Load  reboot management
+{% include "templates/linux/common/reboot_management.sh.j2" %}
+
+# Load cloud-init wrapper
+{% include "templates/linux/common/cloud_init.sh.j2" %}
 
 # Patch DNS Resolver when using Debian based distributions
 {% include "templates/linux/dns_resolver.sh.j2" %}
@@ -31,46 +34,74 @@
 # Install awscli
 {% include "templates/linux/awscli.sh.j2" %}
 
+log_info "Running Kernel $(uname -r)"
+
 # Remove any previous references of SOCA to the environment file (if any)
 cp /etc/environment /etc/environment.original.$(date +%s)
 sed -i '/SOCA_/d' /etc/environment
+unset_reboot_required
 
 # Note: Log generated prior to filesystems mount will be automatically copied over the POST_FILESYSTEM_MOUNT_LOGS_FOLDER post filesystems mount for simple troubleshooting
 PRE_FILESYSTEM_MOUNT_LOGS_FOLDER="/root/soca_bootstrap_$(instance_id)/logs"
 POST_FILESYSTEM_MOUNT_LOGS_FOLDER="{{ context.get("/job/BootstrapPath") }}/$(hostname -s)"
-SOCA_BOOTSTRAP_ASSETS_FOLDER="/root/soca_bootstrap_$(instance_id)"
+BOOTSTRAP_ASSETS_PATH="/root/soca_bootstrap_$(instance_id)"
+
+if [[ ! -d "${BOOTSTRAP_ASSETS_PATH}" ]]; then
+    log_info "First user data execution, downloading bootstrap sequence"
+    # Retrieve Boostrap sequence from S3
+    {% if context.get("/configuration/Region") in ("us-gov-east-1', 'us-gov-west-1")  %}
+    S3_REGION=$(curl -s --head {{ context.get("/configuration/S3Bucket") }}.s3.{{ context.get("/configuration/Region") }}.amazonaws.com | grep bucket-region | awk '{print $2}' | tr -d '\r\n')
+    {% elif context.get("/configuration/Region") in ("cn-north-1", "cn-northwest-1")  %}
+    S3_REGION=$(curl -s --head {{ context.get("/configuration/S3Bucket") }}.s3.amazonaws.com.cn | grep bucket-region | awk '{print $2}' | tr -d '\r\n')
+    {% else %}
+    S3_REGION=$(curl -s --head {{ context.get("/configuration/S3Bucket") }}.s3.amazonaws.com | grep bucket-region | awk '{print $2}' | tr -d '\r\n')
+    {% endif %}
+
+    log_info "Downloading Bootstrap script"
+    aws_cli s3 --region ${S3_REGION} sync {{ context.get("/job/BootstrapScriptsS3Location") }} ${BOOTSTRAP_ASSETS_PATH}
+fi
 
 mkdir -p ${PRE_FILESYSTEM_MOUNT_LOGS_FOLDER}
+log_info "UserData started. Logs: /var/log/cloud-init*" >> "${PRE_FILESYSTEM_MOUNT_LOGS_FOLDER}/01_user_data.sh.log" 2>&1
 
-log_info "EC2 UserData script is being executed, checks logs on /var/log/cloud-init*" >> "${PRE_FILESYSTEM_MOUNT_LOGS_FOLDER}/01_user_data.sh.log" 2>&1
+# Install Required System library/packages and reboot if we detect kernel updates
+/bin/bash "${BOOTSTRAP_ASSETS_PATH}/install_required_packages.sh" >> "${PRE_FILESYSTEM_MOUNT_LOGS_FOLDER}/install_required_packages.sh.log" 2>&1
+if [[ "$(get_reboot_required)" == "yes" ]]; then
+    cp /var/log/cloud-init-output.log "${PRE_FILESYSTEM_MOUNT_LOGS_FOLDER}/cloud-init-output-post-install-required-packages-$(date +%s).log"
+    log_info "Rebooting and re-running user data post install_required_packages"
+    cloud_init_rerun_user_data
+    reboot
+    exit 0 # Force cloud-init to stop 
+fi
 
-# Retrieve Boostrap sequence from S3
-{% if context.get("/configuration/Region") in ("us-gov-east-1', 'us-gov-west-1")  %}
-  S3_BUCKET_REGION=$(curl -s --head {{ context.get("/configuration/S3Bucket") }}.s3.{{ context.get("/configuration/Region") }}.amazonaws.com | grep bucket-region | awk '{print $2}' | tr -d '\r\n')
-{% elif context.get("/configuration/Region") in ("cn-north-1", "cn-northwest-1")  %}
-  S3_BUCKET_REGION=$(curl -s --head {{ context.get("/configuration/S3Bucket") }}.s3.amazonaws.com.cn | grep bucket-region | awk '{print $2}' | tr -d '\r\n')
+# Mount Filesystems - Reboot may be needed for Lustre Client
+/bin/bash "${BOOTSTRAP_ASSETS_PATH}/filesystems_automount.sh" >> "${PRE_FILESYSTEM_MOUNT_LOGS_FOLDER}/filesystems_mount.log" 2>&1
+if [[ "$(get_reboot_required)" == "yes" ]]; then
+    cp /var/log/cloud-init-output.log "${PRE_FILESYSTEM_MOUNT_LOGS_FOLDER}/cloud-init-output-post-filesystems-mount-$(date +%s).log" || echo "/cloud-init-output not found"
+    log_info "Rebooting and re-running user data post filesystems_automount"
+    cloud_init_rerun_user_data
+    reboot
+    exit 0 # force cloud-init to stop
+fi
+
+# Add /var/log/message and cloud-init-output to S3 copy
+cp /var/log/messages ${PRE_FILESYSTEM_MOUNT_LOGS_FOLDER}
+cp /var/log/cloud-init-output.log "${PRE_FILESYSTEM_MOUNT_LOGS_FOLDER}/cloud-init-output-final-$(date +%s).log"
+
+# Send logs to S3 in case the filesystem mount failed
+{% if context.get("/job/NodeType") == "compute_node" %}
+  aws_cli s3 sync "${PRE_FILESYSTEM_MOUNT_LOGS_FOLDER}" "s3://{{ context.get("/configuration/S3Bucket") }}/{{ context.get("/configuration/ClusterId") }}/{{ context.get("/configuration/Version") }}/bootstrap_logs_pre_filesystem_mount/compute_node/{{ context.get("/job/JobId") }}/$(hostname -s)/" 2>&1
 {% else %}
-  S3_BUCKET_REGION=$(curl -s --head {{ context.get("/configuration/S3Bucket") }}.s3.amazonaws.com | grep bucket-region | awk '{print $2}' | tr -d '\r\n')
+  aws_cli s3 sync "${PRE_FILESYSTEM_MOUNT_LOGS_FOLDER}" "s3://{{ context.get("/configuration/S3Bucket") }}/{{ context.get("/configuration/ClusterId") }}/{{ context.get("/configuration/Version") }}/bootstrap_logs_pre_filesystem_mount/dcv_node/{{ context.get("/dcv/SessionOwner") }}/{{ context.get("/dcv/SessionName") }}/$(hostname -s)/" 2>&1
 {% endif %}
-
-log_info "Downloading SOCA_BOOTSTRAP_SEQUENCE from: {{ context.get("/job/BootstrapScriptsS3Location") }}"
-aws_cli s3 --region ${S3_BUCKET_REGION} sync {{ context.get("/job/BootstrapScriptsS3Location") }} ${SOCA_BOOTSTRAP_ASSETS_FOLDER}
-
-# Install Required System library/packages
-/bin/bash "${SOCA_BOOTSTRAP_ASSETS_FOLDER}/install_required_packages.sh" >> "${PRE_FILESYSTEM_MOUNT_LOGS_FOLDER}/install_required_packages.sh.log" 2>&1
-
-# Mount Filesystems
-/bin/bash "${SOCA_BOOTSTRAP_ASSETS_FOLDER}/filesystems_automount.sh" >> "${PRE_FILESYSTEM_MOUNT_LOGS_FOLDER}/filesystems_mount.log" 2>&1
 
 # Create new log path in shared partition & apply permissions
 mkdir -p ${POST_FILESYSTEM_MOUNT_LOGS_FOLDER}
 chmod 600 ${POST_FILESYSTEM_MOUNT_LOGS_FOLDER}
 
 # Copy the User Data log into the shared filesystem to simplify troubleshooting
-cp /var/log/messages ${POST_FILESYSTEM_MOUNT_LOGS_FOLDER} || echo "/var/log/messages found on this system"
-cp /var/log/cloud-init* ${POST_FILESYSTEM_MOUNT_LOGS_FOLDER} || echo "/var/log/cloud-init not found on this system"
-cp "${PRE_FILESYSTEM_MOUNT_LOGS_FOLDER}/*" ${POST_FILESYSTEM_MOUNT_LOGS_FOLDER}
-
+cp "${PRE_FILESYSTEM_MOUNT_LOGS_FOLDER}"/* ${POST_FILESYSTEM_MOUNT_LOGS_FOLDER}
 echo "{{ context.get("/job/BootstrapScriptsS3Location") }}" >> "${POST_FILESYSTEM_MOUNT_LOGS_FOLDER}/bootstrap_s3_location.log"
 
-/bin/bash "${SOCA_BOOTSTRAP_ASSETS_FOLDER}/02_setup.sh" >> "${POST_FILESYSTEM_MOUNT_LOGS_FOLDER}/02_setup.log" 2>&1
+# Continue bootstrap phase
+/bin/bash "${BOOTSTRAP_ASSETS_PATH}/02_setup.sh" >> "${POST_FILESYSTEM_MOUNT_LOGS_FOLDER}/02_setup.log" 2>&1

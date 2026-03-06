@@ -131,7 +131,7 @@
                                                                 <span class="badge badge-info">Capacity being provisioned</span>
                                                                 {% endif %}
 
-                                                                {% if job.job_provisioning_state in ["COMPUTE_PROVISIONING_BLOCKED", "COMPUTE_PROVISIONING_ERROR"] %}
+                                                                {% if job.job_provisioning_state in ["COMPUTE_PROVISIONING_BLOCKED", "COMPUTE_PROVISIONING_ERROR", "MAX_RETRY_ATTEMPTS_REACHED"] %}
                                                                 <span class="badge badge-danger">Capacity provisioning blocked</span>
                                                                 {% endif %}
 
@@ -164,7 +164,12 @@
                                                             {% endif %}                                                     
 
                                                         </th>
-                                                        <th> {{ job.cpus }} vCPU{{'s' if job.cpus > 1 else ''}} ({{ job.nodes }} node{{'s' if job.nodes > 1 else ''}}) </th>
+                                                        <th> 
+                                                            {% if job.cpus is not none and job.nodes is not none %}
+                                                              {{ job.cpus }} vCPU{{'s' if job.cpus > 1 else ''}} ({{ job.nodes }} node{{'s' if job.nodes > 1 else ''}})
+                                                            {% else %} 
+                                                              N/A 
+                                                           {% endif %} </th>
                                                         <th>
 
                                                              <div class="dropdown">

@@ -5,7 +5,7 @@ import click
 from click.testing import CliRunner
 
 import re
-from commands.common import print_output, is_controller_instance
+from commands.common import print_output, is_controller_instance, confirm
 from commands.config import set as config_set
 from commands.config import get as config_get
 from commands.config import key_exists as config_key_exists
@@ -215,18 +215,13 @@ def set(
     }
     if force is False:
         print_output(_ssm_keys, output="json")
-        while input(
-            "Do you want to create this new filesystem (add --force to skip this confirmation)? (yes/no)"
-        ) not in ["yes", "no"]:
-            if (
-                input(
-                    "Do you want to create this new filesystem (add --force to skip this confirmation? (yes/no)"
-                )
-                == "no"
-            ):
-                print_output(message="Exiting", error=True)
-            else:
-                break
+        if (
+            confirm(
+                prompt="Do you want to create this new filesystem (add --force to skip this confirmation) ?"
+            )
+            is False
+        ):
+            print_output(message="Exiting", error=True)
 
     # proceed to actual filesystem creation
     for key, value in _ssm_keys.items():
@@ -245,21 +240,59 @@ def set(
 @click.option(
     "-k",
     "--key",
-    type=click.Choice(["mount_options", "enabled", "mount_path"]),
+    type=click.Choice(["mount_options", "enabled", "mount_path", "mount_target"]),
     help="You can only update mount_options, enabled or mount_path key for an existing filesystem.",
     required=True,
 )
 @click.option("-v", "--value", help="New value", required=True)
+@click.option(
+    "-p",
+    "--provider",
+    type=click.Choice(["efs", "nfs", "fsx_lustre", "fsx_ontap", "fsx_openzfs", "s3"]),
+    help="Filesystem provider type",
+)
+@click.option(
+    "--force",
+    is_flag=True,
+    default=False,
+    type=bool,
+    help="Force update",
+)
 @click.pass_context
-def update(ctx, filesystem_name, key, value):
+def update(ctx, filesystem_name, key, value, provider, force):
     if filesystem_name in ["apps", "data"]:
-        print_output(message="You cannot update apps or data filesystems", error=True)
+        if force is False:
+            print_output(
+                message="Updating /data or /apps reserved filesystems are not recommended. Pass --force to ignore this error, but be advised this could break provisioning of your new SOCA nodes",
+                error=True,
+            )
 
     if key == "mount_path" and not value.startswith("/"):
         print_output(message="Mount path must start with /", error=True)
 
     if key == "enabled" and value.lower() not in ["true", "false"]:
         print_output(message="Enabled must be true or false", error=True)
+
+    _mount_target_regex = {
+        "efs": r"fs-[0-9a-z]{8,40}",
+        "nfs": r"^((?:(?:[a-zA-Z0-9-]+\.)+[a-zA-Z]{2, }|(?:\d{1, 3}\.){3}\d{1, 3}))(?::\d+)?(?:\/[\w\-/]*)?$",
+        "fsx_lustre": r"fs-[0-9a-z]{8,40}",
+        "fsx_ontap": r"^fsvol-\w{8,}$",
+        "fsx_openzfs": r"fs-[0-9a-z]{8,40}",
+        "s3": r"(?!(^(xn--|sthree-|sthree-configurator)|.+(-s3alias|--ol-s3)$))^[a-z0-9][a-z0-9-]{1,61}[a-z0-9]$",
+    }
+    if key == "mount_target":
+        if provider is None:
+            print_output(
+                message="You must specify the filesystem provider when updating the mount_target. Pass --provider or -p",
+                error=True,
+            )
+        else:
+            if not re.match(_mount_target_regex[provider], value):
+                print_output(
+                    message=f"Selected mount_target value {value} for {filesystem_name} is not valid for provider {provider}. Expected Regex: {_mount_target_regex[provider]}",
+                    error=True,
+                )
 
     if ctx.invoke(get, key=f"/configuration/FileSystems/{filesystem_name}/") is False:
         print_output(message=f"Filesystem {filesystem_name} does not exist", error=True)

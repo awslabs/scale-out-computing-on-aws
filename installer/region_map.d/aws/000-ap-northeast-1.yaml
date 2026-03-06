@@ -1,30 +1,30 @@
 ---
-# SOCA AMI List for commercial partition generated 2025-11-13 21:04:43 UTC
+# SOCA AMI List for commercial partition generated 2026-02-27 08:45:15 UTC
 ap-northeast-1:
   x86_64:
-    amazonlinux2: ami-0c40d378a8f941c31
-    amazonlinux2023: ami-0e68e34976bb4db93
-    rhel10: ami-0d44fa3e34a2d94e8
+    amazonlinux2: ami-0536b5f8533c594b5
+    amazonlinux2023: ami-09cd9fdbf26acc6b4
+    rhel10: ami-005789a3242f1b9f5
     rhel7: ami-029993f94b02017d3
     rhel8: ami-062921cd4e5cbddc1
-    rhel9: ami-0a77f7b7e2a7e9e19
+    rhel9: ami-0e5760175387def4e
     rocky8: ami-0025f1507e375f161
     rocky9: ami-0bdd4b6c4c6feca84
-    ubuntu2204: ami-03873003744ddc492
-    ubuntu2404: ami-02e94d274addde12d
-    windows2019: ami-0c895206f7061b250
-    windows2022: ami-021ea058442ce4a15
-    windows2025: ami-0e0811efc08b3f2aa
+    ubuntu2204: ami-02c675df87c692fb0
+    ubuntu2404: ami-04ae19f2563b23082
+    windows2019: /aws/service/ami-windows-latest/Windows_Server-2019-English-Full-Base
+    windows2022: /aws/service/ami-windows-latest/Windows_Server-2022-English-Full-Base
+    windows2025: /aws/service/ami-windows-latest/Windows_Server-2025-English-Full-Base
   arm64:
-    amazonlinux2: ami-09abcf4e4b7418ed2
-    amazonlinux2023: ami-06378dd4eeaf6261b
-    rhel10: ami-0958365e62a0c53a4
+    amazonlinux2: ami-02fbc4f56e43e0b3e
+    amazonlinux2023: ami-0cae7523f9ec1c8dc
+    rhel10: ami-037279c6a4d70c670
     rhel8: ami-04829c4e2dbb67968
-    rhel9: ami-05886fb339b740dc3
+    rhel9: ami-0ffaa86a635ab4da9
     rocky8: ami-038c72f93d429ad9c
     rocky9: ami-0fabc90488c833b21
-    ubuntu2204: ami-0dae7de3fc301bf80
-    ubuntu2404: ami-0cad1c698be6edc12
+    ubuntu2204: ami-01b72ade4fa30e061
+    ubuntu2404: ami-0ab8a07a8d902b769
   x86_64_mac:
     macos15: ami-0ee3b32ae15372331
-# SOCA AMI List for commercial partition generated 2025-11-13 21:04:43 UTC
+# SOCA AMI List for commercial partition generated 2026-02-27 08:45:15 UTC

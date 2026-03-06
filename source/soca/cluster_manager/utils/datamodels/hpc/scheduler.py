@@ -9,7 +9,7 @@ from pydantic import BaseModel, ValidationInfo, field_validator, model_validator
 from typing import Optional
 from pathlib import Path
 from enum import Enum
-from utils.aws.ssm_parameter_store import SocaConfig
+from utils.config import SocaConfig
 from utils.cast import SocaCastEngine
 
 
@@ -32,7 +32,7 @@ class SocaHpcSchedulerLSFConfig(BaseModel):
     version: str  # LSF version in Major.Minor format (e.g., 10.1 for LSF 10.1.0.14). Verify by checking an existing installation (e.g., /opt/lsf/<version>) or the installer filename (e.g., lsf10.1_lsfinstall_linux_x86_64.tar.Z).
 
 class SocaHpcSchedulerPBSConfig(BaseModel):
-    install_prefix_path: str  # Root directory where PBS binaries and libraries will be installed (e.g., /opt/pbs). This directory must not already exist.
+    pbs_exec: str  # Root directory where PBS binaries and libraries will be installed (e.g., /opt/pbs). This directory must not already exist.
     pbs_home: str  # Directory for PBS runtime and spool files (e.g., /var/spool/pbs). This directory must not already exist.
 
 class SocaHpcSchedulerSlurmConfig(BaseModel):
@@ -59,7 +59,7 @@ def get_schedulers(
     logger.debug("Retrieving all enabled schedulers")
 
     # Returns all enabled schedulers by default. Limit the list by specifying a scheduler_iddentifiers list
-    _scheduler_ssm_prefix = "/configuration/Schedulers/"
+    _scheduler_ssm_prefix = "/configuration/HPC/schedulers/"
     _find_scheduler_config = SocaConfig(key=_scheduler_ssm_prefix).get_value(
         return_as=dict
     )
@@ -138,7 +138,7 @@ def get_schedulers(
                     )
     else:
         logger.error(
-            f"Unable to find SSM /configuration/Schedulers config due to {_find_scheduler_config.get('message')}"
+            f"Unable to find SSM /configuration/HPC/schedulers config due to {_find_scheduler_config.get('message')}"
         )
 
     logger.debug(f"Scheduler List: {_schedulers=}")
@@ -146,9 +146,7 @@ def get_schedulers(
 
 
 class SocaHpcScheduler(BaseModel):
-    class Config:
-        arbitrary_types_allowed = True  # Allow Pydantic to use Custom types
-
+    
     # Scheduler Provider
     provider: SocaHpcSchedulerProvider = None
 
@@ -181,7 +179,7 @@ class SocaHpcScheduler(BaseModel):
     # Required extra configuration if provider is Slurm
     slurm_configuration: Optional[SocaHpcSchedulerSlurmConfig] = None
 
-    # Required extra configuration if provider is LSF
+    # Required extra configuration if provider is PBS
     pbs_configuration: Optional[SocaHpcSchedulerPBSConfig] = None
 
     # Force SOCA to poll a specific queue on a remote scheduler and provision capacity

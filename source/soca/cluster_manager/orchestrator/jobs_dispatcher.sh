@@ -25,13 +25,17 @@ else
 fi
 
 
-# Set SOCA_PREVIEW_NEXTGEN_SCHEDULER to "true" to test the new scheduler logic
-export SOCA_PREVIEW_NEXTGEN_SCHEDULER="false" # force for dev
-# export SOCA_DEBUG=1 # force for dev
+# Set SOCA_LEGACY_SCHEDULER to "false" to use the old orchestration mechanism
+# This scheduling mode is no longer supported
+export SOCA_LEGACY_SCHEDULER="false" 
 
-if [[ "${SOCA_PREVIEW_NEXTGEN_SCHEDULER}" == "true" ]]; then
-    echo "Running in Next Gen Scheduler mode, this is currently in preview and should not be used for production purposes. This module is actively being developed."
-    ${PYTHON_BIN} "${BASE_DIR}/preview/dispatcher.py" -c "${CONFIG_FILE}" -t "${TARGET}"
+# export SOCA_DEBUG=1 # Uncomment to enable SOCA_DEBUG log
+
+if [[ "${SOCA_LEGACY_SCHEDULER}" == "true" ]]; then
+    export PBS_CONF_FILE="/opt/soca/${SOCA_CLUSTER_ID}/schedulers/default/openpbs/pbs.conf"
+    source "${PBS_CONF_FILE}"
+    echo "Running in Legacy Scheduler mode. This mode is not being supported anymore."
+    ${PYTHON_BIN} "${BASE_DIR}/legacy/dispatcher.py" -c "${CONFIG_FILE}" -t "${TARGET}"
 else
     ${PYTHON_BIN} "${BASE_DIR}/dispatcher.py" -c "${CONFIG_FILE}" -t "${TARGET}"
 fi

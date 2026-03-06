@@ -26,7 +26,7 @@ from flask import (
     flash,
 )
 import os
-from utils.aws.ssm_parameter_store import SocaConfig
+from utils.config import SocaConfig
 from utils.error import SocaError
 from utils.subprocess_client import SocaSubprocessClient
 from pathlib import Path

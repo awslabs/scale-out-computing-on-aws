@@ -21,7 +21,7 @@ import utils.aws.boto3_wrapper as utils_boto3
 import utils.aws.odcr_helper as odcr_helper
 from utils.response import SocaResponse
 from utils.error import SocaError
-from utils.aws.ssm_parameter_store import SocaConfig
+from utils.config import SocaConfig
 
 
 logger = logging.getLogger("soca_logger")

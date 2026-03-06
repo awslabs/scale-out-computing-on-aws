@@ -17,7 +17,7 @@ from requests import get, post, put, delete
 from decorators import login_required, feature_flag
 from models import db, VirtualDesktopSessions, SoftwareStacks
 from datetime import datetime, timezone
-from utils.aws.ssm_parameter_store import SocaConfig
+from utils.config import SocaConfig
 from utils.http_client import SocaHttpClient
 from utils.error import SocaError
 from utils.identity_provider_client import SocaIdentityProviderClient

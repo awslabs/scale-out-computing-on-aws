@@ -7,35 +7,48 @@ import logging
 import math
 import sys
 import re
+import botocore
+import uuid
+from itertools import product
+from pathlib import Path
+import shutil
+
 from typing import Optional, get_args
 
 from utils.aws.boto3_wrapper import get_boto
+from utils.validators import Validators
+from utils.cast import SocaCastEngine
 from utils.error import SocaError
 from utils.response import SocaResponse
-from utils.aws.ssm_parameter_store import SocaConfig
+from utils.config import SocaConfig
 from utils.aws.ec2_helper import (
     create_capacity_dry_run,
     describe_images,
     describe_instance_types,
     describe_security_groups,
-    describe_capacity_reservation,
-    describe_subnets,
     validate_ec2_quota_for_instance,
+    create_placement_group,
+    delete_placement_group,
 )
 from utils.aws.fsx_helper import describe_file_systems
-from utils.aws.odcr_helper import create_capacity_reservation
+from utils.aws.odcr_helper import (
+    create_capacity_reservation,
+    cancel_reservation,
+    validate_existing_capacity_reservation,
+)
 
 from utils.aws.iam_helper import get_instance_profile
-from utils.aws.cloudformation_helper import SocaCfnClient
+from utils.aws.cloudformation_client import SocaCfnClient
 from utils.hpc.job_controller import SocaHpcJobController
 from utils.datamodels.hpc.shared.job_resources import (
     SocaHpcJobResourceModel,
     SocaHpcJobProvisioningState,
     SocaHpcJobState,
+    SocaHpcJobOrchestrationMethod,
 )
 from utils.datamodels.hpc.scheduler import SocaHpcScheduler, SocaHpcSchedulerProvider
-from orchestrator.preview.cloudformation_builder import SocaCloudFormationBuilderHpc
-from pydantic import Field
+from utils.datamodels.constants import SocaLinuxBaseOS
+from orchestrator.cloudformation_builder import SocaCloudFormationBuilderHpc
 
 logger = logging.getLogger("soca_logger")
 
@@ -43,11 +56,6 @@ _cloudformation_client = get_boto(service_name="cloudformation").get("message")
 
 
 class SocaHpcJob(SocaHpcJobResourceModel):
-
-    class Config:
-        arbitrary_types_allowed = (
-            True  # Allow Pydantic to use Custom types (e.g. FsxLustreConfig)
-        )
 
     # Additional SocaHpcJobResourceModel resources are loaded from utils.datamodels.job_resources
     # Scheduler Specific attributes will extend this class when you call SocaHpcJobLSF /SocaHpcJobPBS ...
@@ -92,7 +100,7 @@ class SocaHpcJob(SocaHpcJobResourceModel):
     job_scheduler_info: SocaHpcScheduler
 
     # How many times SOCA provisioned capacity but job failed to run. Max attempts count configurable via dispatcher.py
-    job_failed_provisioning_retry_count: int = 0
+    job_failed_provisioning_retry_count: int = 1
 
     # If the job configuration has been validated
     job_config_validated: bool = False
@@ -112,6 +120,11 @@ class SocaHpcJob(SocaHpcJobResourceModel):
 
     # Path to the job output file if specified
     job_output_log_path: Optional[str] = None
+
+    # Job orchestration method
+    job_orchestration_method: SocaHpcJobOrchestrationMethod = (
+        SocaHpcJobOrchestrationMethod.FLEET
+    )
 
     def validate(self) -> SocaResponse:
         """
@@ -150,7 +163,10 @@ class SocaHpcJob(SocaHpcJobResourceModel):
         except Exception as e:
             logger.error(f"Unable to validate SocaHpcJob due to {e}")
             # retrieve any potential other errors
-            self.error_message.append(str(e))
+            _sanitized_error = re.sub(r"[^a-zA-Z0-9_ ]", "", str(e)).replace(" ", "_")
+            if _sanitized_error not in self.error_message:
+                self.error_message.append(_sanitized_error)
+
             # Assign error_message= resource to the job if called from SocaHpcJob
             SocaHpcJobController(job=self).set_error_message(errors=self.error_message)
             return SocaResponse(success=False, message=self.error_message)
@@ -168,66 +184,64 @@ class SocaHpcJob(SocaHpcJobResourceModel):
                         setattr(self, attr_name, False)
 
             if (
-                self.instance_type is None
+                self.instance_types is None
                 or self.root_size is None
                 or self.base_os is None
             ):
                 if self.job_scheduler_info.soca_managed_nodes_provisioning is True:
                     raise ValueError(
-                        "instance_type, root_size and base_os are required when job_scheduler_info.soca_managed_nodes_provisioning is True"
+                        "instance_types, root_size and base_os are required when job_scheduler_info.soca_managed_nodes_provisioning is True"
                     )
 
             # ------------ base_os ------------ #
             logger.debug(f"Validating base_os: {self.base_os}")
-            _allowed_base_os = [
-                "amazonlinux2",
-                "amazonlinux2023",
-                "centos7",
-                "rhel7",
-                "rhel8",
-                "rhel9",
-                "rocky8",
-                "rocky9",
-                "ubuntu2204",
-                "ubuntu2404",
-            ]
             if self.base_os is None:
                 raise ValueError("base_os cannot be null")
             else:
-                if self.base_os not in _allowed_base_os:
+                if self.base_os not in SocaLinuxBaseOS:
                     raise ValueError(
-                        f"{self.base_os} is not part of allowed base_os: {_allowed_base_os}"
+                        f"{self.base_os} is not part of allowed base_os: {SocaLinuxBaseOS}"
                     )
 
             logger.debug(f"base_os validated: {self.base_os}")
             # ------------ /base_os ------------ #
 
-            # ------------ subnet_id ------------ #
-            logger.debug(f"Validating subnet_id: {self.subnet_id}")
+            # ------------ subnet_ids ------------ #
+            logger.debug(f"Validating subnet_ids: {self.subnet_ids}")
             _allowed_private_subnets = (
                 SocaConfig(key="/configuration/PrivateSubnets")
                 .get_value(return_as=list)
                 .get("message")
             )
-            if not self.subnet_id:
-                self.subnet_id = [random.choice(_allowed_private_subnets)]
+            if not self.subnet_ids:
+                self.subnet_ids = [random.choice(_allowed_private_subnets)]
             else:
-                # You can pass an integer as subnet_id value. If that's the case SOCA will returns a sample based on the integer number
-                # Eg: say your /configuration/PrivateSubnets has 15 subnets, launching a job with subnet_id=4 will have SOCA pick 4 randoms subnet IDs from the list
-                try:
-                    _subnet_count = int(self.subnet_id)
+                # You can pass an integer as subnet_ids value. If that's the case SOCA will returns a sample based on the integer number
+                # Eg: say your /configuration/PrivateSubnets has 15 subnets, launching a job with subnet_ids=4 will have SOCA pick 4 randoms subnet IDs from the list
+                _is_subnet_id_int = SocaCastEngine(data=self.subnet_ids).cast_as(
+                    expected_type=int
+                )
+                if _is_subnet_id_int.get("success") is True:
+                    logger.debug(
+                        f"subnet_id is an integer, detected {self.subnet_ids}, SOCA will choose {self.subnet_ids} random subnets"
+                    )
+                    _subnet_count = int(_is_subnet_id_int.get("message"))
                     _subnet_list = random.sample(
                         _allowed_private_subnets,
                         min(_subnet_count, len(_allowed_private_subnets)),
                     )
-                except Exception:
-                    if isinstance(self.subnet_id, str):
-                        _subnet_list = self.subnet_id.split("+")
-                    elif isinstance(self.subnet_id, list):
-                        _subnet_list = self.subnet_id
+                else:
+                    if Validators.is_string(self.subnet_ids) is True:
+                        logger.debug(
+                            f"{self.subnet_ids} is a string, casting it as list with + as separator"
+                        )
+                        _subnet_list = self.subnet_ids.split("+")
+
+                    elif Validators.is_list(self.subnet_ids) is True:
+                        _subnet_list = self.subnet_ids
                     else:
                         raise ValueError(
-                            f"{self.subnet_id=} must either be a list or str"
+                            f"{self.subnet_ids=} must either be a list or str"
                         )
 
                 for _subnet in _subnet_list:
@@ -235,23 +249,26 @@ class SocaHpcJob(SocaHpcJobResourceModel):
                         raise ValueError(
                             f"{_subnet} does not seems to be a SOCA registered private subnet. Allowed value {_allowed_private_subnets}"
                         )
-                self.subnet_id = _subnet_list
+                self.subnet_ids = _subnet_list
 
-            logger.debug(f"subnet_id validated: {self.subnet_id}")
+            logger.debug(f"subnet_id validated: {self.subnet_ids}")
             # ------------ /subnet_id ------------ #
 
-            # ------------ instance_type ------------ #
-            logger.debug(f"Validating instance_type: {self.instance_type}")
-            if not self.instance_type:
-                raise ValueError("instance_type cannot be null")
+            # ------------ instance_types ------------ #
+            logger.debug(f"Validating instance_types: {self.instance_types}")
+            if not self.instance_types:
+                raise ValueError("instance_types cannot be null")
             else:
-                if isinstance(self.instance_type, str):
-                    _instances = self.instance_type.split("+")
-                elif isinstance(self.instance_type, list):
-                    _instances = self.instance_type
+                if Validators.is_string(self.instance_types) is True:
+                    logger.debug(
+                        f"{self.instance_types} is a string, casting it as list with + as separator"
+                    )
+                    _instances = self.instance_types.split("+")
+                elif Validators.is_list(self.instance_types) is True:
+                    _instances = self.instance_types
                 else:
                     raise ValueError(
-                        f"{self.instance_type=} must either be a list or str"
+                        f"{self.instance_types=} must either be a list or str"
                     )
 
                 _min_vcpus_per_instance = None
@@ -270,7 +287,14 @@ class SocaHpcJob(SocaHpcJobResourceModel):
 
                     for instance_info in _describe_instance_types.get("InstanceTypes"):
                         _instance_type = instance_info.get("InstanceType")
-                        _vcpus_per_instance = instance_info["VCpuInfo"]["DefaultVCpus"]
+                        if self.ht_support is True:
+                            _vcpus_per_instance = instance_info["VCpuInfo"][
+                                "DefaultVCpus"
+                            ]
+                        else:
+                            _vcpus_per_instance = instance_info["VCpuInfo"][
+                                "DefaultCores"
+                            ]
                         if (
                             not _instance_type
                             in _supported_instance_architectures.keys()
@@ -299,11 +323,13 @@ class SocaHpcJob(SocaHpcJobResourceModel):
                                 "NetworkInfo"
                             ).get("EfaSupported")
                             if _instance_efa_supported is False:
-                                raise f"efa_support: Instance type {instance_info.get('InstanceType')} does not support EFA"
+                                raise ValueError(
+                                    f"efa_support: Instance type {instance_info.get('InstanceType')} does not support EFA"
+                                )
                             logger.debug(f"efa_support validated: {self.efa_support}")
                         # ------------ /efa_support ------------ #
 
-                    self.instance_type = _instances
+                    self.instance_types = _instances
 
                 except Exception as err:
                     raise ValueError(
@@ -312,23 +338,23 @@ class SocaHpcJob(SocaHpcJobResourceModel):
 
                 if _min_vcpus_per_instance is None:
                     raise ValueError(
-                        f"Failed to fetch vCPU info for instance_type {self.instance_type[0]}"
+                        f"Failed to fetch vCPU info for {self.instance_types=}"
                     )
                 else:
                     _minimal_number_of_nodes_for_job = math.ceil(
                         self.cpus / _min_vcpus_per_instance
                     )
                     logger.info(
-                        f"Calculated minimal number of nodes: {_minimal_number_of_nodes_for_job} based on cpus: {self.cpus} and instance_type selected {self.instance_type}"
+                        f"Calculated minimal number of nodes: {_minimal_number_of_nodes_for_job} based on cpus: {self.cpus} and instance_types selected {self.instance_types}"
                     )
 
                     if self.nodes < _minimal_number_of_nodes_for_job:
                         raise ValueError(
-                            f"Number of required nodes for this job {self.nodes} does not match the combination of cpus requested {self.cpus} and instance type {self.instance_type}. Nodes count should be {_minimal_number_of_nodes_for_job}"
+                            f"Number of required nodes for this job {self.nodes} does not match the combination of cpus requested {self.cpus} and instance type {self.instance_types}. Nodes count should be {_minimal_number_of_nodes_for_job}"
                         )
 
-            logger.debug(f"instance_type validated: {self.instance_type}")
-            # ------------ /instance_type ------------ #
+            logger.debug(f"instance_types validated: {self.instance_types}")
+            # ------------ /instance_types ------------ #
 
             # ------------ placement_group ------------ #
             logger.debug(f"Validating placement_group: {self.placement_group}")
@@ -340,6 +366,12 @@ class SocaHpcJob(SocaHpcJobResourceModel):
                             "placement_group is set but will be ignored when nodes=1. Ignoring placement_group"
                         )
                         self.placement_group = False
+
+                    if Validators.is_list_length_equal_of(self.subnet_ids, 1) is False:
+                        raise ValueError(
+                            "You must specify only one subnet_ids when using placement_group"
+                        )
+
             except (ValueError, TypeError) as err:
                 raise ValueError(
                     f"Unable to validate placement_group due to {err}. Must be a boolean"
@@ -382,9 +414,12 @@ class SocaHpcJob(SocaHpcJobResourceModel):
             if not self.security_groups:
                 self.security_groups = [_default_compute_security_group]
             else:
-                if isinstance(self.security_groups, str):
+                if Validators.is_string(self.security_groups) is True:
+                    logger.debug(
+                        f"{self.security_groups} is string, casting it as list"
+                    )
                     _security_groups_ids = self.security_groups.split("+")
-                elif isinstance(self.security_groups, list):
+                elif Validators.is_list(self.security_groups) is True:
                     _security_groups_ids = self.security_groups
                 else:
                     raise ValueError(
@@ -394,7 +429,10 @@ class SocaHpcJob(SocaHpcJobResourceModel):
                 if _default_compute_security_group not in _security_groups_ids:
                     _security_groups_ids.append(_default_compute_security_group)
 
-                if len(_security_groups_ids) > 4:
+                if (
+                    Validators.is_list_length_greater_than(_security_groups_ids, 4)
+                    is True
+                ):
                     raise ValueError(
                         "You can specify a maximum of 4 additional security groups"
                     )
@@ -543,12 +581,13 @@ class SocaHpcJob(SocaHpcJobResourceModel):
                             f"spot_allocation_count must be an integer, detected {self.spot_allocation_count}"
                         )
                     logger.debug(
-                    f"spot_allocation_count validated: {self.spot_allocation_count}"
-                )
+                        f"spot_allocation_count validated: {self.spot_allocation_count}"
+                    )
                 else:
-                    logger.info(f"spot_allocation_count not specified, default to number of nodes {self.nodes}")
+                    logger.info(
+                        f"spot_allocation_count not specified, default to number of nodes {self.nodes}"
+                    )
                     self.spot_allocation_count = self.nodes
-                    
 
                 # spot_allocation_strategy
                 if self.spot_allocation_strategy:
@@ -559,13 +598,15 @@ class SocaHpcJob(SocaHpcJobResourceModel):
                     literal_type = [
                         arg
                         for arg in get_args(
-                            SocaHpcJobResourceModel.__annotations__["spot_allocation_group"]
+                            SocaHpcJobResourceModel.__annotations__[
+                                "spot_allocation_group"
+                            ]
                         )
                         if arg is not type(None)
                     ][0]
 
                     # Get the actual literal values
-                    #  ('capacity-optimized', 'lowest-price', 'diversified')
+                    # ('capacity-optimized', 'lowest-price', 'diversified')
                     _allowed_spot_allocation_strategy_values = get_args(literal_type)
 
                     if (
@@ -585,20 +626,20 @@ class SocaHpcJob(SocaHpcJobResourceModel):
                     self.spot_allocation_strategy = "capacity-optimized"
             # ------------ /SPOT section (spot_price / spot_allocation_count / spot_allocation_strategy) ------------ #
 
-            # ------------ FSxLustre section (fsx_lustre / fsx_lustre_deployment_type / fsx_lustre_size / fsx_lustre_per_unit_throughput) ------------ #   
+            # ------------ FSxLustre section (fsx_lustre / fsx_lustre_deployment_type / fsx_lustre_size / fsx_lustre_per_unit_throughput) ------------ #
             if self.fsx_lustre:
                 _allowed_fsx_deployment_type = [
                     "PERSISTENT_1",
                     "PERSISTENT_2",
                     "SCRATCH_1",
-                    "SCRATCH_2"
+                    "SCRATCH_2",
                 ]
-                
+
                 _allowed_fsx_per_unit_throughput = {
                     "PERSISTENT_1": [50, 100, 200],
                     "PERSISTENT_2": [125, 250, 500, 1000],
                     "SCRATCH_1": [200],
-                    "SCRATCH_2": [200]
+                    "SCRATCH_2": [200],
                 }
 
                 if self.fsx_lustre_deployment_type:
@@ -607,18 +648,25 @@ class SocaHpcJob(SocaHpcJobResourceModel):
                         self.fsx_lustre_deployment_type
                     ).upper()
                 else:
-                    logger.info("fsx_lustre_deployment_type not set, default to SCRATCH_2")
+                    logger.info(
+                        "fsx_lustre_deployment_type not set, default to SCRATCH_2"
+                    )
                     self.fsx_lustre_deployment_type = "SCRATCH_2"
-                
+
                 if self.fsx_lustre_per_unit_throughput is None:
-                    logger.info("fsx_lustre_per_unit_throughput not set, default to 200")
+                    logger.info(
+                        "fsx_lustre_per_unit_throughput not set, default to 200"
+                    )
                     self.fsx_lustre_per_unit_throughput = 200
-            
+
                 if self.fsx_lustre is True or str(self.fsx_lustre).startswith("s3://"):
                     logger.debug(
                         f"Validating {self.fsx_lustre=} / {self.fsx_lustre_size=} / {self.fsx_lustre_deployment_type=} / {self.fsx_lustre_per_unit_throughput=}  "
                     )
-                    if self.fsx_lustre_deployment_type not in _allowed_fsx_deployment_type:
+                    if (
+                        self.fsx_lustre_deployment_type
+                        not in _allowed_fsx_deployment_type
+                    ):
                         raise ValueError(
                             f"fsx_lustre is set but fsx_lustre_deployment_type not in {_allowed_fsx_deployment_type}"
                         )
@@ -702,59 +750,58 @@ class SocaHpcJob(SocaHpcJobResourceModel):
             # ------------ capacity_reservation_id ------------ #
             if self.capacity_reservation_id is not None:
                 logger.debug(
-                    f"Validating capacity_reservation_id: {self.capacity_reservation_id}"
+                    f"Validating capacity_reservation_id: {self.capacity_reservation_id}  {self.subnet_ids=} and {self.instance_types=}"
                 )
-                _get_cr = describe_capacity_reservation(
-                    capacity_reservation_id=self.capacity_reservation_id
+                _all_odcr_combination = list(
+                    product(self.instance_types, self.subnet_ids)
                 )
-                if _get_cr.get("success") is False:
-                    raise ValueError(
-                        f"Unable to validate {self.capacity_reservation_id} due to {_get_cr.get('message')}"
+                logger.info(f"ODCR Combinations to check {_all_odcr_combination}")
+                _cr_validated = False
+                for _instance_type, _subnet_id in _all_odcr_combination:
+                    logger.info(
+                        f"Checking if {self.capacity_reservation_id=} is valid for {_instance_type=} and {_subnet_id=}"
                     )
-                else:
-                    _cr_state = _get_cr.get("message").get("State")
-                    if _cr_state.lower() != "active":
-                        raise ValueError(
-                            f"Unable to validate {self.capacity_reservation_id} due to capacity_reservation_state={_cr_state}. Only active capacity_reservation are supported"
-                        )
-                    _cr_instance_type = _get_cr.get("message").get("InstanceType")
-                    if _cr_instance_type not in self.instance_type:
-                        raise ValueError(
-                            f"Unable to validate {self.capacity_reservation_id} due to instance_type mismatch. Reservation is for {_cr_instance_type} which is not specified {self.instance_type=} in this request"
-                        )
-                    _cr_available_instance_count = _get_cr.get("message").get(
-                        "AvailableInstanceCount"
-                    )
-                    if self.nodes > _get_cr.get("message").get(
-                        "AvailableInstanceCount"
-                    ):
-                        raise ValueError(
-                            f"Unable to validate {self.capacity_reservation_id} due to insufficient AvailableInstanceCount. Requested {self.nodes} but only {_cr_available_instance_count=} nodes are available "
-                        )
 
-                    _cr_availability_zone = _get_cr.get("message").get(
-                        "AvailabilityZone"
+                    _validate_cr_info = validate_existing_capacity_reservation(
+                        capacity_reservation=self.capacity_reservation_id,
+                        instance_type=_instance_type,
+                        desired_capacity=self.nodes,
+                        instance_ami=self.instance_ami,
+                        subnet_id=_subnet_id,
                     )
-                    _describe_selected_subnets = describe_subnets(
-                        subnet_ids=self.subnet_id
-                    )
-                    if _describe_selected_subnets.get("success") is False:
-                        raise ValueError(
-                            f"Unable to validate {self.capacity_reservation_id} due to {_describe_selected_subnets.get('message')}"
+                    if _validate_cr_info.get("success") is False:
+                        logger.error(
+                            f"Unable to validate {self.capacity_reservation_id=} due to {_validate_cr_info.get('message')}"
                         )
                     else:
-                        for _subnet in _describe_selected_subnets.get("message").get(
-                            "Subnets"
-                        ):
-                            if _subnet.get("AvailabilityZone") != _cr_availability_zone:
-                                raise ValueError(
-                                    f"Unable to validate {self.capacity_reservation_id} due to subnet mismatch. Reservation is for {_cr_availability_zone} but {_subnet=} is {_subnet.get("AvailabilityZone")} in this request"
-                                )
+                        logger.info(
+                            f"Validated ODCR with {_subnet_id=} and {_instance_type=}"
+                        )
+                        # enforce only valid subnet for the capacity reservation
+                        self.subnet_ids = [_subnet_id]
+                        self.instance_types = [_instance_type]
+                        logger.debug(
+                            f"capacity_reservation_id validated: {self.capacity_reservation_id}"
+                        )
+                        _cr_validated = True
+                        break
 
-                logger.debug(
-                    f"capacity_reservation_id validated: {self.capacity_reservation_id}"
-                )
+                if _cr_validated is False:
+                    raise ValueError(
+                        f"Unable to validate specified capacity reservation configuration"
+                    )
                 # ------------ /capacity_reservation_id ------------ #
+
+            # ----- MISC ---#
+            if self.force_ri is True and self.capacity_reservation_id is not None:
+                raise ValueError(
+                    "force_ri and capacity_reservation_id cannot be used together"
+                )
+
+            if self.spot_price is not None and self.capacity_reservation_id is not None:
+                raise ValueError(
+                    "spot_price and capacity_reservation_id cannot be used together"
+                )
 
             return self
         except Exception as err:
@@ -769,20 +816,29 @@ class SocaHpcJob(SocaHpcJobResourceModel):
         In case of cloudformation create error, this function will automatically delete the stack and reset "stack_id" job resource.
         Dispatcher script will automatically re-process the job during its next run
         """
-        if self.stack_id is not None:
-            if self.error_message:
-                # Capacity won't be provisioned as job resources haven't been validated
-                self.job_provisioning_state = (
-                    SocaHpcJobProvisioningState.COMPUTE_PROVISIONING_BLOCKED
+        if (
+            _check_max_retry := SocaConfig(
+                key="/system/orchestration/stack_max_retry_attempts"
+            ).get_value(return_as=int)
+        ).get("success"):
+            max_retry_attempts = _check_max_retry.get("message")
+        else:
+            logger.error(f"{_check_max_retry} is not a valid integer, default to 2")
+            max_retry_attempts = 3
+
+        if self.job_failed_provisioning_retry_count >= max_retry_attempts:
+            logger.error(
+                f"Reached maximum retry for job provisioning, marking {self.job_id} as blocked. {self.job_failed_provisioning_retry_count=} / {max_retry_attempts=}"
+            )
+            self.job_provisioning_state = (
+                SocaHpcJobProvisioningState.MAX_RETRY_ATTEMPTS_REACHED
+            )
+        else:
+            if self.stack_id:
+                logger.info(
+                    f"Checking Stack Provisioning State for {self.job_id=} with {self.stack_id=}"
                 )
-            elif self.job_failed_provisioning_retry_count == 3:
-                logger.warning(
-                    f"Reached maximum retry for job provisioning, marking {self.job_id} as blocked"
-                )
-                self.job_provisioning_state = (
-                    SocaHpcJobProvisioningState.COMPUTE_PROVISIONING_BLOCKED
-                )
-            else:
+
                 try:
                     _check_cfn_stack = _cloudformation_client.describe_stacks(
                         StackName=self.stack_id
@@ -815,17 +871,71 @@ class SocaHpcJob(SocaHpcJobResourceModel):
                         logger.info(
                             f"CloudFormation status for {self.job_id=} is in error state {_cfn_status=}, deleting Stack and updating Job resource. Dispatcher will try to process this job again soon"
                         )
-                        SocaHpcJobController(job=self).refresh_cloudformation_stack()
+                        SocaHpcJobController(
+                            job=self
+                        ).reset_cloudformation_stack_creation()
+
+                except botocore.exceptions.ClientError as e:
+                    _error = e.response["Error"]
+                    _code = _error.get("Code")
+                    _message = _error.get("Message", "")
+                    _throttling_errors = [
+                        "Throttling",
+                        "ThrottlingException",
+                        "RequestLimitExceeded",
+                        "TooManyRequestsException",
+                        "ProvisionedThroughputExceededException",
+                        "InternalError",
+                    ]
+                    if _code == "ValidationError":
+                        if (
+                            f"stack with id {self.stack_id} does not exist".lower()
+                            in _message.lower()
+                        ):
+                            # Previous stack was deleted but stack_id job variable was not flushed correctly, setting state to Pending
+                            self.job_provisioning_state = (
+                                SocaHpcJobProvisioningState.PENDING
+                            )
+                        else:
+                            logger.error(
+                                f"Failed to fetch {self.stack_id} stack status for {self.job_id=}: {str(e)}"
+                            )
+                            self.job_provisioning_state = (
+                                SocaHpcJobProvisioningState.UNKNOWN
+                            )
+                    elif _code in _throttling_errors:
+                        logger.error(
+                            f"Unable to fetch {self.stack_id} stack status for {self.job_id=} due to throttling {str(e)}, no error message will attach to the job for now"
+                        )
+                        self.job_provisioning_state = (
+                            SocaHpcJobProvisioningState.UNKNOWN
+                        )
+                    else:
+                        logger.error(
+                            f"Failed to fetch {self.stack_id} stack status for {self.job_id=}: {str(e)}"
+                        )
+                        SocaHpcJobController(job=self).set_error_message(
+                            errors=["Unable to fetch associated CloudFormation Stack"]
+                        )
+                        self.job_provisioning_state = (
+                            SocaHpcJobProvisioningState.UNKNOWN
+                        )
 
                 except Exception as e:
                     logger.error(
-                        f"Failed to fetch CloudFormation stack status for {self.job_id=}: {str(e)}"
+                        f"Failed to fetch {self.stack_id} stack status for {self.job_id=}: {str(e)}"
+                    )
+                    SocaHpcJobController(job=self).set_error_message(
+                        errors=["Unable to fetch associated CloudFormation Stack"]
                     )
                     self.job_provisioning_state = SocaHpcJobProvisioningState.UNKNOWN
-        else:
-            # no cloudformation stack assigned yet
-            self.job_provisioning_state = SocaHpcJobProvisioningState.PENDING
+            else:
+                # no cloudformation stack assigned yet
+                self.job_provisioning_state = SocaHpcJobProvisioningState.PENDING
 
+        logger.info(
+            f"Found {self.job_provisioning_state=} for {self.job_id=} with {self.stack_id=}"
+        )
         return self.job_provisioning_state
 
     def provision_capacity(
@@ -845,8 +955,13 @@ class SocaHpcJob(SocaHpcJobResourceModel):
             return SocaError.GENERIC_ERROR(
                 helper=f"{stack_name=} must start with a letter"
             )
-        # Trim to max 128 chars
-        stack_name = stack_name[:128]
+
+        # Ensure CloudFormation stack name is lower than 128
+        if Validators.is_string_length_lower_than(stack_name, 128) is False:
+            return SocaError.GENERIC_ERROR(
+                helper=f"{stack_name=} must be less than 128 characters"
+            )
+
         logger.info(
             f"Trying to provision capacity for {self.job_id} with {stack_name=}"
         )
@@ -873,14 +988,14 @@ class SocaHpcJob(SocaHpcJobResourceModel):
         _dry_run = create_capacity_dry_run(
             user_data=b"#!/bin/bash",
             disk_size=self.root_size,
-            instance_type=self.instance_type[
+            instance_type=self.instance_types[
                 0
             ],  # at this point we have validated list of EC2 instance is fine. since dry run do not validate capacity availability we can just validate IAM/API permission wit hthe first instance
             desired_capacity=1,  # Note: Dry Run will not validate capacity availability. This will be done via capacity probing using odcr_helper
             security_group_id=self.security_groups,
             image_id=self.instance_ami,
             instance_profile=self.instance_profile,
-            subnet_id=self.subnet_id[0],
+            subnet_id=self.subnet_ids[0],
             key_name=SocaConfig(key="/configuration/SSHKeyPair")
             .get_value(return_as=str)
             .get("message"),
@@ -897,14 +1012,16 @@ class SocaHpcJob(SocaHpcJobResourceModel):
             logger.info(f"Dry Run validated for {self.job_id=}")
 
         logger.info(
-            f"Validating Quotas check for {self.job_id=} and {self.instance_type=}"
+            f"Validating Quotas check for {self.job_id=} and {self.instance_types=}"
         )
         _quota_validated = True
-        for _instance in self.instance_type:
+        for _instance in self.instance_types:
             _check_quota = validate_ec2_quota_for_instance(
                 instance_type=_instance,
                 desired_capacity=self.nodes,
-                override_vcpus_quotas_for_pending_instances=override_vcpus_quotas_for_pending_instances,
+                override_vcpus_quotas_for_pending_instances=_response_message[
+                    "override_vcpus_quotas_for_pending_instances"
+                ],
             )
             if _check_quota.get("success") is False:
                 logger.error(
@@ -912,73 +1029,216 @@ class SocaHpcJob(SocaHpcJobResourceModel):
                 )
                 _quota_validated = False
             else:
-                _quotas_info = _check_quota.get("message")
-                if (
-                    _quotas_info.get("quota_name")
-                    in override_vcpus_quotas_for_pending_instances.keys()
-                ):
-                    override_vcpus_quotas_for_pending_instances[
-                        _quotas_info.get("quota_name")
-                    ] = override_vcpus_quotas_for_pending_instances[
-                        _quotas_info.get("quota_name")
-                    ] + _quotas_info.get(
-                        "running_vcpus"
-                    )
+                if _check_quota.get("status_code") == 201:
+                    logger.info("Quotas check disabled, skipping ")
+                    _quota_validated = True
                 else:
-                    override_vcpus_quotas_for_pending_instances[
+                    _quotas_info = _check_quota.get("message")
+                    if (
                         _quotas_info.get("quota_name")
-                    ] = _quotas_info.get("running_vcpus")
-                    logger.info(f"Quota check validated for {_instance} instance type")
+                        in _response_message[
+                            "override_vcpus_quotas_for_pending_instances"
+                        ].keys()
+                    ):
+                        _response_message[
+                            "override_vcpus_quotas_for_pending_instances"
+                        ][_quotas_info.get("quota_name")] = _response_message[
+                            "override_vcpus_quotas_for_pending_instances"
+                        ][
+                            _quotas_info.get("quota_name")
+                        ] + _quotas_info.get(
+                            "running_vcpus"
+                        )
+                    else:
+                        _response_message[
+                            "override_vcpus_quotas_for_pending_instances"
+                        ][_quotas_info.get("quota_name")] = _quotas_info.get(
+                            "running_vcpus"
+                        )
+                        logger.info(
+                            f"Quota check validated for {_instance} instance type"
+                        )
 
         if _quota_validated is False:
             SocaHpcJobController(job=self).set_error_message(
                 errors=["You have exceeded the AWS Quotas for this type of instance"]
             )
-            return SocaError.GENERIC_ERROR(helper="You have exceeded the AWS Quotas for this type of instance")
+            return SocaError.GENERIC_ERROR(
+                helper="You have exceeded the AWS Quotas for this type of instance"
+            )
         else:
             logger.info("Quotas check validated")
 
         logger.info(
-            f"Probing EC2 capacity availability for {self.nodes=} {self.instance_type=} and {self.subnet_id=}"
+            f"Probing EC2 capacity availability for {self.nodes=} {self.instance_types=} and {self.subnet_ids=}"
         )
-        if self.capacity_reservation_id is None:
-            if len(self.subnet_id) > 1:
-                # note: Support for multiple subnet_id with capacity rebalance will be added in future releases
-                logger.warning(
-                    "ODCR EC2 Capacity check is not available when you don't explicitely specify a subnet_id"
-                )
-            elif len(self.instance_type) > 1:
-                logger.warning(
-                    "ODCR EC2 Capacity check is not available when you don't explicitely specify an instance_type"
+
+        if self.placement_group is True:
+            _create_pg = create_placement_group(stack_name)
+            if _create_pg.get("success") is True:
+                _placement_group = {
+                    "group_arn": _create_pg.get("message")
+                    .get("PlacementGroup")
+                    .get("GroupArn"),
+                    "group_name": _create_pg.get("message")
+                    .get("PlacementGroup")
+                    .get("GroupName"),
+                    "group_id": _create_pg.get("message")
+                    .get("PlacementGroup")
+                    .get("GroupId"),
+                }
+                logger.info(
+                    f"Placement Group created successfully for {self.job_id=}: {_placement_group}"
                 )
             else:
-                _request_on_demand_capacity_reservation = create_capacity_reservation(
-                    desired_capacity=self.nodes,
-                    capacity_reservation_name=stack_name,
-                    instance_type=self.instance_type[0],
-                    subnet_id=self.subnet_id[0],
-                    instance_ami=self.instance_ami,
+                SocaHpcJobController(job=self).set_error_message(
+                    errors=["Unable to create Placement Group"]
                 )
+                return SocaError.GENERIC_ERROR(
+                    helper=f"Unable to provision capacity for {self.job_id=} due to {_create_pg.get('message')}"
+                )
+        else:
+            _placement_group = {}
 
-                if _request_on_demand_capacity_reservation.get("success") is True:
-                    logger.info(
-                        f"ODCR capacity probing succeeded, capacity is available in subnet_id {self.subnet_id}: {_request_on_demand_capacity_reservation.get('message')}"
+        if self.spot_price is None:
+            if self.capacity_reservation_id is None:
+                if (
+                    SocaConfig(
+                        key="/configuration/FeatureFlags/EnableCapacityReservation"
+                    )
+                    .get_value(return_as=bool)
+                    .get("message")
+                    is False
+                ):
+                    logger.warning(
+                        "/configuration/FeatureFlags/EnableCapacityReservation is false, ignoring ODCR check"
                     )
                 else:
-                    logger.error(
-                        f"Unable to validate EC2 Capacity via ODCR request due to {_request_on_demand_capacity_reservation}"
-                    )
-                    SocaHpcJobController(job=self).set_error_message(errors=["Unable to validate capacity availability via capacity reservation"])
-                    return SocaError.GENERIC_ERROR(
-                        helper="Unable to validate EC2 Capacity because. See logs for more details."
+                    _probe_capacity_only = False  # We actually enforce ODCR ID (and not only probe for capacity availability) which we pass to the SocaCloudFormationBuilderHpc
+
+                    logger.info(
+                        f"Creating On-Demand Capacity Reservation for {self.job_id=}"
                     )
 
+                    # ODCR are 1:1 mapping between an instance type and a subnet ID
+                    # We will try to see if we can secure capacity with any of the combination
+                    _all_odcr_combination = list(
+                        product(self.instance_types, self.subnet_ids)
+                    )
+                    logger.info(f"ODCR Combinations to check {_all_odcr_combination}")
+
+                    _capacity_available = False
+
+                    # We will try to get the entire capacity on a single subnet
+                    # If we can't, SOCA will reject the job unless there is multiple subnet_ids specified, as EC2Fleet may be able to provision the capacity in multiple subnets
+                    for _instance_type, _subnet_id in _all_odcr_combination:
+                        _request_on_demand_capacity_reservation = (
+                            create_capacity_reservation(
+                                probe_capacity_only=_probe_capacity_only,
+                                desired_capacity=self.nodes,
+                                capacity_reservation_name=stack_name,
+                                instance_type=_instance_type,
+                                subnet_id=_subnet_id,
+                                instance_ami=self.instance_ami,
+                                placement_group_arn=_placement_group.get(
+                                    "group_arn", None
+                                ),
+                            )
+                        )
+
+                        if (
+                            _request_on_demand_capacity_reservation.get("success")
+                            is True
+                        ):
+                            logger.info(
+                                f"ODCR capacity validated for {self.job_id=} {self.nodes=} of {_instance_type} on {_subnet_id=} via {_request_on_demand_capacity_reservation.get('message')}"
+                            )
+
+                            # enforce specific subnet/instance type since we have validated capacity
+                            self.subnet_ids = [_subnet_id]
+                            self.instance_types = [_instance_type]
+                            self.capacity_reservation_id = (
+                                _request_on_demand_capacity_reservation.get("message")
+                            )
+
+                            _capacity_available = True
+                            if _probe_capacity_only is True:
+                                logger.warning(
+                                    f"Capacity probing is True. SOCA has cancelled the reservation ID and the reservation ID will not be passed to the SocaCloudFormationBuilderHpc. use probe_capacity_only=False if you want to enforce capacity_reservation for your job"
+                                )
+
+                            break
+                        else:
+                            logger.error(
+                                f"Unable to validate EC2 Capacity via ODCR request on {_subnet_id} for {_instance_type} due to {_request_on_demand_capacity_reservation}, testing another subnet if possible"
+                            )
+
+                    if _capacity_available is False:
+                        # Still accept the job if we can't secure a 1:1 ODCR and if there is multiple instance_types / subnet_id as EC2 Fleet may be able to
+                        # provision the capacity in multiple subnets/instance types (unless /configuration/FeatureFlags/EnforceStrictCapacityReservation is True)
+                        if (
+                            Validators.is_list_length_greater_than(self.subnet_ids, 1)
+                            is True
+                            or Validators.is_list_length_greater_than(
+                                self.instance_types, 1
+                            )
+                            is True
+                        ):
+                            if (
+                                SocaConfig(
+                                    key="/configuration/FeatureFlags/EnforceStrictCapacityReservation"
+                                )
+                                .get_value(return_as=bool)
+                                .get("message")
+                                is True
+                            ):
+                                logger.error(
+                                    f"Unable to validate EC2 Capacity via ODCR on {self.subnet_ids} for {self.instance_types} and /configuration/FeatureFlags/EnforceStrictCapacityReservation is set to True"
+                                )
+                                SocaHpcJobController(job=self).set_error_message(
+                                    errors=[
+                                        "Unable to provision nodes because the available AWS capacity is insufficient in the selected subnet"
+                                    ]
+                                )
+                                return SocaError.GENERIC_ERROR(
+                                    helper="Unable to validate EC2 Capacity. See logs for more details."
+                                )
+                            else:
+                                logger.warning(
+                                    "SOCA was not able to secure capacity in a single subnets, but this job has been setup with multiple subnets or instance type: Capacity is not blocked as EC2Fleet may be able to provision the job using all combinations."
+                                )
+
+                        else:
+                            logger.error(
+                                f"Unable to validate EC2 Capacity via ODCR on {self.subnet_ids} for {self.instance_types}"
+                            )
+                            SocaHpcJobController(job=self).set_error_message(
+                                errors=[
+                                    "Unable to validate capacity availability via capacity reservation"
+                                ]
+                            )
+                            return SocaError.GENERIC_ERROR(
+                                helper="Unable to validate EC2 Capacity. See logs for more details."
+                            )
+
+            else:
+                logger.info(
+                    f"Existing Capacity Reservation specified, will use {self.capacity_reservation_id=}"
+                )
+        else:
+            logger.warning(
+                "SPOT instance detected, capacity reservation will NOT be checked "
+            )
+
         logger.info(f"Creating CloudFormation Template for {self.job_id=}")
+        _bootstrap_uuid = str(uuid.uuid4())
         _build_cloudformation_template = SocaCloudFormationBuilderHpc(
             job=self,
             stack_name=stack_name,
             keep_forever=keep_forever,
             terminate_when_idle=terminate_when_idle,
+            placement_group_name=_placement_group.get("group_name", None),
+            bootstrap_uuid=_bootstrap_uuid,
         ).render()
         if _build_cloudformation_template.get("success") is False:
             SocaHpcJobController(job=self).set_error_message(
@@ -1027,11 +1287,38 @@ class SocaHpcJob(SocaHpcJobResourceModel):
             SocaHpcJobController(job=self).set_error_message(
                 errors=[_create_cfn_stack.get("message")]
             )
+
+            # remove the bootstrap folder since the provisioning will not happen
+            _bootstrap_log_folder = f"/apps/soca/{cluster_id}/shared/logs/bootstrap/compute_node/{self.job_id}/"
+            try:
+                folder = Path(_bootstrap_log_folder)
+                logger.info(
+                    f"{_bootstrap_log_folder} folder status for UUID {_bootstrap_uuid}"
+                )
+                if folder.exists():
+                    logger.info(f"Removing {_bootstrap_log_folder} folder")
+                    shutil.rmtree(folder)
+            except Exception as err:
+                logger.warning(f"Unable to delete {_bootstrap_log_folder} due to {err}")
+
+            # Stack could not be created, delete capacity reservation ID
+            if self.capacity_reservation_id:
+                cancel_reservation(reservation_id=self.capacity_reservation_id)
+
+            # Stack could not be created, delete placement_group
+            if _placement_group:
+                delete_placement_group(group_name=_placement_group.get("group_name"))
+
             return SocaError.GENERIC_ERROR(
                 helper=f"Unable to provision capacity for {self.job_id=} due to {_create_cfn_stack.get('message')}"
             )
         else:
             logger.info(f"{stack_name} created successfully")
+            if keep_forever is True:
+                logger.info(
+                    f"{stack_name} has {keep_forever=} flag set to True. Stack will be running until you delete it manually, no resource updates are required"
+                )
+                return SocaResponse(success=True, message=_response_message)
 
             logger.info("Retrieving the Job Resource Selector")
             if self.job_scheduler_info.provider in [
@@ -1144,3 +1431,47 @@ class SocaHpcJob(SocaHpcJobResourceModel):
                 )
 
             return SocaResponse(success=True, message=_response_message)
+
+    def apply_default_queue_values(
+        self, queue_configuration: SocaHpcQueue, scheduler_info: SocaHpcScheduler
+    ) -> SocaHpcJobLSF | SocaHpcJobPBS | SocaHpcJobSlurm:
+        logger.info(
+            "Checking all unset job attributes and replacing them with default value found in queue_mapping if available"
+        )
+        _excluded_fields = ["error_message", "licenses"]
+        # only proceed to the job resources from SocaHpcJobResourceModel
+        _fields_to_process = [
+            field_name
+            for field_name in SocaHpcJobResourceModel.model_fields
+            if field_name not in _excluded_fields
+        ]
+        for _field_name in _fields_to_process:
+            if getattr(self, _field_name, None) is None:
+                logger.debug(
+                    f"Checking if {_field_name=} has a default value in the queue config"
+                )
+
+                if hasattr(queue_configuration, _field_name):
+                    value = getattr(queue_configuration, _field_name)
+                    if value is not None:
+                        logger.info(
+                            f"Default value for {_field_name} found in queue configuration: {getattr(queue_configuration, _field_name)} "
+                        )
+
+                        # Update current SocaHpcJob instance
+                        setattr(self, _field_name, value)
+
+                        # Update resource on the job for analytics tracking
+                        if scheduler_info.provider == SocaHpcSchedulerProvider.LSF:
+                            SocaHpcJobController(job=self).lsf_update_job_description(
+                                resource_name=_field_name, resource_value=value
+                            )
+                        elif scheduler_info.provider in [
+                            SocaHpcSchedulerProvider.PBSPRO,
+                            SocaHpcSchedulerProvider.OPENPBS,
+                        ]:
+                            SocaHpcJobController(job=self).pbs_update_resource(
+                                resource_name=_field_name, resource_value=value
+                            )
+
+        return self

@@ -16,7 +16,7 @@ import logging
 from datetime import datetime, timezone
 
 import json
-from utils.aws.ssm_parameter_store import SocaConfig
+from utils.config import SocaConfig
 from decorators import private_api, feature_flag
 from flask import request
 import re
@@ -29,7 +29,7 @@ import target_nodes_cloudformation_builder
 import utils.aws.boto3_wrapper as utils_boto3
 from utils.aws.odcr_helper import create_capacity_reservation
 from utils.aws.ec2_helper import create_capacity_dry_run
-from utils.aws.cloudformation_helper import SocaCfnClient
+from utils.aws.cloudformation_client import SocaCfnClient
 from utils.error import SocaError
 from utils.cast import SocaCastEngine
 from utils.response import SocaResponse
@@ -378,6 +378,7 @@ class CreateTargetNode(Resource):
                     )
                     _request_on_demand_capacity_reservation = (
                         create_capacity_reservation(
+                            probe_capacity_only=True,
                             desired_capacity=1,
                             capacity_reservation_name=_stack_name,
                             instance_type=args.get("instance_type"),
@@ -407,6 +408,7 @@ class CreateTargetNode(Resource):
                         )
                         _request_on_demand_capacity_reservation = (
                             create_capacity_reservation(
+                                probe_capacity_only=True,
                                 desired_capacity=1,
                                 instance_type=args.get("instance_type"),
                                 capacity_reservation_name=_stack_name,

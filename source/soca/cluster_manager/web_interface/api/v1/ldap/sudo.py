@@ -20,7 +20,7 @@ import errors
 import logging
 import os
 import sys
-from utils.aws.ssm_parameter_store import SocaConfig
+from utils.config import SocaConfig
 from utils.identity_provider_client import SocaIdentityProviderClient
 from utils.response import SocaResponse
 from utils.error import SocaError

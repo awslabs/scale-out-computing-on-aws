@@ -55,10 +55,24 @@ class SocaSchedulerNodeResourceModel(BaseModel):
     @field_validator("compute_node")
     @classmethod
     def validate_compute_node(cls, v):
-        if v == "tbd" or (
-            isinstance(v, str) and re.match(r"^job", v)
-        ):  # job<str> for legacy dispatcher, next gen expect either tbd or int
-            return v
+        if isinstance(v, str):
+            # allow literal "tbd", job just being queued and no compute node specified
+            if v == "tbd":
+                return v
+
+            # Allow compute node starting with "job" or "alwayson". `job<job_id>` is the legacy convention and will be superseded by just int<job_id>.
+            # alwayson-<uuid> are identifier for alwayson instance
+            if re.match(r"^(job|alwayson)", v):
+                return v
+
+            # LSF always returns a string, we just validate if it's a number
+            if v.isdigit():
+                return int(v)
+
+        # Allow numeric values. The SOCA NextGen Scheduler now uses the actual job ID as the compute-node reference rather than the job<job_id> format.
         if isinstance(v, int):
             return v
-        raise ValueError("compute_node must be 'tbd', job<int>, or numeric")
+
+        raise ValueError(
+            "compute_node must be 'tbd', start with 'job', start with 'alwayson', or be numeric"
+        )

@@ -19,7 +19,7 @@ import math
 from models import Projects
 import utils.aws.boto3_wrapper as utils_boto3
 from utils.response import SocaResponse
-from utils.aws.ssm_parameter_store import SocaConfig
+from utils.config import SocaConfig
 from utils.error import SocaError
 from botocore.exceptions import ClientError
 from decorators import admin_api, private_api

@@ -1,14 +1,14 @@
 # Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-# SOCA will install all schedulers configured under /configuration/Schedulers unless /job/SchedulerIdentifier is provided
+# SOCA will install all schedulers configured under /configuration/HPC/schedulers unless /job/SchedulerIdentifier is provided
 {% set SCHEDULER_ID_TO_INSTALL = context.get("/job/SchedulerIdentifier", "") %}
 
-{% for scheduler_id, scheduler_data in context.items() if scheduler_id.startswith('/configuration/Schedulers/') %}
+{% for scheduler_id, scheduler_data in context.items() if scheduler_id.startswith('/configuration/HPC/schedulers/') %}
     log_info "Processing {{ scheduler_id }} with scheduler data: {{ scheduler_data }}."
     
     {% if not SCHEDULER_ID_TO_INSTALL %}
-      log_info "/job/SchedulerIdentifier is not set, will install all schedulers from /configuration/Schedulers/ hierarchy"
+      log_info "/job/SchedulerIdentifier is not set, will install all schedulers from /configuration/HPC/schedulers/ hierarchy"
     {% endif %}
     
     {% set SCHEDULER_VARS = {
@@ -24,19 +24,39 @@
     %}
   
     {% if SCHEDULER_VARS.get("ENABLED") == True %}
-        {% if SCHEDULER_VARS.get("PROVIDER") in ["pbspro", "openpbs"] %}
+        {% if SCHEDULER_VARS.get("PROVIDER") == "openpbs" %}
             {% if not SCHEDULER_ID_TO_INSTALL or SCHEDULER_ID_TO_INSTALL == SCHEDULER_VARS.get("IDENTIFIER") %}
                 {% include "templates/linux/scheduler/openpbs/install.sh.j2" %}
 
                 {% if context.get("/job/NodeType") == "controller" %}
-                    log_info "[OpenPBS/PBSPro] Installing and configuring {{ scheduler_id }} on the SOCA Controller (server setup)"
+                    log_info "[OpenPBS] Installing and configuring {{ scheduler_id }} on the SOCA Controller (server setup)"
                     {% include "templates/linux/scheduler/openpbs/configure_server.sh.j2" %}
                 {% else %}
                     {% if SCHEDULER_VARS.get("SOCA_MANAGED_NODES_PROVISIONING") == True %}
-                        log_info "[OpenPBS/PBSPro] Installing and configuring {{ scheduler_id }} on non SOCA Controller machine (client setup)"
+                        log_info "[OpenPBS] Installing and configuring {{ scheduler_id }} on non SOCA Controller machine (client setup)"
                         {% include "templates/linux/scheduler/openpbs/configure_client.sh.j2" %}
                     {% else %}
-                        log_info "[OpenPBS/PBSPro] {{scheduler_id}} is enabled but not configured for SOCA Nodes Provisioning, skipping ... "
+                        log_info "[OpenPBS] {{scheduler_id}} is enabled but not configured for SOCA Nodes Provisioning, skipping ... "
+                    {% endif %}
+
+                {% endif %}
+            {% else %}
+                log_info "Skipping Scheduler because SCHEDULER_ID_TO_INSTALL is set and {{ SCHEDULER_VARS.get("IDENTIFIER") }} is not configured for this host. Only ${SCHEDULER_ID_TO_INSTALL} will be installed"
+            {% endif %}
+        
+        {% elif SCHEDULER_VARS.get("PROVIDER") == "pbspro" %}
+            {% if not SCHEDULER_ID_TO_INSTALL or SCHEDULER_ID_TO_INSTALL == SCHEDULER_VARS.get("IDENTIFIER") %}
+                {% include "templates/linux/scheduler/pbspro/install.sh.j2" %}
+
+                {% if context.get("/job/NodeType") == "controller" %}
+                    log_info "[PBSPro] Installing and configuring {{ scheduler_id }} on the SOCA Controller (server setup)"
+                    {% include "templates/linux/scheduler/pbspro/configure_server.sh.j2" %}
+                {% else %}
+                    {% if SCHEDULER_VARS.get("SOCA_MANAGED_NODES_PROVISIONING") == True %}
+                        log_info "[PBSPro] Installing and configuring {{ scheduler_id }} on non SOCA Controller machine (client setup)"
+                        {% include "templates/linux/scheduler/pbspro/configure_client.sh.j2" %}
+                    {% else %}
+                        log_info "[PBSPro] {{scheduler_id}} is enabled but not configured for SOCA Nodes Provisioning, skipping ... "
                     {% endif %}
 
                 {% endif %}

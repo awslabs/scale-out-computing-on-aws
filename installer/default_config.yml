@@ -4,7 +4,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 Config:
-  version: "25.11.0"  # version automatically populated as part of RELEASE-PIPELINE.sh (see github_release.py)
+  version: "26.3.0"  # version automatically populated as part of RELEASE-PIPELINE.sh (see github_release.py)
   termination_protection: true  # Enable (recommended) or Disable Cloudformation Stack termination protection
   entry_points_subnets: "Public"  # Public (recommended) or Private. In public mode the scheduler and ELB are deployed on PublicSubnets and assigned Public IPS. In Private mode scheduler and ELB are deployed in private subnets. In both case compute nodes and OpenSearch/EFS/FSxL are deployed in private subnets. Public does not means your cluster will be accessible to everyone by default, access to your cluster is still protected by security groups
   admin_user_name: "socaadmin"  # The name of the default admin username that will be created.
@@ -22,11 +22,12 @@ Config:
     # Note: 
     # - LSF: Additional customer inputs are required. See Parameters.scheduler.lsf section below.
     # - OpenPBS: You can define various deployment type (default to git). See Parameters.scheduler.openpbs section below.
-    # Supported engine: openpbs , lsf
+    # - PBSPro: Additional customer inputs are required. See Parameters.scheduler.pbspro section below
     scheduler_engine: 
       - "openpbs" # Production ready - Stable & Tested
       #- "lsf" # Preview - Development, not stable, not fully tested and not suitable for production.
       #- "slurm" # Preview - In Development, not stable, not fully tested and not suitable for production.
+      #- "pbspro" # Preview - In Development, not stable, not fully tested and not suitable for production.
 
   services:
     aws_backup:
@@ -37,7 +38,7 @@ Config:
     aws_elasticache:
       enabled: true  # Required to be True for now
       engine: "valkey"  # valkey (default) or redis are supported - https://docs.aws.amazon.com/AmazonElastiCache/latest/dg/supported-engine-versions.html
-      engine_version: "7"  # Engine specific version information
+      engine_version: "8"  # Engine specific version information
       kms_key_id: ~  # Specify your own CMK to encrypt ElastiCache
       limits:
         ecpu:
@@ -205,11 +206,12 @@ Config:
   analytics:
     enabled: true
     engine: "opensearch"
+    engine_version: "3.3"
     kms_key_id: ~  # KMS KeyID for analytics
     aoss:
       standby_replicas: "DISABLED"  #  ENABLED (HA) or DISABLED (non-HA)
       public_access: false  # Deploy the serverless cache with public reachability or in-VPC reachability (default)
-    data_node_instance_type: "m7g.large.search"  # instance type for analytics data nodes
+    data_node_instance_type: [ "m8g.medium.search", "m7g.medium.search", "m6g.large.search", "t3.medium.search"]  # instance type for analytics data nodes - automatically selected from the list based on regional availability
     data_nodes: ~  # number of data nodes for analytics (default is automatic based on the private AZ/subnet count).
     ebs_volume_size: 100  # EBS volume size attached to data nodes in GB
     deletion_policy: "NO_RETAIN"  # RETAIN will preserve the OpenSearch even if you delete the stack. Any other value will delete OS if you delete the CFN stack
@@ -230,7 +232,7 @@ Config:
     #   - "arn:aws:backup:us-east-1:123456789012:backup-vault:backupvaultname"
 
   dcv:
-    # Default EC2 instance for VDI. Can be changed post-deployment via Virtual Destkop Profiles https://awslabs.github.io/scale-out-computing-on-aws-documentation/documentation/virtual-desktops/vdi-profiles/
+    # Default allowed EC2 instance types for VDI. Can be changed post-deployment via Virtual Desktop Profiles https://awslabs.github.io/scale-out-computing-on-aws-documentation/documentation/virtual-desktops/vdi-profiles/
     allowed_instances: [
       "m8i-flex.*",
       "m8i.*",
@@ -241,10 +243,15 @@ Config:
       "c6i.*",
       "r7i.*",
       "c7g.*",
+      "c8g.*",
+      "m8g.*",
+      "r8g.*",
+      "g7e.*",
       "g6.*", 
       "g6f.*",
       "g6e.*",
       "gr6.*",
+      "gr6f.*",
       "g5.*",
       "g5g.*",
       "g4dn.*",
@@ -366,11 +373,13 @@ Config:
   feature_flags:
     RunRemoteCommand: false # When true, /api/user/run_command will be enabled and end user will have the ability to run remote command on the controller.
     EnableCapacityReservation: true # When false, SOCA will try to provision EC2 capacity and ignore capacity reservation request.
+    EnforceStrictCapacityReservation: false # When enabled, SOCA enforces strict capacity reservation rules and blocks requests that include multiple subnet IDs or instance types without guaranteed capacity. Because capacity reservations are limited to a single subnet and instance type, SOCA attempts to enforce a 1:1 mapping. Disabling this option allows EC2 Fleet to provision capacity across multiple subnets or instance types for greater flexibility, but you may run into situation where the EC2Fleet cannot provision all capacity due to InsufficientInstanceCapacity. This setting is ignored if EnableCapacityReservation is not True
+
     Hpc:
       AllowCustomTags: true
-      EnableDryRun: true
-      EnableQuotasCheck: true
-      JoinEphemeralNodesToAD: true # [PREVIEW FEATURE] Decide whether or not you want to join ephemeral HPC nodes to your Active Directory. Ignored if using OpenLDAP. If false, a local dump of your users it deployed as local users on each nodes
+      EnableDryRun: true # Enforce EC2 DryRun prior to provisioning capacity
+      EnableQuotasCheck: true # Query AWS Service Quotas before trying to provision capacity
+      JoinEphemeralNodesToAD: false # Decide whether or not you want to join ephemeral HPC nodes to your Active Directory. Ignored if using OpenLDAP. If false, a local dump of your users it deployed as local users on each nodes
 
     Networking:
       EnableIPv6: false  # [PREVIEW FEATURE] - Enable IPv6 CIDRs, SG rules. MPLs for newly created VPCs/Subnets
@@ -456,7 +465,7 @@ Parameters:
         # if you do, make sure to update relevant cluster_analytics / log_backup paths as well
         # Note: there is no sysconfigdir_path for LSF, everything is self-contained within install_prefix_path
         # Note: $SOCA_CLUSTER_ID will be automatically replaced by the SOCA Cluster Name specified at install time
-        install_prefix_path: "/opt/soca/$SOCA_CLUSTER_ID/schedulers/default/lsf"
+        lsf_top: "/opt/soca/$SOCA_CLUSTER_ID/schedulers/default/lsf"
         
         # LSF version, used to browse default LSF folder name
         # Supported Version:
@@ -468,7 +477,7 @@ Parameters:
         # Required -  Path to your S3 folder containing LSF installer: e.g: s3://mybucket/lsf/ (IMPORTANT: Must end with a /).
         # Must contains all required install files + entitlement and fix pack.
         # IMPORTANT: Must use the same bucket as the one specified at install time
-        lsf_installer_s3_uri: ~ 
+        lsf_installer_s3_uri: ~
         
         # Required - Name of the installer file, e.g: lsf10.1_lsfinstall_linux_x86_64.tar.Z"
         lsf_installer_file_name: ~
@@ -477,15 +486,15 @@ Parameters:
         lsf_entitlement_file_name: ~
         
         # Fix Pack (both x86/aarch64) file name
-        lsf_fixpack_x86_file_name: ~ # Name of your x86_64 fixpack installer: e.g: lsf10.1_lnx418-lib228-x86_64.tar.Z
-        lsf_fixpack_aarch64_file_name: ~ # Name of your aarch64 LSF fixpack installer: e.g: lsf10.1_lnx418-lib228-aarch64.tar.Z
+        lsf_fixpack_x86_file_name: ~ # Name of your x86_64 fixpack installer: e.g: lsf10.1_linux2.6-glibc2.3-x86_64-601547.tar.Z
+        lsf_fixpack_aarch64_file_name: ~ # Name of your aarch64 LSF fixpack installer: e.g: lsf10.1_lnx312-lib217-armv8-601547.tar.Z
  
       openpbs:
         # Install path. We recommend you to not change this path
         # if you do, make sure to update relevant cluster_analytics / log_backup paths as well
         # Note: $SOCA_CLUSTER_ID will be automatically replaced by the SOCA Cluster Name specified at install time
-        install_prefix_path: "/opt/soca/$SOCA_CLUSTER_ID/schedulers/default/pbs"
-        pbs_home: "/opt/soca/$SOCA_CLUSTER_ID/schedulers/default/pbs/var/spool/pbs" # include spooler dirs, hierarchy will be created at compilation time but use the same tree as install_prefix_path. You can override this setting if needed.
+        pbs_exec: "/opt/soca/$SOCA_CLUSTER_ID/schedulers/default/openpb" # Default is "/opt/pbs"
+        pbs_home: "/opt/soca/$SOCA_CLUSTER_ID/schedulers/default/openpbs/var/spool/pbs" # Default is "/var/spool/pbs" include spooler dirs, hierarchy will be created at compilation time but use the same tree as install_prefix_path. You can override this setting if needed.
         
         deployment_type: "git" # tgz or git
         tgz:  # Download OpenPBS tgz from the URL listed below
@@ -515,6 +524,49 @@ Parameters:
           cjson:
             url: "https://github.com/DaveGamble/cJSON/archive/refs/tags/v1.7.18.tar.gz"
             sha256: "3aa806844a03442c00769b83e99970be70fbef03735ff898f4811dd03b9f5ee5"
+      
+      pbspro:
+        # PBSPro version
+        # Supported Version:
+        # - 2026.0.0
+        #
+        # PBSPro is a commercial software distributed via RPM. Install location cannot be changed
+        # PBS lib/bin are located under /opt/pbs
+        # pbs.conf is under /etc/pbs.conf
+        # PBS spoolers are located under /var/spool/pbs
+
+        version: "2026.0.0"
+
+        # Install path. We recommend you to not change this path
+        # if you do, make sure to update relevant cluster_analytics / log_backup paths as well
+        # Note: $SOCA_CLUSTER_ID will be automatically replaced by the SOCA Cluster Name specified at install time
+        pbs_exec: "/opt/soca/$SOCA_CLUSTER_ID/schedulers/default/pbspro"
+        pbs_home: "/opt/soca/$SOCA_CLUSTER_ID/schedulers/default/pbspro/var/spool/pbs" # include spooler dirs, hierarchy will be created at compilation time but use the same tree as install_prefix_path. You can override this setting if needed.
+        
+
+        # Required -  Path to your S3 folder containing PBSPro installer: e.g: s3://mybucket/pbspro/ (IMPORTANT: Must end with a /).
+        # Must contain all required installation files + entitlement and fix pack.
+        # IMPORTANT: Must use the same bucket as the one specified at install time
+        pbspro_installer_s3_uri: ~ # 
+        
+        # License Server Path: port@host
+        # Note: Connectivity must be authorized between the SOCA Controller and your license server on the port specified 
+        pbspro_license_server: ~  # e.g: 6200@mylicense.com
+
+        x86:
+          pbspro_installer_rhel9_filename: ~ # e.g: PBSPro_2026.0.0-RHEL9_x86_64.tar.gz
+          pbspro_installer_rhel8_filename: ~ # e.g: PBSPro_2026.0.0-RHEL8_x86_64.tar.gz 
+          pbspro_installer_rocky9_filename: ~ # e.g: PBSPro_2026.0.0-Rocky9_x86_64.tar.gz 
+          pbspro_installer_rocky8_filename: ~ # e.g: PBSPro_2026.0.0-Rocky8_x86_64.tar.gz 
+          pbspro_installer_ubuntu2404_filename: ~ # e.g: PBSPro_2026.0.0-Ubuntu24_x86_64.tar.gz           
+          pbspro_installer_ubuntu2204_filename: ~ # e.g: PBSPro_2026.0.0-Ubuntu22_x86_64.tar.gz 
+        aarch64:
+          pbspro_installer_rhel9_filename: ~ # e.g: PBSPro_2026.0.0-RHEL9_aarch64.tar.gz
+          pbspro_installer_rhel8_filename: ~ # e.g: PBSPro_2026.0.0-RHEL8_aarch64.tar.gz 
+          pbspro_installer_rocky9_filename: ~ # e.g: PBSPro_2026.0.0-Rocky9_aarch64.tar.gz 
+          pbspro_installer_rocky8_filename: ~ # e.g: PBSPro_2026.0.0-Rocky8_aarch64.tar.gz 
+          pbspro_installer_ubuntu2404_filename: ~ # e.g: PBSPro_2026.0.0-Ubuntu24_aarch64.tar.gz 
+          pbspro_installer_ubuntu2204_filename: ~ # e.g: PBSPro_2026.0.0-Ubuntu22_aarch64.tar.gz 
 
     cache_client:
       valkey:
@@ -524,16 +576,16 @@ Parameters:
         url: "http://download.redis.io/redis-stable.tar.gz"
 
     munge:
-      version: "0.5.16"
-      url: "https://github.com/dun/munge/releases/download/munge-0.5.16/munge-0.5.16.tar.xz"
-      sha256: "6fa6f14de41064c2b56422592df7ad1de2af483912c54460863db2827e6a2861"
+      version: "0.5.18"
+      url: "https://github.com/dun/munge/releases/download/munge-0.5.18/munge-0.5.18.tar.xz"
+      sha256: "39c3ec6ef5604bfa206e8aa10fc05d5119040f6de4a554bc0fb98ca1aed838dc"
 
     # OpenMPI is automatically installed on /apps partition at the end of the initial Controller setup
     # You can disable it via installer/resources/user_data/controller/03_setup.sh.j2
     openmpi:
-      version: "5.0.6"
-      url: "https://download.open-mpi.org/release/open-mpi/v5.0/openmpi-5.0.6.tar.gz"
-      sha256: "1d6dd41f6b53c00db23b40e56733d16a996fa743957ef8add8e117feffd92689"
+      version: "5.0.9"
+      url: "https://download.open-mpi.org/release/open-mpi/v5.0/openmpi-5.0.9.tar.gz"
+      sha256: "be35ac3aae68609dedf56a3c6480cb1b0af9ae40b98cc83ef27bc859084a9aa8"
 
     # CloudWatch agent is only used if you enable cluster_node_boostrap/templates/linux/aws_cloudwatch_agent.sh.j2
     cloudwatch_agent:
@@ -563,9 +615,9 @@ Parameters:
     # EFA Drivers installed on all HPC Compute node when efa_support=True is specified
     # https://aws.amazon.com/hpc/efa/
     efa:
-      version: "1.43.2"
-      url: "https://efa-installer.amazonaws.com/aws-efa-installer-1.43.2.tar.gz"
-      sha256: "de15c5bdbc83b952afbde876110830c604ad0796680e5157c05f7c1979a41069"
+      version: "1.47.0"
+      url: "https://efa-installer.amazonaws.com/aws-efa-installer-1.47.0.tar.gz"
+      sha256: "2df4201e046833c7dc8160907bee7f52b76ff80ed147376a2d0ed8a0dd66b2db"
 
     # SQLite is installed on the controller host and is the primary DB for SOCA Web UI
     sqlite:
@@ -595,7 +647,7 @@ Parameters:
             #  https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/install-nvidia-driver.html#nvidia-driver-instance-type
             # If EC2 Instance Family only supports Tesla, SOCA will install Tesla Drivers
             # If EC2 Instance family supports both Tesla and Grid, SOCA will only install Grid Driver if it's a DCV (Virtual Desktop) machine
-            tesla_drivers_only: "(p3|p4d|p4de|p5|p5e|g5g)"
+            tesla_drivers_only: "(p3|p4d|p4de|p5|p5e|p5en|p6-b200|p6e-gb200|p6-b300|g5g)"
             tesla_drivers_ltsb_only: "(p2|g2)"  # (Experimental) For Older GPU generation
             grid_drivers:
               s3_bucket_url: "https://ec2-linux-nvidia-drivers.s3.amazonaws.com"
@@ -620,29 +672,21 @@ Parameters:
             s3_bucket_url: "https://ec2-amd-windows-drivers.s3.amazonaws.com"
             s3_bucket_path: "s3://ec2-amd-windows-drivers/latest/"
 
+    orchestration:
+     
+      # SOCA will automatically try to re-create the CloudFormation stack associated to the job if the
+      # CloudFormation stack is `CREATE_COMPLETE` but job has not started within the grace period configured
+      stack_grace_period_in_minutes: 45
+
+      # Maximum number attempts SOCA will perform to refresh a CloudFormation stack
+      # If stack_grace_period_in_minutes is 45 and stack_max_retry_attempts = 3, SOCA will then try to re-provision the stack every 45 minutes 3 times (total of 3 attempts, original + 2 retries)
+      stack_max_retry_attempts: 3
+
     # Amazon DCV Settings
     # https://aws.amazon.com/hpc/dcv/
     dcv:
-      session_storage: "dcv_session_storage"  # $HOME will be appended as prefix https://docs.aws.amazon.com/dcv/latest/adminguide/manage-storage.html
-      idle_timeout: 1440  # in minutes. Disconnect DCV (but not terminate the session) after 1 day if not active
-      al2:  # Amazon Linux 2
-        x86_64:
-          version: "2024.0-17979-el7-only-al2-x86_64"
-          url: "https://d1uj6qtbmh3dt5.cloudfront.net/2024.0/Servers/nice-dcv-2024.0-17979-el7-only-al2-x86_64.tgz"
-          sha256: "0dc68b98a27e245697e56e4d27c0eb4d648613a60290e7976f31a9b1aaca7e67"
-        aarch64:
-          version: "2024.0-17979-el7-only-al2-aarch64"
-          url: "https://d1uj6qtbmh3dt5.cloudfront.net/2024.0/Servers/nice-dcv-2024.0-17979-el7-only-al2-aarch64.tgz"
-          sha256: "59011a340e903c058013c8c8f2aa346e864eb3a4168f6d74779e21f9ea8e8e86"
-      al2023: # Amazon linux 2023
-        x86_64:
-          version: "nice-dcv-2024.0-19030-amzn2023-x86_64"
-          url: "https://d1uj6qtbmh3dt5.cloudfront.net/2024.0/Servers/nice-dcv-2024.0-19030-amzn2023-x86_64.tgz"
-          sha256: "35128b988dee4f1f4582bd912dc4764b8712c1f0e3a35082a5da7e039eb7ff92"
-        aarch64:
-          version: "nice-dcv-2024.0-19030-amzn2023-aarch6"
-          url: "https://d1uj6qtbmh3dt5.cloudfront.net/2024.0/Servers/nice-dcv-2024.0-19030-amzn2023-aarch64.tgz"
-          sha256: "60001ea60e91513b5c5018c38c2178cb0fac5cd0f15875ccf694ab95d7cfe661"
+      session_storage: "dcv_session_storage"
+      idle_timeout: 1440
       el7:  ## Centos7/RHEL7 [IMPORTANT: Latest supported is 2023.1]
         x86_64:
           version: "2023.1-17701-el7-x86_64"
@@ -653,47 +697,67 @@ Parameters:
           url: "https://d1uj6qtbmh3dt5.cloudfront.net/2023.1/Servers/nice-dcv-2023.1-17701-el7-aarch64.tgz"
           sha256: "e44f3c06e1830ccc52d25995227bbbb2060bc81a9623420ade8ef69317784fdd"
 
-      el8:  ## Centos8/RHEL8/Rocky8
+      al2:  # Amazon Linux 2  [IMPORTANT: Latest supported is 2024.0]
         x86_64:
-          version: "2024.0-17979-el8-x86_64"
-          url: "https://d1uj6qtbmh3dt5.cloudfront.net/2024.0/Servers/nice-dcv-2024.0-17979-el8-x86_64.tgz"
-          sha256: "8958505f859dd62749936f0a709eb679162ad268f402ff01a0554eea19bb5b0c"
+          version: "2024.0-17979-el7-only-al2-x86_64"
+          url: "https://d1uj6qtbmh3dt5.cloudfront.net/2024.0/Servers/nice-dcv-2024.0-17979-el7-only-al2-x86_64.tgz"
+          sha256: "0dc68b98a27e245697e56e4d27c0eb4d648613a60290e7976f31a9b1aaca7e67"
         aarch64:
-          version: "2024.0-17979-el8-aarch64"
-          url: "https://d1uj6qtbmh3dt5.cloudfront.net/2024.0/Servers/nice-dcv-2024.0-17979-el8-aarch64.tgz"
-          sha256: "24909cb2aaca358404a1e69ad5e1c7e7596668d907329403c09299d26a6672e8"
+          version: "2024.0-17979-el7-only-al2-aarch64"
+          url: "https://d1uj6qtbmh3dt5.cloudfront.net/2024.0/Servers/nice-dcv-2024.0-17979-el7-only-al2-aarch64.tgz"
+          sha256: "59011a340e903c058013c8c8f2aa346e864eb3a4168f6d74779e21f9ea8e8e86"
 
-      el9:  ## RHEL9/Rocky9
+      al2023: # Amazon Linux 2023
         x86_64:
-          version: "2024.0-17979-el9-x86_64"
-          url: "https://d1uj6qtbmh3dt5.cloudfront.net/2024.0/Servers/nice-dcv-2024.0-17979-el9-x86_64.tgz"
-          sha256: "d6a961619412d2f63fdd82133125a4e3916c904f4b58897953ecd69ff6f4c7d7"
+          version: "nice-dcv-2025.0-20103-amzn2023-x86_64"
+          url: "https://d1uj6qtbmh3dt5.cloudfront.net/2025.0/Servers/nice-dcv-2025.0-20103-amzn2023-x86_64.tgz"
+          sha256: "d98eb986f3b547af22a7732ca26cb6541c3842b9ed57218f503c9acc3b29e7e2"
         aarch64:
-          version: "2024.0-17979-el9-aarch64"
-          url: "https://d1uj6qtbmh3dt5.cloudfront.net/2024.0/Servers/nice-dcv-2024.0-17979-el9-aarch64.tgz"
-          sha256: "cf1f4453f5a82b57a73845f0173de3dc2d1f58cd269ffb2635b36a68d1108ce6"
-
-      ubuntu2204:  # Ubuntu 22.04
+          version: "nice-dcv-2025.0-20103-amzn2023-aarch64"
+          url: "https://d1uj6qtbmh3dt5.cloudfront.net/2025.0/Servers/nice-dcv-2025.0-20103-amzn2023-aarch64.tgz"
+          sha256: "8c9d29b41ee5f9fdfced4ae257c8e6444298a61da62beb2a38add1783c2e3858"
+      
+      el8: # Rocky8 / RHEL8
         x86_64:
-          version: "nice-dcv-2024.0-18131-ubuntu2204-x86_64"
-          url: "https://d1uj6qtbmh3dt5.cloudfront.net/2024.0/Servers/nice-dcv-2024.0-18131-ubuntu2204-x86_64.tgz"
-          sha256: "b30a57f5029b9d8acb59db9fc72f1dbc7c6a33d76dbbfe02017cec553c5b86f9"
+          version: "nice-dcv-2025.0-20103-el8-x86_64"
+          url: "https://d1uj6qtbmh3dt5.cloudfront.net/2025.0/Servers/nice-dcv-2025.0-20103-el8-x86_64.tgz"
+          sha256: "a3038cb0119c9e287c08afb84c687e48896cb4e7af2f9c8a7724b5ae9226e718"
         aarch64:
-          version: "nice-dcv-2024.0-18131-ubuntu2204-aarch64"
-          url: "https://d1uj6qtbmh3dt5.cloudfront.net/2024.0/Servers/nice-dcv-2024.0-18131-ubuntu2204-aarch64.tgz"
-          sha256: "48bb605dbb5f28af79b94de9239a8c3e7811e9e47078d8985d036915f2a34217"
-
-      ubuntu2404:  # Ubuntu 24.04
+          version: "nice-dcv-2025.0-20103-el8-aarch64"
+          url: "https://d1uj6qtbmh3dt5.cloudfront.net/2025.0/Servers/nice-dcv-2025.0-20103-el8-aarch64.tgz"
+          sha256: "89fcb456ee47464ff1fd4657e50814e6a9b18dd7a1fc29ba89b6649239103eda"
+      
+      el9: # Rocky9 / RHEL9
         x86_64:
-          version: "nice-dcv-2024.0-18131-ubuntu2404-x86_64"
-          url: "https://d1uj6qtbmh3dt5.cloudfront.net/2024.0/Servers/nice-dcv-2024.0-18131-ubuntu2404-x86_64.tgz"
-          sha256: "2cebf01c1fb5389d349ba22fdd8a85dec179bbf24c86f252535e8da43fb4c705"
+          version: "nice-dcv-2025.0-20103-el9-x86_64"
+          url: "https://d1uj6qtbmh3dt5.cloudfront.net/2025.0/Servers/nice-dcv-2025.0-20103-el9-x86_64.tgz"
+          sha256: "830e8113d63c11ae663886b4f85f55fc5ae7b64bc24ec485cba71fa304d87ddf"
         aarch64:
-          version: "nice-dcv-2024.0-18131-ubuntu2404-aarch64"
-          url: "https://d1uj6qtbmh3dt5.cloudfront.net/2024.0/Servers/nice-dcv-2024.0-18131-ubuntu2404-aarch64.tgz"
-          sha256: "95e4a364a78de6febbdeb877febd998099f59fbb4c4226fe6dd27fa4b5afc809"
-
-      windows:
-        version: "2024.0-18131"
-        url: "https://d1uj6qtbmh3dt5.cloudfront.net/2024.0/Servers/nice-dcv-server-x64-Release-2024.0-18131.msi"
-        sha256: "f3049b2affdfa331ea3205cc5b3ae6106822e9d727fb4e84e470c2e0b10c6296"
+          version: "nice-dcv-2025.0-20103-el9-aarch64"
+          url: "https://d1uj6qtbmh3dt5.cloudfront.net/2025.0/Servers/nice-dcv-2025.0-20103-el9-aarch64.tgz"
+          sha256: "90b33e27e149ad3ca2ebaf8b562c86ba9115c8c282e5d87bd75cfb8ba3054419"
+      
+      ubuntu2204: # Ubuntu 22.04
+        x86_64:
+          version: "nice-dcv-2025.0-20103-ubuntu2204-x86_64"
+          url: "https://d1uj6qtbmh3dt5.cloudfront.net/2025.0/Servers/nice-dcv-2025.0-20103-ubuntu2204-x86_64.tgz"
+          sha256: "acfc339c9e57be9800f25734cb18dec87da2b0457b3cfd2582fc57f05de7c792"
+        aarch64:
+          version: "nice-dcv-2025.0-20103-ubuntu2204-aarch64"
+          url: "https://d1uj6qtbmh3dt5.cloudfront.net/2025.0/Servers/nice-dcv-2025.0-20103-ubuntu2204-aarch64.tgz"
+          sha256: "770058467e36686e77b4cd6a3d9a953f6714862182e2c9ccd72958d59f35df5b"
+      
+      ubuntu2404: # Ubuntu 24.04
+        x86_64:
+          version: "nice-dcv-2025.0-20103-ubuntu2404-x86_64"
+          url: "https://d1uj6qtbmh3dt5.cloudfront.net/2025.0/Servers/nice-dcv-2025.0-20103-ubuntu2404-x86_64.tgz"
+          sha256: "a39374d39f2d849bd13ee101970bb9eea15a8c5ec743799b7cbb7f562ece9e17"
+        aarch64:
+          version: "nice-dcv-2025.0-20103-ubuntu2404-aarch64"
+          url: "https://d1uj6qtbmh3dt5.cloudfront.net/2025.0/Servers/nice-dcv-2025.0-20103-ubuntu2404-aarch64.tgz"
+          sha256: "47205acfab5d35a7f6fe18f9311295aee51189636a2a76d14e0eca39f780192d"
+      
+      windows: # Windows Server 2019/2022/2025
+        version: "2025.0-20103"
+        url: "https://d1uj6qtbmh3dt5.cloudfront.net/2025.0/Servers/nice-dcv-server-x64-Release-2025.0-20103.msi"
+        sha256: "593e2b78cd41b64fac255f303e48b1e7f73129969279ba2eae067e519f962067"

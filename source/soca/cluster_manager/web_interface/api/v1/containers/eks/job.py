@@ -6,7 +6,7 @@ import logging
 from kubernetes import client, config
 from kubernetes.client.rest import ApiException
 from decorators import private_api, feature_flag
-from utils.aws.ssm_parameter_store import SocaConfig
+from utils.config import SocaConfig
 import json
 from utils.response import SocaResponse
 from utils.error import SocaError

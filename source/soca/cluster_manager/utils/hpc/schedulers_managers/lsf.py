@@ -28,7 +28,7 @@ from utils.datamodels.hpc.lsf.node import (
 )
 from utils.hpc.scheduler_command_builder import SocaHpcLSFJobCommandBuilder
 
-from utils.aws.cloudformation_helper import SocaCfnClient
+from utils.aws.cloudformation_client import SocaCfnClient
 
 logger = logging.getLogger("soca_logger")
 
@@ -157,15 +157,24 @@ class SocaSchedulerLSFNodesManager:
 
         _registered_nodes_on_scheduler = []
 
-        _run_command_lshosts = SocaHpcLSFJobCommandBuilder(scheduler_info=self._scheduler_info).lshosts(args="-o \"HOST_NAME type model cpuf ncpus maxmem maxswp server RESOURCES ndisks maxtmp rexpri nprocs ncores nthreads RUN_WINDOWS\" -json")
-        _run_command_lshosts_string_resources = SocaHpcLSFJobCommandBuilder(scheduler_info=self._scheduler_info).lshosts(args="-sl")
-        _run_command_bhosts = SocaHpcLSFJobCommandBuilder(scheduler_info=self._scheduler_info).bhosts(args="-o \"all\" -json")
+        # note: all commands only return string
+        _run_command_lshosts = SocaHpcLSFJobCommandBuilder(
+            scheduler_info=self._scheduler_info
+        ).lshosts(
+            args='-o "HOST_NAME type model cpuf ncpus maxmem maxswp server RESOURCES ndisks maxtmp rexpri nprocs ncores nthreads RUN_WINDOWS" -json'
+        )
+        _run_command_lshosts_string_resources = SocaHpcLSFJobCommandBuilder(
+            scheduler_info=self._scheduler_info
+        ).lshosts(args="-sl")
+        _run_command_bhosts = SocaHpcLSFJobCommandBuilder(
+            scheduler_info=self._scheduler_info
+        ).bhosts(args='-o "all" -json')
 
         if not _run_command_bhosts:
             return SocaError.GENERIC_ERROR(
                 helper=f"Unable to build _run_command_lshosts command for {self._scheduler_info.provider=}, see logs for additional details"
             )
-        
+
         if not _run_command_lshosts:
             return SocaError.GENERIC_ERROR(
                 helper=f"Unable to build _run_command_lshosts command for {self._scheduler_info.provider=}, see logs for additional details"
@@ -175,7 +184,7 @@ class SocaSchedulerLSFNodesManager:
             return SocaError.GENERIC_ERROR(
                 helper=f"Unable to build _run_command_lshosts_string_resources command for {self._scheduler_info.provider=}, see logs for additional details"
             )
-        
+
         _nodes_data_lshosts = SocaSubprocessClient(
             run_command=_run_command_lshosts
         ).run()
@@ -298,9 +307,20 @@ class SocaSchedulerLSFNodesManager:
 
             for _node_hostname, _node_data in _nodes_info.items():
                 try:
-
-                    if _node_data.get("bhosts").get("STATUS") == "ok":
-                        _node_state = SocaSchedulerNodeState.ACTIVE
+                    if (
+                        _node_data.get("bhosts").get("STATUS") == "ok"
+                        and _node_data.get("bhosts").get("NJOBS") == "0"
+                    ):
+                        _node_state = (
+                            SocaSchedulerNodeState.IDLE
+                        )  # node is available but not serving any jobs
+                    elif (
+                        _node_data.get("bhosts").get("STATUS") == "ok"
+                        and _node_data.get("bhosts").get("NJOBS") != "0"
+                    ):
+                        _node_state = (
+                            SocaSchedulerNodeState.ACTIVE
+                        )  # node is available and actively serving jobs
                     elif (
                         "closed" in _node_data.get("bhosts").get("STATUS")
                         or "unavail" in _node_data.get("bhosts").get("STATUS")
@@ -310,12 +330,6 @@ class SocaSchedulerLSFNodesManager:
                         _node_state = SocaSchedulerNodeState.DOWN
                     else:
                         _node_state = SocaSchedulerNodeState.OTHER
-
-                    if _node_state != SocaSchedulerNodeState.ACTIVE:
-                        logger.warning(
-                            f"{_node_hostname=} is not in 'ok' state, ignoring node ..."
-                        )
-                        continue
 
                     # Not available on LSF
                     _last_state_change_timestamp = int(datetime.now().timestamp())
@@ -458,6 +472,6 @@ class SocaSchedulerLSFNodesManager:
         Instead, SOCA does configure LSF_DYNAMIC_HOST_TIMEOUT=60m which will automatically remove the idle nodes from LSF configuration
         https://www.ibm.com/docs/en/spectrum-lsf/10.1.0?topic=cluster-removing-dynamic-hosts
 
-        Note: EC2 Capacity removal is still manual
+        Note: EC2 Capacity removal is still manual via SocaSchedulerLSFNodesManager.delete_associated_capacity
         """
         return SocaResponse(success=True, message="")

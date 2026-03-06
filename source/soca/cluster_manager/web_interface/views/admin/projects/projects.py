@@ -325,8 +325,8 @@ def project_edit():
 @admin_projects.route("/admin/projects/edit/update", methods=["POST"])
 @login_required
 @admin_only
-def software_stack_update():
-    logger.info(f"Received following parameters {request.form} to update projects ")
+def project_update():
+    logger.info(f"Received following parameters {request.form} to update projects")
 
     _project_to_modify = request.form.get("project_id", None)
     if _project_to_modify is None:

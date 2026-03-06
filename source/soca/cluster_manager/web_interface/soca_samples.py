@@ -14,7 +14,7 @@ from models import (
 from datetime import datetime, timezone
 import remote_desktop_common as utils_remote_desktop_common
 import utils.aws.ec2_helper as ec2_helper
-from utils.aws.ssm_parameter_store import SocaConfig
+from utils.config import SocaConfig
 
 import logging
 import config

@@ -3,7 +3,7 @@
 
 import sys
 import datetime
-from utils.aws.ssm_parameter_store import SocaConfig
+from utils.config import SocaConfig
 from utils.aws.boto3_wrapper import get_boto
 from utils.analytics_client import SocaAnalyticsClient
 from utils.logger import SocaLogger

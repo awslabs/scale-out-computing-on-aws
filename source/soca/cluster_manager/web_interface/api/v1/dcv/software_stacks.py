@@ -20,6 +20,7 @@ from models import db, SoftwareStacks
 import math
 import utils.aws.boto3_wrapper as utils_boto3
 import utils.aws.ec2_helper as ec2_helper
+from utils.aws.ssm_helper import get_ami_id_from_alias
 from utils.error import SocaError
 from utils.cast import SocaCastEngine
 from utils.response import SocaResponse
@@ -383,6 +384,21 @@ class SoftwareStacksManager(Resource):
                 helper=f"AMI label {_stack_name} already exists, pick a different name or deactivate the existing one",
             ).as_flask()
 
+        if _ami_id.startswith("/aws/service/"):
+            logger.info(
+                f"Specified AMI is an alias {_ami_id=}, check if alias is correct"
+            )
+            # note: we do not replace ami_id with the AMI ID currently configured for this Alias as the AMI ID may be refreshed without notice
+            # SOCA will always try to fetch the most recent AMI when using an AMI alias
+            _check_alias = get_ami_id_from_alias(alias_name=_ami_id)
+            if _check_alias.get("success") is False:
+                logger.error(
+                    f"{_ami_id} alias is not valid {_check_alias.get('message')}"
+                )
+                return SocaError.GENERIC_ERROR(
+                    helper=f"{_ami_id} does not seems to be a valid alias."
+                )
+
         _get_image = ec2_helper.describe_images(image_ids=[_ami_id])
         logger.debug(f"API response - AMI {_ami_id}: {_get_image}")
         if _get_image.get("success") is True:
@@ -390,9 +406,9 @@ class SoftwareStacksManager(Resource):
             # Grab the root size from the AMI to make sure our admin-input size is at least that size.
             # This prevents situations where the admin may undersize the AMI setting.
             # The size is taken from the first (0th) EBS volume within the AMI.
-            _ami_root_size: int = _image_details["Images"][0].get("BlockDeviceMappings")[0]["Ebs"][
-                "VolumeSize"
-            ]
+            _ami_root_size: int = _image_details["Images"][0].get(
+                "BlockDeviceMappings"
+            )[0]["Ebs"]["VolumeSize"]
             _extra_logging: str = ""
             if _ami_root_size <= root_size:
                 logger.debug(
@@ -826,9 +842,9 @@ class SoftwareStacksManager(Resource):
             # This prevents situations where the admin may undersize the AMI setting.
             # The size is taken from the first (0th) EBS volume within the AMI.
             _image_details = _get_image.get("message")
-            _ami_root_size: int = _image_details["Images"][0].get("BlockDeviceMappings")[0][
-                "Ebs"
-            ]["VolumeSize"]
+            _ami_root_size: int = _image_details["Images"][0].get(
+                "BlockDeviceMappings"
+            )[0]["Ebs"]["VolumeSize"]
             _extra_logging: str = ""
             if _ami_root_size <= root_size:
                 logger.debug(

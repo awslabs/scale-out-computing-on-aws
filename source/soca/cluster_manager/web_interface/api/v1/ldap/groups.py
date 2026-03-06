@@ -21,7 +21,7 @@ import sys
 from utils.error import SocaError
 from utils.identity_provider_client import SocaIdentityProviderClient
 from utils.response import SocaResponse
-from utils.aws.ssm_parameter_store import SocaConfig
+from utils.config import SocaConfig
 
 logger = logging.getLogger("soca_logger")
 

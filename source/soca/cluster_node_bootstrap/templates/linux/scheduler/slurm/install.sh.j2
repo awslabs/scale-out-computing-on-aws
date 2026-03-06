@@ -98,19 +98,19 @@ function slurm_install_{{ SCHEDULER_VARS.get("IDENTIFIER") }} {
         log_warning "${SLURM_SOCA_INSTALL_DIR} existing, SLURM will not be re-installed but additional reconfiguration will still apply"
     fi
 
-    log_info "Creating custom /bin/soca_slurm_${SCHEDULER_IDENTIFIER}"
-    cat << EOF > "/bin/soca_slurm_${SCHEDULER_IDENTIFIER}"
+    log_info "Creating custom /bin/soca_${SCHEDULER_IDENTIFIER}"
+    cat << EOF > "/bin/soca_${SCHEDULER_IDENTIFIER}"
 export PATH=${SLURM_SOCA_INSTALL_DIR}/bin:${SLURM_SOCA_INSTALL_DIR}/sbin:${PATH}
 echo "========= SOCA ========= "
 echo ">> SLURM environment loaded, you can now run commands such as sbatch/squeue/srun etc ..."
 echo ">> SLURM is installed under: ${SLURM_SOCA_INSTALL_DIR}"
-echo ">> Add /bin/soca_slurm to your .bashrc / .bash_profile to automatically run this script"
+echo ">> Add /bin/soca_${SCHEDULER_IDENTIFIER} to your .bashrc / .bash_profile to automatically run this script"
 echo ">> Type exit to close this shell"
 echo "======================== "
-export PS1="(soca_slurm) \u@\h:\w# "
+export PS1="(soca_slurm) \u@\h:\w\$ "
 exec "$SHELL" -i
 EOF
-    chmod +x /bin/soca_slurm_${SCHEDULER_IDENTIFIER}
+    chmod +x /bin/soca_${SCHEDULER_IDENTIFIER}
 
 
     log_info "Creating /etc/systemd/system/soca_scheduler_${SCHEDULER_IDENTIFIER}.service"

@@ -791,7 +791,7 @@ class TargetNodeSoftwareStacksManager(Resource):
 
         args = parser.parse_args()
         logger.info(
-            f"Received Target Nodes SoftwareStack Registration Request args {args}"
+            f"Received Target Nodes SoftwareStack Registration Update args {args}"
         )
         _software_stack_id = args.get("software_stack_id", "")
         _ami_id = args.get("ami_id", "")

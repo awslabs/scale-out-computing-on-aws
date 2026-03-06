@@ -15,22 +15,31 @@ import config
 from flask_restful import Resource, reqparse
 import logging
 from datetime import datetime, timezone
-
+import gzip
 import json
-from utils.aws.ssm_parameter_store import SocaConfig
+from utils.config import SocaConfig
 from decorators import private_api, feature_flag
 from flask import request
 import re
 import uuid
 import sys
 import os
+from pathlib import Path
+import shutil
 from botocore.exceptions import ClientError
 from models import db, VirtualDesktopSessions
 import dcv_cloudformation_builder
+
 import utils.aws.boto3_wrapper as utils_boto3
+from utils.datamodels.constants import SocaLinuxBaseOS, SocaWindowsBaseOS
+from utils.aws.ssm_helper import get_ami_id_from_alias
 from utils.aws.ec2_helper import create_capacity_dry_run
-from utils.aws.odcr_helper import create_capacity_reservation
-from utils.aws.cloudformation_helper import SocaCfnClient
+from utils.aws.odcr_helper import (
+    create_capacity_reservation,
+    validate_existing_capacity_reservation,
+    get_reservation_info_soca_capacity_reservation,
+)
+from utils.aws.cloudformation_client import SocaCfnClient
 from utils.error import SocaError
 from utils.cast import SocaCastEngine
 from utils.response import SocaResponse
@@ -112,6 +121,10 @@ class CreateVirtualDesktop(Resource):
                     pattern: '^[a-z0-9]+\.[a-z0-9]+$'
                     description: EC2 instance type for the virtual desktop
                     example: "m5.large"
+                  capacity_reservation_id:
+                    type: string
+                    description: Existing Capacity Reservation ID to assign
+                    example: "cr-abd123"
                   disk_size:
                     type: string
                     pattern: '^[0-9]+$'
@@ -265,6 +278,7 @@ class CreateVirtualDesktop(Resource):
         parser.add_argument("hibernate", type=str, location="form")
         parser.add_argument("tenancy", type=str, location="form")
         parser.add_argument("session_type", type=str, location="form")
+        parser.add_argument("capacity_reservation_id", type=str, location="form")
         args = parser.parse_args()
 
         _session_uuid = str(uuid.uuid4())
@@ -376,6 +390,19 @@ class CreateVirtualDesktop(Resource):
                     helper=f"{_get_software_stack_info.get('message')}",
                 ).as_flask()
 
+            # Check if specified AMI ID is an alias
+            if _software_stack_info.get("ami_id").startswith("/aws/service/"):
+                _fetch_ami = get_ami_id_from_alias(
+                    alias_name=_software_stack_info.get("ami_id")
+                )
+                if _fetch_ami.get("success") is True:
+                    _ami_id = _fetch_ami.get("message")
+                else:
+                    return SocaError.GENERIC_ERROR(
+                        helper=_fetch_ami.get("message")
+                    ).as_flask()
+            else:
+                _ami_id = _software_stack_info.get("ami_id")
             _check_disk_size = SocaCastEngine(args["disk_size"]).cast_as(
                 expected_type=int
             )
@@ -434,53 +461,36 @@ class CreateVirtualDesktop(Resource):
                 logger.info(f"Selected Subnet: {_selected_subnet}")
 
             else:
-                logger.info(
-                    "/configuration/FeatureFlags/EnableCapacityReservation flag is set to True, SOCA will verify capacity availability"
-                )
-                if args["subnet_id"] != "auto":
+                if args["capacity_reservation_id"]:
                     logger.info(
-                        f"Specific subnet_id has been specified {args.get('subnet_id')}, checking if capacity is available"
+                        f"capacity_reservation_id flag is set with value {args['capacity_reservation_id']=}, skipping ODCR request check"
                     )
-                    _selected_subnet = args.get("subnet_id")
-                    logger.info(
-                        f"Probing capacity availability for {args.get('instance_type')}, instance_count=1, subnet_ids={_selected_subnet}, {_software_stack_info.get('ami_id')}"
-                    )
-                    _request_on_demand_capacity_reservation = (
-                        create_capacity_reservation(
-                            desired_capacity=1,
-                            capacity_reservation_name=_stack_name,
-                            instance_type=args.get("instance_type"),
-                            subnet_id=_selected_subnet,
-                            instance_ami=_software_stack_info.get("ami_id"),
-                            tenancy=args.get("tenancy"),
-                        )
-                    )
-                    if _request_on_demand_capacity_reservation.get("success") is True:
-                        logger.info(
-                            f"ODCR succeeded, capacity is available in subnet_id {_selected_subnet}: {_request_on_demand_capacity_reservation.get('message')}"
-                        )
-
-                    else:
+                    if args["subnet_id"] == "auto":
                         return SocaError.GENERIC_ERROR(
-                            helper=f"Unable to create capacity reservation due to {_request_on_demand_capacity_reservation.message}"
+                            helper="You must specify a subnet_id and not use 'auto' when selecting a capacity reservation id."
                         ).as_flask()
-
+                    else:
+                        _selected_subnet = args["subnet_id"]
                 else:
                     logger.info(
-                        "subnet_id is 'auto'. SOCA will try pick a random subnet and cycle through others subnet id until capacity is available"
+                        "/configuration/FeatureFlags/EnableCapacityReservation flag is set to True, SOCA will verify capacity availability"
                     )
-                    random.shuffle(_soca_private_subnets)
-                    for _subnet_id in _soca_private_subnets:
+                    if args["subnet_id"] != "auto":
                         logger.info(
-                            f"Requesting ODCR for {args.get('instance_type')}, instance_count=1, capacity_reservation_name={_stack_name}, subnet_id={[_subnet_id]}, {_software_stack_info.get('ami_id')}"
+                            f"Specific subnet_id has been specified {args.get('subnet_id')}, checking if capacity is available"
+                        )
+                        _selected_subnet = args.get("subnet_id")
+                        logger.info(
+                            f"Probing capacity availability for {args.get('instance_type')}, instance_count=1, subnet_ids={_selected_subnet}, {_ami_id}"
                         )
                         _request_on_demand_capacity_reservation = (
                             create_capacity_reservation(
+                                probe_capacity_only=True,
                                 desired_capacity=1,
-                                instance_type=args.get("instance_type"),
                                 capacity_reservation_name=_stack_name,
-                                subnet_id=_subnet_id,
-                                instance_ami=_software_stack_info.get("ami_id"),
+                                instance_type=args.get("instance_type"),
+                                subnet_id=_selected_subnet,
+                                instance_ami=_ami_id,
                                 tenancy=args.get("tenancy"),
                             )
                         )
@@ -488,26 +498,87 @@ class CreateVirtualDesktop(Resource):
                             _request_on_demand_capacity_reservation.get("success")
                             is True
                         ):
-                            _selected_subnet = _subnet_id
                             logger.info(
-                                f"ODCR succeeded, capacity is available in subnet_id {_selected_subnet} : {_request_on_demand_capacity_reservation.get("message")}"
+                                f"ODCR succeeded, capacity is available in subnet_id {_selected_subnet}: {_request_on_demand_capacity_reservation.get('message')}"
                             )
-                            break
+
                         else:
-                            logger.warning(
-                                f"Unable to create capacity reservation due to {_request_on_demand_capacity_reservation.message}, trying the next subnet in list"
+                            logger.error(
+                                f"Unable to create capacity reservation due to {_request_on_demand_capacity_reservation.message}"
                             )
+                            return SocaError.GENERIC_ERROR(
+                                helper=f"Unable to provision the Virtual Desktop because the available AWS capacity in the selected subnet is insufficient. Try again later or choose a different subnet / instance type."
+                            ).as_flask()
+
+                    else:
+                        logger.info(
+                            "subnet_id is 'auto'. SOCA will try pick a random subnet and cycle through others subnet id until capacity is available"
+                        )
+                        random.shuffle(_soca_private_subnets)
+                        for _subnet_id in _soca_private_subnets:
+                            logger.info(
+                                f"Requesting ODCR for {args.get('instance_type')}, instance_count=1, capacity_reservation_name={_stack_name}, subnet_id={[_subnet_id]}, {_ami_id}"
+                            )
+                            _request_on_demand_capacity_reservation = (
+                                create_capacity_reservation(
+                                    probe_capacity_only=True,
+                                    desired_capacity=1,
+                                    instance_type=args.get("instance_type"),
+                                    capacity_reservation_name=_stack_name,
+                                    subnet_id=_subnet_id,
+                                    instance_ami=_ami_id,
+                                    tenancy=args.get("tenancy"),
+                                )
+                            )
+                            if (
+                                _request_on_demand_capacity_reservation.get("success")
+                                is True
+                            ):
+                                _selected_subnet = _subnet_id
+                                logger.info(
+                                    f"ODCR succeeded, capacity is available in subnet_id {_selected_subnet}: {_request_on_demand_capacity_reservation.get("message")}"
+                                )
+                                break
+                            else:
+                                logger.warning(
+                                    f"Unable to create capacity reservation due to {_request_on_demand_capacity_reservation.message}, trying the next subnet in list"
+                                )
 
             if _selected_subnet is None:
                 return SocaError.GENERIC_ERROR(
                     helper=f"Unable to find available capacity in all subnets provided {_soca_private_subnets}. Try again later."
                 ).as_flask()
 
+            # Do this check at the end once we know the subnet to pick
+            if args["capacity_reservation_id"]:
+                logger.info(
+                    f"Received capacity_reservation_id {args['capacity_reservation_id']} for this request, validating it .. "
+                )
+
+                _capacity_reservation = get_reservation_info_soca_capacity_reservation(
+                    capacity_reservation_id=args["capacity_reservation_id"]
+                )
+                logger.info(f"{_capacity_reservation=}")
+
+                _validate_odcr = validate_existing_capacity_reservation(
+                    capacity_reservation=_capacity_reservation,
+                    instance_type=instance_type,
+                    subnet_id=_selected_subnet,
+                    desired_capacity=1,
+                    instance_ami=_ami_id,
+                )
+                if _validate_odcr.get("success") is True:
+                    logger.info("Capacity reservation is valid, proceeding")
+                else:
+                    return SocaError.GENERIC_ERROR(
+                        helper=f"Unable to validate capacity reservation due to {_validate_odcr.message}"
+                    ).as_flask()
+
             # Validate Software Stack Permissions
             _get_software_stack_permissions = _get_software_stack.validate(
                 instance_type=instance_type,
                 root_size=args["disk_size"],
-                subnet_id=_subnet_id,
+                subnet_id=_selected_subnet,
                 session_owner=_user,
                 project=args.get("project"),
             )
@@ -730,6 +801,19 @@ class CreateVirtualDesktop(Resource):
                         helper=f"Error while checking hibernation support of instance {instance_type} because of {e}",
                     ).as_flask()
 
+            if _software_stack_info.get("ami_base_os") in [
+                os.value for os in SocaWindowsBaseOS
+            ]:
+                # Windows OS, do not use gzip
+                _encoded_user_data = base64.b64encode(user_data.encode("utf-8")).decode(
+                    "utf-8"
+                )
+            else:
+                # Linux distro, use gzip to save UserData size
+                _encoded_user_data = base64.b64encode(
+                    gzip.compress(user_data.encode("utf-8"))
+                ).decode("utf-8")
+
             launch_parameters = {
                 "security_group_id": _get_soca_parameters.get(
                     "/configuration/ComputeNodeSecurityGroup"
@@ -741,7 +825,7 @@ class CreateVirtualDesktop(Resource):
                 "subnet_id": _selected_subnet,
                 "tenancy": args.get("tenancy"),
                 "project": args.get("project"),
-                "image_id": _software_stack_info.get("ami_id"),
+                "image_id": _ami_id,
                 "session_name": _session_name,
                 "session_uuid": _session_uuid,
                 "base_os": _software_stack_info.get("ami_base_os"),
@@ -768,10 +852,9 @@ class CreateVirtualDesktop(Resource):
                 "ComputeNodeInstanceProfileArn": _get_soca_parameters.get(
                     "/configuration/ComputeNodeInstanceProfileArn"
                 ),
-                "user_data": base64.b64encode(user_data.encode("utf-8")).decode(
-                    "utf-8"
-                ),
+                "user_data": _encoded_user_data,
                 "custom_tags": {},
+                "capacity_reservation_id": args["capacity_reservation_id"],
             }
 
             # Get custom tags if specified
@@ -867,6 +950,16 @@ class CreateVirtualDesktop(Resource):
                         )
 
                     else:
+                        logger.info(f"Stack could not be created, deleting {soca_parameters['/job/BootstrapPath']}")
+                        try:
+                            folder = Path(soca_parameters["/job/BootstrapPath"])
+                            if folder.exists():
+                                shutil.rmtree(folder)
+                        except Exception as err:
+                            logger.warning(
+                                f"Unable to delete {soca_parameters['/job/BootstrapPath']} due to {err}"
+                            )
+
                         return SocaError.GENERIC_ERROR(
                             helper=f"{_create_stack.get('message')}"
                         ).as_flask()

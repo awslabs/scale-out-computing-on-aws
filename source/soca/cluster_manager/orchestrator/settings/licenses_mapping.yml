@@ -1,18 +1,49 @@
 # Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-# Note: Any entries must have been created as PBS resource first.
-# Refer to the documentation for instruction https://awslabs.github.io/scale-out-computing-on-aws-documentation/tutorials/job-licenses-flexlm/
-# Examples below (adjust as needed)
+# Note: Any entries must have been created as scheduler resource first.
+# Refer to the documentation for instruction https://awslabs.github.io/scale-out-computing-on-aws-documentation/documentation/High-Performance-Computing/job-with-license-requirements/
 
-ansys:
-  ansys_anshpc_pack: "/apps/tools/scripts/license_check.py -s licenses.soca.dev -p 21055 -f anshpc_pack"
+settings:
+  # Set up LMUTIL path if you are planning to use FlexLM based license, e.g: /my/path/to/lmutil
+  # lmutil must be executable
+  flexlm_lmutil_path: ~
 
-comsol:
-  comsol_lic_acoustic: "/apps/tools/scripts/license_check.py -s licenses.soca.dev -p 27718 -f ACOUSTICS"
-  comsol_lic_cadimport: "/apps/tools/scripts/license_check.py -s licenses.soca.dev -p 27718 -f CADIMPORT"
+daemons: # Do not change this section name
 
-synopsys:
-  synopsys_lic_testbenchruntime: "/apps/tools/scripts/license_check.py -s licenses.soca.dev -p 27020 -f VT_TestbenchRuntime"
-  synopsys_lic_vcsruntime: "/apps/tools/scripts/license_check.py -s licenses.soca.dev -p 27020 -f VCSRuntime_Net"
-  synopsys_lic_vipambaaxisvt: "/apps/tools/scripts/license_check.py -s licenses.soca.dev -p 27020 -f VIP-AMBA-AXI-SVT"
+  # See examples below
+  # IMPORTANT:
+  # - Make sure each Scheduler Resurce name is UNIQUE
+  # - Make sure each Scheduler Resurce name use the following format <something>_lic_<something> (we recommend <application name>_lic_<feature name>)
+
+  ansys_lic_hpcpack: # Name of the Scheduler resource
+    server: "my.license.endpoint" # Endpoint of your license server, can be an IP or DNS
+    port: 21055 # Port of your license server
+    feature: "anshpc_pack" # Name of the feature you will need to check out
+    minus: 0 # Optional: Reserve license for non HPC usage. For example, if you have 20 licenses, but set minus to 5, then SOCA will assume the total number of license for HPC usage is 15
+    provider: "flexlm" # Only flexlm is supported as of today
+
+  comsol_lic_acoustic: # Name of the Scheduler resource
+    server: "example.license1.soca.dev"
+    port: 27718
+    feature: "ACOUSTICS"
+    provider: "flexlm"
+  
+  comsol_lic_cadimport: # Name of the Scheduler resource
+    server: "example.license2.soca.dev"
+    port: 27718
+    feature: "CADIMPORT"
+    provider: "flexlm"
+
+  synopsys_lic_testbenchruntime: # Name of the Scheduler resource
+    server: "10.1.1.1"
+    port: 27020
+    feature: "VT_TestbenchRuntime"
+    provider: "flexlm"
+
+  matlab_lic_base: # Name of the Scheduler resource
+    server: "matlab.license2.soca.dev"
+    port: 27000
+    feature: "MATLAB"
+    provider: "flexlm"
+    minus: 5

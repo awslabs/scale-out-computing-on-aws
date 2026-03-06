@@ -4,11 +4,11 @@
 import re
 import logging
 from utils.error import SocaError
-from utils.aws.ssm_parameter_store import SocaConfig
-from utils.aws.secrets_manager import SocaSecret
+from utils.config import SocaConfig
+from utils.aws.secretsmanager_client import SocaSecret
 from utils.response import SocaResponse
 import ldap
-from typing import Optional, Literal
+from typing import Optional, Literal, List
 
 logger = logging.getLogger("soca_logger")
 
@@ -63,7 +63,7 @@ class SocaIdentityProviderClient:
             .get_value(default=[], return_as=list)
             .get("message")
         )
-        self.service_account_secret_arn = (
+        self._service_account_secret_arn = (
             SocaConfig(key="/configuration/UserDirectory/service_account_secret_arn")
             .get_value(default=None)
             .get("message")
@@ -106,6 +106,42 @@ class SocaIdentityProviderClient:
         logger.debug(
             f"Initialized SocaIdentityProviderClient for {self._provider} with {self.__dict__}"
         )
+
+    @property
+    def provider(self) -> Optional[str]:
+        return self._provider
+
+    @property
+    def ldap_endpoint(self) -> Optional[str]:
+        return self._ldap_endpoint
+
+    @property
+    def ldap_base_dn(self) -> Optional[str]:
+        return self._ldap_base_dn
+
+    @property
+    def ldap_domain_name(self) -> Optional[str]:
+        return self._ldap_domain_name
+
+    @property
+    def ldap_people_search_base(self) -> Optional[str]:
+        return self._ldap_people_search_base
+
+    @property
+    def ldap_group_search_base(self) -> Optional[str]:
+        return self._ldap_group_search_base
+
+    @property
+    def ldap_admins_search_dn(self) -> Optional[str]:
+        return self._ldap_admins_search_dn
+
+    @property
+    def domain_controller_ips(self) -> List[str]:
+        return self._domain_controller_ips
+
+    @property
+    def service_account_secret_arn(self) -> Optional[str]:
+        return self._service_account_secret_arn
 
     def initialize(
         self,
@@ -192,11 +228,11 @@ class SocaIdentityProviderClient:
             f"Received User Directory Service Account bind request for {self._provider}"
         )
         _secret_id = (
-            self.service_account_secret_arn
-            if self.service_account_secret_arn is not None
+            self._service_account_secret_arn
+            if self._service_account_secret_arn is not None
             else "UserDirectoryServiceAccount"
         )
-        _secret_prefix = "" if self.service_account_secret_arn else None
+        _secret_prefix = "" if self._service_account_secret_arn else None
         _admin_secret = SocaSecret(
             secret_id=_secret_id, secret_id_prefix=_secret_prefix
         ).get_secret()

@@ -5,8 +5,8 @@ import logging
 from extensions import db
 from models import TargetNodeSessions
 import utils.aws.boto3_wrapper as utils_boto3
-from utils.aws.ssm_parameter_store import SocaConfig
-from utils.aws.cloudformation_helper import SocaCfnClient
+from utils.config import SocaConfig
+from utils.aws.cloudformation_client import SocaCfnClient
 from utils.http_client import SocaHttpClient
 from utils.response import SocaResponse
 from botocore.exceptions import ClientError

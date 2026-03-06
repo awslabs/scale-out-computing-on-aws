@@ -28,11 +28,15 @@ from cryptography.hazmat.primitives.asymmetric import rsa
 from cryptography.hazmat.primitives import serialization
 from cryptography.x509.oid import NameOID
 import datetime
+import logging
+
+client_acm = boto3.client("acm")
+
+logging.getLogger().setLevel(logging.INFO)
 
 
 def generate_cert(event, context):
     output = {}
-    client_acm = boto3.client("acm")
     # print(event)
     request_type = event.get("RequestType")
     # print(request_type)
@@ -41,16 +45,24 @@ def generate_cert(event, context):
         return
 
     else:
+        logging.info("Scanning account for ISSUED certificates...")
         _acm_paginator = client_acm.get_paginator("list_certificates")
         _acm_iterator = _acm_paginator.paginate(CertificateStatuses=["ISSUED"])
         for _page in _acm_iterator:
-            for cert in _page["CertificateSummaryList"]:
+            for cert in _page.get("CertificateSummaryList", []):
                 # print(cert)
-                if "SOCA.DEFAULT.CREATE.YOUR.OWN.CERT" == cert["DomainName"]:
-                    output["ACMCertificateArn"] = cert["CertificateArn"]
+
+                if "SOCA.DEFAULT.CREATE.YOUR.OWN.CERT" == cert.get("DomainName", ""):
+                    _cert_arn: str = cert.get("CertificateArn", "")
+                    _cert_expire: str = cert.get("NotAfter", "")
+                    logging.info(f"Found existing self-signed certificate - ARN {_cert_arn} / Expiration: {_cert_expire}")
+                    output["ACMCertificateArn"] = _cert_arn
                     # FIXME TODO - First match wins only - need to compare Tags?
                     break
 
+        #
+        # See if we found a valid one from the account
+        #
         if "ACMCertificateArn" in output.keys():
             cfnresponse.send(
                 event,
@@ -60,22 +72,28 @@ def generate_cert(event, context):
                 "Using existing Self Signed",
             )
         else:
-            LoadBalancerDNSName = event["ResourceProperties"]["LoadBalancerDNSName"]
-            ClusterId = event["ResourceProperties"]["ClusterId"]
+            #
+            # Create a new self-signed cert
+            #
+            load_balancer_dns_name = event["ResourceProperties"]["LoadBalancerDNSName"]
+            cluster_id = event["ResourceProperties"]["ClusterId"]
 
-            one_day = datetime.timedelta(1, 0, 0)
+            one_day = datetime.timedelta(days=1)
             private_key = rsa.generate_private_key(
                     public_exponent=65537,
                     key_size=2048,
-                    backend=default_backend())
+                    backend=default_backend()
+            )
             public_key = private_key.public_key()
-            subject = x509.Name([
+            subject = x509.Name(
+                [
                     x509.NameAttribute(NameOID.COUNTRY_NAME, 'US'),
                     x509.NameAttribute(NameOID.STATE_OR_PROVINCE_NAME, 'California'),
                     x509.NameAttribute(NameOID.LOCALITY_NAME, 'Sunnyvale'),
-                    x509.NameAttribute(NameOID.ORGANIZATION_NAME, ClusterId),
+                    x509.NameAttribute(NameOID.ORGANIZATION_NAME, cluster_id),
                     x509.NameAttribute(NameOID.COMMON_NAME, 'SOCA.DEFAULT.CREATE.YOUR.OWN.CERT')
-            ])
+                ]
+            )
 
             certificate = x509.CertificateBuilder() \
                     .subject_name(subject) \
@@ -85,7 +103,7 @@ def generate_cert(event, context):
                     .serial_number(x509.random_serial_number()) \
                     .public_key(public_key) \
                     .add_extension(
-                    x509.SubjectAlternativeName([x509.DNSName(LoadBalancerDNSName)]), critical=False) \
+                    x509.SubjectAlternativeName([x509.DNSName(load_balancer_dns_name)]), critical=False) \
                     .add_extension(x509.BasicConstraints(ca=False, path_length=None), critical=True) \
                     .sign(private_key=private_key, algorithm=hashes.SHA256(), backend=default_backend())
 
@@ -97,23 +115,47 @@ def generate_cert(event, context):
             ).decode("utf-8")
 
             try:
+                # Our base tag
+                _tags: list = [
+                    {
+                        "Key": "Name",
+                        "Value": "Soca_ALB_Certificate"
+                    }
+                ]
+
+                # Custom tags passed to us from the installer
+                _custom_tags = event.get("ResourceProperties", {}).get("Tags", [])
+
+                for _tag in _custom_tags:
+                    _tag_name: str = _tag.get("Key", "")
+                    _tag_value: str = _tag.get("Value", "")
+                    if not _tag_name:
+                        logging.info(f"Skipping custom tag: {_tag_name}")
+
+                    # user-defined keys can have empty Values so we do not check them
+
+                    logging.debug(f"Adding custom tag: {_tag_name} / Value: {_tag_value}")
+                    _tags.append(
+                        {
+                            "Key": _tag_name,
+                            "Value": _tag_value
+                        }
+                    )
+
+                logging.info(f"All tags for certificate: {_tags}")
+                #
                 response = client_acm.import_certificate(
-                    Certificate=certificate_content, PrivateKey=private_key_content
+                    Certificate=certificate_content,
+                    PrivateKey=private_key_content,
+                    Tags=_tags,
                 )
                 time.sleep(30)
+
                 output["ACMCertificateArn"] = response["CertificateArn"]
-                client_acm.add_tags_to_certificate(
-                    CertificateArn=response["CertificateArn"],
-                    Tags=[
-                        {
-                            "Key": "Name",
-                            "Value": "Soca_ALB_Certificate"
-                        }
-                    ],
-                )
                 cfnresponse.send(
                     event, context, cfnresponse.SUCCESS, output, "Created Self Signed"
                 )
 
             except Exception as e:
+                logging.error(f"Error creating self-signed certificate. Cluster may require manual intervention. Error: {e}")
                 cfnresponse.send(event, context, cfnresponse.FAILED, output, str(e))

@@ -16,7 +16,7 @@ import ldap
 from flask_restful import Resource
 import logging
 from decorators import admin_api, private_api
-from utils.aws.ssm_parameter_store import SocaConfig
+from utils.config import SocaConfig
 from utils.identity_provider_client import SocaIdentityProviderClient
 from utils.response import SocaResponse
 from utils.error import SocaError
@@ -118,9 +118,9 @@ class Users(Resource):
         else:
             # (!(userAccountControl:1.2.840.113556.1.4.803:=2))) -> catch disabled users
             if config.Config.DIRECTORY_AUTH_PROVIDER == "aws_ds_managed_activedirectory":
-                _filter = "(&(objectClass=user)(!(sAMAccountName=Admin))(!(sAMAccountName=krbtgt))(!(userAccountControl:1.2.840.113556.1.4.803:=2))(!(sAMAccountName=AWS_*)))"
+                _filter = "(&(objectClass=user)(!(sAMAccountName=Admin))(!(sAMAccountName=krbtgt))(!(sAMAccountName=AWS_*)))"
             else:
-                _filter = "(&(objectClass=user)(!(sAMAccountName=Administrator))(!(sAMAccountName=krbtgt))(!(userAccountControl:1.2.840.113556.1.4.803:=2))(!(sAMAccountName=AWS_*)))"
+                _filter = "(&(objectClass=user)(!(sAMAccountName=Administrator))(!(sAMAccountName=krbtgt))(!(sAMAccountName=AWS_*)))"
             _attr_name = "sAMAccountName"
 
         try:

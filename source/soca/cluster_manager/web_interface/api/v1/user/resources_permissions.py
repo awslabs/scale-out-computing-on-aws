@@ -355,7 +355,12 @@ class GetUserResourcesPermissions(Resource):
                         _user_gid = _pw_record.pw_gid
                         _user_group_ids = os.getgrouplist(_user, _user_gid)
                         for _gid in _user_group_ids:
-                            _group_membership.append(grp.getgrgid(_gid).gr_name)
+                            try:
+                                _group_membership.append(grp.getgrgid(_gid).gr_name)
+                            except Exception as err:
+                                logger.error(
+                                    f"Unable to fetch information for {_gid} because of {err}. Ignoring this group"
+                                )
                     except Exception as err:
                         logger.error(
                             f"Failed to get group membership for {_user} due to {err}"

@@ -1,5 +1,5 @@
 # Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
-# SPDX-License-Identifier: Apache-2.0  
+# SPDX-License-Identifier: Apache-2.0
 
 import os
 import sys
@@ -13,7 +13,11 @@ ec2_client = boto3.client("ec2")
 logging.getLogger().setLevel(logging.INFO)
 
 
-def cancel_reservation(reservation_id: str) -> None:
+class CleanupFailed(Exception):
+    pass
+
+
+def cancel_reservation(reservation_id: str) -> bool:
     try:
         logging.info(f"Canceling Capacity Reservation {reservation_id}")
         ec2_client.cancel_capacity_reservation(
@@ -25,46 +29,69 @@ def cancel_reservation(reservation_id: str) -> None:
             logging.info(f"Capacity Reservation {reservation_id} not found.")
         else:
             logging.fatal(f"Unable to cancel capacity reservation: {e}")
+            return False
+
+    return True
 
 
-def clean_odcr_assigned_to_stack(stack_name: str) -> None:
+def clean_odcr_assigned_to_stack(stack_name: str) -> bool:
+    _success = True
     try:
         logging.info(
-            f"Cleaning SOCA ODCRs associated to tag:soca:AssociatedCloudformationStackName = {stack_name}..."
+            f"Cleaning SOCA ODCRs associated to tag:soca:AssociatedStackId = {stack_name}..."
         )
 
         reservations = ec2_client.describe_capacity_reservations(
             Filters=[
                 {"Name": "state", "Values": ["active"]},
                 {
-                    "Name": "tag:soca:AssociatedCloudformationStackName",
+                    "Name": "tag:soca:AssociatedStackId",
                     "Values": [stack_name],
                 },
             ]
         )
         logging.info(
-            f"Found {len(reservations.get('CapacityReservations'))} ODCRs with tag:soca:AssociatedCloudformationStackName = {stack_name}"
+            f"Found {len(reservations.get('CapacityReservations'))} ODCRs with tag:soca:AssociatedStackId = {stack_name}"
         )
 
         for res in reservations.get("CapacityReservations", []):
             logging.info(f"Processing {res} ... ")
             _reservation_id = res.get("CapacityReservationId")
-            cancel_reservation(reservation_id=_reservation_id)
+            if cancel_reservation(reservation_id=_reservation_id) is False:
+                _success = False
 
     except Exception as e:
         exc_type, exc_obj, exc_tb = sys.exc_info()
         fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
         logging.fatal(f"Error: {e}, {exc_type}, {fname}, {exc_tb.tb_lineno}")
+        _success = False
+
+    return _success
 
 
-def clean_orphaned_odcr_on_schedule() -> None:
+def clean_orphaned_odcr_on_schedule() -> bool:
+    _success = True
     try:
-        logging.info("Retrieving all ODCR and deleting inactive reservations")
+        _cluster_id = os.environ.get("SOCA_CLUSTER_ID", None)
+        if not _cluster_id:
+            logging.fatal(
+                "SOCA_CLUSTER_ID is not defined, unable to proceed. Verify your configuration."
+            )
+            return False
+        logging.info(
+            f"Retrieving all ODCR for {_cluster_id} and deleting inactive reservations"
+        )
         reservations = ec2_client.describe_capacity_reservations(
-            Filters=[{"Name": "state", "Values": ["active"]}]
+            Filters=[
+                {"Name": "state", "Values": ["active"]},
+                {
+                    "Name": "tag:soca:ClusterId",
+                    "Values": [_cluster_id],
+                },
+            ]
         )
         logging.info(
-            f"Found {len(reservations.get('CapacityReservations'))} reservation in active state"
+            f"Found {len(reservations.get('CapacityReservations'))} reservations in active state for {_cluster_id}"
         )
 
         for res in reservations.get("CapacityReservations", []):
@@ -74,7 +101,7 @@ def clean_orphaned_odcr_on_schedule() -> None:
                 (
                     tag["Value"]
                     for tag in _tags
-                    if tag["Key"] == "soca:AssociatedCloudformationStackName"
+                    if tag["Key"] == "soca:AssociatedStackId"
                 ),
                 None,
             )
@@ -84,7 +111,7 @@ def clean_orphaned_odcr_on_schedule() -> None:
 
             if _stack_name_tag:
                 logging.info(
-                    f"ODCR {_reservation_id} has tag soca:AssociatedCloudformationStackName set to {_stack_name_tag}"
+                    f"ODCR {_reservation_id} has tag soca:AssociatedStackId set to {_stack_name_tag}"
                 )
                 try:
                     _check_stack = cfn_client.describe_stacks(StackName=_stack_name_tag)
@@ -102,7 +129,11 @@ def clean_orphaned_odcr_on_schedule() -> None:
                             logging.info(
                                 f"Associated CloudFormation stack is active and all capacity is provisioned: {_available_instance_count=} / {_total_instance_count=}, we can cancel the reservation ID as it's no longer needed"
                             )
-                            cancel_reservation(reservation_id=_reservation_id)
+                            if (
+                                cancel_reservation(reservation_id=_reservation_id)
+                                is False
+                            ):
+                                _success = False
                         else:
                             logging.info(
                                 f"Associated CloudFormation stack is active but capacity is not yet fully provisioned: {_available_instance_count=} / {_total_instance_count=}, we can cancel the reservation ID as it's no longer needed, skipping ..."
@@ -111,35 +142,45 @@ def clean_orphaned_odcr_on_schedule() -> None:
                         logging.info(
                             f"Associated CloudFormation stack is not active {_stack_status=}, cancelling reservation "
                         )
-                        cancel_reservation(reservation_id=_reservation_id)
+                        if cancel_reservation(reservation_id=_reservation_id) is False:
+                            _success = False
 
                 except ClientError as e:
-                    if "does not exist" in str(e):
+                    error_code = e.response["Error"]["Code"]
+                    if (
+                        error_code == "ValidationError"
+                        and "does not exist" in e.response["Error"]["Message"]
+                    ):
                         logging.info(
-                            f"{_stack_name_tag} does NOT exist. Cancelling ODCR {_reservation_id}..."
+                            f"_stack_name_tag does NOT exist. Cancelling ODCR {_reservation_id}..."
                         )
-                        cancel_reservation(reservation_id=_reservation_id)
-
+                        if cancel_reservation(reservation_id=_reservation_id) is False:
+                            _success = False
                     else:
                         logging.fatal(f"Error checking stack: {e}")
-                        continue
+                        _success = False
             else:
                 logging.info(
-                    f"ODCR {_reservation_id} does NOT have the tag 'soca:AssociatedCloudformationStackName', skipping"
+                    f"ODCR {_reservation_id} does NOT have the tag 'soca:AssociatedStackId', skipping"
                 )
-                continue
 
     except Exception as e:
         exc_type, exc_obj, exc_tb = sys.exc_info()
         fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
         logging.fatal(f"Error: {e}, {exc_type}, {fname}, {exc_tb.tb_lineno}")
+        _success = False
+
+    return _success
 
 
 def lambda_handler(event, context):
     """
     This function cancel orphaned ODCR requested via SOCA if the capacity is manually deleted directly from the AWS console.
+    This function is managed by AWS StepFunction:
     - called via AWS EventBridge when a CloudFormation Stack change state (event stack_name) will be received
     - also called via Schedule to recycle all orphaned ODCR
+
+
     """
     _stack_id = event.get(
         "stack_id", None
@@ -154,7 +195,7 @@ def lambda_handler(event, context):
     logging.info(f"Received event Stack name: {_stack_name}, Status: {_status}")
 
     if _status in ["CREATE_COMPLETE", "CREATE_IN_PROGRESS"]:
-        # EventBridge EventPattern is anything-but CREATE_COMPLETE / CREATE_IN_PROGRESS.
+        # EventBridge EventPattern  does not include CREATE_COMPLETE / CREATE_IN_PROGRESS.
         # We add this extra check to ensure we don't cancel the ODCR if there any mis-configuration post-deployent to the EventBridge event
         # if the stack is in active state.
         logging.info(f"Received CloudFormation Stack is in active state, skipping ...")
@@ -163,11 +204,17 @@ def lambda_handler(event, context):
             logging.info(
                 f"Stack name is not empty, lambda triggered from EventBridge EventPattern, checking ODCR for {_stack_name=}"
             )
-            clean_odcr_assigned_to_stack(stack_name=_stack_name)
+            if clean_odcr_assigned_to_stack(stack_name=_stack_name) is False:
+                raise CleanupFailed(
+                    "Un-recoverable errors detected during clean_odcr_assigned_to_stack"
+                )
         else:
             logging.info(
                 "Stack name not provisioned, lambda triggered from EventBridge Schedule, iterating through all ODCR and cancelling orphaned ones"
             )
-            clean_orphaned_odcr_on_schedule()
-
-    logging.info("Lambda execution completed")
+            if clean_orphaned_odcr_on_schedule() is False:
+                raise CleanupFailed(
+                    "Un-recoverable errors detected during clean_orphaned_odcr_on_schedule"
+                )
+    
+    logging.info("Lambda execution complete")

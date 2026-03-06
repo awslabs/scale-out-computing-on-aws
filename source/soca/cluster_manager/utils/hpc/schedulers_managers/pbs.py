@@ -22,7 +22,7 @@ from utils.datamodels.soca_node import (
     SocaNode,
 )
 from utils.datamodels.hpc.pbs.node import SocaHpcNodePBS
-from utils.aws.cloudformation_helper import SocaCfnClient
+from utils.aws.cloudformation_client import SocaCfnClient
 from utils.hpc.scheduler_command_builder import SocaHpcPBSJobCommandBuilder
 
 logger = logging.getLogger("soca_logger")
@@ -202,7 +202,9 @@ class SocaSchedulerPBSNodesManager:
                 f"{self._scheduler_info.binary_folder_paths}:{_current_path}"
             )
 
-        _run_command = f"pbsnodes -q -a -F json -s {self._scheduler_info.endpoint}"
+        _run_command = SocaHpcPBSJobCommandBuilder(
+            scheduler_info=self._scheduler_info
+        ).pbsnodes(f"-q -a -F json -s {self._scheduler_info.endpoint}")
 
         # Note: pbsnodes will return 1 if there is no nodes registered
         _nodes_data = SocaSubprocessClient(run_command=_run_command).run(

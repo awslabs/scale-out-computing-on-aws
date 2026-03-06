@@ -21,6 +21,7 @@
 
 {% include "templates/linux/common/setup_environment_file.sh.j2" %}
 
+{% include "templates/linux/common/cloud_init.sh.j2" %}
 
 {% set PATH = '/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin:/opt/soca/' ~ context.get("/configuration/ClusterId") ~ ':/opt/soca/' ~ context.get("/configuration/ClusterId") ~ '/packages/sqlite/bin' %}
 export PATH={{ PATH }}:${PATH}

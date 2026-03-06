@@ -50,12 +50,12 @@ class SocaHpcJobSubmit:
 
     Example:
         ```python
-        response = SocaHpcJobSubmit(scheduler_id="default-openpbs", user="alice").submit_script_path(
+        response = SocaHpcJobSubmit(scheduler_id="default-openpbs", user="alice", cwd="/data/home/alice").submit_script_path(
             script_path="/data/home/alice/my_job.pbs"
         )
 
         encoded_payload = base64.b64encode(b"#!/bin/bash\n#PBS -N myjob........").decode("utf-8")
-        response = SocaHpcJobSubmit(scheduler_id="default-openpbs", user="alice").submit_encoded_payload(
+        response = SocaHpcJobSubmit(scheduler_id="default-openpbs", user="alice", cwd="/data/home/alice").submit_encoded_payload(
             payload=encoded_payload
         )
 
@@ -66,10 +66,12 @@ class SocaHpcJobSubmit:
         ```
     """
 
-    def __init__(self, scheduler_id: str, user: str):
+    def __init__(self, scheduler_id: str, user: str, cwd: Optional[str] = None):
         self._user = user
         self._all_schedulers = get_schedulers()
         self._scheduler = None
+        self._cwd = cwd
+
         for _sched in self._all_schedulers:
             if _sched.identifier == scheduler_id:
                 self._scheduler = _sched
@@ -140,7 +142,7 @@ class SocaHpcJobSubmit:
 
             _submit_job = SocaSubprocessClient(
                 run_command=_run_command, run_as=self._user
-            ).run(env=_current_env, timeout=5)
+            ).run(env=_current_env, timeout=10, cwd=self._cwd)
             if _submit_job.get("success") is True:
                 _stdout = _submit_job.get("message").get("stdout")
                 return SocaResponse(success=True, message=_stdout)
@@ -201,7 +203,7 @@ class SocaHpcJobSubmit:
 
             if submit_directory is None:
                 _user_home = _user_info.pw_dir
-                _job_submit_folder = f"{_user_home}/soca_job_output/"
+                _job_submit_folder = f"{_user_home}/soca_job_output"
                 _job_submit_script_path = f"{_job_submit_folder}/{_job_submit_file}"
                 logger.info(
                     f"submit_directory not specified. Job script path will be stored on {_job_submit_script_path}, creating it ... "
@@ -287,7 +289,7 @@ class SocaShellScriptSubmit:
         ```python
         encoded_script = base64.b64encode(b"#!/bin/bash\nwill_execute_custom_logic...").decode("utf-8")
 
-        response = SocaShellScriptSubmit(scheduler_id="/bin/bash", user="alice").submit_encoded_payload(
+        response = SocaShellScriptSubmit(scheduler_id="/bin/bash", user="alice", cwd="/data/home/alice").submit_encoded_payload(
             payload=encoded_script
         )
 
@@ -298,9 +300,10 @@ class SocaShellScriptSubmit:
         ```
     """
 
-    def __init__(self, interpreter: str, user: str):
+    def __init__(self, interpreter: str, user: str, cwd: Optional[str] = None):
         self._interpreter = interpreter
         self._user = user
+        self._cwd = cwd
 
     def submit_encoded_payload(
         self,
@@ -400,7 +403,7 @@ class SocaShellScriptSubmit:
                 run_command=f"{self._interpreter} {shlex.quote(_job_submit_script_path)}",
                 run_as=self._user,
                 timeout=5,
-            ).run()
+            ).run(cwd=self._cwd)
             if _submit_request.get("success") is True:
                 return SocaResponse(
                     success=True, message=_submit_request.get("message")

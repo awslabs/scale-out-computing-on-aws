@@ -260,6 +260,15 @@ def send_job():
             return redirect("/my_files")
 
         # Calculate the number of nodes to be provisioned for the simulation
+        _pattern_ht_support = re.compile(r'(?i)\bht_support\s*=\s*(true|false)\b')
+        _match_ht_support = _pattern_ht_support.search(_job_to_submit)
+        if _match_ht_support:
+            _ht_support_value = False if _match_ht_support.group(1).lower() == "false" else True
+            logger.info(f"Found ht_support value to {_ht_support_value}")
+        else:
+            logger.info("ht_support not specified, default to False")
+            _ht_support_value = False
+
         _cpu_per_system = 0
         _describe_instance_type = describe_instance_types(
             instance_types=[_instance_type]
@@ -277,7 +286,10 @@ def send_job():
             _describe_instance_types = _describe_instance_type.get("message")
 
             for instance_info in _describe_instance_types.get("InstanceTypes"):
-                _cpu_per_system = instance_info["VCpuInfo"]["DefaultVCpus"]
+                if _ht_support_value is True:
+                    _cpu_per_system = instance_info["VCpuInfo"]["DefaultVCpus"]
+                else:
+                    _cpu_per_system = instance_info["VCpuInfo"]["DefaultCores"]
 
         if _cpu_per_system == 0:
             logger.error(
@@ -320,23 +332,23 @@ def send_job():
                         "Node count is already specified and matches the request"
                     )
             else:
-                logger.info("Node count is not specified, adding it")
+                logger.debug("Node count is not specified, adding it")
                 if _shebang:
                     # Add right after shebang
                     _job_to_submit = _job_to_submit.replace(
                         _shebang,
                         _shebang
-                        + "\n #Added by SOCA Web UI \n"
-                        + f"#PBS -l select={_requested_node_count}:ncpus={_cpu_per_system}\n",
+                        + "\n#Added by SOCA Web UI \n"
+                        + f"#PBS -l select={_requested_node_count}:ncpus={_cpu_per_system}:mpiprocs={_cpu_per_system}\n",
                     )
                 else:
                     # Add first line
                     _job_to_submit = (
                         "# Added by SOCA Web UI \n"
-                        f"#PBS -l select={_requested_node_count}:ncpus={_cpu_per_system}\n"
+                        f"#PBS -l select={_requested_node_count}:ncpus={_cpu_per_system}:mpiprocs={_cpu_per_system}\n"
                         + _job_to_submit
                     )
-                logger.info("Added node count and ncpus to job script")
+                logger.debug("Added node count, ncpus, and mpiprocs to job script")
 
     elif _scheduler_info.provider == SocaHpcSchedulerProvider.LSF.value:
         # tba

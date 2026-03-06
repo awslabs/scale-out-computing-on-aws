@@ -1,95 +1,142 @@
 # Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-# Begin: Install GPU Drivers - Is GPU Instance Type
+# Begin: Install NVIDIA GPU Drivers (Tesla or Grid)
+function wrapper_install_driver () {
+    local INSTALLER_PATH="$1"
+    if [[ -z "${INSTALLER_PATH}" ]]; then
+        log_error "No installer name provided"
+        return 1
+    fi
+
+    log_info "About to install NVIDIA GPU Driver ${INSTALLER_PATH} with options --no-precompiled-interface --run-nvidia-xconfig --no-questions --accept-license --silent"
+    if /bin/bash ${INSTALLER_PATH} \
+        --no-precompiled-interface \
+        --run-nvidia-xconfig \
+        --no-questions \
+        --accept-license \
+        --silent; then
+        return 0
+    fi
+
+    log_error "Unable to install GPU ${INSTALLER_PATH} driver, copyging /var/log/nvidia-installer.log for troubleshooting"
+    if [[ -f /var/log/nvidia-installer.log ]]; then
+        cp /var/log/nvidia-installer.log "${SOCA_BOOTSTRAP_LOGS_FOLDER}/nvidia-installer-${INSTALLER_PATH}.log"
+    fi
+
+    return 1
+}
+
+function configure_xconfig () {
+    log_info "X server configuration for GPU start..."
+    rm -rf /etc/X11/XF86Config*
+    local NVIDIAXCONFIG=$(which nvidia-xconfig)
+    ${NVIDIAXCONFIG} --preserve-busid --enable-all-gpus
+    log_info "X server configuration for GPU end..."
+}
+
 function install_nvidia_grid_drivers () {
-  local GRID_VERSION="${1}"
-  log_info "Installing Grid Nvidia ${GRID_VERSION}"
+    local GRID_VERSION="$1"
 
-  which nvidia-smi > /dev/null 2>&1
-  if [[ "$?" == "0" ]]; then
-    log_info "GPU driver already installed. Skip."
-    return 0
-  fi
+    if [[ -z "${GRID_VERSION}" ]]; then
+        log_error "No GRID Version provided"
+        return 1
+    fi
 
-  log_info "Installing NVIDIA GRID Drivers"
+    log_info "Pinned NVIDIA Grid Driver is: ${GRID_VERSION}"
+    which nvidia-smi > /dev/null 2>&1
+    if [[ "$?" == "0" ]]; then
+        log_info "GPU driver already installed. Skipping ..."
+        return 0
+    fi
 
-  log_info "Installing additional packages"
-  {% if context.get("/configuration/BaseOS") in ("rhel8", "rhel9", "rocky8", "rocky9") %}
-    packages_install vulkan-loader
-  {% elif context.get("/configuration/BaseOS") in ("ubuntu2204", "ubuntu2404") %}
-    packages_install dkms linux-headers-aws linux-modules-extra-aws 
-  {% endif %}
+    log_info "Installing NVIDIA GRID Drivers"
+    {% if context.get("/configuration/BaseOS") in ("rhel8", "rhel9", "rocky8", "rocky9") %}
+        log_info "Installing additional packages vulkan-loader"
+        packages_install vulkan-loader
+    {% elif context.get("/configuration/BaseOS") in ("ubuntu2204", "ubuntu2404") %}
+        log_info "Installing additional packages for Ubuntu"
+        packages_install dkms linux-headers-aws linux-modules-extra-aws 
+    {% endif %}
 
-  mkdir -p "${SOCA_BOOTSTRAP_ASSETS_FOLDER}/gpu_drivers"
-  pushd "${SOCA_BOOTSTRAP_ASSETS_FOLDER}/gpu_drivers"
-  rm -rf NVIDIA-Linux-x86_64*.run || log_info "No previous .run file detected"
-  local DRIVER_BUCKET_REGION=$(curl -s --head "{{ context.get("/system/gpu/gpu_settings/nvidia/linux/grid_drivers/s3_bucket_url") }}" | grep bucket-region | awk '{print $2}' | tr -d '\r\n')
-  aws_cli --region ${DRIVER_BUCKET_REGION} s3 cp --quiet --recursive "{{ context.get("/system/gpu/gpu_settings/nvidia/linux/grid_drivers/s3_bucket_path") }}/${GRID_VERSION}/" .
-  local x_server_pid=$(cat /tmp/.X0-lock)
-  if [[ ! -z "${x_server_pid}" ]]; then
-    kill $x_server_pid
-  fi
-  log_info "Installing NVIDIA Drivers with NVIDIA-Linux-x86_64*.run --no-precompiled-interface --run-nvidia-xconfig --no-questions --accept-license --silent --no-unified-memory"
-  if ! /bin/bash NVIDIA-Linux-x86_64*.run --no-precompiled-interface \
-    --run-nvidia-xconfig \
-    --no-questions \
-    --accept-license \
-    --silent;
-  then
-    log_error "Unable to install GPU driver, check /var/log/nvidia-installer.log for more info.."
-  fi
+    local x_server_pid=$(cat /tmp/.X0-lock)
+    if [[ ! -z "${x_server_pid}" ]]; then
+        kill $x_server_pid
+    fi
 
-  log_info "X server configuration for GPU start..."
-  rm -rf /etc/X11/XF86Config*
-  local NVIDIA_XCONFIG=$(which nvidia-xconfig)
-  ${NVIDIA_XCONFIG} --preserve-busid --enable-all-gpus
-  log_info "X server configuration for GPU end..."
-  set_reboot_required "Installed NVIDIA Grid Driver"
-  popd
+    mkdir -p "${SOCA_BOOTSTRAP_ASSETS_FOLDER}/gpu_drivers"
+    pushd "${SOCA_BOOTSTRAP_ASSETS_FOLDER}/gpu_drivers"
+    rm -rf NVIDIA-Linux-*.run || log_info "No previous NVIDIA-Linux-*.run file detected"
+    
+    local DRIVER_BUCKET_REGION=$(curl -s --head "{{ context.get("/system/gpu/gpu_settings/nvidia/linux/grid_drivers/s3_bucket_url") }}" | grep bucket-region | awk '{print $2}' | tr -d '\r\n')
+    aws_cli --region ${DRIVER_BUCKET_REGION} s3 cp --quiet --recursive "{{ context.get("/system/gpu/gpu_settings/nvidia/linux/grid_drivers/s3_bucket_path") }}/${GRID_VERSION}/" .
+    
+    # Try pinned GRID version first
+    PINNED_NVIDIA_DRIVER_RUN_NAME=(NVIDIA-Linux-*.run)
+
+    if ! wrapper_install_driver "${PINNED_NVIDIA_DRIVER_RUN_NAME}"; then
+        log_warning "Failed to install pinned driver version ${PINNED_NVIDIA_DRIVER_RUN_NAME}, attempting fallback to latest driver"
+        
+        # Rename failed driver
+        mv ${PINNED_NVIDIA_DRIVER_RUN_NAME} "failed_driver_${PINNED_NVIDIA_DRIVER_RUN_NAME}"
+        aws_cli --region "${DRIVER_BUCKET_REGION}" s3 cp --quiet --recursive "{{ context.get("/system/gpu/gpu_settings/nvidia/linux/grid_drivers/s3_bucket_path") }}/latest/" .
+
+        # Pin new driver (latest available)
+        LATEST_NVIDIA_DRIVER_RUN_NAME=(NVIDIA-Linux-*.run)
+        FAILED_DRIVER_CHECKSUM=$(sha256sum "failed_driver_${PINNED_NVIDIA_DRIVER_RUN_NAME}" | awk '{print $1}')
+        NEW_DRIVER_CHECKSUM=$(sha256sum ${LATEST_NVIDIA_DRIVER_RUN_NAME} | awk '{print $1}')
+
+        if [[ "${FAILED_DRIVER_CHECKSUM}" == "${NEW_DRIVER_CHECKSUM}" ]]; then
+            log_error "Latest driver is identical to failed driver. Skipping ..."
+        else
+            if ! wrapper_install_driver ${LATEST_NVIDIA_DRIVER_RUN_NAME}; then
+                log_error "Failed to install latest driver version ${LATEST_NVIDIA_DRIVER_RUN_NAME}. GPU drivers were not installed on this machine. See logs for more details"
+
+            else
+                configure_xconfig
+            fi
+        fi
+    else
+        configure_xconfig
+    fi
+
+    set_reboot_required "Installed NVIDIA Grid Driver"
+    popd
 }
 
 
 function install_nvidia_public_tesla_drivers() {
-  local DRIVER_VERSION="${1}"
-  local MACHINE=$(uname -m)
-  local DRIVER_URL_ENDPOINT="{{ context.get("/system/gpu/gpu_settings/nvidia/linux/tesla_drivers/public_driver_url_endpoint") }}/${DRIVER_VERSION}/NVIDIA-Linux-${MACHINE}-${DRIVER_VERSION}.run"
+    local DRIVER_VERSION="${1}"
+    local MACHINE=$(uname -m)
+    local DRIVER_URL_ENDPOINT="{{ context.get("/system/gpu/gpu_settings/nvidia/linux/tesla_drivers/public_driver_url_endpoint") }}/${DRIVER_VERSION}/NVIDIA-Linux-${MACHINE}-${DRIVER_VERSION}.run"
 
-  which nvidia-smi > /dev/null 2>&1
-  if [[ "$?" == "0" ]]; then
-    log_info "GPU driver already installed. Skip."
-    return 0
-  fi
+    which nvidia-smi > /dev/null 2>&1
+    if [[ "$?" == "0" ]]; then
+        log_info "Tesla GPU driver already installed. Skipping ..."
+        return 0
+    fi
 
-  {% if context.get("/configuration/BaseOS") in ("rhel8", "rhel9", "rocky8", "rocky9") %}
-    packages_install vulkan-loader
-  {% endif %}
+    {% if context.get("/configuration/BaseOS") in ("rhel8", "rhel9", "rocky8", "rocky9") %}
+        packages_install vulkan-loader
+    {% endif %}
 
-  mkdir -p "${SOCA_BOOTSTRAP_ASSETS_FOLDER}/gpu_drivers"
-  pushd "${SOCA_BOOTSTRAP_ASSETS_FOLDER}/gpu_drivers"
-  rm -rf NVIDIA-Linux-*.run || echo "No previous .run file detected"
-  curl -fSsl -O ${DRIVER_URL_ENDPOINT}
+    mkdir -p "${SOCA_BOOTSTRAP_ASSETS_FOLDER}/gpu_drivers"
+    pushd "${SOCA_BOOTSTRAP_ASSETS_FOLDER}/gpu_drivers"
+    rm -rf NVIDIA-Linux-*.run || log_info "No previous NVIDIA-Linux-*.run file detected"
+    
+    file_download --download-url="${DRIVER_URL_ENDPOINT}" --save-as="NVIDIA-Linux-${MACHINE}-${DRIVER_VERSION}.run"
 
-  local x_server_pid=$(cat /tmp/.X0-lock)
-  if [[ ! -z "${x_server_pid}" ]]; then
-    kill $x_server_pid
-  fi
+    local x_server_pid=$(cat /tmp/.X0-lock)
+    if [[ ! -z "${x_server_pid}" ]]; then
+        kill $x_server_pid
+    fi
 
-  log_info "Installing NVIDIA Drivers with  NVIDIA-Linux-x86_64*.run --no-precompiled-interface --run-nvidia-xconfig --no-questions --accept-license --silent --no-unified-memory"
-
-  if ! /bin/bash NVIDIA-Linux-x86_64*.run --no-precompiled-interface \
-   --run-nvidia-xconfig \
-   --no-questions \
-   --accept-license \
-   --silent; then
-   log_error "Unable to install GPU driver, check /var/log/nvidia-installer.log for more info. Trying to install a compatibility driver ..."
-  fi
-
-  log_info "X server configuration for GPU start..."
-  rm -rf /etc/X11/XF86Config*
-  local NVIDIAXCONFIG=$(which nvidia-xconfig)
-  ${NVIDIAXCONFIG} --preserve-busid --enable-all-gpus
-  log_info "X server configuration for GPU end..."
-  set_reboot_required "Installed NVIDIA Public Driver"
-  popd
+    if ! wrapper_install_driver NVIDIA-Linux-${MACHINE}-${DRIVER_VERSION}.run; then
+        log_error "Unable to install public NVIDIA driver."
+    else
+        configure_xconfig
+    fi
+    
+    set_reboot_required "Installed NVIDIA Public Driver"
+    popd
 }

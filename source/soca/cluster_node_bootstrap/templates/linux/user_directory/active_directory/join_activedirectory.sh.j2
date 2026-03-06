@@ -187,8 +187,6 @@ EOF
         local SLEEP_TIME=$(( RANDOM % 60 ))
         log_info "Realm join didn't complete successfully. Retrying in ${SLEEP_TIME} seconds... Loop count is: ${JOIN_AD_ATTEMPT}/10"
         sleep ${SLEEP_TIME}
-        echo "${DS_DOMAIN_ADMIN_PASSWORD}" | ${ADCLI} delete-computer -U "${DS_DOMAIN_ADMIN_USERNAME}" --stdin-password --domain="${DS_DOMAIN_NAME}" "${SOCA_AD_HOSTNAME}"
-        echo "${DS_DOMAIN_ADMIN_PASSWORD}" | ${REALM} leave --user "${DS_DOMAIN_ADMIN_USERNAME}" "${UPPER_DS_DOMAIN_NAME}" --verbose
         if [[ ${JOIN_AD_ATTEMPT} -eq 10 ]]; then
           exit_fail "Unable to join domain after 10 attempts"
         fi

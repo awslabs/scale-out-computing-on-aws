@@ -7,7 +7,7 @@
                         "logs:CreateLogStream",
                         "logs:PutLogEvents"
                     ],
-            "Resource": "arn:%%AWS_PARTITION%%:logs:%%AWS_REGION%%:%%AWS_ACCOUNT_ID%%:log-group:/aws/lambda/%%CLUSTER_ID%%*EFSAppsLambda*",
+            "Resource": "arn:%%AWS_PARTITION%%:logs:%%AWS_REGION%%:%%AWS_ACCOUNT_ID%%:log-group:/soca/%%CLUSTER_ID%%/PlacementGroupCleanerLambda/*",
             "Effect": "Allow",
             "Sid": "CloudWatchLogsPermissions"
         },
@@ -21,13 +21,18 @@
         },
         {
             "Action": [
-                "elasticfilesystem:DescribeFileSystems",
-                "elasticfilesystem:UpdateFileSystem"
+                "ec2:DeletePlacementGroup"
             ],
-            "Resource": "arn:%%AWS_PARTITION%%:elasticfilesystem:%%AWS_REGION%%:%%AWS_ACCOUNT_ID%%:file-system/*",
+            "Resource": "arn:%%AWS_PARTITION%%:ec2:*:%%AWS_ACCOUNT_ID%%:placement-group/*",
             "Effect": "Allow",
-            "Sid": "EFSPermissions"
+            "Sid": "DeletePlacementGroup"
+        },
+        {
+            "Action": ["cloudformation:DescribeStacks", "ec2:DescribePlacementGroups"],
+            "Resource": "*",
+
+            "Effect": "Allow",
+            "Sid": "ReadOnlyPermissions"
         }
     ]
 }
-

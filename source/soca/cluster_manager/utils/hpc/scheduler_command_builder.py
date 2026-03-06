@@ -67,7 +67,7 @@ class SocaHpcPBSJobCommandBuilder(SocaHpcBaseJobCommandBuilder):
 
     @property
     def load_scheduler_environment(self) -> str:
-        return f"export PBS_CONF_FILE={self.scheduler_info.pbs_configuration.pbs_home}/pbs.conf"
+        return f"export PBS_CONF_FILE={self.scheduler_info.pbs_configuration.pbs_exec}/pbs.conf && source {self.scheduler_info.pbs_configuration.pbs_exec}/pbs.conf"
 
     def qstat(self, args: Optional[str] = None) -> str:
         return self._build_cmd("qstat", args)

@@ -3,7 +3,7 @@
 
 import logging
 import redis
-from utils.aws.secrets_manager import SocaSecret
+from utils.aws.secretsmanager_client import SocaSecret
 import utils.aws.boto3_wrapper as utils_boto3
 from utils.error import SocaError
 from utils.response import SocaResponse

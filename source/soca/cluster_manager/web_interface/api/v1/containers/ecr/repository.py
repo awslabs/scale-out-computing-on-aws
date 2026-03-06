@@ -6,7 +6,7 @@ from flask import request
 import logging
 from flask import Response
 from decorators import private_api, feature_flag
-from utils.aws.ssm_parameter_store import SocaConfig
+from utils.config import SocaConfig
 from utils.error import SocaError
 import base64
 import ast

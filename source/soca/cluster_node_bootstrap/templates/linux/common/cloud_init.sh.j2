@@ -1,0 +1,11 @@
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+function cloud_init_rerun_user_data () {
+    log_info "Running cloud-init clean to force re-execution of EC2 User Data"
+    # Be careful, calling this function will. force user-data to be re-executed.
+    # Only used to:
+    # - Force reboot to load lustre-driver client
+    # - Force reboot if kernel was updated during system packages installatiom
+    cloud-init clean
+}

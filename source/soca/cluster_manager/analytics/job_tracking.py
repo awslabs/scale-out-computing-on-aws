@@ -10,7 +10,7 @@ from typing import Any
 import os
 import re
 import sys
-from utils.aws.ssm_parameter_store import SocaConfig
+from utils.config import SocaConfig
 from utils.analytics_client import SocaAnalyticsClient
 from utils.logger import SocaLogger
 from utils.error import SocaError
@@ -248,7 +248,10 @@ if __name__ == "__main__":
                     if data["job_state"].lower() == "e":
                         logger.debug(f"Valid job state, processing  {data}")
                         ignore = False
-                        if "Resource_List.instance_type" not in data["job_data"]:
+                        if (
+                            "Resource_List.instance_type" not in data["job_data"]
+                            and "Resource_List.instance_types" not in data["job_data"]
+                        ):
                             logger.info(
                                 f"No instance type found for {job_id}, ignoring ... "
                             )
@@ -269,19 +272,14 @@ if __name__ == "__main__":
 
                                     if resource_name == "select":
                                         # Extract meaningful info in select
-                                        job_info["nodect"] = cast_wrapper(
-                                            data=resource_value.split(":")[0],
-                                            cast_as=int,
-                                        )
-
                                         _options = {
                                             "mpiprocs": {
-                                                "regex": "mpiprocs=(\d+)",
+                                                "regex": r"mpiprocs=(\d+)",
                                                 "type": int,
                                             },
-                                            "ppn": {"regex": "ppn=(\d+)", "type": int},
+                                            "ppn": {"regex": r"ppn=(\d+)", "type": int},
                                             "ncpus": {
-                                                "regex": "ncpus=(\d+)",
+                                                "regex": r"ncpus=(\d+)",
                                                 "type": int,
                                             },
                                         }
@@ -308,6 +306,7 @@ if __name__ == "__main__":
                                         "Exit_status",
                                         "root_size",
                                         "scratch_size",
+                                        "nodect",
                                     ]:
                                         # Cast safe value to int
                                         job_info[resource_name] = cast_wrapper(
@@ -317,6 +316,10 @@ if __name__ == "__main__":
                                     else:
                                         # Force cast everything else as string to avoid case where you start indexing as long/integer (eg: -l select=3)
                                         # and then you include some string value (eg: -l select=3:ppn=12)
+                                        if resource_name == "instance_type":
+                                            # instance_types is the new expected format, rewrite it for backward compatibility
+                                            resource_name = "instance_types"
+
                                         job_info[resource_name] = str(resource_value)
 
                                 # Adding custom field to index
@@ -459,46 +462,59 @@ if __name__ == "__main__":
                                             )
 
                                 if (
-                                    job_info["instance_type"].split("+")[0]
+                                    job_info["instance_types"].split("+")[0]
                                     not in pricing_table.keys()
                                 ):
                                     pricing_table[
-                                        job_info["instance_type"].split("+")[0]
+                                        job_info["instance_types"].split("+")[0]
                                     ] = get_aws_pricing(
-                                        job_info["instance_type"].split("+")[0]
+                                        job_info["instance_types"].split("+")[0]
                                     )
 
                                 job_info["estimated_price_ec2_ondemand"] = (
                                     simulation_time_seconds_with_penalty
                                     * (
                                         pricing_table[
-                                            job_info["instance_type"].split("+")[0]
+                                            job_info["instance_types"].split("+")[0]
                                         ]["ondemand"]
                                         / 3600
                                     )
                                     * job_info["nodect"]
                                 )
-                                reserved_hourly_rate = (
-                                    pricing_table[
-                                        job_info["instance_type"].split("+")[0]
-                                    ]["reserved"]
-                                    / 750
-                                )
-                                job_info["estimated_price_ec2_reserved"] = (
-                                    simulation_time_seconds_with_penalty
-                                    * (reserved_hourly_rate / 3600)
-                                    * job_info["nodect"]
-                                )
+                                
+                                if (
+                                    "reserved"
+                                    in pricing_table[
+                                        job_info["instance_types"].split("+")[0]
+                                    ].keys()
+                                ):
+                                    reserved_hourly_rate = (
+                                        pricing_table[
+                                            job_info["instance_types"].split("+")[0]
+                                        ]["reserved"]
+                                        / 750
+                                    )
+                                    job_info["estimated_price_ec2_reserved"] = (
+                                        simulation_time_seconds_with_penalty
+                                        * (reserved_hourly_rate / 3600)
+                                        * job_info["nodect"]
+                                    )
+                                    
+                                    job_info["estimated_price_reserved"] = (
+                                        job_info["estimated_price_ec2_reserved"]
+                                        + job_info["estimated_price_storage_root_size"]
+                                        + job_info[
+                                            "estimated_price_storage_scratch_size"
+                                        ]
+                                        + job_info[
+                                            "estimated_price_storage_scratch_iops"
+                                        ]
+                                        + job_info["estimated_price_fsx_lustre"]
+                                    )
+                                    
 
                                 job_info["estimated_price_ondemand"] = (
                                     job_info["estimated_price_ec2_ondemand"]
-                                    + job_info["estimated_price_storage_root_size"]
-                                    + job_info["estimated_price_storage_scratch_size"]
-                                    + job_info["estimated_price_storage_scratch_iops"]
-                                    + job_info["estimated_price_fsx_lustre"]
-                                )
-                                job_info["estimated_price_reserved"] = (
-                                    job_info["estimated_price_ec2_reserved"]
                                     + job_info["estimated_price_storage_root_size"]
                                     + job_info["estimated_price_storage_scratch_size"]
                                     + job_info["estimated_price_storage_scratch_iops"]

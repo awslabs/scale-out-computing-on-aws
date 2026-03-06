@@ -1,0 +1,144 @@
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# SCHEDULER_VARS are forwarded from templates/linux/schedulers/install_schedulers.sh.j2:
+
+function pbspro_install_{{  SCHEDULER_VARS.get("IDENTIFIER") }} {
+
+    log_info "[BEGIN] pbspro_install"
+
+    {% if context.get("/configuration/BaseOS") == "rhel9" %}
+        local PBSPRO_INSTALL_RPM_X86="{{ context.get("/system/scheduler/pbspro/x86/pbspro_installer_rhel9_filename") }}"
+        local PBSPRO_INSTALL_RPM_AARCH64="{{ context.get("/system/scheduler/pbspro/aarch64/pbspro_installer_rhel9_filename") }}"
+    {% elif context.get("/configuration/BaseOS") == "rhel8" %}
+        local PBSPRO_INSTALL_RPM_X86="{{ context.get("/system/scheduler/pbspro/x86/pbspro_installer_rhel8_filename") }}"
+        local PBSPRO_INSTALL_RPM_AARCH64="{{ context.get("/system/scheduler/pbspro/aarch64/pbspro_installer_rhel8_filename") }}"
+    {% elif context.get("/configuration/BaseOS") == "rocky9" %}
+        local PBSPRO_INSTALL_RPM_X86="{{ context.get("/system/scheduler/pbspro/x86/pbspro_installer_rocky9_filename") }}"
+        local PBSPRO_INSTALL_RPM_AARCH64="{{ context.get("/system/scheduler/pbspro/aarch64/pbspro_installer_rocky9_filename") }}"
+    {% elif context.get("/configuration/BaseOS") == "rocky8" %}
+        local PBSPRO_INSTALL_RPM_X86="{{ context.get("/system/scheduler/pbspro/x86/pbspro_installer_rocky8_filename") }}"
+        local PBSPRO_INSTALL_RPM_AARCH64="{{ context.get("/system/scheduler/pbspro/aarch64/pbspro_installer_rocky8_filename") }}"
+    {% elif context.get("/configuration/BaseOS") == "ubuntu2204" %}
+        local PBSPRO_INSTALL_RPM_X86="{{ context.get("/system/scheduler/pbspro/x86/pbspro_installer_ubuntu2204_filename") }}"
+        local PBSPRO_INSTALL_RPM_AARCH64="{{ context.get("/system/scheduler/pbspro/aarch64/pbspro_installer_ubuntu2204_filename") }}"
+    {% elif context.get("/configuration/BaseOS") == "ubuntu2404" %}
+        local PBSPRO_INSTALL_RPM_X86="{{ context.get("/system/scheduler/pbspro/x86/pbspro_installer_ubuntu2404_filename") }}"
+        local PBSPRO_INSTALL_RPM_AARCH64="{{ context.get("/system/scheduler/pbspro/aarch64/pbspro_installer_ubuntu2404_filename") }}"
+    {% else %}
+        exit_fail "PBSPro is only supported on RHEL9, RHEL8, Rocky8, Rocky9, Ubuntu 22.04 and Ubuntu 24.04. Detected {{ context.get('/configuration/BaseOS')}}"
+    {% endif %}
+
+    local PBSPRO_INSTALL_S3_URI="{{ context.get("/system/scheduler/pbspro/pbspro_installer_s3_uri") }}"
+    local PBSPRO_VERSION="{{ context.get("/system/scheduler/pbspro/version") }}"
+    local MACHINE=$(uname -m)
+    local SCHEDULER_IDENTIFIER="{{ SCHEDULER_VARS.get("IDENTIFIER") }}"
+    local PBSPRO_INSTALL_DIR="{{ SCHEDULER_VARS.get("PBS_CONFIGURATION").get("pbs_exec") }}"
+    local INSTALLER_DIR="${SOCA_BOOTSTRAP_ASSETS_FOLDER}/pbspro"
+
+    # Override default PBS install path when installing pbspro from binary
+    # This can only be overriden via environment variable
+    export PBS_HOME="{{ SCHEDULER_VARS.get("PBS_CONFIGURATION").get("pbs_home") }}" # default /var/spool/pbs
+
+    {% if context.get("/configuration/BaseOS") in ["ubuntu2204", "ubuntu2404"] %}
+        local FILE_EXTENSION="deb"
+    {% else %}
+        local FILE_EXTENSION="rpm"
+    {% endif %}
+
+
+    mkdir -p ${INSTALLER_DIR}
+    if [[ ${MACHINE} == "x86_64" ]]; then
+        local PBSPRO_INSTALLER_FULL_S3_URI="${PBSPRO_INSTALL_S3_URI}${PBSPRO_INSTALL_RPM_X86}"
+    else
+        local PBSPRO_INSTALLER_FULL_S3_URI="${PBSPRO_INSTALL_S3_URI}${PBSPRO_INSTALL_RPM_AARCH64}"
+    fi
+
+    if [[ ! -d "${PBSPRO_INSTALL_DIR}" ]]; then
+
+        pushd ${INSTALLER_DIR}
+        log_info "PBSPro Not Detected, downloading installer from ${PBSPRO_INSTALLER_FULL_S3_URI}"
+        file_download --download-url="${PBSPRO_INSTALLER_FULL_S3_URI}" --save-as="pbspro_installer_${PBSPRO_VERSION}.tgz"
+        log_info "Extracting PBSPro Installer"
+        tar zxvf "pbspro_installer_${PBSPRO_VERSION}.tgz" --strip-components=1 -C .
+        log_info "Content of the PBSPro tar installer"
+        ls -ltr .
+
+        {% if context.get("/job/NodeType") == "controller" %}
+            log_info "Installing PBSPro Server"
+            # note: use packages_install_file and not packages_install as you need to pass --prefix
+            packages_install_file pbspro-server-*.${FILE_EXTENSION} --prefix ${PBSPRO_INSTALL_DIR}
+        {% else %}
+            # note: use packages_install_file and not packages_install as you need to pass --prefix
+            log_info "Installing PBSPro Execution"
+            packages_install_file pbspro-execution-*.${FILE_EXTENSION} --prefix ${PBSPRO_INSTALL_DIR}
+        {% endif %}
+
+        log_info "Installing PBSPro DebugInfo"
+        packages_install_file pbspro-debuginfo-*.${FILE_EXTENSION}
+        log_info "Installing PBSPro Devel"
+        packages_install_file pbspro-devel-*.${FILE_EXTENSION}
+        log_info "All PBSPro Packages have been installed"
+        popd
+
+      else
+          log_info "PBSPro already installed on this machine, skipping ..."
+      fi
+
+     # Note: even with custom --prefix / --sysconfig, PBS compiler will generate a default /etc/pbs.conf and default services
+    log_info "Disabling default pbs service created via binary install. Use /etc/systemd/system/soca_scheduler_${SCHEDULER_IDENTIFIER}.service instead"
+    systemctl stop pbs
+    systemctl disable pbs
+
+    log_info "Creating custom /bin/soca_${SCHEDULER_IDENTIFIER} wrapper"
+    cat << EOF > "/bin/soca_${SCHEDULER_IDENTIFIER}"
+export PATH=${PBSPRO_INSTALL_DIR}/bin:$PATH
+export PBS_CONF_FILE=${PBSPRO_INSTALL_DIR}/pbs.conf
+echo "========= SOCA ========= "
+echo ">> PBSPro environment loaded, you can now run commands such as qsub/qstat/qalter etc ..."
+echo ">> PBSPro is installed under: ${PBSPRO_INSTALL_DIR}"
+echo ">> Add /bin/soca_${SCHEDULER_IDENTIFIER} to your .bashrc or .bash_profile to automatically run this script"
+echo ">> Type exit to close this shell"
+echo "======================== "
+export PS1="(soca_pbspro) \u@\h:\w\$ "
+exec "$SHELL" -i
+
+EOF
+    chmod +x /bin/soca_${SCHEDULER_IDENTIFIER}
+
+    log_info "Creating pbsdata user, required when installing PBSPro from binary"
+    id pbsdata >/dev/null 2>&1 || adduser pbsdata
+
+    log_info "Creating new one with patched PBS_CONF_FILE /etc/systemd/system/soca_scheduler_${SCHEDULER_IDENTIFIER}.service"
+    cat << EOF > "/etc/systemd/system/soca_scheduler_${SCHEDULER_IDENTIFIER}.service"
+[Unit]
+Documentation=man:pbs(8)
+SourcePath=${PBSPRO_INSTALL_DIR}/libexec/pbs_init.d
+Description=Manage PBSPro installed via SOCA
+After=network-online.target remote-fs.target nss-lookup.target
+Wants=network-online.target
+DefaultDependencies=true
+
+[Service]
+Environment="PBS_CONF_FILE=${PBSPRO_INSTALL_DIR}/pbs.conf"
+Environment="PBS_EXEC=${PBSPRO_INSTALL_DIR}"
+Environment="PBS_HOME=${PBS_HOME}"
+Type=forking
+Restart=no
+TimeoutStartSec=0
+TimeoutStopSec=5min
+Delegate=yes
+IgnoreSIGPIPE=no
+GuessMainPID=no
+ExecStart=${PBSPRO_INSTALL_DIR}/libexec/pbs_init.d start
+ExecStop=${PBSPRO_INSTALL_DIR}/libexec/pbs_init.d stop
+ExecReload=${PBSPRO_INSTALL_DIR}/libexec/pbs_reload ${PBSPRO_INSTALL_DIR}/libexec/pbs_init.d start
+TasksMax=infinity
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+    log_info "Completed PBSPro installation"
+}
+pbspro_install_{{ SCHEDULER_VARS.get("IDENTIFIER") }}

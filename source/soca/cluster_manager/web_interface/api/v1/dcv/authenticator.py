@@ -17,7 +17,7 @@ from flask_restful import Resource, reqparse
 from flask import request
 import logging
 from flask import Response
-from utils.aws.ssm_parameter_store import SocaConfig
+from utils.config import SocaConfig
 from utils.error import SocaError
 import base64
 import ast

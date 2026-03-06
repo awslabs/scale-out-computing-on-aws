@@ -18,7 +18,7 @@ import logging
 from decorators import private_api, feature_flag
 import errors
 import utils.aws.boto3_wrapper as utils_boto3
-from utils.aws.ssm_parameter_store import SocaConfig
+from utils.config import SocaConfig
 from utils.error import SocaError
 
 logger = logging.getLogger("soca_logger")

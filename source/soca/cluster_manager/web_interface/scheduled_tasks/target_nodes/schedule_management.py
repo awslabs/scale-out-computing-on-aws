@@ -10,7 +10,6 @@ from utils.error import SocaError
 from utils.response import SocaResponse
 from utils.cast import SocaCastEngine
 import utils.aws.boto3_wrapper as utils_boto3
-import utils.aws.cloudformation_helper as cloudformation_helper
 import time
 from datetime import datetime, timedelta, timezone
 import pytz

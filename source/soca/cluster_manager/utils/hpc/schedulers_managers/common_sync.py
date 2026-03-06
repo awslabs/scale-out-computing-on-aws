@@ -53,21 +53,22 @@ def sync_scheduler_config(
             logger.error(
                 f"Error while building deregister_scheduler_nodes_no_associated_ec2_capacity because of {err} on line {sys.exc_info()[2].tb_lineno}"
             )
-
         # End - De-register all nodes since there is no provisioned EC2 capacity
     else:
 
-        # Begin: Find KeepForever host and output debug info message for troubleshooting purpose
-        _keep_forever_scheduler_node = [
+        # Begin: Find AlwaysOn hosts
+        _alwayson_scheduler_nodes = [
             _scheduler_node
             for _scheduler_node in scheduler_registered_nodes
             if _scheduler_node.keep_forever is True
+            and _scheduler_node.terminate_when_idle == 0
         ]
-        if _keep_forever_scheduler_node:
-            logger.debug(
-                f"KeepForever EC2 nodes: {_keep_forever_scheduler_node}. Those hosts can only be removed manually via socactl"
+        for _alwayson_host in _alwayson_scheduler_nodes:
+            logger.info(
+                f"Found AlwaysOn EC2 nodes: {_alwayson_host} with no terminate_when_idle configured. This host can only be removed manually via socactl"
             )
-        # End: Find keep_forever host and output debug info message for troubleshooting purpose
+
+        # End: Find alwayson host and output debug info message for troubleshooting purpose
 
         # Begin: Register EC2 nodes to the scheduler
         try:
@@ -99,7 +100,7 @@ def sync_scheduler_config(
             )
         # End: Register EC2 nodes to PBS
 
-        # Begin: De-register EC2 nodes assigned to finished jobs
+        # Begin: De-register EC2 Always-On nodes assigned to finished jobs
         try:
             _active_job_ids = [job.job_id for job in jobs_in_queues]
             _scheduler_nodes_assigned_to_finished_jobs = [
@@ -121,7 +122,7 @@ def sync_scheduler_config(
             )
         # End: De-register EC2 nodes assigned to finished jobs
 
-        # Begin: De-Register PBS Nodes assigned to removed EC2 instance
+        # Begin: De-Register Nodes assigned to removed EC2 instances, whether it's ondemand or alwayson
         # example: If you remove the EC2 instance manually from the AWS console
         try:
             _scheduler_node_assigned_to_removed_ec2_instance = [
@@ -129,7 +130,6 @@ def sync_scheduler_config(
                 for _sched_node in scheduler_registered_nodes
                 if _sched_node.instance_id
                 not in [soca_node.instance_id for soca_node in provisioned_ec2_nodes]
-                and _sched_node.keep_forever is False
             ]
 
             for _scheduler_node in _scheduler_node_assigned_to_removed_ec2_instance:
@@ -151,36 +151,33 @@ def sync_scheduler_config(
                 _sched_node
                 for _sched_node in scheduler_registered_nodes
                 if _sched_node.terminate_when_idle > 0
-                and _sched_node.keep_forever is False
+                and _sched_node.keep_forever is True
+                and _sched_node.node_state == SocaSchedulerNodeState.IDLE
             ]
 
             logger.debug(
-                "Checking Scheduler Nodes with TerminateWhenIdle > 0 and KeepForever is False"
+                "Checking Scheduler Nodes with TerminateWhenIdle > 0 and KeepForever is True and node_state is IDLE"
             )
             for _scheduler_node in _scheduler_node_with_terminate_when_idle:
-                if _scheduler_node.node_state == SocaSchedulerNodeState.IDLE:
-                    _terminate_when_idle = _scheduler_node.terminate_when_idle
-                    _last_state_change = _scheduler_node.last_state_change_utc_timestamp
+                _terminate_when_idle = _scheduler_node.terminate_when_idle
+                _last_state_change = _scheduler_node.last_state_change_utc_timestamp
 
-                    _idle_threshold = timedelta(minutes=_terminate_when_idle)
-                    _current_time = datetime.now(timezone.utc)
+                _idle_threshold = timedelta(minutes=_terminate_when_idle)
+                _current_time = datetime.now(timezone.utc)
 
-                    time_since_last_change = _current_time - _last_state_change
+                time_since_last_change = _current_time - _last_state_change
 
-                    if time_since_last_change > _idle_threshold:
-                        logger.debug(
-                            f"De-registering {_scheduler_node} since it has been idle for "
-                            f"{time_since_last_change.total_seconds()/60:.1f} minutes "
-                            f"(threshold: {_scheduler_node.terminate_when_idle} minutes). "
-                            f"Last state change: {_last_state_change.isoformat()}"
-                        )
-                        _scheduler_sync_actions.get(
-                            "deregister_scheduler_nodes_terminate_when_idle"
-                        ).append(_scheduler_node)
-                else:
+                if time_since_last_change > _idle_threshold:
                     logger.debug(
-                        f"{_scheduler_node.node_state} is not IDLE, skipping this node"
+                        f"De-registering {_scheduler_node} since it has been idle for "
+                        f"{time_since_last_change.total_seconds()/60:.1f} minutes "
+                        f"(threshold: {_scheduler_node.terminate_when_idle} minutes). "
+                        f"Last state change: {_last_state_change.isoformat()}"
                     )
+                    _scheduler_sync_actions.get(
+                        "deregister_scheduler_nodes_terminate_when_idle"
+                    ).append(_scheduler_node)
+
         except Exception as err:
             logger.error(
                 f"Error while building deregister_scheduler_nodes_terminate_when_idle because of {err} on line {sys.exc_info()[2].tb_lineno}"

@@ -22,14 +22,14 @@ function install_gpu_drivers () {
 
   local NVIDIA_TESLA_PUBLIC_DRIVER_PRODUCTION="535.104.05"
   local NVIDIA_TESLA_PUBLIC_DRIVER_LTSB="470.199.02" # Long Term Servicing Branch, for older instance type
-  
   {% if context.get("/configuration/BaseOS") in ("amazonlinux2") %}
-    # 18.1+ will not work on ALI2, driver does not support kernel 4.14
-    local NVIDIA_GRID_DRIVER_VERSION="grid-17.1"
-  {% else %}
-    local NVIDIA_GRID_DRIVER_VERSION="grid-19.4"
-  {% endif %}
-
+        # 18.1+ will not work on ALI2, driver does not support kernel 4.14
+        local NVIDIA_GRID_DRIVER_VERSION="grid-17.1"
+    {% else %}
+        # if the validated driver version below is incompatible with a newer AMI, SOCA will attempt to download the latest available driver. 
+        # The listed version was validated with SOCA at the time of release, but future AMIs may ship with newer kernels that are not compatible.
+        local NVIDIA_GRID_DRIVER_VERSION="grid-19.4"
+    {% endif %}
   local GPU_MANUFACTURER=$(ec2_describe_instance_types "GpuInfo.Gpus[].Manufacturer")
   local INSTANCE_FAMILY=$(instance_family) # INSTANCE_FAMILY is loaded from common.sh.j2
 

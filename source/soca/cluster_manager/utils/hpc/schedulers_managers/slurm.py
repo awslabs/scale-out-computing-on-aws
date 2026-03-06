@@ -22,7 +22,7 @@ from utils.datamodels.soca_node import (
     SocaNode,
 )
 from utils.datamodels.hpc.pbs.node import SocaHpcNodePBS
-from utils.aws.cloudformation_helper import SocaCfnClient
+from utils.aws.cloudformation_client import SocaCfnClient
 
 from utils.hpc.scheduler_command_builder import SocaHpcSlurmJobCommandBuilder
 

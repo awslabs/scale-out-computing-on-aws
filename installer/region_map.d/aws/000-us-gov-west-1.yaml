@@ -1,24 +1,24 @@
 ---
-# SOCA AMI List for govcloud partition generated 2025-09-02 15:14:58 UTC
+# SOCA AMI List for govcloud partition generated 2026-03-03 19:06:36 UTC
 us-gov-west-1:
   x86_64:
-    amazonlinux2: ami-07426886d0d2d71a3
-    amazonlinux2023: ami-00a8d8b2010e7cbb9
-    rhel10: ami-094917869cbdd69c8
+    amazonlinux2: ami-010fb8de3e23ba6ab
+    amazonlinux2023: ami-0198a644516abdeb2
+    rhel10: ami-0d81b948eedd5aeda
     rhel7: ami-0f89fe9d39cd3e03a
     rhel8: ami-063afa08f07cbad67
-    rhel9: ami-06546a8879859039a
-    ubuntu2204: ami-05fa78411054afb97
-    ubuntu2404: ami-0074525def93676f0
-    windows2019: ami-093fc09e1d29d04f7
-    windows2022: ami-0c6c91781711bab7e
-    windows2025: ami-000ca67f388ba5afb
+    rhel9: ami-06d5c2606cf23ee47
+    ubuntu2204: ami-00e36827e1d6d83f0
+    ubuntu2404: ami-0a28faa0bd55eeb63
+    windows2019: /aws/service/ami-windows-latest/Windows_Server-2019-English-Full-Base
+    windows2022: /aws/service/ami-windows-latest/Windows_Server-2022-English-Full-Base
+    windows2025: /aws/service/ami-windows-latest/Windows_Server-2025-English-Full-Base
   arm64:
-    amazonlinux2: ami-07b09248d175ee1c4
-    amazonlinux2023: ami-0f53ccffaf702e990
-    rhel10: ami-05d9331aebd025f40
+    amazonlinux2: ami-04055bfe13bbe9e0e
+    amazonlinux2023: ami-0c68470925e9cf3ef
+    rhel10: ami-04c14bd82aeb860ab
     rhel8: ami-058d6aa244c9c9e20
-    rhel9: ami-0ddf794f6407372e6
-    ubuntu2204: ami-028e165c51801359c
-    ubuntu2404: ami-0eb3b569c4dc25063
-# SOCA AMI List for govcloud partition generated 2025-09-02 15:14:58 UTC
+    rhel9: ami-06f504ac63696dbbd
+    ubuntu2204: ami-0fbdb46a15c4be458
+    ubuntu2404: ami-0c4367fad79bc9152
+# SOCA AMI List for govcloud partition generated 2026-03-03 19:06:36 UTC

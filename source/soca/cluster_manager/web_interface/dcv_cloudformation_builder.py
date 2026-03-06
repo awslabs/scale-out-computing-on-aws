@@ -20,6 +20,8 @@ from troposphere import Ref, Template, Sub
 from troposphere import Tags as base_Tags  # without PropagateAtLaunch
 from troposphere.cloudformation import AWSCustomObject
 from troposphere.ec2 import (
+    CapacityReservationSpecification,
+    CapacityReservationTarget,
     LaunchTemplate,
     LaunchTemplateData,
     MetadataOptions,
@@ -31,7 +33,7 @@ from troposphere.ec2 import (
 )
 import troposphere.ec2 as ec2
 import logging
-from utils.aws.ssm_parameter_store import SocaConfig
+from utils.config import SocaConfig
 from utils.response import SocaResponse
 from utils.error import SocaError
 
@@ -67,7 +69,7 @@ def main(**launch_parameters):
         t = Template()
         t.set_version("2010-09-09")
         t.set_description(
-            "(SOCA) - Base template to deploy DCV nodes version 25.11.0"
+            "(SOCA) - Base template to deploy DCV nodes version 26.3.0"
         )
         allow_anonymous_data_collection = launch_parameters["DefaultMetricCollection"]
         # Launch Actual Capacity
@@ -89,17 +91,21 @@ def main(**launch_parameters):
             "soca:DCVSessionUUID": str(launch_parameters["session_uuid"]),
             "soca:DCVSystem": str(launch_parameters["base_os"]),
         }
-        
+
         if launch_parameters.get("custom_tags"):
             for tag in launch_parameters["custom_tags"].values():
                 if tag.get("Enabled", ""):
                     if tag["Key"] in _base_tags.keys():
-                        logger.warning(f"Specified custom tags {tag.get('Key')} is already defined in tag list, skipping ...")
+                        logger.warning(
+                            f"Specified custom tags {tag.get('Key')} is already defined in tag list, skipping ..."
+                        )
                     else:
                         _base_tags[tag["Key"]] = tag["Value"]
                 else:
-                    logger.warning(f"{tag} does not have Enabled key or Enabled is False.")
-        
+                    logger.warning(
+                        f"{tag} does not have Enabled key or Enabled is False."
+                    )
+
         # Make sure that the requested disk size is proper
         # This allows the admin to define an min size for DCV sessions
         # and register this size as part of the AMI registration process.
@@ -158,6 +164,19 @@ def main(**launch_parameters):
             if "tenancy" in launch_parameters
             else "default"
         )
+
+        if launch_parameters["capacity_reservation_id"]:
+            logger.info(
+                f"Using existing capacity reservation ID {launch_parameters['capacity_reservation_id']=}"
+            )
+            ltd.CapacityReservationSpecification = CapacityReservationSpecification(
+                CapacityReservationPreference="capacity-reservations-only",
+                CapacityReservationTarget=CapacityReservationTarget(
+                    CapacityReservationId=str(
+                        launch_parameters["capacity_reservation_id"]
+                    )
+                ),
+            )
 
         # Add SSH Key
         ltd.KeyName = SocaConfig(key="/configuration/SSHKeyPair").get_value().message
@@ -226,7 +245,7 @@ def main(**launch_parameters):
             )
             metrics.TerminateWhenIdle = "false"
             metrics.Dcv = "true"
-            metrics.Version = launch_parameters.get("Version", "")
+            metrics.Version = str(launch_parameters.get("Version", ""))
             metrics.Region = launch_parameters.get("Region", "")
             metrics.Misc = launch_parameters.get("Misc", "")
             t.add_resource(metrics)

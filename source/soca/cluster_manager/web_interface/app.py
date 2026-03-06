@@ -21,8 +21,6 @@ import validators
 
 from api.v1.scheduler.job import Job
 from api.v1.scheduler.jobs import Jobs
-from api.v1.scheduler.pbspro.queue import Queue
-from api.v1.scheduler.pbspro.queues import Queues
 
 from api.v1.ldap.sudo import Sudo
 from api.v1.ldap.ids import Ids
@@ -84,7 +82,6 @@ from views.ssh import ssh
 from views.sftp import sftp
 from views.my_api_key import my_api_key
 from views.admin.users import admin_users
-from views.admin.queues import admin_queues
 from views.admin.groups import admin_groups
 from views.admin.applications import admin_applications
 from views.admin.virtual_desktops.software_stacks import (
@@ -305,8 +302,6 @@ with app.app_context():
     # Scheduler
     api.add_resource(Job, "/api/scheduler/job")
     api.add_resource(Jobs, "/api/scheduler/jobs")
-    api.add_resource(Queue, "/api/scheduler/queue")
-    api.add_resource(Queues, "/api/scheduler/queues")
 
     # Login Nodes
     api.add_resource(ListLoginNodes, "/api/login_nodes/list")
@@ -316,7 +311,6 @@ with app.app_context():
     app.register_blueprint(my_api_key)
     app.register_blueprint(my_account)
     app.register_blueprint(admin_users)
-    app.register_blueprint(admin_queues)
     app.register_blueprint(admin_groups)
     app.register_blueprint(admin_applications)
     app.register_blueprint(admin_virtual_desktops_software_stacks)

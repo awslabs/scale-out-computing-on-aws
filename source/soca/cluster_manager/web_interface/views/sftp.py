@@ -14,7 +14,7 @@
 import logging
 from flask import render_template, session, Blueprint, flash
 from decorators import login_required, feature_flag
-from utils.aws.ssm_parameter_store import SocaConfig
+from utils.config import SocaConfig
 
 logger = logging.getLogger("soca_logger")
 sftp = Blueprint("sftp", __name__, template_folder="templates")

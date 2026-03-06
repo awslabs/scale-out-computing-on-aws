@@ -59,6 +59,7 @@
 #PBS -V -j oe -o testjob_output.qlog
 #PBS -P myproject
 #PBS -q normal
+#PBS -k oed
 #PBS -l nodes=1,instance_type=c6i.large
 /bin/echo "Hello World"</code></pre>
                                 The first action is to encode the payload using Base64. There are multiple ways to
@@ -78,6 +79,7 @@ $ echo "IyEvYmluL2Jhc2gKI1BCUyAtTiB0ZXN0am9iCiNQQlMgLVYgLWogb2UgLW8gdGVzdGpvYl9v
 #PBS -V -j oe -o testjob_output.qlog
 #PBS -P myproject
 #PBS -q normal
+#PBS -k oed
 #PBS -l nodes=1,instance_type=c6i.large
 /bin/echo "Hello World"</code></pre>
                                 <br>

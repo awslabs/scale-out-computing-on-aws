@@ -22,7 +22,7 @@ from utils.error import SocaError
 from utils.response import SocaResponse
 from datetime import datetime, timezone
 import utils.aws.odcr_helper as odcr_helper
-from utils.aws.ssm_parameter_store import SocaConfig
+from utils.config import SocaConfig
 
 logger = logging.getLogger("soca_logger")
 client_ec2 = utils_boto3.get_boto(service_name="ec2").message
@@ -228,6 +228,7 @@ class StartTargetNode(Resource):
                     logging.info("Requesting new ODCR for this EC2 instance")
                     _request_on_demand_capacity_reservation = (
                         odcr_helper.create_capacity_reservation(
+                            probe_capacity_only=True,
                             instance_type=_instance_info.get("InstanceType"),
                             desired_capacity=1,
                             capacity_reservation_name=_check_session.stack_name,

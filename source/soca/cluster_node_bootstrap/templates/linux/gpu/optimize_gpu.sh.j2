@@ -21,6 +21,8 @@ function gpu_instance_optimize_gpu_clock_speed_nvidia () {
     nvidia-smi -ac 6251,2040
   elif [[ ${INSTANCE_FAMILY}  == "g6e" ]]; then
     nvidia-smi -ac 9001,2520
+  elif [[ ${INSTANCE_FAMILY}  == "g7e" ]]; then
+    nvidia-smi -ac 12481,2430
   elif [[ ${INSTANCE_FAMILY} =~ ^(p3|p3dn)$ ]]; then
     nvidia-smi -ac 877,1530
   elif [[ ${INSTANCE_FAMILY}  == "p4d" ]]; then
@@ -29,6 +31,11 @@ function gpu_instance_optimize_gpu_clock_speed_nvidia () {
     nvidia-smi -ac 1593,1410
   elif [[ ${INSTANCE_FAMILY}  == "p5" ]]; then
     nvidia-smi -ac 2619,1980
+  elif [[ ${INSTANCE_FAMILY}  == "p6-b200" ]]; then
+    nvidia-smi -ac 3996,1965
+  elif [[ ${INSTANCE_FAMILY}  == "p6-b300" ]]; then
+    nvidia-smi -ac 3996,2032
+
   else
     log_warning "Unknown instance family for optimizations - ${INSTANCE_FAMILY} . May not run at maximum performance"
   fi

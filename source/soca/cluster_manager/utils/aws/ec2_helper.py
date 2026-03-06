@@ -19,13 +19,74 @@ from utils.datamodels.soca_node import SocaNode
 from utils.error import SocaError
 from utils.response import SocaResponse
 from utils.cast import SocaCastEngine
-from utils.aws.ssm_parameter_store import SocaConfig
+from utils.config import SocaConfig
 
 
 client_ec2 = utils_boto3.get_boto(service_name="ec2").message
 client_service_quotas = utils_boto3.get_boto(service_name="service-quotas").message
 
 logger = logging.getLogger("soca_logger")
+
+
+def create_placement_group(
+    group_name: str,
+    strategy: Literal["cluster", "spread", "partition"] = "cluster",
+    spread_level: Optional[Literal["spread", "rack"]] = None,
+    partition_count: Optiona[int] = None,
+) -> SocaResponse:
+    logger.info(f"Creating Placement Group {group_name=}")
+
+    try:
+        _cluster_id = (
+            SocaConfig(key="/configuration/ClusterId").get_value().get("message")
+        )
+
+        _request_args = {
+            "GroupName": group_name,
+            "Strategy": strategy,
+            "TagSpecifications": [
+                {
+                    "ResourceType": "placement-group",
+                    "Tags": [
+                        {"Key": "soca:ClusterId", "Value": _cluster_id},
+                        {"Key": "soca:AssociatedStackId", "Value": group_name},
+                    ],
+                },
+            ],
+        }
+
+        if strategy == "spread":
+            _request_args["SpreadLevel"] = spread_level
+
+        if strategy == "partition":
+            _request_args["PartitionCount"] = partition_count
+
+        _create_pg = client_ec2.create_placement_group(**_request_args)
+
+        logger.debug(f"create_pg Results: {_create_pg}")
+        return SocaResponse(success=True, message=_create_pg)
+
+    except Exception as err:
+        return SocaError.GENERIC_ERROR(
+            helper=f"Unable to run create_placement_group because of {err}"
+        )
+
+
+def delete_placement_group(
+    group_name: str,
+) -> SocaResponse:
+    logger.info(f"Deleting Placement Group {group_name=}")
+    try:
+        _delete_pg = client_ec2.delete_placement_group(
+            GroupName=group_name,
+        )
+
+        logger.debug(f"_delete_pg Results: {_delete_pg}")
+        return SocaResponse(success=True, message=_delete_pg)
+    except Exception as err:
+        return SocaError.GENERIC_ERROR(
+            helper=f"Unable to run delete_placement_group because of {err}"
+        )
 
 
 def describe_instances(
@@ -192,7 +253,26 @@ def describe_subnets(subnet_ids: list[str]) -> SocaResponse:
             helper=f"Unable to run describe_subnets due to {e}"
         )
 
-
+@soca_cache(
+    prefix="soca:webui:aws:ec2:describe_capacity_reservations", ttl=15
+) # Use a very low TTL for this cache.
+def describe_capacity_reservations(capacity_reservation_ids: list[str]) -> SocaResponse:
+    logger.info(f"Describe Capacity Reservations for {capacity_reservation_ids}")
+    try:
+        _describe_capacity_reservations = client_ec2.describe_capacity_reservations(
+            CapacityReservationIds=capacity_reservation_ids
+        )
+        logger.debug(f"Describe Capacity Reservations  Results: {_describe_capacity_reservations}")
+        return SocaResponse(success=True, message=_describe_capacity_reservations)
+    except botocore.exceptions.ClientError as e:
+        return SocaError.GENERIC_ERROR(
+            helper=f"ClientError: Unable to describe_capacity_reservations for {capacity_reservation_ids} due to {e}"
+        )
+    except Exception as e:
+        return SocaError.GENERIC_ERROR(
+            helper=f"Unable to run describe_capacity_reservations due to {e}"
+        )
+    
 @soca_cache(
     prefix="soca:webui:aws:ec2:describe_security_groups", ttl=3600
 )  # note: Configure a low TTL if the AMI is deregistered from the AWS account through the AWS Management Console or API outside of SOCA
@@ -297,7 +377,7 @@ def get_instance_types_by_architecture(instance_type_pattern: list) -> dict:
             helper=f"Unable to cast {instance_type_pattern} to list"
         )
 
-    _matching_instances = {"x86_64": [], "arm64": []}
+    _matching_instances = {"x86_64": [], "arm64": [], "i386": []}
 
     try:
         paginator = client_ec2.get_paginator("describe_instance_types")
@@ -331,21 +411,6 @@ def get_instance_types_by_architecture(instance_type_pattern: list) -> dict:
 
     return SocaResponse(success=True, message=_matching_instances)
 
-def describe_capacity_reservation(capacity_reservation_id: str) -> SocaResponse:
-    try:
-        _check_cr = client_ec2.describe_capacity_reservations(
-            CapacityReservationIds=[capacity_reservation_id]
-        )
-        _cr = _check_cr["CapacityReservations"][0]
-        return SocaResponse(success=True, message=_cr)
-                
-    except ClientError as err:
-        if err.response["Error"].get("Code") == "InvalidCapacityReservationId.NotFound":
-           return SocaError.GENERIC_ERROR(helper=f"Capacity Reservation {capacity_reservation_id=} does not exist")
-        else:
-            return SocaError.GENERIC_ERROR(helper=f"Unable to describe{capacity_reservation_id=} : {err.response['Error']}")
-    except Exception as err:
-        return SocaError.GENERIC_ERROR(helper=f"Unable to describe {capacity_reservation_id=} : {err}")
 
 def create_capacity_dry_run(
     disk_size: int,
@@ -367,12 +432,12 @@ def create_capacity_dry_run(
     Run EC2 RunInstance DryRun to validate basic parameter config
     DrynRun won't validate capacity availabiliy, use odcr_helper for that
     """
-    _skip_dryrun = (
+    _enable_dryrun = (
         SocaConfig(key="/configuration/FeatureFlags/Hpc/EnableDryRun")
         .get_value(return_as=bool, default=False)
         .get("message")
     )
-    if _skip_dryrun is True:
+    if _enable_dryrun is False:
         logger.info(
             "DryRun is disabled via /configuration/FeatureFlags/Hpc/EnableDryRun, skipping dryrun"
         )
@@ -480,9 +545,11 @@ def validate_ec2_quota_for_instance(
         logger.info(
             f"EnforceQuota check is disabled via /configuration/FeatureFlags/Hpc/EnableQuotasCheck, skipping quota check for {instance_type}"
         )
+        # return 201 tells jobs.py the EnforceQuota is disabled
         return SocaResponse(
             success=True,
             message={},
+            status_code=201
         )
 
     _get_quotas_info = get_ec2_quotas()
@@ -513,7 +580,7 @@ def validate_ec2_quota_for_instance(
         _instance_quota_name = "High Memory".lower()
 
     logger.debug(
-        f"Checking if we Quota will let us deploy an additional of {_total_vcpus_requested_for_job=} vCpus"
+        f"Checking if Quota will let us deploy an additional of {_total_vcpus_requested_for_job=} vCpus"
     )
     _quota_max_vcpus_allowed = False
     _quota_name = False
@@ -548,7 +615,7 @@ def validate_ec2_quota_for_instance(
     elif " and " in _quota_name.lower():
         # Quota with AND e.g "Running On-Demand G and VT instances"
         _check_instances = re.search(
-            r"rrunning on-demand\s+([\w-]+)\s+and\s+([\w-]+)\s+instances",
+            r"running on-demand\s+([\w-]+)\s+and\s+([\w-]+)\s+instances",
             _quota_name.lower(),
         )
         _instances_family_allowed_in_quota = [
@@ -562,7 +629,7 @@ def validate_ec2_quota_for_instance(
         ]
 
     logger.info(
-        f"Found instance family: {_instances_family_allowed_in_quota} for {_quota_name}, finding all relevant EC2 instances"
+        f"{instance_type=} associated quota: {_instances_family_allowed_in_quota} for {_quota_name}, finding all relevant EC2 instances"
     )
     _find_all_provisioned_instances_type = describe_instances_paginate()
     if _find_all_provisioned_instances_type.get("success") is False:
@@ -604,11 +671,11 @@ def validate_ec2_quota_for_instance(
             )
             if _running_vcpus >= _quota_max_vcpus_allowed:
                 return SocaError.GENERIC_ERROR(
-                    helper=f"Job cannot start due to AWS Service limit. Max Vcpus allowed {_quota_max_vcpus_allowed}. Detected running Vcpus {_running_vcpus}. Requested Vcpus for this job {_total_vcpus_requested_for_job}. Quota Name {_quota_name}"
+                    helper=f"Job cannot start due to AWS Service limit. Max Vcpus allowed {_quota_max_vcpus_allowed}. Detected running Vcpus {_running_vcpus}. Requested Vcpus for this job {_total_vcpus_requested_for_job}. Quota Name {_quota_name}, {instance_type=} * {desired_capacity=}"
                 )
 
     logger.info(
-        f"Quota Validated {_quota_name=}, {_quota_max_vcpus_allowed=}, {_running_vcpus=}, {_total_vcpus_requested_for_job=}"
+        f"Quota Validated {_quota_name=}, {_quota_max_vcpus_allowed=}, {_running_vcpus=}, {_total_vcpus_requested_for_job=}, {instance_type=} * {desired_capacity=}"
     )
     return SocaResponse(
         success=True,

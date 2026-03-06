@@ -4,7 +4,7 @@
 import click
 import sys
 from utils.logger import SocaLogger
-from utils.aws.ssm_parameter_store import SocaConfig
+from utils.config import SocaConfig
 from utils.jinjanizer import SocaJinja2Generator
 import os
 import re

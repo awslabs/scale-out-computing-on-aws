@@ -7,7 +7,7 @@ import sys
 import json
 import ast
 import datetime
-from utils.aws.ssm_parameter_store import SocaConfig
+from utils.config import SocaConfig
 from utils.analytics_client import SocaAnalyticsClient
 from utils.subprocess_client import SocaSubprocessClient
 from utils.logger import SocaLogger
@@ -46,7 +46,7 @@ if __name__ == "__main__":
     # This is not a fatal problem for dynamic clusters that are cloud native
     # nodes come and go - and there may be times when there are simply no nodes yet.
     _command = SocaSubprocessClient(
-        run_command=f"/opt/soca/{_cluster_id}/schedulers/default/pbs/bin/pbsnodes -a -F json",
+        run_command=f"/opt/pbs/bin/pbsnodes -a -F json",
     ).run(non_fatal_rcs=[1])
     if _command.success is False:
         # _message = ast.literal_eval(_command.message)

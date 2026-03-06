@@ -27,7 +27,6 @@ class SocaSecret:
         _sm_client = utils_boto3.get_boto(service_name="secretsmanager").message
         try:
             _fetch_secret = _sm_client.get_secret_value(SecretId=self._secret_id)
-            logger.debug(f"Fetch Secret Response: {_fetch_secret}")
             if _fetch_secret.get("SecretString", None) is None:
                 return SocaError.AWS_API_ERROR(
                     service_name="secretsmanager",

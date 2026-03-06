@@ -11,6 +11,7 @@
 {% include "templates/linux/umask.sh.j2" %}
 
 log_info "Setup Start Date: $(date)"
+log_info "Running Kernel $(uname -r)"
 
 # Stop/Disable scheduler if running
 {% include "templates/linux/scheduler/stop_scheduler_services.sh.j2" %}
@@ -38,7 +39,6 @@ set_environment_variable "SOCA_VERSION" "{{ context.get("/configuration/Version"
 set_environment_variable "SOCA_INSTALL_BUCKET" "{{ context.get("/configuration/S3Bucket") }}"
 set_environment_variable "SOCA_CONTROLLER_IP" "{{ context.get("/configuration/ControllerPrivateIP") }}"
 set_environment_variable "SOCA_HOME" "/opt/soca/{{ context.get("/configuration/ClusterId") }}"
-set_environment_variable "SOCA_BOOTSTRAP_LOGS" "/apps/soca/{{ context.get("/configuration/ClusterId") }}/shared/logs/bootstrap/"
 
 {% if context.get("/job/NodeType") == "compute_node" %}
   # Added via cluster_manager/orchestrator/cloudformation_builder.py

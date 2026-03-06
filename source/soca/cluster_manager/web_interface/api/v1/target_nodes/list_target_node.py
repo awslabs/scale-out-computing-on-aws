@@ -26,7 +26,7 @@ from models import (
     TargetNodeUserData,
 )
 import utils.aws.boto3_wrapper as utils_boto3
-from utils.aws.ssm_parameter_store import SocaConfig
+from utils.config import SocaConfig
 from utils.error import SocaError
 from utils.cast import SocaCastEngine
 from utils.response import SocaResponse

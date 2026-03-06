@@ -154,19 +154,19 @@ EOF
 
     {% endif %}
     
-    log_info 'Creating custom /bin/soca_lsf_${SCHEDULER_IDENTIFIER}'
-    cat << EOF > "/bin/soca_lsf_${SCHEDULER_IDENTIFIER}"
+    log_info 'Creating custom /bin/soca_${SCHEDULER_IDENTIFIER}'
+    cat << EOF > "/bin/soca_${SCHEDULER_IDENTIFIER}"
 source ${LSF_SOCA_INSTALL_DIR}/conf/profile.lsf
 echo "========= SOCA ========= "
 echo ">> LSF environment loaded, you can now run commands such as bsub/bjobs/lshosts etc ..."
 echo ">> LSF is installed under: ${LSF_SOCA_INSTALL_DIR}"
-echo ">> Add /bin/soca_lsf to your .bashrc / .bash_profile to automatically run this script"
+echo ">> Add /bin/soca_${SCHEDULER_IDENTIFIER} to your .bashrc / .bash_profile to automatically run this script"
 echo ">> Type exit to close this shell"
 echo "======================== "
-export PS1="(soca_lsf) \u@\h:\w# "
+export PS1="(soca_lsf) \u@\h:\w\$ "
 exec "$SHELL" -i
 EOF
-    chmod +x /bin/soca_lsf_${SCHEDULER_IDENTIFIER}
+    chmod +x /bin/soca_${SCHEDULER_IDENTIFIER}
 
     log_info "Creating custom SOCA bsub"
     local ORIGINAL_BSUB_PATH=$(command -v bsub)
@@ -184,6 +184,7 @@ import sys
 import subprocess
 import re
 import shlex
+import os
 
 """
 SOCA LSF bsub wrapper.
@@ -194,6 +195,10 @@ so that the job does not accidentally start on other nodes.
 """
 
 def main():
+    if os.geteuid() == 0:
+        print("Do not run this script as root.")
+        sys.exit(1)
+    
     # Queues where custom -R is NOT required
     _excluded_queues = ["alwayson", "awsrc"]
     

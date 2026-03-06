@@ -15,7 +15,7 @@ import logging
 import config
 from decorators import login_required
 from flask import Blueprint, render_template, session
-from utils.aws.ssm_parameter_store import SocaConfig
+from utils.config import SocaConfig
 
 logger = logging.getLogger("soca_logger")
 dashboard = Blueprint("dashboard", __name__, template_folder="templates")

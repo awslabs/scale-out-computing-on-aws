@@ -145,8 +145,11 @@ class Reset(Resource):
             ).as_flask()
         ds_password_complexity = r"(?=^.{8,64}$)((?=.*\d)(?=.*[A-Z])(?=.*[a-z])|(?=.*\d)(?=.*[^A-Za-z0-9\s])(?=.*[a-z])|(?=.*[^A-Za-z0-9\s])(?=.*[A-Z])(?=.*[a-z])|(?=.*\d)(?=.*[A-Z])(?=.*[^A-Za-z0-9\s]))^.*"
         if not re.search(ds_password_complexity, password):
+            logger.error(
+                f"Password did not match complexity, regex is {ds_password_complexity}"
+            )
             return SocaError.IDENTITY_PROVIDER_ERROR(
-                helper=f"Password does not meet the required complexity. Regex is {ds_password_complexity}"
+                helper=f"Password does not meet the required complexity. The password must be 8 to 64 characters long and include at least three of the following four types: uppercase letters, lowercase letters, numbers, and special characters"
             ).as_flask()
 
         if user is None:

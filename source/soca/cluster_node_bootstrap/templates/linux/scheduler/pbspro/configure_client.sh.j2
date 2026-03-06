@@ -1,0 +1,44 @@
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# SCHEDULER_VARS are forwarded from templates/linux/schedulers/install_schedulers.sh.j2:
+
+# Begin: PBSPro Configure Client
+function pbspro_configure_client_{{  SCHEDULER_VARS.get("IDENTIFIER") }} () {
+
+    log_info "[BEGIN] pbspro_configure_client... "
+    local SCHEDULER_HOSTNAME="{{ SCHEDULER_VARS.get("ENDPOINT") }}"
+    local PBSPRO_INSTALL_DIR="{{ SCHEDULER_VARS.get("PBS_CONFIGURATION").get("pbs_exec") }}"
+    local PBS_HOME="{{ SCHEDULER_VARS.get("PBS_CONFIGURATION").get("pbs_home") }}"
+    local CLIENT_SERVER_IP=$(echo -n $(imds_get /latest/meta-data/local-ipv4)) # IMDS is safest vs hostname -I, especially if you have multiple network interfaces
+    log_info "Removing /etc/pbs.conf if exists, use ${PBSPRO_INSTALL_DIR}/pbs.conf instead. Copy created to /etc/pbs.conf.original.$(date +%s)"
+    if [[ -f /etc/pbs.conf ]]; then
+        mv /etc/pbs.conf /etc/pbs.conf.original.$(date +%s)
+    fi
+
+    echo -e "PBS_SERVER=${SCHEDULER_HOSTNAME}
+PBS_START_SERVER=0
+PBS_START_SCHED=0
+PBS_START_COMM=0
+PBS_START_MOM=1
+PBS_EXEC=${PBSPRO_INSTALL_DIR}
+PBS_LEAF_NAME=${CLIENT_SERVER_IP}
+PBS_HOME=${PBS_HOME}
+PBS_CORE_LIMIT=unlimited
+PBS_SCP=/usr/bin/scp
+" > ${PBSPRO_INSTALL_DIR}/pbs.conf
+
+    cp ${PBS_HOME}/mom_priv/config ${PBS_HOME}/mom_priv/config.original."$(date +%s)"
+    echo -e "
+\$clienthost ${SCHEDULER_HOSTNAME}
+\$usecp *:/dev/null /dev/null
+\$usecp *:/data /data
+\$usecp *:/apps /apps
+# Shared scratch directories should also be added here
+# \$usecp *:/fsx /fsx
+"  > ${PBS_HOME}/mom_priv/config
+  log_info "[COMPLETED] pbspro_post_install_mom_config_client... "
+}
+
+pbspro_configure_client_{{  SCHEDULER_VARS.get("IDENTIFIER") }}
+# End: PBSPro Configure Client

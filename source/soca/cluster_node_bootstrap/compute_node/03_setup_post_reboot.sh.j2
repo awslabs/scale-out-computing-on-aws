@@ -19,6 +19,7 @@
 {% include "templates/linux/scheduler/stop_scheduler_services.sh.j2" %}
 
 log_info "Setup Post Reboot Start Date: $(date)"
+log_info "Running Kernel $(uname -r)"
 
 log_info "Removing previous reboot_required"
 unset_reboot_required
@@ -111,13 +112,15 @@ if [[ "${REBOOT_REQUIRED}" == "no" ]]; then
     log_info "Bootstrap Sequence Completed: Node Ready"
 else
     # One last reboot is needed, SOCA will create a run-once service
-    FINAL_SCRIPT_PATH="/root/soca_final_reboot_setup.sh"
+    FINAL_SCRIPT_PATH="${SOCA_BOOTSTRAP_ASSETS_FOLDER}/soca_final_reboot_setup.sh"
     SERVICE_NAME="soca-final-reboot-run-once.service"
     log_info "Final reboot needed, preparing ${FINAL_SCRIPT_PATH} to be executed post final reboot, this will only be executed after the next reboot via ${SERVICE_NAME} service"
     
     # import use 'EOF' and not EOF as we do not want to do shell variables expansion here 
     cat << 'EOF' > ${FINAL_SCRIPT_PATH}
 #!/bin/bash
+
+{% include "templates/linux/common.sh.j2" %}
 
 {% if context.get("/job/FSxLustreConfiguration", {}) %}
   {% if context.get("/job/FSxLustreConfiguration").get("fsx_lustre") or context.get("/job/FSxLustreConfiguration").get("existing_fsx") %}
@@ -132,34 +135,40 @@ else
 
 {% include "templates/linux/scheduler/start_scheduler_services.sh.j2" %}
 
-echo "Disable this service so it won't run again, do not use bash variable expansion here"
+log_info "Disabling this service so it won't run again, do not use bash variable expansion here"
 systemctl disable __SERVICE_NAME__
 rm -f /etc/systemd/system/__SERVICE_NAME__
 systemctl daemon-reload
 
-echo "Final Post Reboot script executed."
+log_info "Final Post Reboot script executed."
 EOF
     # Replacing the value as we do not want to render shell variable at the cat << 'EOF' ophase
     sed -i "s#__SERVICE_NAME__#${SERVICE_NAME}#g" ${FINAL_SCRIPT_PATH}
+    
+    log_info "Checking ${FINAL_SCRIPT_PATH}"
+    cat ${FINAL_SCRIPT_PATH}
 
     cat << EOF > /etc/systemd/system/${SERVICE_NAME}
 [Unit]
 Description=Run very final SOCA configuration after the 2nd reboot -if needed-. This is meant to be only executed one
-After=network-online.target
-Wants=network-online.target
+After=network-online.target remote-fs.target
+Wants=network-online.target remote-fs.target
 
 [Service]
 Type=oneshot
-ExecStart=/bin/bash ${FINAL_SCRIPT_PATH} >> ${FINAL_SCRIPT_PATH}.log
+ExecStart=/bin/bash ${FINAL_SCRIPT_PATH} >> ${SOCA_BOOTSTRAP_LOGS_FOLDER}/soca_final_reboot_setup.log
 RemainAfterExit=no
 
 [Install]
 WantedBy=multi-user.target
 EOF
 
+    log_info "Checking /etc/systemd/system/${SERVICE_NAME}"
+    cat /etc/systemd/system/${SERVICE_NAME}
     systemctl daemon-reload
     systemctl enable ${SERVICE_NAME}
     unset_reboot_required
+    log_info "Rebooting node"
     reboot
 fi
 

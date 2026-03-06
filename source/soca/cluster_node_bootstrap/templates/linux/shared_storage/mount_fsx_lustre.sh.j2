@@ -164,7 +164,8 @@
 
         {% elif context.get("/configuration/BaseOS") in ("rhel9", "rocky9") %}
             case "$KERNEL$MACHINE" in
-              *"5.14.0-570"*) rhel_driver_install 9 ;;
+              *"5.14.0-611"*) rhel_driver_install 9 ;;
+              *"5.14.0-570"*) rhel_driver_install 9 's#9#9.6#' ;;
               *"5.14.0-503"*) rhel_driver_install 9 's#9#9.5#' ;;
               *"5.14.0-427"*) rhel_driver_install 9 's#9#9.4#' ;;
               *"5.14.0-362"*) rhel_driver_install 9 's#9#9.3#' ;;
@@ -174,9 +175,20 @@
         {% elif context.get("/configuration/BaseOS") in ("ubuntu2204", "ubuntu2404") %}
             file_download --download-url="https://fsx-lustre-client-repo-public-keys.s3.amazonaws.com/fsx-ubuntu-public-key.asc" --save-as="${SOCA_BOOTSTRAP_ASSETS_FOLDER}/fsx-ubuntu-public-key.asc"
             gpg --dearmor < ${SOCA_BOOTSTRAP_ASSETS_FOLDER}/fsx-ubuntu-public-key.asc | sudo tee /usr/share/keyrings/fsx-ubuntu-public-key.gpg >/dev/null
-            echo "deb [signed-by=/usr/share/keyrings/fsx-ubuntu-public-key.gpg] https://fsx-lustre-client-repo.s3.amazonaws.com/ubuntu jammy main" > /etc/apt/sources.list.d/fsxlustreclientrepo.list
+            echo "deb [signed-by=/usr/share/keyrings/fsx-ubuntu-public-key.gpg] https://fsx-lustre-client-repo.s3.amazonaws.com/ubuntu $(lsb_release -cs) main" > /etc/apt/sources.list.d/fsxlustreclientrepo.list
             packages_generic_command update
+            # note: use lustre-client-modules-aws for latest kernel
             packages_install lustre-client-modules-${KERNEL}
+        {% endif %}
+
+        {% if context.get("/configuration/BaseOS") not in ["amazonlinux2", "amazonlinux2023"] %}
+            log_info "Lustre Driver installed, trying to load driver via modprobe lustre"
+            # note: this is executed as part of EC2 User Data, so ensure the command will never return a non-0 code or the user data will stop
+            modprobe lustre || {
+                log_info "modprobe failed, rebooting the machine"
+                cloud_init_rerun_user_data
+                reboot
+            }
         {% endif %}
       else
         log_info "FSx Lustre Driver already installed ..."

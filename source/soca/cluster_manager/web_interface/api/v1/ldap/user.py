@@ -15,6 +15,7 @@ import hashlib
 import os
 import re
 import stat
+import pwd
 from base64 import b64encode as encode
 from email.utils import parseaddr
 import config
@@ -122,10 +123,11 @@ def populate_ssh_keys(username: str, user_path: str) -> bool:
 def create_home(username: str, group: str):
     try:
         user_home = config.Config.USER_HOME
-        logger.info(f"Creating new HOME for {username=}/{group=}/{user_home=}")
+        logger.info(
+            f"Creating new HOME for {username=}, {group=}, {user_home=}/{username}"
+        )
 
         # Create user directory structure
-
         user_path = f"{user_home}/{username}"
 
         for _create_dir in [user_path, f"{user_path}/.ssh"]:
@@ -170,9 +172,17 @@ def create_home(username: str, group: str):
         try:
             group = grp.getgrnam(group).gr_name
         except KeyError:
-            # Handle case where group does not exist, e.g when using an external directory
-            logger.warning(f"Unable to determine gr_name for {group}")
-            group = None
+            logger.warning(
+                f"Unable to determine gr_name for {group}, trying to get primary group id for {username}"
+            )
+            try:
+                group = pwd.getpwnam(username).pw_gid
+            except Exception as err:
+                logger.warning(
+                    f"Unable to get default group id for {username} due to {err}"
+                )
+                # Handle case where group does not exist (e.g when using an external directory) or if SOCA can't determine it
+                group = None
 
         for _path in [
             f"{user_path}",
@@ -185,7 +195,13 @@ def create_home(username: str, group: str):
                 f"About to chown {_path=} hierarchy with {username=} and {group=}"
             )
             if os.path.exists(_path):
-                shutil.chown(path=_path, user=username, group=group)
+                if group is None:
+                    logger.warning(
+                        f"Unable to detect group name for {username} ,group membership won't be set. Change it afterwards if needed."
+                    )
+                    shutil.chown(path=_path, user=username)
+                else:
+                    shutil.chown(path=_path, user=username, group=group)
             else:
                 logger.warning(f"Unable to chown {_path}, path does not exist")
 
@@ -217,10 +233,12 @@ def create_home(username: str, group: str):
 
         return True
 
-    except Exception as _e:
+    except Exception as e:
         exc_type, exc_obj, exc_tb = sys.exc_info()
         fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
-        logger.error(exc_type, fname, exc_tb.tb_lineno)
+        logger.error(
+            f"Error while trying to create home directory for  {username}, {exc_type} {fname}, {exc_tb.tb_lineno}"
+        )
         return False
 
 
@@ -500,7 +518,7 @@ class User(Resource):
             "gid", type=int, location="form"
         )  # 0 = no value specified, use default one
         args = parser.parse_args()
-        
+
         if args.get("user", None) is None:
             return SocaError.CLIENT_MISSING_PARAMETER(parameter="user").as_flask()
 
@@ -529,6 +547,13 @@ class User(Resource):
 
         if password is None:
             return SocaError.CLIENT_MISSING_PARAMETER(parameter="password").as_flask()
+
+        if config.Config.DIRECTORY_AUTH_PROVIDER in ["aws_ds_managed_activedirectory"]:
+            ds_password_complexity = r"(?=^.{8,64}$)((?=.*\d)(?=.*[A-Z])(?=.*[a-z])|(?=.*\d)(?=.*[^A-Za-z0-9\s])(?=.*[a-z])|(?=.*[^A-Za-z0-9\s])(?=.*[A-Z])(?=.*[a-z])|(?=.*\d)(?=.*[A-Z])(?=.*[^A-Za-z0-9\s]))^.*"
+            if not re.search(ds_password_complexity, password):
+                return SocaError.IDENTITY_PROVIDER_ERROR(
+                    helper=f"The password must be 8 to 64 characters long and include at least three of the following four types: uppercase letters, lowercase letters, numbers, and special characters."
+                ).as_flask()
 
         if sudoers is None:
             return SocaError.CLIENT_MISSING_PARAMETER(parameter="sudoers").as_flask()
@@ -570,6 +595,7 @@ class User(Resource):
                 helper=f"Unable to create user {user}, Invalid email address"
             ).as_flask()
 
+        _non_blocking_errors = []
         try:
             _soca_identity_client = SocaIdentityProviderClient()
             _soca_identity_client.initialize()
@@ -579,8 +605,8 @@ class User(Resource):
                 endpoint="/api/ldap/user",
                 headers={"X-SOCA-TOKEN": config.Config.API_ROOT_KEY},
             ).get(params={"user": user})
-            if _is_user_exist.success:
-                if len(_is_user_exist.message) == 0:
+            if _is_user_exist.get('success'):
+                if len(_is_user_exist.get('message')) == 0:
                     pass
                 else:
                     return SocaError.IDENTITY_PROVIDER_ERROR(
@@ -667,20 +693,21 @@ class User(Resource):
                 ]
 
             logger.info(f"About to create new account {user}")
+
             logger.info("Create group first to prevent GID issue")
             _create_user_group = SocaHttpClient(
                 endpoint="/api/ldap/group",
                 headers={"X-SOCA-TOKEN": config.Config.API_ROOT_KEY},
             ).post(data={"group": f"{group}", "gid": gid})
-            if not _create_user_group.success:
+            if _create_user_group.get("success") is False:
                 return SocaError.IDENTITY_PROVIDER_ERROR(
-                    helper=f"Unable to create user {user}, unable to create group {group} because of {_create_user_group.message}"
+                    helper=f"Unable to create group {group} because of {_create_user_group.get('message')}"
                 ).as_flask()
             logger.info(f"Group {group} created successfully")
 
             logger.info(f"About to create actual user")
             _user_create = _soca_identity_client.add(dn=_dn_user, mod_list=_attrs)
-            if not _user_create.success:
+            if _user_create.get("success") is False:
                 logger.info(
                     f"Unable to create user {_dn_user}, deleting associated group {group}"
                 )
@@ -689,16 +716,18 @@ class User(Resource):
                     headers={"X-SOCA-TOKEN": config.Config.API_ROOT_KEY},
                 ).delete(data={"group": f"{group}"})
                 return SocaError.IDENTITY_PROVIDER_ERROR(
-                    helper=f"Unable to create user {user}, Unable to create {_dn_user} because of {_user_create.message}"
+                    helper=f"Unable to create user {user}, because of {_user_create.get('message')}"
                 ).as_flask()
+            else:
+                logger.info(f"User {user} created successfully")
 
-            _password_reset_request = 0
             if config.Config.DIRECTORY_AUTH_PROVIDER in [
                 "aws_ds_managed_activedirectory",
             ]:
                 logger.info(
                     "Set up Password reset for AWS Directory Service AD provider"
                 )
+
                 _pw_reset_request = SocaHttpClient(
                     endpoint="/api/user/reset_password",
                     headers={"X-SOCA-TOKEN": config.Config.API_ROOT_KEY},
@@ -709,10 +738,29 @@ class User(Resource):
                         "directory_id": config.Config.DIRECTORY_SERVICE_ID,
                     }
                 )
-                while not _pw_reset_request.success:
-                    return SocaError.IDENTITY_PROVIDER_ERROR(
-                        helper=f"{_pw_reset_request.message}"
-                    ).as_flask()
+                if _pw_reset_request.get("success") is False:
+                    _pw_reset_error = f"Unable to set up password for {user} due to {_pw_reset_request.get('message')}"
+                    logger.error(_pw_reset_error)
+                    _non_blocking_errors.append(_pw_reset_error)
+
+            # wait until the user is fully accessible from sssd
+            _user_is_propagated = False
+            for _ in range(15):
+                try:
+                    pwd.getpwnam(user)
+                    _user_is_propagated = True
+                    logger.info(f"{user} created on AD and visible on the system")
+                    break
+                except KeyError:
+                    logger.warning(
+                        f"{user} created on AD, but not yet visible on the system , waiting ..."
+                    )
+                    time.sleep(1)
+
+            if _user_is_propagated is False:
+                logger.error(
+                    f"User {user} created but LDAP did not refresh after 15 seconds. Continuing creation process, permissions can still be configured post-user creation"
+                )
 
             logger.info("Creating Home Directory for user")
             if create_home(user, group) is False:
@@ -740,9 +788,10 @@ class User(Resource):
                 ).post(data={"user": user})
 
                 if not _grant_sudo.success:
-                    return SocaError.IDENTITY_PROVIDER_ERROR(
-                        helper=f"User created but unable to give admin permissions."
-                    ).as_flask()
+                    _sudo_grant_error = f"Unable to give admin permissions to {user} because of {_grant_sudo.get('message')}"
+                    logger.error(_sudo_grant_error)
+                    _non_blocking_errors.append(_sudo_grant_error)
+
                 else:
                     logger.info("SUDO Permission granted successfully")
             else:
@@ -755,10 +804,11 @@ class User(Resource):
             ).put(data={"group": f"{group}", "user": user, "action": "add"})
 
             if not _update_group.success:
-                return SocaError.IDENTITY_PROVIDER_ERROR(
-                    helper=f"{user} & group {group} created but could not add user to his group."
-                ).as_flask()
+                _grp_update_error = f"Unable to add {user} to {group} because of {_update_group.get('message')}"
+                logger.error(_grp_update_error)
+                _non_blocking_errors.append(_grp_update_error)
             else:
+                logger.info(f"{user} has been added to {group} successfully")
                 if config.Config.DIRECTORY_AUTH_PROVIDER in [
                     "aws_ds_managed_activedirectory",
                 ]:
@@ -790,17 +840,23 @@ class User(Resource):
                             ],
                         )
                         if _replace_primary_group_id.get("success") is False:
-                            return SocaError.IDENTITY_PROVIDER_ERROR(
-                                helper=f"Unable to set primaryGroupID for user {_dn_user} because of {_replace_primary_group_id.get('message')}"
-                            ).as_flask()
+                            _replace_guid_error = f"Unable to set primaryGroupID for user {_dn_user} because of {_replace_primary_group_id.get('message')}"
+                            _non_blocking_errors.append(_replace_guid_error)
+                            logger.error(_replace_guid_error)
                     else:
-                        return SocaError.IDENTITY_PROVIDER_ERROR(
-                            helper=f"Unable to find objectSid for {group} because of {_find_group_sid}"
-                        ).as_flask()
+                        _find_guid_error = f"Unable to find objectSid for {group} because of {_find_group_sid}"
+                        _non_blocking_errors.append(_find_guid_error)
+                        logger.error(_find_guid_error)
 
-            logger.info(f"{user} has been added to {group} successfully")
-
-            return SocaResponse(success=True, message="User created").as_flask()
+            if len(_non_blocking_errors) >= 1:
+                logger.warning(
+                    f"One or more non-blocking errors occurred during user creation: {_non_blocking_errors}"
+                )
+                return SocaError.IDENTITY_PROVIDER_ERROR(
+                    helper=f"User created with errors: {_non_blocking_errors}"
+                ).as_flask()
+            else:
+                return SocaResponse(success=True, message="User created").as_flask()
 
         except Exception as err:
             exc_type, exc_obj, exc_tb = sys.exc_info()
@@ -955,7 +1011,7 @@ class User(Resource):
                 os.chmod(backup_folder, 0o700)
             except Exception as err:
                 return SocaError.IDENTITY_PROVIDER_ERROR(
-                    helper=f"Unable to create backup home folder for {user} due to {err}. Verify if {user_home} exists. Backup folrder to be created: {backup_folder}"
+                    helper=f"Unable to create backup home folder for {user} due to {err}. Verify if {user_home} exists. Backup folder to be created: {backup_folder}"
                 ).as_flask()
 
             for entry in entries_to_delete:
@@ -971,10 +1027,18 @@ class User(Resource):
                 endpoint="/api/user/api_key",
                 headers={"X-SOCA-TOKEN": config.Config.API_ROOT_KEY},
             ).delete(data={"user": user})
-            if not _invalidate_api_key.success:
-                return SocaError.IDENTITY_PROVIDER_ERROR(
-                    helper=f"{user} deleted but unable to invalidate API key because of {_invalidate_api_key.message}."
-                ).as_flask()
+            if _invalidate_api_key.get("success") is False:
+                if (
+                    f"no active token found for {user}".lower()
+                    in _invalidate_api_key.get("message").lower()
+                ):
+                    logger.info(
+                        f"No active token found for {user}. Skipping API key invalidation."
+                    )
+                else:
+                    return SocaError.IDENTITY_PROVIDER_ERROR(
+                        helper=f"User {user} deleted but unable to invalidate API key because of {_invalidate_api_key.message}."
+                    ).as_flask()
 
             return SocaResponse(success=True, message="Deleted user").as_flask()
 

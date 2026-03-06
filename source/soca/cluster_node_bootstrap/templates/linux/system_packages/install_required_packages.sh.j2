@@ -67,7 +67,13 @@ function system_packages_install {
     # Avoid kernel update if Lustre is on the mount table as lustre-client is kernel specific.
     if cat /etc/fstab | grep -q lustre; then
       log_info "Lustre filesystem found in /etc/fstab. Removing kernel from package update to avoid version mismatch with lustre-client version"
-      REMOVE_PKGS+=(kernel)
+      {%  if context.get("/configuration/BaseOS") in ("ubuntu2204", "ubuntu2404") %}
+        log_info "Detected Debian distro, removing linux-aws from the package list"
+        REMOVE_PKGS+=(linux-aws)
+      {% else %}
+        log_info "Detected EL distro, removing kernel kernel-headers kernel-devel from the package list"
+        REMOVE_PKGS+=(kernel kernel-headers kernel-devel)
+      {% endif %}
     fi
 
     # Ensure packages in REMOVE_PKGS won't be installed
@@ -87,16 +93,24 @@ function system_packages_install {
       systemctl enable hibinit-agent
     {% endif %}
 
-    # Prepare for reboot
+    # Check if machine will run a newer reboot post reboot, and if yes, force reboot now
+    local CURRENT_KERNEL=$(uname -r)
     {%  if context.get("/configuration/BaseOS") in ("ubuntu2204", "ubuntu2404") %}
-      if [[ $(dpkg -l | grep linux-image | wc -l) -gt 1 ]]; then
-        set_reboot_required "Kernel was updated during package install"
-      fi
+        # Best-effort detection of the kernel that will be used on next reboot
+        # Ubuntu usually selects the latest installed kernel unless GRUB has been modified (so if you did, simply comment out this section or make sure NEXT_BOOT_KERNEL points to the kernel name)
+        # Worst case: you get a free reboot.
+        # Debian doesn't have a grubby equivalent, PRs welcome if you find one 
+        local NEXT_BOOT_KERNEL=$(dpkg --list 'linux-image-*' | awk '/^ii/{print $2}' | grep -E 'linux-image-[0-9]' | sed 's/linux-image-//' | sort -V | tail -n1)
     {% else %}
-      if [[ $(rpm -qa kernel | wc -l) -gt 1 ]]; then
-        set_reboot_required "Kernel was updated during package install"
-      fi
+        # RHEL based distros use grubby (do NOT use readlink as vmlinuz is not a managed symlink unlike on Debian)
+        local NEXT_BOOT_KERNEL=$(basename "$(grubby --default-kernel)" | sed 's/^vmlinuz-//')
     {% endif %}
+
+    if [[ "${CURRENT_KERNEL}" != "${NEXT_BOOT_KERNEL}" ]]; then
+        set_reboot_required "Current kernel ${CURRENT_KERNEL} != next boot kernel ${NEXT_BOOT_KERNEL}"
+    else
+        log_info "Machine is already running the latest kernel, no update needed"
+    fi
 
   else
     log_info "Existing Package log ${PACKAGES_ALREADY_INSTALLED_FILE_LOCK} found. Bypassing package installation steps. Remove this file if you have modified the list of package to install"

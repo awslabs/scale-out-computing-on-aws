@@ -7,6 +7,7 @@ from commands.cache import cache
 from commands.filesystems import filesystems
 from commands.ad import ad
 from commands.schedulers import schedulers
+from commands.nodes import nodes
 
 from utils.logger import SocaLogger
 import os
@@ -25,6 +26,7 @@ cli.add_command(cache)
 cli.add_command(filesystems)
 cli.add_command(ad)
 cli.add_command(schedulers)
+cli.add_command(nodes)
 
 if __name__ == "__main__":
     cli(obj={})

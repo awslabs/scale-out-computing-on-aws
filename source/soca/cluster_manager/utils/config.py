@@ -9,7 +9,7 @@ from utils.cache.client import SocaCacheClient
 from utils.cast import SocaCastEngine
 from utils.error import SocaError
 from utils.response import SocaResponse
-from utils.config_checks import SocaConfigKeyVerifier
+from utils.settings.config_checks import SocaConfigKeyVerifier
 
 logger = logging.getLogger("soca_logger")
 
@@ -49,6 +49,7 @@ class SocaConfig:
         self._cache_client = SocaCacheClient(is_admin=self.cache_admin)
         self._ssm_client = utils_boto3.get_boto(service_name="ssm").message
 
+    # amazonq-ignore-next-line
     def get_value(
         self,
         cache_result: Optional[bool] = True,  # choose whether to cache the value
@@ -58,6 +59,7 @@ class SocaConfig:
         allow_unknown_key: Optional[
             bool
         ] = False,  # If set to True, will not trigger a SocaError if key does not exist
+    # amazonq-ignore-next-line
     ) -> [Any, None]:
         logger.debug(
             f"Trying to retrieve parameter {self._full_parameter_name}, is_path {self._is_path}"
@@ -101,6 +103,7 @@ class SocaConfig:
                         f"return_as is set but ignored as SSM key ({self._full_parameter_name}) is path and will always return a dict"
                     )
 
+                # amazonq-ignore-next-line
                 if default is not None:
                     logger.debug(
                         f"default is set but ignored as SSM key ({self._full_parameter_name}) is path and will always return a dict"
@@ -200,6 +203,7 @@ class SocaConfig:
         _sort = sort if sort in ["desc", "asc"] else "desc"  # Desc = newest first
 
         try:
+            # amazonq-ignore-next-line
             _current_parameter_key_value = self.get_value()
             if _current_parameter_key_value.success:
                 _get_parameter_history = self._ssm_client.get_parameter_history(
@@ -217,6 +221,7 @@ class SocaConfig:
                     _get_parameter_history.get("ResponseMetadata").get("HTTPStatusCode")
                     == 200
                 ):
+                    # amazonq-ignore-next-line
                     if _sort == "asc":
                         return SocaResponse(
                             success=True,
@@ -253,6 +258,7 @@ class SocaConfig:
         if not _is_valid_value.success:
             return _is_valid_value
         try:
+            # amazonq-ignore-next-line
             _current_parameter_key_value = self.get_value().get("message")
             if _current_parameter_key_value == value:
                 return SocaResponse(
@@ -267,6 +273,9 @@ class SocaConfig:
                     Overwrite=True,
                 )
                 if _update_key.get("ResponseMetadata").get("HTTPStatusCode") == 200:
+                    _cache_enabled = self._cache_client.is_enabled()
+                    if self.cache_admin and _cache_enabled.success:
+                        self._cache_client.set(key=self._full_parameter_name, value=value)
                     return SocaResponse(success=True, message="Key update successfully")
                 else:
                     return SocaError.AWS_API_ERROR(

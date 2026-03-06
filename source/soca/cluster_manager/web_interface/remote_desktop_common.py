@@ -13,7 +13,7 @@
 
 import time
 import logging
-from utils.aws.ssm_parameter_store import SocaConfig
+from utils.config import SocaConfig
 import utils.aws.boto3_wrapper as utils_boto3
 from utils.cache.client import SocaCacheClient
 from models import SoftwareStacks, VirtualDesktopSessions
