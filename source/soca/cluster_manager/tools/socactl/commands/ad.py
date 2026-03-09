@@ -1,12 +1,15 @@
 # Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 # SPDX-License-Identifier: Apache-2.0
 
+from __future__ import annotations
 import click
 import sys
 from commands.common import print_output, is_controller_instance
 from utils.config import SocaConfig
 from utils.subprocess_client import SocaSubprocessClient
 import json
+import grp
+import pwd
 import os
 import datetime
 
@@ -14,37 +17,35 @@ import datetime
 _group_cache = {}  # global cache: group_name -> gid
 
 
-def get_user_groups(user: str) -> list:
-    """Get all groups a user belongs to.
+def get_user_groups(user: str, logger: "logging.Logger") -> list:
+    """Get all valid groups a user belongs to."""
 
-    Args:
-        user: Username to get groups for
-
-    Returns:
-        List of dicts with group name and gid, empty list if user not found
-    """
     global _group_cache
-    _check_names_output = SocaSubprocessClient(run_command=f"id -nG {user}").run()
-    _check_gids_output = SocaSubprocessClient(run_command=f"id -G {user}").run()
+    logger.info(f"Resolving groups for {user}")
+    try:
+        _user_info = pwd.getpwnam(user)
+    except KeyError:
+        logger.warning(f"Skipping {user}: user cannot be resolved")
+        return []
 
-    if _check_names_output.get("success"):
-        group_names = _check_names_output.get("message").get("stdout").split()
-    else:
-        group_names = []
-        print_output(message=_check_names_output)
-
-    if _check_gids_output.get("success"):
-        group_gids = _check_gids_output.get("message").get("stdout").split()
-    else:
-        group_gids = []
-        print_output(message=_check_gids_output)
+    _gids = os.getgrouplist(user, _user_info.pw_gid)
 
     groups = []
-    for name, gid in zip(group_names, group_gids):
+
+    for gid in _gids:
+        try:
+            name = grp.getgrgid(gid).gr_name
+        except KeyError:
+            # group cannot be resolved (deleted AD group)
+            logger.warning(f"Skipping {user}: group {gid} cannot be resolved")
+            continue
+
         if name not in _group_cache:
-            _group_cache[name] = gid.strip()
+            _group_cache[name] = str(gid)
+
         groups.append({"name": name, "gid": _group_cache[name]})
 
+    logger.info(f"Found {groups=} for {user=}")
     return groups
 
 
@@ -129,7 +130,7 @@ def export(ctx):
                     continue
 
                 logger.info(f"Fetching group info for {user}")
-                groups = get_user_groups(user=user)
+                groups = get_user_groups(user=user, logger=logger)
                 _user_info["groups"] = groups
                 user_data.append(_user_info)
 
