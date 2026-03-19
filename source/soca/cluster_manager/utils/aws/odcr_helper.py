@@ -3,7 +3,7 @@
 
 import logging
 from typing import Optional, Literal
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from utils.config import SocaConfig
 import utils.aws.boto3_wrapper as utils_boto3
 from utils.aws.ec2_helper import (
@@ -266,7 +266,7 @@ def create_capacity_reservation(
     # Provide an expiration date for the ODCR
     # This can be controlled via the kwargs
     if not end_date:
-        _now = datetime.now()
+        _now = datetime.now(timezone.utc)
         if probe_capacity_only is True:
             # short TTL as we don't actually need to keep the reservation active
             # note: we submit a cancel_capacity_reservation()
