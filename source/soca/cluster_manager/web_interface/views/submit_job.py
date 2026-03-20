@@ -216,7 +216,7 @@ def job_submission():
 @feature_flag(flag_name="HPC", mode="view")
 def send_job():
     _profile_interpreter = request.form.get("profile_interpreter", "")
-    _cpus = request.form.get("cpus", "1")
+    _cpus = request.form.get("vcpus", "1")
     try:
         _requested_cpus = int(_cpus)
     except ValueError:
@@ -260,7 +260,9 @@ def send_job():
             return redirect("/my_files")
 
         # Calculate the number of nodes to be provisioned for the simulation
-        _pattern_ht_support = re.compile(r'(?i)\bht_support\s*=\s*(true|false)\b')
+        _pattern_ht_support = re.compile(
+            r"(?im)^#PBS\s+-l\s+.*\bht_support\s*=\s*(true|false)\b"
+        )
         _match_ht_support = _pattern_ht_support.search(_job_to_submit)
         if _match_ht_support:
             _ht_support_value = False if _match_ht_support.group(1).lower() == "false" else True
@@ -291,6 +293,9 @@ def send_job():
                 else:
                     _cpu_per_system = instance_info["VCpuInfo"]["DefaultCores"]
 
+        logger.info(
+                f"Instance type {_instance_type} has {_cpu_per_system} vCPUs per system due to {_ht_support_value=}"
+            )
         if _cpu_per_system == 0:
             logger.error(
                 f"Unable to determine vCPU count for instance type {_instance_type}. VcpuInfo.DefaultVCpus not found for {_instance_type} in {_describe_instance_types}"
@@ -317,15 +322,17 @@ def send_job():
             logger.info(
                 "Detected PBS job scheduler, Checking if job count is already specified"
             )
+            
             _check_job_node_count = re.search(r"#PBS -l select=(\d+)", _job_to_submit)
             if _check_job_node_count:
                 if str(_check_job_node_count.group(1)) != str(_requested_node_count):
                     logger.info(
                         f"Updating node count from {_check_job_node_count.group(1)} to {_requested_node_count}"
                     )
-                    _job_to_submit = _job_to_submit.replace(
-                        f"#PBS -l select={_check_job_node_count.group(1)}",
-                        f"#PBS -l select={_requested_node_count}",
+                    _job_to_submit = re.sub(
+                        r"(?P<select_prefix>#PBS -l select=)\d+",
+                        rf"\g<select_prefix>{_requested_node_count}",
+                        _job_to_submit,
                     )
                 else:
                     logger.info(

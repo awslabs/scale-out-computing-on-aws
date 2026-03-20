@@ -1327,7 +1327,12 @@ class SocaHpcJob(SocaHpcJobResourceModel):
             ]:
                 logger.info("Detected OpenPBS/PBSPro job, updating select resource")
                 _resource_selector_name = "select"
-                _resource_selector_value = f"compute_node={self.job_id}"
+                _current_select = self.pbs_resource_list.get("select")
+                # Remove existing compute_node if present to avoid duplicates in case of re-provisioning after failure
+                _current_select = re.sub(r":?compute_node=[^:\s]*", "", _current_select)
+                _resource_selector_value = (
+                    f"{_current_select}:compute_node={self.job_id}"
+                )
             elif self.job_scheduler_info.provider == SocaHpcSchedulerProvider.LSF:
                 logger.info(
                     "Detected LSF job, updating select[compute_node==xx] resource"

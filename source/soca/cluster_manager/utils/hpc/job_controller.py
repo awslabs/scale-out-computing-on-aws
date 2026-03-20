@@ -4,6 +4,7 @@ from __future__ import annotations
 import time
 import logging
 import os
+import re
 from utils.response import SocaResponse
 from utils.subprocess_client import SocaSubprocessClient
 from utils.error import SocaError
@@ -461,14 +462,18 @@ class SocaHpcJobController:
         ]:
             logger.info("Detected OpenPBS/PBSPro job, updating select resource")
             _resource_selector_name = "select"
-            _resource_selector_value = "compute_node=tbd"
+            # remove compute_node if there
+            _select_clean = re.sub(
+                r":?compute_node=[^:\s]*", "", self._job.pbs_resource_list.get("select")
+            )
+            _resource_selector_value = f"{_select_clean}:compute_node=tbd"
 
         elif self._scheduler_info.provider == SocaHpcSchedulerProvider.LSF:
             logger.info("Detected LSF job, updating RES_REQ resource")
             _resource_selector_name = "compute_node"
             _resource_selector_value = "tbd"
 
-        elif self._scheduler_info.provider == SocaHpcSchedulerProvider.LSF:
+        elif self._scheduler_info.provider == SocaHpcSchedulerProvider.Slurm:
             logger.info("Detected Slurm job, updating Constraint resource")
             _resource_selector_name = "compute_node"
             _resource_selector_value = "tbd"
