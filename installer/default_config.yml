@@ -493,7 +493,7 @@ Parameters:
         # Install path. We recommend you to not change this path
         # if you do, make sure to update relevant cluster_analytics / log_backup paths as well
         # Note: $SOCA_CLUSTER_ID will be automatically replaced by the SOCA Cluster Name specified at install time
-        pbs_exec: "/opt/soca/$SOCA_CLUSTER_ID/schedulers/default/openpb" # Default is "/opt/pbs"
+        pbs_exec: "/opt/soca/$SOCA_CLUSTER_ID/schedulers/default/openpbs" # Default is "/opt/pbs"
         pbs_home: "/opt/soca/$SOCA_CLUSTER_ID/schedulers/default/openpbs/var/spool/pbs" # Default is "/var/spool/pbs" include spooler dirs, hierarchy will be created at compilation time but use the same tree as install_prefix_path. You can override this setting if needed.
         
         deployment_type: "git" # tgz or git
