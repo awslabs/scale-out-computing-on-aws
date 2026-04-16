@@ -41,13 +41,13 @@ def clean_pg_assigned_to_stack(stack_name: str) -> bool:
     _success = True
     try:
         logging.info(
-            f"Cleaning Placement Groups associated to tag:soca:AssociatedStackId = {stack_name}..."
+            f"Cleaning Placement Groups associated to tag:edh:AssociatedStackId = {stack_name}..."
         )
 
         response = ec2_client.describe_placement_groups(
             Filters=[
                 {
-                    "Name": "tag:soca:AssociatedStackId",
+                    "Name": "tag:edh:AssociatedStackId",
                     "Values": [stack_name],
                 }
             ]
@@ -55,12 +55,12 @@ def clean_pg_assigned_to_stack(stack_name: str) -> bool:
 
         pgs = response.get("PlacementGroups", [])
         logging.info(
-            f"Found {len(pgs)} Placement Groups with tag:soca:AssociatedStackId = {stack_name}"
+            f"Found {len(pgs)} Placement Groups with tag:edh:AssociatedStackId = {stack_name}"
         )
         for pg in pgs:
             pg_name = pg.get("GroupName")
             logging.info(f"Processing Placement Group {pg_name}")
-            if delete_placement_group(pg_name=pg_name) is False:
+            if not delete_placement_group(pg_name=pg_name):
                 _success = False
 
     except Exception as e:
@@ -77,10 +77,10 @@ def clean_pg_assigned_to_stack(stack_name: str) -> bool:
 def clean_orphaned_pg_on_schedule() -> bool:
     _success = True
     try:
-        _cluster_id = os.environ.get("SOCA_CLUSTER_ID", None)
+        _cluster_id = os.environ.get("EDH_CLUSTER_ID", None)
         if not _cluster_id:
             logging.fatal(
-                "SOCA_CLUSTER_ID is not defined, unable to proceed. Verify your configuration."
+                "EDH_CLUSTER_ID is not defined, unable to proceed. Verify your configuration."
             )
             return False
 
@@ -88,7 +88,7 @@ def clean_orphaned_pg_on_schedule() -> bool:
         response = ec2_client.describe_placement_groups(
             Filters=[
                 {
-                    "Name": "tag:soca:ClusterId",
+                    "Name": "tag:edh:ClusterId",
                     "Values": [_cluster_id],
                 }
             ]
@@ -105,14 +105,14 @@ def clean_orphaned_pg_on_schedule() -> bool:
                 (
                     tag["Value"]
                     for tag in tags
-                    if tag["Key"] == "soca:AssociatedStackId"
+                    if tag["Key"] == "edh:AssociatedStackId"
                 ),
                 None,
             )
 
             if not _found_associated_stack_id:
                 logging.info(
-                    f"Placement Group {pg_name} does NOT have tag 'soca:AssociatedStackId', skipping"
+                    f"Placement Group {pg_name} does NOT have tag 'edh:AssociatedStackId', skipping"
                 )
                 continue
 
@@ -134,7 +134,7 @@ def clean_orphaned_pg_on_schedule() -> bool:
                     logging.info(
                         f"Associated stack is not active ({stack_status}), deleting Placement Group"
                     )
-                    if delete_placement_group(pg_name=pg_name) is False:
+                    if not delete_placement_group(pg_name=pg_name):
                         _success = False
 
             except ClientError as e:
@@ -146,7 +146,7 @@ def clean_orphaned_pg_on_schedule() -> bool:
                     logging.info(
                         f"Associated stack {_found_associated_stack_id} does not exist, deleting Placement Group {pg_name}"
                     )
-                    if delete_placement_group(pg_name=pg_name) is False:
+                    if not delete_placement_group(pg_name=pg_name):
                         _success = False
                 else:
                     logging.fatal(f"Error checking stack: {e}")
@@ -192,13 +192,13 @@ def lambda_handler(event, context):
             logging.info(
                 f"Triggered from EventBridge, cleaning Placement Groups for stack {_stack_name}"
             )
-            if clean_pg_assigned_to_stack(stack_name=_stack_name) is False:
+            if not clean_pg_assigned_to_stack(stack_name=_stack_name):
                 raise CleanupFailed(
                     "Un-recoverable errors detected during clean_pg_assigned_to_stack"
                 )
         else:
             logging.info("Triggered from schedule, cleaning orphaned Placement Groups")
-            if clean_orphaned_pg_on_schedule() is False:
+            if not clean_orphaned_pg_on_schedule():
                 raise CleanupFailed(
                     "Un-recoverable errors detected during clean_orphaned_pg_on_schedule"
                 )

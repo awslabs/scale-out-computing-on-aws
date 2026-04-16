@@ -114,8 +114,8 @@ def receive_before_update(mapper, connection, target):
     if has_request_context():
         if "user" in session:
             target.updated_by = session["user"]
-        elif request.headers.get("X-SOCA-USER"):
-            target.updated_by = request.headers.get("X-SOCA-USER")
+        elif request.headers.get("X-EDH-USER"):
+            target.updated_by = request.headers.get("X-EDH-USER")
         else:
             target.updated_by = "UNKNOWN"
     else:
@@ -176,7 +176,7 @@ class VirtualDesktopSessions(BaseModel):
     )  # Name of the CloudFormation Stack
     session_uuid = db.Column(
         db.String(36), nullable=False, index=True
-    )  # Manage EC2 tag soca:DCVSessionUUID as well as session ID
+    )  # Manage EC2 tag edh:DCVSessionUUID as well as session ID
     session_name = db.Column(
         db.String(255), nullable=False
     )  # Session name specified by the user
@@ -236,7 +236,6 @@ class SoftwareStacks(BaseModel):
     ami_arch = db.Column(db.String(255), nullable=False)
     ami_base_os = db.Column(db.String(255), nullable=False)
     ami_root_disk_size = db.Column(db.Integer, nullable=False)
-
     # Stack Info
     created_on = db.Column(db.DateTime, nullable=False)
     created_by = db.Column(db.String(255), nullable=False)
@@ -563,6 +562,7 @@ class TargetNodeSoftwareStacks(BaseModel):
     ami_connection_string = db.Column(
         db.Text, nullable=False
     )  # Optional, can specify information. Support variable substitution such as Instance Private IP etc ..
+
     os_family = db.Column(OSFamily, nullable=False)  # OS Family (Windows or Linux)
     # Stack Info
     created_on = db.Column(db.DateTime, nullable=False)

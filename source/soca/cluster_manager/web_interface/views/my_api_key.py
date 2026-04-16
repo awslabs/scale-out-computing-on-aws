@@ -21,7 +21,7 @@ my_api_key = Blueprint("my_api_key", __name__, template_folder="templates")
 def index():
     _check_user_key = SocaHttpClient(
         endpoint="/api/user/api_key",
-        headers={"X-SOCA-TOKEN": config.Config.API_ROOT_KEY},
+        headers={"X-EDH-TOKEN": config.Config.API_ROOT_KEY},
     ).get(params={"user": session.get("user", "")})
 
     if _check_user_key.get("success") is False:
@@ -57,7 +57,7 @@ def reset_key():
     if user is not None:
         invalidate_user_key = delete(
             config.Config.FLASK_ENDPOINT + "/api/user/api_key",
-            headers={"X-SOCA-TOKEN": config.Config.API_ROOT_KEY},
+            headers={"X-EDH-TOKEN": config.Config.API_ROOT_KEY},
             data={"user": user},
             verify=False,
         )  # nosec

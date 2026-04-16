@@ -46,7 +46,7 @@ class AwsBudgets(Resource):
         summary: List all available AWS budgets
         description: Retrieves a list of all AWS budgets available in the current account
         parameters:
-          - name: X-SOCA-USER
+          - name: X-EDH-USER
             in: header
             required: true
             schema:
@@ -56,7 +56,7 @@ class AwsBudgets(Resource):
               pattern: '^[a-zA-Z0-9._-]+$'
             description: SOCA username for authentication
             example: "john.doe"
-          - name: X-SOCA-TOKEN
+          - name: X-EDH-TOKEN
             in: header
             required: true
             schema:

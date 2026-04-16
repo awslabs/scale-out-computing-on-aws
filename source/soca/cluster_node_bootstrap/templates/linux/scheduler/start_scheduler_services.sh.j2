@@ -2,14 +2,14 @@
 # SPDX-License-Identifier: Apache-2.0
 
 # Simple wrapper for compute node to easily start schedulers
-function start_soca_scheduler_services {
-    log_info "Checking SOCA Scheduler service status and starting them if stopped"
+function start_edh_scheduler_services {
+    log_info "Checking EDH Scheduler service status and starting them if stopped"
 
-    # Find all services starting with 'soca_scheduler_'
-    local SCHEDULER_SERVICES=$(systemctl list-unit-files | grep '^soca_scheduler_' | awk '{print $1}')
+    # Find all services starting with 'edh_scheduler_'
+    local SCHEDULER_SERVICES=$(systemctl list-unit-files | grep '^edh_scheduler_' | awk '{print $1}')
 
     if [[ -z "${SCHEDULER_SERVICES}" ]]; then
-        log_info "No SOCA Scheduler services found, skipping ... "
+        log_info "No EDH Scheduler services found, skipping ... "
     else
         for svc in ${SCHEDULER_SERVICES}; do
             log_info "Processing service: ${svc}"
@@ -40,4 +40,4 @@ function start_soca_scheduler_services {
         done
     fi
 }
-start_soca_scheduler_services
+start_edh_scheduler_services

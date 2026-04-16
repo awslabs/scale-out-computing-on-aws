@@ -1,0 +1,343 @@
+<!-- Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+ SPDX-License-Identifier: Apache-2.0 -->
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    {% include 'common/header.html' %}
+</head>
+
+<body id="page-top">
+                {% include 'common/horizontal_menu_bar.html' %}
+
+    <div id="wrapper">
+        {% include 'common/vertical_menu_bar.html' %}
+        <div id="content-wrapper" class="d-flex flex-column">
+            <div id="content" style="margin-top: 20px;">
+                <div class="container-fluid">
+                    {% include 'common/flashed_messages.html' %}
+                    <div class="card shadow mb-4">
+         
+                        <div class="card-body">
+                            <div class="d-flex align-items-center">
+                            <h3 class="mb-0" data-toggle="tooltip" data-placement="top" title="Setup your Amazon EKS Job">My Amazon EKS Job <i class="fas fa-question-circle"></i></h3>
+                            </div>
+                                       <br>
+                                        {% if eks_clusters == [] %}
+                                              <div class="alert alert-warning">
+                                                Unable to find any and <a href="https://aws.amazon.com/eks/" target="_blank">Amazon Elastic Kubernetes Service cluster (EKS)</a> onboarded to this EDH environment. <br>
+                                                 Add the following tag  <kbd>edh:visibility:{{cluster_id}} = true</kbd> to the EKS cluster(s) you want to onboard.
+                                              </div>
+                                            {% else %}
+                                            <form action="/containers/eks/submit" method="post" id="commandForm">
+                                              <div class="row mb-3 align-items-center">
+                                                <label for="image_uri" class="col-sm-3 col-form-label"  data-toggle="tooltip" data-placement="top"
+                                                       title="URI of the Image to deploy on your pod">Image URI</label>
+                                                <div class="col-sm-9">
+                                                  <input id="image_uri" class="form-control" type="text" disabled value="{{image_uri}}">
+                                                  <input type="hidden" name="image_uri"  value="{{image_uri}}" id="image_uri_hidden">
+                                                </div>
+                                              </div>
+                                             
+                                              <div class="row mb-3 align-items-center">
+                                                <label for="eks_cluster" class="col-sm-3 col-form-label"  data-toggle="tooltip" data-placement="top"
+                                                       title="Name of the EKS cluster to use">EKS Cluster</label>
+                                                <div class="col-sm-9">
+                                                  <select required class="form-control" id="eks_cluster" name="eks_cluster">
+                                                    {% for eks_cluster in eks_clusters %}
+                                                    <option value="{{eks_cluster}}">{{eks_cluster}}</option>
+                                                    {% endfor %}
+                                                  </select>
+                                                  <small class="form-text text-muted">Note: EKS clusters must have the tag <kbd>edh:visibility:{{cluster_id}} = true</kbd> to be visible on EDH</small>
+                                                </div>
+                                              </div>
+
+                                                <div class="row mb-3 align-items-center">
+                                                <label for="job_name" class="col-sm-3 col-form-label"  data-toggle="tooltip" data-placement="top"
+                                                       title="EKS Namespace to launch your job on">EKS Namespace</label>
+                                                <div class="col-sm-9">
+                                                  <input id="namespace" name="namespace" type="text" class="form-control" value="default" required>
+                                                </div>
+                                              </div>
+
+                                              <div class="row mb-3 align-items-center">
+                                                <label for="job_name" class="col-sm-3 col-form-label"  data-toggle="tooltip" data-placement="top"
+                                                       title="Name of your job">Job Name</label>
+                                                <div class="col-sm-9">
+                                                  <input id="job_name" name="job_name" type="text" class="form-control" required>
+                                                </div>
+                                              </div>
+
+                                              <!-- Section 2: Compute Resources -->
+                                              <h5 class="mt-4">Compute Resources</h5>
+                                              <hr>
+
+                                              <div class="row mb-3 align-items-center">
+                                                  <div class="col-sm-3">
+                                                    <label for="cpu" class="form-label"  data-toggle="tooltip" data-placement="top"
+                                                       title="Number of CPUs to request for your job"><i class="fa-solid fa-microchip fa-xl"></i> CPUs</label>
+                                                    <input id="cpu" name="cpu" type="number" class="form-control" step="any" value="1">
+                                                    <small class="form-text text-muted">Partial CPUs allowed (e.g. 0.5 = half a CPU)</small>
+                                                  </div>
+
+                                                  <div class="col-sm-3">
+                                                    <label for="memory" class="form-label"  data-toggle="tooltip" data-placement="top"
+                                                       title="Size of the memory to request for your job"><i class="fa-solid fa-memory fa-xl"></i> Memory (GB)</label>
+                                                    <input id="memory" name="memory" type="number" class="form-control" step="any" value="1">
+                                                    <small class="form-text text-muted">Partial GBs allowed (e.g. 2.5 = 2.5 GB RAM)</small>
+                                                  </div>
+
+                                                  <div class="col-sm-3">
+                                                      <label for="gpu" class="form-label"  data-toggle="tooltip" data-placement="top"
+                                                       title="Specify whether or not your job requires GPUs"><i class="fa-solid fa-bolt fa-xl"></i> GPUs</label>
+                                                      <input id="gpu" name="gpu" type="text" class="form-control" value="0">
+                                                      <small class="form-text text-muted">Number of GPU to allocate</small>
+
+                                                  </div>
+
+                                                  <div class="col-sm-3">
+                                                      <label for="instance_type" class="form-label"  data-toggle="tooltip" data-placement="top"
+                                                       title="Select the instance type to deploy your job on"><i class="fa-brands fa-aws fa-xl"></i> Instance Type <span class="badge bg-info ms-1" style="color: white;font-size:0.7em;">Optional</span></label>
+                                                      <input id="instance_type" name="instance_type" type="text" class="form-control" placeholder="example: c6g.metal">
+                                                      <small class="form-text text-muted">Force your job to run on a specific instance type</small>
+
+                                                  </div>
+                                                </div>
+
+
+                        
+                                              <!-- Section 3: Container Command & Arguments -->
+                                              <h5 class="mt-4">(Optional) Advanced Customizations</h5>
+                                              <hr>
+
+                                            <ul class="nav nav-tabs" id="myTab" role="tablist">
+                                                <li class="nav-item">
+                                                    <a class="nav-link" id="home-tab" data-bs-toggle="tab" href="#override_entry_point" role="tab" aria-controls="override_entry_point" aria-selected="true">Override Entry Point</a>
+                                                </li>
+                                                <li class="nav-item">
+                                                    <a class="nav-link" id="profile-tab" data-bs-toggle="tab" href="#runtime_argument" role="tab" aria-controls="runtime_argument" aria-selected="false">Runtime Arguments</a>
+                                                </li>
+                                                <li class="nav-item">
+                                                    <a class="nav-link" id="profile-tab" data-bs-toggle="tab" href="#environment_variables" role="tab" aria-controls="environment_variables" aria-selected="false">Environment Variables</a>
+                                                </li>
+
+                                            </ul>
+                                            <div class="tab-content" id="myTabContent">
+                                                <div class="tab-pane fade" id="override_entry_point" role="tabpanel" aria-labelledby="override_entry_point-tab">
+                                                    <br>
+                                                    <div class="card card-body">
+                                                        <label class="form-label" data-bs-toggle="tooltip" data-bs-placement="top" title="Add environment variables for your job"></label>
+                                                        <div id="envInputs">
+                                                        <div class="input-group mb-2">
+                                                            <input type="text" class="form-control" placeholder="KEY">
+                                                            <input type="text" class="form-control" placeholder="VALUE">
+                                                            <button type="button" style="border-radius: 0;" class="btn btn-danger" onclick="removeInput(this)">Remove</button>
+                                                        </div>
+                                                        </div>
+                                                        <button type="button" class="btn btn-primary btn-sm mb-2" onclick="addEnvInput()">Add Variable</button>
+                                                        <input type="hidden" name="envVars" id="envVarsArray">
+                                                        <small class="form-text text-muted">
+                                                        Define environment variables as key-value pairs.<br>
+                                                        Example:<br>
+                                                        <code>MY_ENV</code> → <code>Hello</code>
+                                                        </small>
+                                                    </div>
+                                                </div>
+
+                                                <div class="tab-pane fade" id="runtime_argument" role="tabpanel" aria-labelledby="runtime_argument-tab">
+                                                    <br>
+                                                    <div class="card card-body">
+                                                        <label class="form-label" data-bs-toggle="tooltip" data-bs-placement="top" title="Override your container entrypoint"></label>
+                                                        <div id="commandInputs">
+                                                        <div class="input-group mb-2">
+                                                            <input type="text" class="form-control" placeholder="e.g. /bin/bash">
+                                                            <button type="button"style="border-radius: 0;"  class="btn btn-danger" onclick="removeInput(this)">Remove</button>
+                                                        </div>
+                                                        </div>
+                                                        <button type="button" class="btn btn-primary btn-sm mb-2" onclick="addInput()">Add Argument</button>
+                                                        <input type="hidden" name="overrideCommands" id="commandArray">
+                                                        <small class="form-text text-muted">
+                                                        Each line is one argument.<br>
+                                                        Example:<br>
+                                                        <code>/bin/bash</code><br>
+                                                        <code>-c</code><br>
+                                                        <code>echo Hello</code>
+                                                        </small>
+                                                    </div>
+                                                </div>
+
+                                                <div class="tab-pane fade" id="environment_variables" role="tabpanel" aria-labelledby="environment_variables-tab">
+                                                    <br>
+                                                    <div class="card card-body">
+                                                        <label class="form-label" data-bs-toggle="tooltip" data-bs-placement="top" title="Override your container runtime arguments"></label>
+                                                        <div id="argsInputs">
+                                                        <div class="input-group mb-2">
+                                                            <input type="text" class="form-control" placeholder="e.g. --epochs">
+                                                            <button type="button" style="border-radius: 0;" class="btn btn-danger" onclick="removeInput(this)">Remove</button>
+                                                        </div>
+                                                        </div>
+                                                        <button type="button" class="btn btn-primary btn-sm mb-2" onclick="addArgsInput()">Add Argument</button>
+                                                        <input type="hidden" name="overrideArgs" id="argsArray">
+                                                        <small class="form-text text-muted">
+                                                        Each line is one argument.<br>
+                                                        Example:<br>
+                                                        <code>--epochs</code><br>
+                                                        <code>10</code>
+                                                        </small>
+                                                    </div>
+                                                </div>
+                                            </div>
+
+
+
+                                            
+
+                                                    
+                                                    
+
+                                                    
+
+                                              <!-- Submit -->
+                                              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                              <div class="text-center mt-4">
+                                                <button type="submit" class="btn btn-primary px-5 py-3">
+                                                    Submit Amazon EKS Job
+                                                </button>
+                                                </div>
+                                                {% endif %}
+                                            </form>
+                                
+                    
+
+                            
+
+                        </div>
+                    </div>
+
+
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <a class="scroll-to-top rounded" href="#page-top">
+        <i class="fas fa-angle-up"></i>
+    </a>
+
+        {% include 'common/footer.html' %}
+
+    <script>
+        $(document).ready(function () {
+            // enable tooltip
+            $(function () {
+                $('[data-toggle="tooltip"]').tooltip()
+            })
+        })
+
+         // Listen for all form and disable submit button once clicked
+        document.addEventListener('submit', function (e) {
+            if (e.target.tagName === 'FORM') {
+                e.preventDefault();
+                const submitButton = e.target.querySelector('button[type="submit"]');
+                if (submitButton) {
+                    submitButton.disabled = true;
+                    submitButton.innerHTML = `
+                    <span class="icon text-white-50">
+                        <span class="spinner-border spinner-border-lg" role="status" aria-hidden="true">  </span>
+                     </span>
+                     <span class="text">
+                        Please wait ...
+                     </span>`;
+                }
+                // Trigger form submission manually after processing
+                setTimeout(function () {
+                    e.target.submit(); // Submit the form programmatically
+                }, 500);
+            }
+        });
+    </script>
+
+<script>
+  function toggleDigest(id) {
+    const shortSpan = document.getElementById(`digest-short-${id}`);
+    const fullSpan = document.getElementById(`digest-full-${id}`);
+
+    const isCollapsed = fullSpan.style.display === "none";
+
+    shortSpan.style.display = isCollapsed ? "none" : "inline";
+    fullSpan.style.display = isCollapsed ? "inline" : "none";
+  }
+</script>
+<script>
+
+     function addEnvInput() {
+    const container = document.getElementById('envInputs');
+    const div = document.createElement('div');
+    div.className = 'input-group mb-2';
+    div.innerHTML = `
+      <input type="text" class="form-control" placeholder="Key">
+      <input type="text" class="form-control" placeholder="Value">
+      <button type="button" class="btn btn-danger" style="border-radius: 0;" onclick="removeInput(this)">Remove</button>
+    `;
+    container.appendChild(div);
+  }
+
+  function addInput() {
+    const container = document.getElementById('commandInputs');
+    const div = document.createElement('div');
+    div.className = 'input-group mb-2';
+    div.innerHTML = `
+      <input type="text" class="form-control" placeholder="e.g. argument">
+      <button type="button" class="btn btn-danger" style="border-radius: 0;" onclick="removeInput(this)">Remove</button>
+    `;
+    container.appendChild(div);
+  }
+
+  function addArgsInput() {
+    const container = document.getElementById('argsInputs');
+    const div = document.createElement('div');
+    div.className = 'input-group mb-2';
+    div.innerHTML = `
+      <input type="text" class="form-control" placeholder="e.g. argument">
+      <button type="button" class="btn btn-danger" style="border-radius: 0;" onclick="removeInput(this)">Remove</button>
+    `;
+    container.appendChild(div);
+  }
+
+  function removeInput(button) {
+    button.closest('.input-group').remove();
+  }
+
+  document.getElementById('commandForm').addEventListener('submit', function (e) {
+    // Handle command
+    const commandInputs = document.querySelectorAll('#commandInputs input');
+    const commandArray = Array.from(commandInputs)
+      .map(input => input.value.trim())
+      .filter(val => val !== "");
+    document.getElementById('commandArray').value = JSON.stringify(commandArray);
+
+    // Handle args
+    const argsInputs = document.querySelectorAll('#argsInputs input');
+    const argsArray = Array.from(argsInputs)
+      .map(input => input.value.trim())
+      .filter(val => val !== "");
+    document.getElementById('argsArray').value = JSON.stringify(argsArray);
+
+    // handle env
+    // Handle env vars
+    const envInputs = document.querySelectorAll('#envInputs .input-group');
+    const envArray = Array.from(envInputs).map(group => {
+      const inputs = group.querySelectorAll('input');
+      const key = inputs[0].value.trim();
+      const value = inputs[1].value.trim();
+      return key && value ? { name: key, value: value } : null;
+    }).filter(item => item !== null);
+
+    document.getElementById('envVarsArray').value = JSON.stringify(envArray);
+  });
+</script>
+
+
+</body>
+
+</html>

@@ -4,11 +4,10 @@
 # SPDX-License-Identifier: Apache-2.0
 
 """
-Do not trigger cdk deploy manually, Instead run ./soca_installer.sh.
+Do not trigger cdk deploy manually, Instead run ./edh_installer.sh.
 All variables will be retrieved dynamically
 """
 import shutil
-
 from aws_cdk.aws_logs import ILogGroup, LogGroup
 from botocore.client import BaseClient
 
@@ -59,6 +58,12 @@ from aws_cdk import (
     aws_stepfunctions_tasks as tasks,
     CfnTag,
     Annotations,
+    Size,
+    Stack,
+    Tags,
+    aws_batch as batch,
+    aws_ecs as ecs,
+    aws_ec2 as ec2,
 )
 
 import json
@@ -133,6 +138,13 @@ for _logger_name in ["boto3", "botocore"]:
     logging.getLogger(_logger_name).setLevel(
         logging.DEBUG if _soca_debug in {"trace", "2"} else logging.WARNING
     )
+
+
+def get_service_principal_url_suffix():
+    region = user_specified_variables.region
+    # amazonaws.eu is not a correct endpoint for AWS::IAM::ServiceLinkedRole  or AWS::IAM::Role  and must use amazonaws.com
+    _url_suffix = "amazonaws.com" if region.startswith("eusc-") else Aws.URL_SUFFIX
+    return _url_suffix
 
 
 def get_lambda_runtime_version() -> aws_lambda.Runtime:
@@ -1262,6 +1274,38 @@ class SOCAInstall(Stack):
         self.security_groups()  # Create Security Groups
 
         self.iam_roles()  # Create IAM roles and policies for primary roles needed to deploy resources
+
+        # Create boto3 Lambda layer with version from config (no Docker)
+        _boto3_version = get_config_key(
+            key_name="Config.lambda_layers.Boto3Version",
+            required=False,
+            default="",
+        )
+        if _boto3_version:
+            import subprocess
+            _layers_base = os.path.join(os.path.dirname(__file__), "..", ".lambda_layers")
+            _layer_base = os.path.join(_layers_base, f"boto3-{_boto3_version}")
+            _layer_dir = os.path.join(_layer_base, "python")
+            if not os.path.exists(_layer_dir):
+                # Remove any old version dirs
+                if os.path.exists(_layers_base):
+                    for d in os.listdir(_layers_base):
+                        if d.startswith("boto3-"):
+                            shutil.rmtree(os.path.join(_layers_base, d))
+                os.makedirs(_layer_dir)
+                subprocess.check_call(
+                    [sys.executable, "-m", "pip", "install", f"boto3=={_boto3_version}", "-t", _layer_dir, "--no-cache-dir", "-q"]
+                )
+            self.soca_resources["boto3_layer"] = aws_lambda.LayerVersion(
+                self,
+                "Boto3Layer",
+                description=f"boto3 {_boto3_version}",
+                compatible_runtimes=[typing.cast(aws_lambda.Runtime, get_lambda_runtime_version())],
+                code=aws_lambda.Code.from_asset(os.path.dirname(_layer_dir)),
+            )
+        else:
+            self.soca_resources["boto3_layer"] = None
+
         self.generic_resources()
 
         if get_config_key(
@@ -1318,6 +1362,16 @@ class SOCAInstall(Stack):
 
         self.viewer()  # Configure the DCV Load Balancer
         self.login_nodes()  # Configure the Login Nodes
+
+        if (
+            get_config_key(
+                key_name="Config.services.aws_batch.create_default_edh_environment",
+                expected_type=bool,
+                required=False,
+                default=False,
+            )
+        ):
+            self.aws_batch()
 
         # Determine AGA configuration status
         _alb_public_bool: bool = (
@@ -1437,7 +1491,7 @@ class SOCAInstall(Stack):
             key_name="Config.services.logging.log_group_prefix",
             expected_type=str,
             required=False,
-            default=prefix if prefix else "/soca",
+            default=prefix if prefix else "/edh",
         )
         # FIXME TODO - Size warning on large prefixes? Make sure it has leading /?
 
@@ -1560,7 +1614,8 @@ class SOCAInstall(Stack):
             role=self.soca_resources["odcr_cleaner_lambda_role"],
             handler="ODCRCleaner.lambda_handler",
             code=aws_lambda.Code.from_asset("../functions/ODCRCleaner"),
-            environment={"SOCA_CLUSTER_ID": user_specified_variables.cluster_id},
+            environment={"EDH_CLUSTER_ID": user_specified_variables.cluster_id},
+            layers=[l for l in [self.soca_resources.get("boto3_layer")] if l],
         )
 
         # placement_group cleaner
@@ -1578,7 +1633,8 @@ class SOCAInstall(Stack):
             role=self.soca_resources["placement_group_cleaner_lambda_role"],
             handler="PlacementGroupCleaner.lambda_handler",
             code=aws_lambda.Code.from_asset("../functions/PlacementGroupCleaner"),
-            environment={"SOCA_CLUSTER_ID": user_specified_variables.cluster_id},
+            environment={"EDH_CLUSTER_ID": user_specified_variables.cluster_id},
+            layers=[l for l in [self.soca_resources.get("boto3_layer")] if l],
         )
 
         odcr_task = tasks.LambdaInvoke(
@@ -2120,7 +2176,7 @@ class SOCAInstall(Stack):
                 secretsmanager_helper.create_secret(
                     scope=self,
                     construct_id="CacheAdminUserSecret",
-                    secret_name=f"/soca/{user_specified_variables.cluster_id}/CacheAdminUser",
+                    secret_name=f"/edh/{user_specified_variables.cluster_id}/CacheAdminUser",
                     secret_string_template=json.dumps(
                         {"username": "default"}
                     ),  # soca-adminuser is the default user
@@ -2137,7 +2193,7 @@ class SOCAInstall(Stack):
                 secretsmanager_helper.create_secret(
                     scope=self,
                     construct_id="CacheReadOnlySecret",
-                    secret_name=f"/soca/{user_specified_variables.cluster_id}/CacheReadOnlyUser",
+                    secret_name=f"/edh/{user_specified_variables.cluster_id}/CacheReadOnlyUser",
                     secret_string_template=json.dumps(
                         {"username": "soca-readonlyuser"}
                     ),
@@ -3599,6 +3655,13 @@ class SOCAInstall(Stack):
             assumed_by=iam.ServicePrincipal(principals_suffix["lambda"]),
         )
 
+        self.soca_resources["nested_virt_launcher_lambda_role"] = iam.Role(
+            self,
+            "NestedVirtLauncherLambdaRole",
+            description="IAM role assigned to the NestedVirtLauncher Lambda function",
+            assumed_by=iam.ServicePrincipal(principals_suffix["lambda"]),
+        )
+
         # AOSS Serverless Data Policy creator Lambda role
         # self.soca_resources["aoss_data_policy_lambda_role"] = iam.Role(
         #     self,
@@ -3768,8 +3831,12 @@ class SOCAInstall(Stack):
         policy_substitutes = {
             "%%AWS_ACCOUNT_ID%%": Aws.ACCOUNT_ID,
             "%%AWS_PARTITION%%": Aws.PARTITION,
-            "%%AWS_URL_SUFFIX%%": Aws.URL_SUFFIX,
-            "%%AWS_REGION%%": Aws.REGION,
+            "%%AWS_URL_SUFFIX%%": get_service_principal_url_suffix(),
+            "%%AWS_REGION%%": (
+                "*"
+                if user_specified_variables.region.startswith("eusc-")
+                else Aws.REGION
+            ),
             "%%BUCKET%%": user_specified_variables.bucket,
             "%%COMPUTE_NODE_ROLE_ARN%%": (
                 self.soca_resources["compute_node_role"].role_arn
@@ -3814,6 +3881,10 @@ class SOCAInstall(Stack):
             "PlacementGroupCleanerLambdaPolicy": {
                 "template": "../policies/PlacementGroupCleanerLambda.json",
                 "attach_to_role": "placement_group_cleaner_lambda_role",
+            },
+            "NestedVirtLauncherLambdaPolicy": {
+                "template": "../policies/NestedVirtLauncherLambda.json",
+                "attach_to_role": "nested_virt_launcher_lambda_role",
             },
         }
 
@@ -3893,6 +3964,9 @@ class SOCAInstall(Stack):
             for k, v in policy_substitutes.items():
                 policy_content = policy_content.replace(k, v)
 
+            # if "LoginNodePolicy" in policy_name:
+            #    print(policy_content)
+            #    exit(1)
             self.soca_resources[policy_data["attach_to_role"]].attach_inline_policy(
                 iam.Policy(
                     self,
@@ -4000,7 +4074,7 @@ class SOCAInstall(Stack):
 
         # Create a new AWS Directory Service Managed AD
         _secret_name: str = (
-            f"/soca/{user_specified_variables.cluster_id}/UserDirectoryServiceAccount"
+            f"/edh/{user_specified_variables.cluster_id}/UserDirectoryServiceAccount"
         )
         self.directory_service_resource_setup["ds_admin_username"] = (
             "Admin"  # Cannot be changed
@@ -4241,7 +4315,7 @@ class SOCAInstall(Stack):
             ),
             file_system_tags=[
                 efs.CfnFileSystem.ElasticFileSystemTagProperty(
-                    key="soca:BackupPlan", value=user_specified_variables.cluster_id
+                    key="edh:BackupPlan", value=user_specified_variables.cluster_id
                 ),
                 efs.CfnFileSystem.ElasticFileSystemTagProperty(
                     key="Name",
@@ -4357,7 +4431,6 @@ class SOCAInstall(Stack):
             #     self.soca_resources[f"fs_{fs_key}"],
             #     self.soca_resources[f"fs_{fs_key}_sg"],
             # )
-
 
         # Return our FS_ID for register process
         return str(self.soca_resources[f"fs_{fs_key}"].attr_file_system_id)
@@ -4511,7 +4584,7 @@ class SOCAInstall(Stack):
             "Name", f"{user_specified_variables.cluster_id}-{fs_key.capitalize()}"
         )
         Tags.of(self.soca_resources[f"fs_{fs_key}"]).add(
-            "soca:BackupPlan", user_specified_variables.cluster_id
+            "edh:BackupPlan", user_specified_variables.cluster_id
         )
 
         # Return our FSx/L ID for registration
@@ -4581,7 +4654,7 @@ class SOCAInstall(Stack):
                 f"No FSx pricing data retrieved. Check auth for pricing API at region {_pricing_region}."
             )
 
-        logger.info(
+        logger.debug(
             f"Pricing data retrieved: {_pricing_pages} pages, {_pricing_entries} entries"
         )
         return _pricing_data
@@ -4766,7 +4839,7 @@ class SOCAInstall(Stack):
         ).upper()
 
         _secret_name = (
-            f"/soca/{user_specified_variables.cluster_id}/FSxOntapAdminPassword{fs_key}"
+            f"/edh/{user_specified_variables.cluster_id}/FSxOntapAdminPassword{fs_key}"
         )
         _fsx_admin_password = secretsmanager_helper.create_secret(
             scope=self,
@@ -4992,10 +5065,10 @@ class SOCAInstall(Stack):
                     "value": f"{user_specified_variables.cluster_id}-{fs_key.capitalize()}",
                 },
                 {
-                    "key": "soca:BackupPlan",
+                    "key": "edh:BackupPlan",
                     "value": user_specified_variables.cluster_id,
                 },
-                {"key": "soca:FsxAdminSecretName", "value": _secret_name},
+                {"key": "edh:FsxAdminSecretName", "value": _secret_name},
             ],
         )
 
@@ -5058,7 +5131,7 @@ class SOCAInstall(Stack):
                 size_in_bytes=str(_storage_capacity * 1024**3),
                 security_style="UNIX",
             ),
-            tags=[CfnTag(key="soca:OntapFirstSetup", value="true")],
+            tags=[CfnTag(key="edh:OntapFirstSetup", value="true")],
         )
 
         return str(_volume.attr_volume_id)
@@ -5270,19 +5343,20 @@ class SOCAInstall(Stack):
 
         # We manually replace  the variable with the relevant ParameterStore as all ParamStore hierarchy is created at the very end of this CDK
         _user_data_variables = {
-            "/configuration/BaseOS": user_specified_variables.base_os,
+            "/configuration/BaseOS": user_specified_variables.base_os, # legacy
             "/configuration/ClusterId": user_specified_variables.cluster_id,
             "/configuration/UserDirectory/provider": get_config_key(
                 key_name="Config.directoryservice.provider"
             ),
             "/configuration/Region": user_specified_variables.region,
-            "/configuration/Version": "26.3.0",
+            "/configuration/Version": "26.4.0",
             "/configuration/CustomAMI": self.soca_resources["ami_id"],
             "/configuration/S3Bucket": user_specified_variables.bucket,
             "/configuration/Cache/enabled": self.cache_info.get("enabled"),
             "/configuration/Cache/port": self.cache_info.get("port"),
             "/configuration/Cache/endpoint": self.cache_info.get("endpoint"),
             "/job/NodeType": "controller",
+            "/job/BaseOS": user_specified_variables.base_os,
         }
 
         # add all System hierarchy
@@ -5629,12 +5703,12 @@ class SOCAInstall(Stack):
         )
 
         Tags.of(self.soca_resources["controller_instance"]).add(
-            key="soca:NodeType", value="controller"
+            key="edh:NodeType", value="controller"
         )
 
         # XXX FIXME TODO - Should this take place when there isn't active backup plan?
         Tags.of(self.soca_resources["controller_instance"]).add(
-            key="soca:BackupPlan", value=f"{user_specified_variables.cluster_id}"
+            key="edh:BackupPlan", value=f"{user_specified_variables.cluster_id}"
         )
 
         # Ensure Filesystem are already up and running before creating the controller instance
@@ -5649,7 +5723,7 @@ class SOCAInstall(Stack):
 
         # OpenLDAP is installed by default on the controller machine
         if self.directory_service_resource_setup.get("provider") == "openldap":
-            _secret_name = f"/soca/{user_specified_variables.cluster_id}/UserDirectoryServiceAccount"
+            _secret_name = f"/edh/{user_specified_variables.cluster_id}/UserDirectoryServiceAccount"
             _openldap_secret = secretsmanager_helper.create_secret(
                 scope=self,
                 construct_id="UserDirectoryServiceAccount",
@@ -5698,6 +5772,22 @@ class SOCAInstall(Stack):
             log_group=self.generate_log_group(name="Metrics"),
             handler="SolutionMetricsLambda.lambda_handler",
             code=aws_lambda.Code.from_asset("../functions/SolutionMetricsLambda"),
+            layers=[l for l in [self.soca_resources.get("boto3_layer")] if l],
+        )
+
+        nested_virt_launcher_lambda = aws_lambda.Function(
+            self,
+            f"{user_specified_variables.cluster_id}-NestedVirtLauncher",
+            function_name=f"{user_specified_variables.cluster_id}-NestedVirtLauncher",
+            description="Launch EC2 instances with nested virtualization enabled",
+            memory_size=128,
+            role=self.soca_resources["nested_virt_launcher_lambda_role"],
+            timeout=Duration.minutes(5),
+            runtime=typing.cast(aws_lambda.Runtime, get_lambda_runtime_version()),
+            log_group=self.generate_log_group(name="NestedVirtLauncher"),
+            handler="NestedVirtLauncher.lambda_handler",
+            code=aws_lambda.Code.from_asset("../functions/NestedVirtLauncher"),
+            layers=[l for l in [self.soca_resources.get("boto3_layer")] if l],
         )
 
         # TODO FIXME - This can be cleaned up
@@ -5781,15 +5871,15 @@ class SOCAInstall(Stack):
             _def_admin_username: str = get_config_key(
                 key_name="Config.admin_user_name",
                 required=False,
-                default="socaadmin",
+                default="edhadmin",
                 expected_type=str,
             )
 
             _secret_string: str = '{"username": "' + _def_admin_username + '"}'
             _default_soca_user_secret = secretsmanager_helper.create_secret(
                 scope=self,
-                construct_id="SocaAdminUserSecret",
-                secret_name=f"/soca/{user_specified_variables.cluster_id}/SocaAdminUser",
+                construct_id="EDHAdminUserSecret",
+                secret_name=f"/edh/{user_specified_variables.cluster_id}/EDHAdminUser",
                 secret_string_template=json.dumps({"username": _def_admin_username}),
                 kms_key_id=(
                     self.soca_resources["secretsmanager_kms_key_id"]
@@ -5860,6 +5950,7 @@ class SOCAInstall(Stack):
             "BaseOS": user_specified_variables.base_os,
             "S3InstallFolder": user_specified_variables.cluster_id,
             "SolutionMetricsLambda": solution_metrics_lambda.function_arn,
+            "NestedVirtLauncherLambda": nested_virt_launcher_lambda.function_arn,
             "DefaultMetricCollection": "true",
             "MetadataHttpTokens": get_config_key(
                 key_name="Config.metadata_http_tokens"
@@ -5901,11 +5992,11 @@ class SOCAInstall(Stack):
             _openpbs_install_pbs_exec = get_config_key(
                 key_name="Parameters.system.scheduler.openpbs.pbs_exec",
                 expected_type=str,
-            ).replace("$SOCA_CLUSTER_ID", user_specified_variables.cluster_id)
+            ).replace("$EDH_CLUSTER_ID", user_specified_variables.cluster_id)
             _openpbs_install_pbs_home = get_config_key(
                 key_name="Parameters.system.scheduler.openpbs.pbs_home",
                 expected_type=str,
-            ).replace("$SOCA_CLUSTER_ID", user_specified_variables.cluster_id)
+            ).replace("$EDH_CLUSTER_ID", user_specified_variables.cluster_id)
 
             self.soca_resources["soca_config"][f"HPC/schedulers/openpbs-default"] = {
                 "enabled": True,
@@ -5928,11 +6019,11 @@ class SOCAInstall(Stack):
             _pbspro_install_pbs_exec = get_config_key(
                 key_name="Parameters.system.scheduler.pbspro.pbs_exec",
                 expected_type=str,
-            ).replace("$SOCA_CLUSTER_ID", user_specified_variables.cluster_id)
+            ).replace("$EDH_CLUSTER_ID", user_specified_variables.cluster_id)
             _pbspro_install_pbs_home = get_config_key(
                 key_name="Parameters.system.scheduler.pbspro.pbs_home",
                 expected_type=str,
-            ).replace("$SOCA_CLUSTER_ID", user_specified_variables.cluster_id)
+            ).replace("$EDH_CLUSTER_ID", user_specified_variables.cluster_id)
 
             self.soca_resources["soca_config"][f"HPC/schedulers/pbspro-default"] = {
                 "enabled": True,
@@ -5956,12 +6047,12 @@ class SOCAInstall(Stack):
             _slurm_install_prefix_path = get_config_key(
                 key_name="Parameters.system.scheduler.slurm.install_prefix_path",
                 expected_type=str,
-            ).replace("$SOCA_CLUSTER_ID", user_specified_variables.cluster_id)
+            ).replace("$EDH_CLUSTER_ID", user_specified_variables.cluster_id)
 
             _slurm_install_sysconfig_path = get_config_key(
                 key_name="Parameters.system.scheduler.slurm.install_sysconfig_path",
                 expected_type=str,
-            ).replace("$SOCA_CLUSTER_ID", user_specified_variables.cluster_id)
+            ).replace("$EDH_CLUSTER_ID", user_specified_variables.cluster_id)
 
             self.soca_resources["soca_config"][f"HPC/schedulers/slurm-default"] = {
                 "enabled": True,
@@ -5984,7 +6075,7 @@ class SOCAInstall(Stack):
             _lsf_install_lsf_top = get_config_key(
                 key_name="Parameters.system.scheduler.lsf.lsf_top",
                 expected_type=str,
-            ).replace("$SOCA_CLUSTER_ID", user_specified_variables.cluster_id)
+            ).replace("$EDH_CLUSTER_ID", user_specified_variables.cluster_id)
 
             self.soca_resources["soca_config"][f"HPC/schedulers/lsf-default"] = {
                 "enabled": True,
@@ -6055,7 +6146,7 @@ class SOCAInstall(Stack):
             _analytics_config["endpoint"] = "NO_ENDPOINT_CONFIGURED"
 
         # Store SOCA config on AWS SSM Parameter Store
-        _parameter_store_prefix = f"/soca/{user_specified_variables.cluster_id}"
+        _parameter_store_prefix = f"/edh/{user_specified_variables.cluster_id}"
 
         # Retrieve all static SOCA parameters defined in default_config.yml (or config specified by user)
         _parameter_store_keys = flatten_parameterstore_config(
@@ -6124,6 +6215,15 @@ class SOCAInstall(Stack):
                 "check_custom_iam_instance_profile": True,
                 "check_queue_acls": True,
             },
+            # Password Policy for the UserDirectory
+            "/configuration/UserDirectory/password_policy": flatten_parameterstore_config(
+                get_config_key(
+                    key_name="Config.directoryservice.aws_ds_managed_activedirectory.password_policy",
+                    expected_type=dict,
+                    required=False,
+                    default={'enabled': True},
+                ),
+            )
         }
 
         _ssm_config_n: int = 1
@@ -6226,7 +6326,7 @@ class SOCAInstall(Stack):
                         actions=["secretsmanager:GetSecretValue"],
                         effect=iam.Effect.ALLOW,
                         resources=[
-                            f"arn:{Aws.PARTITION}:secretsmanager:{Aws.REGION}:{Aws.ACCOUNT_ID}:secret:/soca/{user_specified_variables.cluster_id}/*",
+                            f"arn:{Aws.PARTITION}:secretsmanager:{Aws.REGION}:{Aws.ACCOUNT_ID}:secret:/edh/{user_specified_variables.cluster_id}/*",
                             f"{self.directory_service_resource_setup.get('service_account_secret_arn')}",
                         ],
                     )
@@ -6576,12 +6676,20 @@ class SOCAInstall(Stack):
             self.soca_resources["aoss_data_policy_lambda_role"],
         )
 
-
-    def is_opensearch_instance_available_by_role(self, opensearch_client, opensearch_engine: str, instance_type: str, instance_role: str, region: str) -> bool:
+    def is_opensearch_instance_available_by_role(
+        self,
+        opensearch_client,
+        opensearch_engine: str,
+        instance_type: str,
+        instance_role: str,
+        region: str,
+    ) -> bool:
         """
         Return if the combo of instance_type, region, availability_zone, and OpenSearch role are available.
         """
-        logger.debug(f"Using OpenSearch client: {opensearch_client=} to validate {instance_type=} as a {instance_role=} in region {region}")
+        logger.debug(
+            f"Using OpenSearch client: {opensearch_client=} to validate {instance_type=} as a {instance_role=} in region {region}"
+        )
 
         # We need to validate the instance is available and available for the Role
         try:
@@ -6591,27 +6699,46 @@ class SOCAInstall(Stack):
                 RetrieveAZs=True,  # Required to be True in the API call when sending the InstanceType
             ).get("InstanceTypeDetails", {})[0]
         except opensearch_client.exceptions.ValidationException as e:
-            logger.warning(f"Exception During OpenSearch instance validation: {e.response['Error']['Message']}")
+            logger.warning(
+                f"Exception During OpenSearch instance validation: {e.response['Error']['Message']}"
+            )
             return False
 
-        logger.debug(f"OpenSearch instance type details: {_instance_available_response=}")
+        logger.debug(
+            f"OpenSearch instance type details: {_instance_available_response=}"
+        )
 
-        _instance_available_roles: list = _instance_available_response.get("InstanceRole", [])
-        logger.debug(f"Instance roles available for {instance_type}: {_instance_available_roles}")
+        _instance_available_roles: list = _instance_available_response.get(
+            "InstanceRole", []
+        )
+        logger.debug(
+            f"Instance roles available for {instance_type}: {_instance_available_roles}"
+        )
 
         if instance_role.lower() in _instance_available_roles:
             logger.debug(f"Validated instance {instance_type} for role {instance_role}")
             return True
         else:
-            logger.debug(f"Unable to find OpenSearch role for instance - skipping {instance_type}")
+            logger.debug(
+                f"Unable to find OpenSearch role for instance - skipping {instance_type}"
+            )
             return False
 
-    def select_best_instance_for_opensearch(self, opensearch_client, opensearch_engine: str, instance_types: list, instance_role: str, region: str) -> str:
+    def select_best_instance_for_opensearch(
+        self,
+        opensearch_client,
+        opensearch_engine: str,
+        instance_types: list,
+        instance_role: str,
+        region: str,
+    ) -> str:
         """
         Return the best (first) opensearch instance that is available for a particular OpenSearch role.
         """
 
-        logger.debug(f"Using OpenSearch client: {opensearch_client=} to validate {instance_types=} as a {instance_role=} with engine {opensearch_engine} in region {region}")
+        logger.debug(
+            f"Using OpenSearch client: {opensearch_client=} to validate {instance_types=} as a {instance_role=} with engine {opensearch_engine} in region {region}"
+        )
 
         for _instance_type in instance_types:
             if self.is_opensearch_instance_available_by_role(
@@ -6625,9 +6752,10 @@ class SOCAInstall(Stack):
                 return _instance_type
 
         # We shouldn't make it this far - if we do - there is no matching instance. We should just fail/exit?
-        logger.fatal(f"Unable to find a matching OpenSearch instance type that works! Unable to continue.")
+        logger.fatal(
+            f"Unable to find a matching OpenSearch instance type that works! Unable to continue."
+        )
         return ""  # Unused - silence code checkers
-
 
     def analytics_opensearch(self):
         """
@@ -6647,11 +6775,18 @@ class SOCAInstall(Stack):
             key_name="Config.analytics.data_node_instance_type",
             expected_type=list,
             required=False,
-            default=["m8g.large.search", "m7g.large.search", "m6g.large.search", "t3.medium.search", "t3.small.search"]
+            default=[
+                "m8g.large.search",
+                "m7g.large.search",
+                "m6g.large.search",
+                "t3.medium.search",
+                "t3.small.search",
+            ],
         )
 
-
-        logger.debug(f"OpenSearch Data_node instance_type: {_data_node_instance_types=}")
+        logger.debug(
+            f"OpenSearch Data_node instance_type: {_data_node_instance_types=}"
+        )
 
         # _data_nodes supports automatic based on the AZ count
         _data_nodes: int = get_config_key(
@@ -6687,35 +6822,50 @@ class SOCAInstall(Stack):
         # 2. Query for supported instance types (data_node_types) in the region
         #
         # FIXME TODO / What about ElasticSearch engine types? (Unsupported?)
-        _engine_string: str = _desired_engine.lower().replace("opensearch", "OpenSearch") + f"_{_desired_engine_version}"
-        logger.debug(f"OpenSearch engine string (for region validation): {_engine_string=}")
+        _engine_string: str = (
+            _desired_engine.lower().replace("opensearch", "OpenSearch")
+            + f"_{_desired_engine_version}"
+        )
+        logger.debug(
+            f"OpenSearch engine string (for region validation): {_engine_string=}"
+        )
 
         # Not paginated as of 3 Mar 2026
-        _all_versions_available: list = _opensearch_client.list_versions().get('Versions', [])
+        _all_versions_available: list = _opensearch_client.list_versions().get(
+            "Versions", []
+        )
 
         # Did we get any responses?
         if not len(_all_versions_available):
-            logger.fatal(f"Unable to probe Analytics engines for region: {user_specified_variables.region}")
+            logger.fatal(
+                f"Unable to probe Analytics engines for region: {user_specified_variables.region}"
+            )
 
         # Is this version available in this region?
         if _engine_string not in _all_versions_available:
-            logger.fatal(f"Analytics version {_engine_string} not available in region {user_specified_variables.region}. Engines available: {', '.join(_all_versions_available)}")
+            logger.fatal(
+                f"Analytics version {_engine_string} not available in region {user_specified_variables.region}. Engines available: {', '.join(_all_versions_available)}"
+            )
 
         # Now that we have a _engine_string , lets see if our desired instance type is available for that engine.
         # We don't use a paginated operation here because we are sending an InstanceType and only expect a single
         # response.
 
-        logger.debug(f"Validating Instance type {_data_node_instance_types} is available on engine {_engine_string}")
+        logger.debug(
+            f"Validating Instance type {_data_node_instance_types} is available on engine {_engine_string}"
+        )
 
         _selected_instance_type: str = self.select_best_instance_for_opensearch(
             opensearch_client=_opensearch_client,
             opensearch_engine=_engine_string,
             instance_types=_data_node_instance_types,
-            instance_role='data',
+            instance_role="data",
             region=user_specified_variables.region,
         )
 
-        logger.debug(f"Selected best available instance type for OpenSearch: {_selected_instance_type=}")
+        logger.debug(
+            f"Selected best available instance type for OpenSearch: {_selected_instance_type=}"
+        )
 
         if not user_specified_variables.os_endpoint:
             logger.debug(
@@ -6894,7 +7044,9 @@ class SOCAInstall(Stack):
                 enforce_https=True,
                 node_to_node_encryption=True,
                 tls_security_policy=opensearch.TLSSecurityPolicy.TLS_1_2,
-                version=typing.cast(opensearch.EngineVersion, opensearch.EngineVersion.OPENSEARCH_3_1),  # This gets CDK override
+                version=typing.cast(
+                    opensearch.EngineVersion, opensearch.EngineVersion.OPENSEARCH_3_1
+                ),  # This gets CDK override
                 encryption_at_rest=opensearch.EncryptionAtRestOptions(
                     enabled=True,
                     kms_key=(
@@ -6936,7 +7088,9 @@ class SOCAInstall(Stack):
             )
 
             # CDK override our engine version so we can support engine versions before CDK supports it (published Enum)
-            logger.debug(f"Setting OpenSearch EngineVersion to {_engine_string} via CDK add_override()")
+            logger.debug(
+                f"Setting OpenSearch EngineVersion to {_engine_string} via CDK add_override()"
+            )
             _os = self.soca_resources["os_domain"].node.default_child
             _os.add_property_override("EngineVersion", _engine_string)
 
@@ -6944,7 +7098,7 @@ class SOCAInstall(Stack):
                 service_linked_role = iam.CfnServiceLinkedRole(
                     self,
                     "AOSSServiceLinkedRole",
-                    aws_service_name=f"opensearchservice.{Aws.URL_SUFFIX}",
+                    aws_service_name=f"opensearchservice.{get_service_principal_url_suffix()}",
                     description="Role for AOSS to access resources in the VPC",
                 )
 
@@ -7047,7 +7201,7 @@ class SOCAInstall(Stack):
                 )
             ],
         )
-        # Backup EFS/EC2 resources with special tag: soca:BackupPlan, value: Current Cluster ID
+        # Backup EFS/EC2 resources with special tag: edh:BackupPlan, value: Current Cluster ID
         backup.BackupSelection(
             self,
             "SOCABackupSelection",
@@ -7057,7 +7211,7 @@ class SOCAInstall(Stack):
             resources=[
                 backup.BackupResource(
                     tag_condition=backup.TagCondition(
-                        key="soca:BackupPlan",
+                        key="edh:BackupPlan",
                         value=user_specified_variables.cluster_id,
                         operation=backup.TagOperation.STRING_EQUALS,
                     )
@@ -7121,7 +7275,7 @@ class SOCAInstall(Stack):
         # Generate EC2 User Data
         # We manually replace  the variable with the relevant ParameterStore as all ParamStore hierarchy is created at the very end of this CDK
         _user_data_variables = {
-            "/configuration/BaseOS": user_specified_variables.base_os,
+            "/configuration/BaseOS": user_specified_variables.base_os, # legacy
             "/configuration/ClusterId": user_specified_variables.cluster_id,
             "/configuration/UserDirectory/provider": get_config_key(
                 "Config.directoryservice.provider"
@@ -7137,9 +7291,10 @@ class SOCAInstall(Stack):
                 "controller_instance"
             ].attr_private_ip,
             "/configuration/S3Bucket": user_specified_variables.bucket,
-            "/job/BootstrapPath": f"/apps/soca/{user_specified_variables.cluster_id}/shared/logs/bootstrap/login_node",
+            "/job/BootstrapPath": f"/apps/edh/{user_specified_variables.cluster_id}/shared/logs/bootstrap/login_node",
             "/job/BootstrapScriptsS3Location": f"s3://{user_specified_variables.bucket}/{user_specified_variables.cluster_id}/config/do_not_delete/bootstrap/login_node",
             "/job/NodeType": "login_node",
+            "/job/BaseOS": user_specified_variables.base_os,
         }
 
         # add all System hierarchy
@@ -7582,7 +7737,7 @@ class SOCAInstall(Stack):
         Tags.of(_login_node_asg).add(
             key="Name", value=f"{user_specified_variables.cluster_id}-LoginNode"
         )
-        Tags.of(_login_node_asg).add(key="soca:NodeType", value="login_node")
+        Tags.of(_login_node_asg).add(key="edh:NodeType", value="login_node")
 
         # Login Nodes creation is triggered at the end of the deployment as we have to wait for bootstrap.d folder to be deployed on the filesystem
         if (
@@ -8036,6 +8191,49 @@ class SOCAInstall(Stack):
             value=f"https://{self.soca_resources['os_domain'].attr_dashboard_endpoint}",
         )
 
+    def aws_batch(self):
+        # Simple Fargate compute environment
+        compute_environment = batch.FargateComputeEnvironment(
+            self,
+            "FargateComputeEnv",
+            compute_environment_name=f"{user_specified_variables.cluster_id}-default-fargate-environment",
+            vpc=self.soca_resources["vpc"],
+            maxv_cpus=256,
+            enabled=True,
+            security_groups=[self.soca_resources["compute_node_sg"]],
+        )
+
+        # Job queue
+        job_queue = batch.JobQueue(
+            self,
+            "EdhDefaultQueue",
+            job_queue_name=f"{user_specified_variables.cluster_id}-default-queue",
+        )
+        job_queue.add_compute_environment(compute_environment, order=1)
+
+        # Job definition - Hello World using amazonlinux2023
+        job_definition = batch.EcsJobDefinition(
+            self,
+            "HelloWorldJobDef",
+            job_definition_name=f"{user_specified_variables.cluster_id}-default-hello-world",
+            container=batch.EcsFargateContainerDefinition(
+                self,
+                "HelloWorldContainer",
+                image=ecs.ContainerImage.from_registry(
+                    "public.ecr.aws/amazonlinux/amazonlinux:2023"
+                ),
+                command=["echo", "Hello World!"],
+                memory=Size.mebibytes(512),
+                cpu=0.25,
+            ),
+        )
+
+        # Tag all resources with edh:visibility
+        for resource in [compute_environment, job_queue, job_definition]:
+            Tags.of(resource).add(
+                f"edh:visibility:{user_specified_variables.cluster_id}", "true"
+            )
+
     @staticmethod
     def is_instance_available(instance_type: str, region: str) -> bool:
         """
@@ -8195,7 +8393,7 @@ class SOCAInstall(Stack):
                     key_name="Config.directoryservice.provider"
                 ),
                 "/configuration/Region": Aws.REGION,
-                "/configuration/Version": "26.3.0",
+                "/configuration/Version": "26.4.0",
                 "/configuration/CustomAMI": self.soca_resources[
                     "ami_id"
                 ],  # FIXME TODO - This needs to be updated from the selected_instance and arch
@@ -8592,20 +8790,20 @@ if __name__ == "__main__":
 
     # List of AWS endpoints & principals suffix
     endpoints_suffix = {
-        "fsx_lustre": f"fsx.{Aws.REGION}.{Aws.URL_SUFFIX}",
-        "fsx_openzfs": f"fsx.{Aws.REGION}.{Aws.URL_SUFFIX}",
-        "fsx_ontap": f"fsx.{Aws.REGION}.{Aws.URL_SUFFIX}",
-        "efs": f"efs.{Aws.REGION}.{Aws.URL_SUFFIX}",
+        "fsx_lustre": f"fsx.{Aws.REGION}.{get_service_principal_url_suffix()}",
+        "fsx_openzfs": f"fsx.{Aws.REGION}.{get_service_principal_url_suffix()}",
+        "fsx_ontap": f"fsx.{Aws.REGION}.{{get_service_principal_url_suffix()}}",
+        "efs": f"efs.{Aws.REGION}.{get_service_principal_url_suffix()}",
     }
 
     principals_suffix = {
-        "backup": f"backup.{Aws.URL_SUFFIX}",
-        "cloudwatch": f"cloudwatch.{Aws.URL_SUFFIX}",
-        "ec2": f"ec2.{Aws.URL_SUFFIX}",
-        "lambda": f"lambda.{Aws.URL_SUFFIX}",
-        "sns": f"sns.{Aws.URL_SUFFIX}",
-        "spotfleet": f"spotfleet.{Aws.URL_SUFFIX}",
-        "ssm": f"ssm.{Aws.URL_SUFFIX}",
+        "backup": f"backup.{get_service_principal_url_suffix()}",
+        "cloudwatch": f"cloudwatch.{get_service_principal_url_suffix()}",
+        "ec2": f"ec2.{get_service_principal_url_suffix()}",
+        "lambda": f"lambda.{get_service_principal_url_suffix()}",
+        "sns": f"sns.{get_service_principal_url_suffix()}",
+        "spotfleet": f"spotfleet.{get_service_principal_url_suffix()}",
+        "ssm": f"ssm.{get_service_principal_url_suffix()}",
     }
 
     # Apply tags to all CDK taggable resources
@@ -8619,12 +8817,12 @@ if __name__ == "__main__":
     # associated resources via the SOCAInstaller().
 
     _cluster_tags: list = [
-        {"Key": "soca:ClusterId", "Value": user_specified_variables.cluster_id},
-        {"Key": "soca:CreatedOn", "Value": str(datetime.datetime.now(datetime.UTC))},
+        {"Key": "edh:ClusterId", "Value": user_specified_variables.cluster_id},
+        {"Key": "edh:CreatedOn", "Value": str(datetime.datetime.now(datetime.UTC))},
         {
-            "Key": "soca:Version",
+            "Key": "edh:Version",
             "Value": get_config_key(
-                key_name="Config.version", required=False, default="26.3.0"
+                key_name="Config.version", required=False, default="26.4.0"
             ),
         },
     ]
@@ -8650,7 +8848,7 @@ if __name__ == "__main__":
             _cluster_tags.append({"Key": _tag_key, "Value": _tag_value})
 
     # Info? Debug?
-    logger.info(
+    logger.debug(
         f"Complete Cluster Tags (default tags plus custom tags): {_cluster_tags=}"
     )
 

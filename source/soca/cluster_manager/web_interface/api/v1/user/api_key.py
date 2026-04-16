@@ -39,7 +39,7 @@ class ApiKey(Resource):
         tags:
           - User
         parameters:
-          - name: X-SOCA-USER
+          - name: X-EDH-USER
             in: header
             schema:
               type: string
@@ -47,7 +47,7 @@ class ApiKey(Resource):
             required: true
             description: SOCA username for authentication
             example: admin
-          - name: X-SOCA-PASSWORD
+          - name: X-EDH-PASSWORD
             in: header
             schema:
               type: string
@@ -110,12 +110,12 @@ class ApiKey(Resource):
                 try:
                     user_exist = SocaHttpClient(
                         endpoint="/api/ldap/user",
-                        headers={"X-SOCA-TOKEN": config.Config.API_ROOT_KEY},
+                        headers={"X-EDH-TOKEN": config.Config.API_ROOT_KEY},
                     ).get(params={"user": user})
                     if user_exist.success:
                         permissions = SocaHttpClient(
                             endpoint="/api/ldap/sudo",
-                            headers={"X-SOCA-TOKEN": config.Config.API_ROOT_KEY},
+                            headers={"X-EDH-TOKEN": config.Config.API_ROOT_KEY},
                         ).get(params={"user": user})
                         if permissions.success:
                             logger.debug("User has SUDO permission")
@@ -174,7 +174,7 @@ class ApiKey(Resource):
         tags:
           - User API Keys
         parameters:
-          - name: X-SOCA-USER
+          - name: X-EDH-USER
             in: header
             schema:
               type: string
@@ -182,7 +182,7 @@ class ApiKey(Resource):
             required: true
             description: SOCA username for authentication
             example: admin
-          - name: X-SOCA-TOKEN
+          - name: X-EDH-TOKEN
             in: header
             schema:
               type: string

@@ -23,33 +23,33 @@
 </head>
 
 <body id="page-top">
+{% include 'common/horizontal_menu_bar.html' %}
 <div id="wrapper">
     {% include 'common/vertical_menu_bar.html' %}
     <div id="content-wrapper" class="d-flex flex-column">
-        <div id="content">
-            <br>
+        <div id="content" style="margin-top: 20px;">
             <div class="container-fluid">
-                {% include 'common/horizontal_menu_bar.html' %}
+                {% include 'common/flashed_messages.html' %}
                 <main role="main">
-                    {% include 'common/flashed_messages.html' %}
-
                     <div class="row">
                         <div class="col-md-12">
                             <div class="card shadow mb-6">
                                 <div class="card-body">
+                                    <h3>Select your Workflow</h3>
+                                    <br>
                                     <form id="search-application">
-                                        <input class="form-control" type="text" placeholder="What software do you want to run?" aria-label="Search">
+                                        <input class="form-control" type="text" placeholder="What workflow do you want to run?" aria-label="Search">
                                     </form>
                                     <hr>
 
                                     <div class="row">
                                     {% if not application_profiles %}
-                                        No applications found. Please verify that you’ve been added to the appropriate 
-                                        <a href="/admin/projects">SOCA projects</a>. 
-                                        If the issue persists, contact your SOCA administrator.
+                                        No Workflow Profiles found. Please verify that you have been added to the appropriate 
+                                        <a href="/admin/projects">EDH projects</a>. 
+                                        If the issue persists, contact your EDH administrator.
                                     {% else %}
                                         {% for app_data in application_profiles %}
-                                        <form action="/submit_job" method="post" class="card shadow-sm border-0 mr-3 card-selectable">
+                                        <form action="/submit_job" method="post" class="card shadow-sm border-0 mr-3 card-selectable" style="border-radius: 1rem;">
                                             <div id="{{ application }}">
                                                 <div class="card h-100 text-center">                                                                          
                                                     <div style="display: flex; justify-content: center;">

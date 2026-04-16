@@ -4,7 +4,7 @@
 # Begin: Install/Update AWS CLI v2
 function install_awscliv2 () {
   log_info "Installing AWSCLIv2"
-  pushd "${SOCA_BOOTSTRAP_ASSETS_FOLDER}"
+  pushd "${EDH_BOOTSTRAP_ASSETS_FOLDER}"
   if [[ $(uname -m) == "x86_64" ]]; then
     file_download --download-url="{{ context.get("/system/awscliv2/linux/x86_64") }}" --save-as="awscliv2.zip"
   elif [[ $(uname -m)  == "aarch64" ]]; then

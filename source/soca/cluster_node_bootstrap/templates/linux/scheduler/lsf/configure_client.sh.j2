@@ -16,10 +16,10 @@ function lsf_configure_client_{{ SCHEDULER_VARS.get("IDENTIFIER") }} {
     # - badmin hrestart # SBATCHD (Job Execution Daemon ->  ( Not needed for DCV & Login Node as we don't run simulations on these nodes)
     
     {% if context.get("/job/NodeType") == "compute_node" %}
-        log_info "Creating  /etc/systemd/system/soca_scheduler_${SCHEDULER_IDENTIFIER}.service for HPC node, LIM, RES and SBATCHD will be started"
-        cat <<EOF > /etc/systemd/system/soca_scheduler_${SCHEDULER_IDENTIFIER}.service
+        log_info "Creating  /etc/systemd/system/edh_scheduler_${SCHEDULER_IDENTIFIER}.service for HPC node, LIM, RES and SBATCHD will be started"
+        cat <<EOF > /etc/systemd/system/edh_scheduler_${SCHEDULER_IDENTIFIER}.service
 [Unit]
-Description=Manage SOCA LSF Daemons - Client Node
+Description=Manage EDH LSF Daemons - Client Node
 After=network.target
 
 [Service]
@@ -35,10 +35,10 @@ WantedBy=multi-user.target
 EOF
 
     {% else %}
-        log_info "Creating  /etc/systemd/system/soca_scheduler_${SCHEDULER_IDENTIFIER}.service for DCV/VDI node, only LIM/RES are needed, not SBATCHD"
-        cat <<EOF > /etc/systemd/system/soca_scheduler_${SCHEDULER_IDENTIFIER}.service
+        log_info "Creating  /etc/systemd/system/edh_scheduler_${SCHEDULER_IDENTIFIER}.service for DCV/VDI node, only LIM/RES are needed, not SBATCHD"
+        cat <<EOF > /etc/systemd/system/edh_scheduler_${SCHEDULER_IDENTIFIER}.service
 [Unit]
-Description=Manage SOCA LSF Daemons - Client Node
+Description=Manage EDH LSF Daemons - Client Node
 After=network.target
 
 [Service]
@@ -58,14 +58,14 @@ EOF
     
     systemctl daemon-reload
     log_info "Checking if LSF can be started successfully"
-    if ! systemctl start soca_scheduler_${SCHEDULER_IDENTIFIER}.service; then
-        journalctl -xeu soca_scheduler_${SCHEDULER_IDENTIFIER}.service
-        exit_fail "Unable to start LSF via soca_scheduler_${SCHEDULER_IDENTIFIER}.service, check logs"
+    if ! systemctl start edh_scheduler_${SCHEDULER_IDENTIFIER}.service; then
+        journalctl -xeu edh_scheduler_${SCHEDULER_IDENTIFIER}.service
+        exit_fail "Unable to start LSF via edh_scheduler_${SCHEDULER_IDENTIFIER}.service, check logs"
     else
         log_info "LSF successfully started on client node, stopping it to finalize installation"
-        systemctl stop soca_scheduler_${SCHEDULER_IDENTIFIER}.service
+        systemctl stop edh_scheduler_${SCHEDULER_IDENTIFIER}.service
     fi 
-    log_info "soca_scheduler_${SCHEDULER_IDENTIFIER}.service created and tested successfully. Services will automatically be started at the end of 03_setup_post_reboot.sh.j2"
+    log_info "edh_scheduler_${SCHEDULER_IDENTIFIER}.service created and tested successfully. Services will automatically be started at the end of 03_setup_post_reboot.sh.j2"
     log_info "Completed LSF Client Configuration"
 
 }

@@ -41,7 +41,7 @@ class SocaConfigKeyVerifier:
         "validate_hooks",
     ]
 
-    _KEY_CONFIG_FILE = f"/opt/soca/{os.environ.get('SOCA_CLUSTER_ID')}/cluster_manager/utils/settings/socaconfig_key_validator.yml"
+    _KEY_CONFIG_FILE = f"/opt/edh/{os.environ.get('EDH_CLUSTER_ID')}/cluster_manager/utils/settings/socaconfig_key_validator.yml"
 
     def __init__(self, key: str):
         self.key = key
@@ -93,7 +93,7 @@ class SocaConfigKeyVerifier:
             _key = key.split("/configuration/FileSystems/")[1]
             key = f"/configuration/FileSystems/{'/'.join(_key.split('/')[1:])}"
 
-        # key uses this type of format /configuration/BaseOS, but yaml db is dict {"configuration": { "BaseOS": ... } }
+        # key uses this type of format /job/BaseOS, but yaml db is dict {"configuration": { "BaseOS": ... } }
         # we flatten the key e.g: ["configuration","BaseOS"] then parse the dictionary tree
         _validation_test = self.get_validation_test(
             _schema, [item for item in key.split("/") if item]
@@ -284,11 +284,11 @@ class SocaConfigKeyVerifier:
                     return f"Key is not a str"
                 else:
                     if (
-                        _flag_value.get("Key").startswith("soca:")
+                        _flag_value.get("Key").startswith("edh:")
                         or _flag_value.get("Key").startswith("aws:")
                         or _flag_value.get("Key") == "Name"
                     ):
-                        return f"Key cannot start with soca: or aws: or be 'Name'"
+                        return f"Key cannot start with edh: or aws: or be 'Name'"
 
             if "Value" not in _flag_value.keys():
                 return f"Value is missing in {_flag_value}"

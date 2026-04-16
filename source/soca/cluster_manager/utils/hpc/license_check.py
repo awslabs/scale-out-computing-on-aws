@@ -37,9 +37,9 @@ class SocaLicenseQuery:
         self._minus = minus
 
     def flexlm(self, lmutil_path: str) -> SocaResponse:
-        if pathlib.Path(lmutil_path).exists() is False:
+        if not pathlib.Path(lmutil_path).exists():
             return SocaError.GENERIC_ERROR(
-                helper=f"Unable to find lmutil binary, {lmutil_path} does not seems to exisst",
+                helper=f"Unable to find lmutil binary, {lmutil_path} does not seems to exist",
             )
         else:
             if not pathlib.Path(lmutil_path).is_file():

@@ -32,7 +32,7 @@ class GetTargetNodeSessionState(Resource):
         summary: Retrieve the current state of target node sessions
         description: Returns the current state (pending, running, stopped, etc.) for one or more target node sessions
         parameters:
-          - name: X-SOCA-USER
+          - name: X-EDH-USER
             in: header
             schema:
               type: string
@@ -40,7 +40,7 @@ class GetTargetNodeSessionState(Resource):
             required: true
             description: SOCA username for authentication
             example: john.doe
-          - name: X-SOCA-TOKEN
+          - name: X-EDH-TOKEN
             in: header
             schema:
               type: string

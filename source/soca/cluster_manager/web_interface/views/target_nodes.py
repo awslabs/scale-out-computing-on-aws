@@ -37,7 +37,7 @@ logger = logging.getLogger("soca_logger")
 def index():
     _get_all_sessions = SocaHttpClient(
         endpoint=f"/api/target_nodes/list",
-        headers={"X-SOCA-USER": session["user"], "X-SOCA-TOKEN": session["api_key"]},
+        headers={"X-EDH-USER": session["user"], "X-EDH-TOKEN": session["api_key"]},
     ).get(params={"user": session["user"], "is_active": "true"})
 
     logger.debug(f"get all target_nodes {_get_all_sessions}")
@@ -62,8 +62,8 @@ def index():
     _get_tn_software_stacks_for_user = SocaHttpClient(
         endpoint=f"/api/user/resources_permissions",
         headers={
-            "X-SOCA-USER": session["user"],
-            "X-SOCA-TOKEN": session["api_key"],
+            "X-EDH-USER": session["user"],
+            "X-EDH-TOKEN": session["api_key"],
         },
     ).get(params={"target_nodes": "all"})
 
@@ -113,7 +113,7 @@ def create():
 
     _create_target_node = SocaHttpClient(
         endpoint="/api/target_nodes/create",
-        headers={"X-SOCA-USER": session["user"], "X-SOCA-TOKEN": session["api_key"]},
+        headers={"X-EDH-USER": session["user"], "X-EDH-TOKEN": session["api_key"]},
     ).post(data=request.form.to_dict())
 
     if _create_target_node.get("success") is True:
@@ -142,8 +142,8 @@ def delete():
     _delete_target_node = SocaHttpClient(
         endpoint="/api/target_nodes/delete",
         headers={
-            "X-SOCA-USER": session["user"],
-            "X-SOCA-TOKEN": session["api_key"],
+            "X-EDH-USER": session["user"],
+            "X-EDH-TOKEN": session["api_key"],
         },
     ).delete(data={"session_uuid": _session_uuid})
 
@@ -168,8 +168,8 @@ def stop():
     _stop_target_node_request = SocaHttpClient(
         endpoint="/api/target_nodes/stop",
         headers={
-            "X-SOCA-USER": session["user"],
-            "X-SOCA-TOKEN": session["api_key"],
+            "X-EDH-USER": session["user"],
+            "X-EDH-TOKEN": session["api_key"],
         },
     ).put(data={"session_uuid": _session_uuid})
 
@@ -197,8 +197,8 @@ def start():
     _start_desktop_request = SocaHttpClient(
         endpoint="/api/target_nodes/start",
         headers={
-            "X-SOCA-USER": session["user"],
-            "X-SOCA-TOKEN": session["api_key"],
+            "X-EDH-USER": session["user"],
+            "X-EDH-TOKEN": session["api_key"],
         },
     ).put(data={"session_uuid": _session_uuid})
 
@@ -227,8 +227,8 @@ def schedule():
     _update_schedule_request = SocaHttpClient(
         endpoint="/api/target_nodes/schedule",
         headers={
-            "X-SOCA-USER": session["user"],
-            "X-SOCA-TOKEN": session["api_key"],
+            "X-EDH-USER": session["user"],
+            "X-EDH-TOKEN": session["api_key"],
         },
     ).put(data={"session_uuid": _session_uuid, "schedule": _schedule})
 
@@ -257,8 +257,8 @@ def resize():
     _resize_request = SocaHttpClient(
         endpoint="/api/target_nodes/resize",
         headers={
-            "X-SOCA-USER": session["user"],
-            "X-SOCA-TOKEN": session["api_key"],
+            "X-EDH-USER": session["user"],
+            "X-EDH-TOKEN": session["api_key"],
         },
     ).put(data={"session_uuid": _session_uuid, "instance_type": _instance_type})
 

@@ -7,7 +7,7 @@
 
   {% include "templates/linux/shared_storage/fstab_wrapper.sh.j2" %}
 
-  {% if context.get("/configuration/BaseOS") in ("rhel7", "rhel8", "rhel9", "rocky8", "rocky9") %}
+  {% if context.get("/job/BaseOS") in ("rhel7", "rhel8", "rhel9", "rocky8", "rocky9") %}
     function rhel_driver_install {
       log_info "Installing FSx Lustre Driver for RHEL based distro"
       local EL_VERSION=${1}
@@ -18,7 +18,7 @@
       else
         log_info "Getting FSx Lustre repo for RHEL distros version ${EL_VERSION}"
 
-        file_download --download-url="https://fsx-lustre-client-repo-public-keys.s3.amazonaws.com/fsx-rpm-public-key.asc" --save-as="${SOCA_BOOTSTRAP_ASSETS_FOLDER}/fsx-rpm-public-key.asc"
+        file_download --download-url="https://fsx-lustre-client-repo-public-keys.s3.amazonaws.com/fsx-rpm-public-key.asc" --save-as="${EDH_BOOTSTRAP_ASSETS_FOLDER}/fsx-rpm-public-key.asc"
 
         if [[ ! -f "/etc/yum.repos.d/aws-fsx.repo" ]]; then
           log_info "Downloading https://fsx-lustre-client-repo.s3.amazonaws.com/el/${EL_VERSION}/fsx-lustre-client.repo and saving it to /etc/yum.repos.d/aws-fsx.repo"
@@ -31,12 +31,12 @@
         fi
 
         packages_clean
-        if [[ ! -f "${SOCA_BOOTSTRAP_ASSETS_FOLDER}/fsx-rpm-public-key.asc" ]]; then
-          log_warning "Unable to locate ${SOCA_BOOTSTRAP_ASSETS_FOLDER}/fsx-rpm-public-key.asc, installing without gpgcheck"
+        if [[ ! -f "${EDH_BOOTSTRAP_ASSETS_FOLDER}/fsx-rpm-public-key.asc" ]]; then
+          log_warning "Unable to locate ${EDH_BOOTSTRAP_ASSETS_FOLDER}/fsx-rpm-public-key.asc, installing without gpgcheck"
           packages_install kmod-lustre-client lustre-client --nogpgcheck
         else
-          {% if context.get("/configuration/BaseOS") in ("centos7", "rhel7", "rhel8", "rhel9", "rocky8", "rocky9") %}
-            rpm --import "${SOCA_BOOTSTRAP_ASSETS_FOLDER}/fsx-rpm-public-key.asc"
+          {% if context.get("/job/BaseOS") in ("centos7", "rhel7", "rhel8", "rhel9", "rocky8", "rocky9") %}
+            rpm --import "${EDH_BOOTSTRAP_ASSETS_FOLDER}/fsx-rpm-public-key.asc"
           {% endif %}
           packages_install kmod-lustre-client lustre-client
         fi
@@ -131,11 +131,11 @@
         # Install FSx for Lustre Client
         # https://docs.aws.amazon.com/fsx/latest/LustreGuide/install-lustre-client.html
         log_info "FSx Lustre Client not installed, installing it .. "
-        {% if context.get("/configuration/BaseOS") == "amazonlinux2" %}
+        {% if context.get("/job/BaseOS") == "amazonlinux2" %}
           amazon-linux-extras install -y lustre
-        {% elif context.get("/configuration/BaseOS") == "amazonlinux2023" %}
+        {% elif context.get("/job/BaseOS") == "amazonlinux2023" %}
           packages_install lustre-client
-        {% elif context.get("/configuration/BaseOS") in ("rhel7", "centos7") %}
+        {% elif context.get("/job/BaseOS") in ("rhel7", "centos7") %}
           case "$KERNEL$MACHINE" in
             *"3.10.0-957"*)
               packages_install https://downloads.whamcloud.com/public/lustre/lustre-2.10.8/el7/client/RPMS/x86_64/kmod-lustre-client-2.10.8-1.el7.x86_64.rpm
@@ -147,7 +147,7 @@
             *) log_error "ERROR: Can't install FSx for Lustre client as kernel version: ${KERNEL} isn't matching expected versions for EL7" ;;
           esac
 
-        {% elif context.get("/configuration/BaseOS") in ("rhel8", "rocky8") %}
+        {% elif context.get("/job/BaseOS") in ("rhel8", "rocky8") %}
             case "$KERNEL$MACHINE" in
               *"4.18.0-553"*) rhel_driver_install 8 ;;
               *"4.18.0-513"*) rhel_driver_install 8 's#8#8.9#' ;;
@@ -162,7 +162,7 @@
                 ;;
             esac
 
-        {% elif context.get("/configuration/BaseOS") in ("rhel9", "rocky9") %}
+        {% elif context.get("/job/BaseOS") in ("rhel9", "rocky9") %}
             case "$KERNEL$MACHINE" in
               *"5.14.0-611"*) rhel_driver_install 9 ;;
               *"5.14.0-570"*) rhel_driver_install 9 's#9#9.6#' ;;
@@ -172,16 +172,16 @@
               *"5.14.0-70"*) rhel_driver_install 9 's#9#9.0#' ;;
               *) log_error "Can't install FSx for Lustre client as kernel version $KERNEL isn't matching expected versions for EL9";;
             esac
-        {% elif context.get("/configuration/BaseOS") in ("ubuntu2204", "ubuntu2404") %}
-            file_download --download-url="https://fsx-lustre-client-repo-public-keys.s3.amazonaws.com/fsx-ubuntu-public-key.asc" --save-as="${SOCA_BOOTSTRAP_ASSETS_FOLDER}/fsx-ubuntu-public-key.asc"
-            gpg --dearmor < ${SOCA_BOOTSTRAP_ASSETS_FOLDER}/fsx-ubuntu-public-key.asc | sudo tee /usr/share/keyrings/fsx-ubuntu-public-key.gpg >/dev/null
+        {% elif context.get("/job/BaseOS") in ("ubuntu2204", "ubuntu2404") %}
+            file_download --download-url="https://fsx-lustre-client-repo-public-keys.s3.amazonaws.com/fsx-ubuntu-public-key.asc" --save-as="${EDH_BOOTSTRAP_ASSETS_FOLDER}/fsx-ubuntu-public-key.asc"
+            gpg --dearmor < ${EDH_BOOTSTRAP_ASSETS_FOLDER}/fsx-ubuntu-public-key.asc | sudo tee /usr/share/keyrings/fsx-ubuntu-public-key.gpg >/dev/null
             echo "deb [signed-by=/usr/share/keyrings/fsx-ubuntu-public-key.gpg] https://fsx-lustre-client-repo.s3.amazonaws.com/ubuntu $(lsb_release -cs) main" > /etc/apt/sources.list.d/fsxlustreclientrepo.list
             packages_generic_command update
             # note: use lustre-client-modules-aws for latest kernel
             packages_install lustre-client-modules-${KERNEL}
         {% endif %}
 
-        {% if context.get("/configuration/BaseOS") not in ["amazonlinux2", "amazonlinux2023"] %}
+        {% if context.get("/job/BaseOS") not in ["amazonlinux2", "amazonlinux2023"] %}
             log_info "Lustre Driver installed, trying to load driver via modprobe lustre"
             # note: this is executed as part of EC2 User Data, so ensure the command will never return a non-0 code or the user data will stop
             modprobe lustre || {

@@ -3,7 +3,7 @@
 
 # Begin: Disable SE Linux
 function disable_selinux () {
-  {% if context.get("/configuration/BaseOS") in ("ubuntu2204", "ubuntu2404") %}
+  {% if context.get("/job/BaseOS") in ("ubuntu2204", "ubuntu2404") %}
     # Ubuntu uses AppArmor and not SELinux
     log_info "Disable AppArmor on Ubuntu"
     if systemctl is-active --quiet apparmor; then

@@ -11,8 +11,8 @@ import inspect
 
 class PathTruncatingFormatter(logging.Formatter):
     def format(self, record):
-        # custom_pathname return anything after /opt/soca/<cluster_id>/
-        _truncate_after = f"/opt/soca/{os.environ.get('SOCA_CLUSTER_ID')}/"
+        # custom_pathname return anything after /opt/edh/<cluster_id>/
+        _truncate_after = f"/opt/edh/{os.environ.get('EDH_CLUSTER_ID')}/"
         start_pos = record.pathname.find(_truncate_after) + len(_truncate_after)
         record.custom_pathname = record.pathname[start_pos:]
 
@@ -55,7 +55,7 @@ class SocaLogger:
         formatter (int): Optional: Enforce a customized formatter
         """
         self._logger = logging.getLogger(name)
-        _soca_debug = os.environ.get("SOCA_DEBUG", "0")
+        _soca_debug = os.environ.get("EDH_DEBUG", os.environ.get("SOCA_DEBUG", "0"))
         if str(_soca_debug) in ["true", "on", "1", "yes", "enabled"]:
             _debug = True
         else:

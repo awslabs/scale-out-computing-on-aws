@@ -10,8 +10,8 @@ function efa_install () {
     local MAX_ATTEMPTS_INSTALLATION=5
     local ATTEMPT_INSTALLATION=0
 
-    mkdir -p "${SOCA_BOOTSTRAP_ASSETS_FOLDER}/efa"
-    pushd "${SOCA_BOOTSTRAP_ASSETS_FOLDER}/efa"
+    mkdir -p "${EDH_BOOTSTRAP_ASSETS_FOLDER}/efa"
+    pushd "${EDH_BOOTSTRAP_ASSETS_FOLDER}/efa"
     file_download --download-url="${EFA_URL}" --save-as="efa_installer_${EFA_VERSION}.tgz" --sha256-checksum="${EFA_SHA256}"
 
     if [[ -d "aws-efa-installer" ]]; then
@@ -21,19 +21,19 @@ function efa_install () {
     tar xzf "efa_installer_${EFA_VERSION}.tgz"
     
     log_info "Removing existing packages to avoid dependency conflicts"
-    {% if context.get("/configuration/BaseOS") in ["rocky8", "rocky9", "rhel9", "amazonlinux2023"] %}
+    {% if context.get("/job/BaseOS") in ["rocky8", "rocky9", "rhel9", "amazonlinux2023"] %}
         packages_remove libibverbs
     {% endif %}
 
     # Adding packages-install for newer RHEL kernel
-    {% if context.get("/configuration/BaseOS") in ["rhel9", "rocky9"] %}
+    {% if context.get("/job/BaseOS") in ["rhel9", "rocky9"] %}
         packages_install kernel-modules-$(uname -r) kernel-modules-extra-$(uname -r)
     {% endif %} 
     
     # Adding sleep to avoid repo cache issue on RHEL9
     #  == Installing EFA packages == Error: RPMS/ROCKYLINUX9/x86_64/dkms-3.0.11-1.el9.noarch.rpm does not exist. Error: failed to install EFA packages, exiting
     while [[ ${ATTEMPT_INSTALLATION} -lt ${MAX_ATTEMPTS_INSTALLATION} ]]; do
-        pushd "${SOCA_BOOTSTRAP_ASSETS_FOLDER}/efa/aws-efa-installer"
+        pushd "${EDH_BOOTSTRAP_ASSETS_FOLDER}/efa/aws-efa-installer"
         /bin/bash efa_installer.sh -y
         popd  
 

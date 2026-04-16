@@ -117,7 +117,7 @@
         "parameters": [
           {
             "in": "header",
-            "name": "X-SOCA-USER",
+            "name": "X-EDH-USER",
             "required": true,
             "schema": {
               "type": "string",
@@ -127,7 +127,7 @@
           },
           {
             "in": "header",
-            "name": "X-SOCA-TOKEN",
+            "name": "X-EDH-TOKEN",
             "required": true,
             "schema": {
               "type": "string",
@@ -258,7 +258,7 @@
         "parameters": [
           {
             "in": "header",
-            "name": "X-SOCA-USER",
+            "name": "X-EDH-USER",
             "required": true,
             "schema": {
               "type": "string",
@@ -268,7 +268,7 @@
           },
           {
             "in": "header",
-            "name": "X-SOCA-TOKEN",
+            "name": "X-EDH-TOKEN",
             "required": true,
             "schema": {
               "type": "string",
@@ -404,7 +404,7 @@
         ],
         "parameters": [
           {
-            "name": "X-SOCA-USER",
+            "name": "X-EDH-USER",
             "in": "header",
             "required": true,
             "schema": {
@@ -417,7 +417,7 @@
             "example": "john.doe"
           },
           {
-            "name": "X-SOCA-TOKEN",
+            "name": "X-EDH-TOKEN",
             "in": "header",
             "required": true,
             "schema": {
@@ -610,7 +610,7 @@
                     },
                     "message": {
                       "type": "string",
-                      "example": "Missing required header: X-SOCA-USER"
+                      "example": "Missing required header: X-EDH-USER"
                     }
                   }
                 }
@@ -665,7 +665,7 @@
         ],
         "parameters": [
           {
-            "name": "X-SOCA-USER",
+            "name": "X-EDH-USER",
             "in": "header",
             "required": true,
             "schema": {
@@ -678,7 +678,7 @@
             "example": "john.doe"
           },
           {
-            "name": "X-SOCA-TOKEN",
+            "name": "X-EDH-TOKEN",
             "in": "header",
             "required": true,
             "schema": {
@@ -803,7 +803,7 @@
         "parameters": [
           {
             "in": "header",
-            "name": "X-SOCA-USER",
+            "name": "X-EDH-USER",
             "required": true,
             "schema": {
               "type": "string",
@@ -813,7 +813,7 @@
           },
           {
             "in": "header",
-            "name": "X-SOCA-TOKEN",
+            "name": "X-EDH-TOKEN",
             "required": true,
             "schema": {
               "type": "string",
@@ -911,7 +911,7 @@
                     },
                     "message": {
                       "type": "string",
-                      "example": "Missing required header: X-SOCA-USER"
+                      "example": "Missing required header: X-EDH-USER"
                     }
                   }
                 }
@@ -986,7 +986,7 @@
         "parameters": [
           {
             "in": "header",
-            "name": "X-SOCA-USER",
+            "name": "X-EDH-USER",
             "required": true,
             "schema": {
               "type": "string",
@@ -999,7 +999,7 @@
           },
           {
             "in": "header",
-            "name": "X-SOCA-TOKEN",
+            "name": "X-EDH-TOKEN",
             "required": true,
             "schema": {
               "type": "string",
@@ -1116,7 +1116,7 @@
         "parameters": [
           {
             "in": "header",
-            "name": "X-SOCA-USER",
+            "name": "X-EDH-USER",
             "required": true,
             "schema": {
               "type": "string",
@@ -1129,7 +1129,7 @@
           },
           {
             "in": "header",
-            "name": "X-SOCA-TOKEN",
+            "name": "X-EDH-TOKEN",
             "required": true,
             "schema": {
               "type": "string",
@@ -1274,7 +1274,7 @@
         "parameters": [
           {
             "in": "header",
-            "name": "X-SOCA-USER",
+            "name": "X-EDH-USER",
             "required": true,
             "schema": {
               "type": "string",
@@ -1287,7 +1287,7 @@
           },
           {
             "in": "header",
-            "name": "X-SOCA-TOKEN",
+            "name": "X-EDH-TOKEN",
             "required": true,
             "schema": {
               "type": "string",
@@ -1376,7 +1376,7 @@
         "parameters": [
           {
             "in": "header",
-            "name": "X-SOCA-USER",
+            "name": "X-EDH-USER",
             "required": true,
             "schema": {
               "type": "string",
@@ -1389,7 +1389,7 @@
           },
           {
             "in": "header",
-            "name": "X-SOCA-TOKEN",
+            "name": "X-EDH-TOKEN",
             "required": true,
             "schema": {
               "type": "string",
@@ -1534,7 +1534,7 @@
         ],
         "parameters": [
           {
-            "name": "X-SOCA-USER",
+            "name": "X-EDH-USER",
             "in": "header",
             "required": true,
             "schema": {
@@ -1547,7 +1547,7 @@
             "example": "john.doe"
           },
           {
-            "name": "X-SOCA-TOKEN",
+            "name": "X-EDH-TOKEN",
             "in": "header",
             "required": true,
             "schema": {
@@ -1686,7 +1686,7 @@
         ],
         "parameters": [
           {
-            "name": "X-SOCA-USER",
+            "name": "X-EDH-USER",
             "in": "header",
             "required": true,
             "schema": {
@@ -1699,7 +1699,7 @@
             "example": "admin.user"
           },
           {
-            "name": "X-SOCA-TOKEN",
+            "name": "X-EDH-TOKEN",
             "in": "header",
             "required": true,
             "schema": {
@@ -1842,7 +1842,7 @@
                     },
                     "message": {
                       "type": "string",
-                      "example": "Missing required header: X-SOCA-USER"
+                      "example": "Missing required header: X-EDH-USER"
                     }
                   }
                 }
@@ -1927,7 +1927,7 @@
         "parameters": [
           {
             "in": "header",
-            "name": "X-SOCA-USER",
+            "name": "X-EDH-USER",
             "required": true,
             "schema": {
               "type": "string",
@@ -1937,7 +1937,7 @@
           },
           {
             "in": "header",
-            "name": "X-SOCA-TOKEN",
+            "name": "X-EDH-TOKEN",
             "required": true,
             "schema": {
               "type": "string",
@@ -2067,7 +2067,7 @@
         ],
         "parameters": [
           {
-            "name": "X-SOCA-USER",
+            "name": "X-EDH-USER",
             "in": "header",
             "required": true,
             "schema": {
@@ -2080,7 +2080,7 @@
             "example": "john.doe"
           },
           {
-            "name": "X-SOCA-TOKEN",
+            "name": "X-EDH-TOKEN",
             "in": "header",
             "required": true,
             "schema": {
@@ -2189,7 +2189,7 @@
                     },
                     "message": {
                       "type": "string",
-                      "example": "Missing required header: X-SOCA-USER"
+                      "example": "Missing required header: X-EDH-USER"
                     }
                   }
                 }
@@ -2302,7 +2302,7 @@
         ],
         "parameters": [
           {
-            "name": "X-SOCA-USER",
+            "name": "X-EDH-USER",
             "in": "header",
             "required": true,
             "schema": {
@@ -2315,7 +2315,7 @@
             "example": "john.doe"
           },
           {
-            "name": "X-SOCA-TOKEN",
+            "name": "X-EDH-TOKEN",
             "in": "header",
             "required": true,
             "schema": {
@@ -2573,7 +2573,7 @@
         "parameters": [
           {
             "in": "header",
-            "name": "X-SOCA-USER",
+            "name": "X-EDH-USER",
             "required": true,
             "schema": {
               "type": "string",
@@ -2583,7 +2583,7 @@
           },
           {
             "in": "header",
-            "name": "X-SOCA-TOKEN",
+            "name": "X-EDH-TOKEN",
             "required": true,
             "schema": {
               "type": "string",
@@ -2732,7 +2732,7 @@
         "parameters": [
           {
             "in": "header",
-            "name": "X-SOCA-USER",
+            "name": "X-EDH-USER",
             "required": true,
             "schema": {
               "type": "string",
@@ -2742,7 +2742,7 @@
           },
           {
             "in": "header",
-            "name": "X-SOCA-TOKEN",
+            "name": "X-EDH-TOKEN",
             "required": true,
             "schema": {
               "type": "string",
@@ -2858,7 +2858,7 @@
                     },
                     "message": {
                       "type": "string",
-                      "example": "Missing required header: X-SOCA-USER"
+                      "example": "Missing required header: X-EDH-USER"
                     }
                   }
                 }
@@ -2947,7 +2947,7 @@
         "parameters": [
           {
             "in": "header",
-            "name": "X-SOCA-USER",
+            "name": "X-EDH-USER",
             "required": true,
             "schema": {
               "type": "string",
@@ -2957,7 +2957,7 @@
           },
           {
             "in": "header",
-            "name": "X-SOCA-TOKEN",
+            "name": "X-EDH-TOKEN",
             "required": true,
             "schema": {
               "type": "string",
@@ -3113,7 +3113,7 @@
         "parameters": [
           {
             "in": "header",
-            "name": "X-SOCA-USER",
+            "name": "X-EDH-USER",
             "required": true,
             "schema": {
               "type": "string",
@@ -3123,7 +3123,7 @@
           },
           {
             "in": "header",
-            "name": "X-SOCA-TOKEN",
+            "name": "X-EDH-TOKEN",
             "required": true,
             "schema": {
               "type": "string",
@@ -3231,7 +3231,7 @@
                     },
                     "message": {
                       "type": "string",
-                      "example": "Missing required header: X-SOCA-USER"
+                      "example": "Missing required header: X-EDH-USER"
                     }
                   }
                 }
@@ -5062,7 +5062,7 @@
         ],
         "parameters": [
           {
-            "name": "X-SOCA-USER",
+            "name": "X-EDH-USER",
             "in": "header",
             "schema": {
               "type": "string",
@@ -5073,7 +5073,7 @@
             "example": "admin"
           },
           {
-            "name": "X-SOCA-TOKEN",
+            "name": "X-EDH-TOKEN",
             "in": "header",
             "schema": {
               "type": "string",
@@ -5148,7 +5148,7 @@
         ],
         "parameters": [
           {
-            "name": "X-SOCA-USER",
+            "name": "X-EDH-USER",
             "in": "header",
             "schema": {
               "type": "string",
@@ -5159,7 +5159,7 @@
             "example": "admin"
           },
           {
-            "name": "X-SOCA-TOKEN",
+            "name": "X-EDH-TOKEN",
             "in": "header",
             "schema": {
               "type": "string",
@@ -5246,7 +5246,7 @@
         ],
         "parameters": [
           {
-            "name": "X-SOCA-USER",
+            "name": "X-EDH-USER",
             "in": "header",
             "schema": {
               "type": "string",
@@ -5257,7 +5257,7 @@
             "example": "admin"
           },
           {
-            "name": "X-SOCA-TOKEN",
+            "name": "X-EDH-TOKEN",
             "in": "header",
             "schema": {
               "type": "string",
@@ -5376,7 +5376,7 @@
         ],
         "parameters": [
           {
-            "name": "X-SOCA-USER",
+            "name": "X-EDH-USER",
             "in": "header",
             "schema": {
               "type": "string",
@@ -5387,7 +5387,7 @@
             "example": "admin"
           },
           {
-            "name": "X-SOCA-TOKEN",
+            "name": "X-EDH-TOKEN",
             "in": "header",
             "schema": {
               "type": "string",
@@ -5473,7 +5473,7 @@
         ],
         "parameters": [
           {
-            "name": "X-SOCA-USER",
+            "name": "X-EDH-USER",
             "in": "header",
             "schema": {
               "type": "string",
@@ -5484,7 +5484,7 @@
             "example": "admin"
           },
           {
-            "name": "X-SOCA-TOKEN",
+            "name": "X-EDH-TOKEN",
             "in": "header",
             "schema": {
               "type": "string",
@@ -5579,7 +5579,7 @@
         ],
         "parameters": [
           {
-            "name": "X-SOCA-USER",
+            "name": "X-EDH-USER",
             "in": "header",
             "schema": {
               "type": "string",
@@ -5590,7 +5590,7 @@
             "example": "admin"
           },
           {
-            "name": "X-SOCA-TOKEN",
+            "name": "X-EDH-TOKEN",
             "in": "header",
             "schema": {
               "type": "string",
@@ -5720,7 +5720,7 @@
         ],
         "parameters": [
           {
-            "name": "X-SOCA-USER",
+            "name": "X-EDH-USER",
             "in": "header",
             "schema": {
               "type": "string",
@@ -5799,7 +5799,7 @@
         ],
         "parameters": [
           {
-            "name": "X-SOCA-USER",
+            "name": "X-EDH-USER",
             "in": "header",
             "schema": {
               "type": "string",
@@ -5810,7 +5810,7 @@
             "example": "user.name"
           },
           {
-            "name": "X-SOCA-TOKEN",
+            "name": "X-EDH-TOKEN",
             "in": "header",
             "schema": {
               "type": "string",
@@ -5935,7 +5935,7 @@
         ],
         "parameters": [
           {
-            "name": "X-SOCA-USER",
+            "name": "X-EDH-USER",
             "in": "header",
             "schema": {
               "type": "string",
@@ -5946,7 +5946,7 @@
             "example": "admin.user"
           },
           {
-            "name": "X-SOCA-TOKEN",
+            "name": "X-EDH-TOKEN",
             "in": "header",
             "schema": {
               "type": "string",
@@ -6078,7 +6078,7 @@
         ],
         "parameters": [
           {
-            "name": "X-SOCA-USER",
+            "name": "X-EDH-USER",
             "in": "header",
             "schema": {
               "type": "string",
@@ -6089,7 +6089,7 @@
             "example": "admin"
           },
           {
-            "name": "X-SOCA-PASSWORD",
+            "name": "X-EDH-PASSWORD",
             "in": "header",
             "schema": {
               "type": "string",
@@ -6160,7 +6160,7 @@
         ],
         "parameters": [
           {
-            "name": "X-SOCA-USER",
+            "name": "X-EDH-USER",
             "in": "header",
             "schema": {
               "type": "string",
@@ -6171,7 +6171,7 @@
             "example": "admin"
           },
           {
-            "name": "X-SOCA-TOKEN",
+            "name": "X-EDH-TOKEN",
             "in": "header",
             "schema": {
               "type": "string",
@@ -6254,7 +6254,7 @@
         "parameters": [
           {
             "in": "header",
-            "name": "X-SOCA-USER",
+            "name": "X-EDH-USER",
             "required": true,
             "schema": {
               "type": "string",
@@ -6267,7 +6267,7 @@
           },
           {
             "in": "header",
-            "name": "X-SOCA-TOKEN",
+            "name": "X-EDH-TOKEN",
             "required": true,
             "schema": {
               "type": "string",
@@ -6421,7 +6421,7 @@
         ],
         "parameters": [
           {
-            "name": "X-SOCA-USER",
+            "name": "X-EDH-USER",
             "in": "header",
             "schema": {
               "type": "string",
@@ -6432,7 +6432,7 @@
             "example": "john.doe"
           },
           {
-            "name": "X-SOCA-TOKEN",
+            "name": "X-EDH-TOKEN",
             "in": "header",
             "schema": {
               "type": "string",
@@ -6515,7 +6515,7 @@
         ],
         "parameters": [
           {
-            "name": "X-SOCA-USER",
+            "name": "X-EDH-USER",
             "in": "header",
             "schema": {
               "type": "string",
@@ -6526,7 +6526,7 @@
             "example": "john.doe"
           },
           {
-            "name": "X-SOCA-TOKEN",
+            "name": "X-EDH-TOKEN",
             "in": "header",
             "schema": {
               "type": "string",
@@ -6661,7 +6661,7 @@
         "parameters": [
           {
             "in": "header",
-            "name": "X-SOCA-USER",
+            "name": "X-EDH-USER",
             "required": true,
             "schema": {
               "type": "string",
@@ -6674,7 +6674,7 @@
           },
           {
             "in": "header",
-            "name": "X-SOCA-TOKEN",
+            "name": "X-EDH-TOKEN",
             "required": true,
             "schema": {
               "type": "string",
@@ -6755,7 +6755,7 @@
         "parameters": [
           {
             "in": "header",
-            "name": "X-SOCA-USER",
+            "name": "X-EDH-USER",
             "required": true,
             "schema": {
               "type": "string",
@@ -6768,7 +6768,7 @@
           },
           {
             "in": "header",
-            "name": "X-SOCA-TOKEN",
+            "name": "X-EDH-TOKEN",
             "required": true,
             "schema": {
               "type": "string",
@@ -6922,7 +6922,7 @@
         "parameters": [
           {
             "in": "header",
-            "name": "X-SOCA-USER",
+            "name": "X-EDH-USER",
             "required": true,
             "schema": {
               "type": "string",
@@ -6935,7 +6935,7 @@
           },
           {
             "in": "header",
-            "name": "X-SOCA-TOKEN",
+            "name": "X-EDH-TOKEN",
             "required": true,
             "schema": {
               "type": "string",
@@ -7018,7 +7018,7 @@
         "parameters": [
           {
             "in": "header",
-            "name": "X-SOCA-USER",
+            "name": "X-EDH-USER",
             "required": true,
             "schema": {
               "type": "string",
@@ -7031,7 +7031,7 @@
           },
           {
             "in": "header",
-            "name": "X-SOCA-TOKEN",
+            "name": "X-EDH-TOKEN",
             "required": true,
             "schema": {
               "type": "string",
@@ -7187,7 +7187,7 @@
         ],
         "parameters": [
           {
-            "name": "X-SOCA-USER",
+            "name": "X-EDH-USER",
             "in": "header",
             "schema": {
               "type": "string",
@@ -7198,7 +7198,7 @@
             "example": "john.doe"
           },
           {
-            "name": "X-SOCA-TOKEN",
+            "name": "X-EDH-TOKEN",
             "in": "header",
             "schema": {
               "type": "string",
@@ -7284,7 +7284,7 @@
         "parameters": [
           {
             "in": "header",
-            "name": "X-SOCA-USER",
+            "name": "X-EDH-USER",
             "required": true,
             "schema": {
               "type": "string",
@@ -7297,7 +7297,7 @@
           },
           {
             "in": "header",
-            "name": "X-SOCA-TOKEN",
+            "name": "X-EDH-TOKEN",
             "required": true,
             "schema": {
               "type": "string",
@@ -7398,7 +7398,7 @@
                     },
                     "message": {
                       "type": "string",
-                      "example": "Missing X-SOCA-USER header"
+                      "example": "Missing X-EDH-USER header"
                     }
                   }
                 }
@@ -7476,7 +7476,7 @@
         ],
         "parameters": [
           {
-            "name": "X-SOCA-USER",
+            "name": "X-EDH-USER",
             "in": "header",
             "schema": {
               "type": "string",
@@ -7487,7 +7487,7 @@
             "example": "john.doe"
           },
           {
-            "name": "X-SOCA-TOKEN",
+            "name": "X-EDH-TOKEN",
             "in": "header",
             "schema": {
               "type": "string",
@@ -7617,7 +7617,7 @@
         "parameters": [
           {
             "in": "header",
-            "name": "X-SOCA-USER",
+            "name": "X-EDH-USER",
             "required": true,
             "schema": {
               "type": "string",
@@ -7630,7 +7630,7 @@
           },
           {
             "in": "header",
-            "name": "X-SOCA-TOKEN",
+            "name": "X-EDH-TOKEN",
             "required": true,
             "schema": {
               "type": "string",
@@ -7710,7 +7710,7 @@
         "parameters": [
           {
             "in": "header",
-            "name": "X-SOCA-USER",
+            "name": "X-EDH-USER",
             "required": true,
             "schema": {
               "type": "string",
@@ -7723,7 +7723,7 @@
           },
           {
             "in": "header",
-            "name": "X-SOCA-TOKEN",
+            "name": "X-EDH-TOKEN",
             "required": true,
             "schema": {
               "type": "string",
@@ -7829,7 +7829,7 @@
         "parameters": [
           {
             "in": "header",
-            "name": "X-SOCA-USER",
+            "name": "X-EDH-USER",
             "required": true,
             "schema": {
               "type": "string",
@@ -7842,7 +7842,7 @@
           },
           {
             "in": "header",
-            "name": "X-SOCA-TOKEN",
+            "name": "X-EDH-TOKEN",
             "required": true,
             "schema": {
               "type": "string",
@@ -7932,7 +7932,7 @@
         "parameters": [
           {
             "in": "header",
-            "name": "X-SOCA-USER",
+            "name": "X-EDH-USER",
             "required": true,
             "schema": {
               "type": "string",
@@ -7945,7 +7945,7 @@
           },
           {
             "in": "header",
-            "name": "X-SOCA-TOKEN",
+            "name": "X-EDH-TOKEN",
             "required": true,
             "schema": {
               "type": "string",
@@ -8050,7 +8050,7 @@
         "parameters": [
           {
             "in": "header",
-            "name": "X-SOCA-USER",
+            "name": "X-EDH-USER",
             "required": true,
             "schema": {
               "type": "string",
@@ -8063,7 +8063,7 @@
           },
           {
             "in": "header",
-            "name": "X-SOCA-TOKEN",
+            "name": "X-EDH-TOKEN",
             "required": true,
             "schema": {
               "type": "string",
@@ -8165,7 +8165,7 @@
                     },
                     "message": {
                       "type": "string",
-                      "example": "Missing X-SOCA-USER header"
+                      "example": "Missing X-EDH-USER header"
                     }
                   }
                 }
@@ -8244,7 +8244,7 @@
         ],
         "parameters": [
           {
-            "name": "X-SOCA-USER",
+            "name": "X-EDH-USER",
             "in": "header",
             "schema": {
               "type": "string",
@@ -8255,7 +8255,7 @@
             "example": "admin.user"
           },
           {
-            "name": "X-SOCA-TOKEN",
+            "name": "X-EDH-TOKEN",
             "in": "header",
             "schema": {
               "type": "string",
@@ -8344,7 +8344,7 @@
         ],
         "parameters": [
           {
-            "name": "X-SOCA-USER",
+            "name": "X-EDH-USER",
             "in": "header",
             "schema": {
               "type": "string",
@@ -8355,7 +8355,7 @@
             "example": "admin.user"
           },
           {
-            "name": "X-SOCA-TOKEN",
+            "name": "X-EDH-TOKEN",
             "in": "header",
             "schema": {
               "type": "string",
@@ -8469,7 +8469,7 @@
         ],
         "parameters": [
           {
-            "name": "X-SOCA-USER",
+            "name": "X-EDH-USER",
             "in": "header",
             "schema": {
               "type": "string",
@@ -8480,7 +8480,7 @@
             "example": "admin.user"
           },
           {
-            "name": "X-SOCA-TOKEN",
+            "name": "X-EDH-TOKEN",
             "in": "header",
             "schema": {
               "type": "string",
@@ -8565,7 +8565,7 @@
         ],
         "parameters": [
           {
-            "name": "X-SOCA-USER",
+            "name": "X-EDH-USER",
             "in": "header",
             "schema": {
               "type": "string",
@@ -8576,7 +8576,7 @@
             "example": "admin.user"
           },
           {
-            "name": "X-SOCA-TOKEN",
+            "name": "X-EDH-TOKEN",
             "in": "header",
             "schema": {
               "type": "string",
@@ -8691,7 +8691,7 @@
         "parameters": [
           {
             "in": "header",
-            "name": "X-SOCA-USER",
+            "name": "X-EDH-USER",
             "required": true,
             "schema": {
               "type": "string",
@@ -8704,7 +8704,7 @@
           },
           {
             "in": "header",
-            "name": "X-SOCA-TOKEN",
+            "name": "X-EDH-TOKEN",
             "required": true,
             "schema": {
               "type": "string",
@@ -8828,7 +8828,7 @@
                     },
                     "message": {
                       "type": "string",
-                      "example": "Missing required header: X-SOCA-USER"
+                      "example": "Missing required header: X-EDH-USER"
                     }
                   }
                 }
@@ -8912,7 +8912,7 @@
         ],
         "parameters": [
           {
-            "name": "X-SOCA-USER",
+            "name": "X-EDH-USER",
             "in": "header",
             "schema": {
               "type": "string",
@@ -8923,7 +8923,7 @@
             "example": "admin"
           },
           {
-            "name": "X-SOCA-TOKEN",
+            "name": "X-EDH-TOKEN",
             "in": "header",
             "schema": {
               "type": "string",
@@ -8993,7 +8993,7 @@
         ],
         "parameters": [
           {
-            "name": "X-SOCA-USER",
+            "name": "X-EDH-USER",
             "in": "header",
             "schema": {
               "type": "string",
@@ -9004,7 +9004,7 @@
             "example": "admin"
           },
           {
-            "name": "X-SOCA-TOKEN",
+            "name": "X-EDH-TOKEN",
             "in": "header",
             "schema": {
               "type": "string",
@@ -9095,7 +9095,7 @@
         "parameters": [
           {
             "in": "header",
-            "name": "X-SOCA-USER",
+            "name": "X-EDH-USER",
             "required": true,
             "schema": {
               "type": "string",
@@ -9108,7 +9108,7 @@
           },
           {
             "in": "header",
-            "name": "X-SOCA-TOKEN",
+            "name": "X-EDH-TOKEN",
             "required": true,
             "schema": {
               "type": "string",
@@ -9147,7 +9147,7 @@
                       "properties": {
                         "Instructions": {
                           "type": "string",
-                          "example": "https://awslabs.github.io/scale-out-computing-on-aws-documentation/documentation/web-interface/import-export-application-profiles"
+                          "example": "https://awslabs.github.io/engineering-development-hub-documentation/documentation/web-interface/import-export-application-profiles"
                         },
                         "profile_form": {
                           "type": "string",
@@ -9280,7 +9280,7 @@
         "parameters": [
           {
             "in": "header",
-            "name": "X-SOCA-USER",
+            "name": "X-EDH-USER",
             "required": true,
             "schema": {
               "type": "string",
@@ -9293,7 +9293,7 @@
           },
           {
             "in": "header",
-            "name": "X-SOCA-TOKEN",
+            "name": "X-EDH-TOKEN",
             "required": true,
             "schema": {
               "type": "string",
@@ -9459,7 +9459,7 @@
         "parameters": [
           {
             "in": "header",
-            "name": "X-SOCA-USER",
+            "name": "X-EDH-USER",
             "required": true,
             "schema": {
               "type": "string",
@@ -9472,7 +9472,7 @@
           },
           {
             "in": "header",
-            "name": "X-SOCA-TOKEN",
+            "name": "X-EDH-TOKEN",
             "required": true,
             "schema": {
               "type": "string",
@@ -9659,7 +9659,7 @@
         "parameters": [
           {
             "in": "header",
-            "name": "X-SOCA-USER",
+            "name": "X-EDH-USER",
             "required": true,
             "schema": {
               "type": "string",
@@ -9672,7 +9672,7 @@
           },
           {
             "in": "header",
-            "name": "X-SOCA-TOKEN",
+            "name": "X-EDH-TOKEN",
             "required": true,
             "schema": {
               "type": "string",
@@ -9813,7 +9813,7 @@
         "parameters": [
           {
             "in": "header",
-            "name": "X-SOCA-USER",
+            "name": "X-EDH-USER",
             "required": true,
             "schema": {
               "type": "string",
@@ -9826,7 +9826,7 @@
           },
           {
             "in": "header",
-            "name": "X-SOCA-TOKEN",
+            "name": "X-EDH-TOKEN",
             "required": true,
             "schema": {
               "type": "string",
@@ -9984,7 +9984,7 @@
         "parameters": [
           {
             "in": "header",
-            "name": "X-SOCA-USER",
+            "name": "X-EDH-USER",
             "required": true,
             "schema": {
               "type": "string",
@@ -9997,7 +9997,7 @@
           },
           {
             "in": "header",
-            "name": "X-SOCA-TOKEN",
+            "name": "X-EDH-TOKEN",
             "required": true,
             "schema": {
               "type": "string",
@@ -10136,7 +10136,7 @@
         ],
         "parameters": [
           {
-            "name": "X-SOCA-USER",
+            "name": "X-EDH-USER",
             "in": "header",
             "required": true,
             "schema": {
@@ -10149,7 +10149,7 @@
             "example": "john.doe"
           },
           {
-            "name": "X-SOCA-TOKEN",
+            "name": "X-EDH-TOKEN",
             "in": "header",
             "required": true,
             "schema": {
@@ -10334,7 +10334,7 @@
         ],
         "parameters": [
           {
-            "name": "X-SOCA-USER",
+            "name": "X-EDH-USER",
             "in": "header",
             "required": true,
             "schema": {
@@ -10347,7 +10347,7 @@
             "example": "john.doe"
           },
           {
-            "name": "X-SOCA-TOKEN",
+            "name": "X-EDH-TOKEN",
             "in": "header",
             "required": true,
             "schema": {
@@ -10687,7 +10687,7 @@
         ],
         "parameters": [
           {
-            "name": "X-SOCA-USER",
+            "name": "X-EDH-USER",
             "in": "header",
             "required": true,
             "schema": {
@@ -10700,7 +10700,7 @@
             "example": "john.doe"
           },
           {
-            "name": "X-SOCA-TOKEN",
+            "name": "X-EDH-TOKEN",
             "in": "header",
             "required": true,
             "schema": {
@@ -10838,7 +10838,7 @@
         ],
         "parameters": [
           {
-            "name": "X-SOCA-USER",
+            "name": "X-EDH-USER",
             "in": "header",
             "required": true,
             "schema": {
@@ -10851,7 +10851,7 @@
             "example": "john.doe"
           },
           {
-            "name": "X-SOCA-TOKEN",
+            "name": "X-EDH-TOKEN",
             "in": "header",
             "required": true,
             "schema": {
@@ -11040,7 +11040,7 @@
         ],
         "parameters": [
           {
-            "name": "X-SOCA-USER",
+            "name": "X-EDH-USER",
             "in": "header",
             "required": true,
             "schema": {
@@ -11053,7 +11053,7 @@
             "example": "john.doe"
           },
           {
-            "name": "X-SOCA-TOKEN",
+            "name": "X-EDH-TOKEN",
             "in": "header",
             "required": true,
             "schema": {
@@ -11203,7 +11203,7 @@
         ],
         "parameters": [
           {
-            "name": "X-SOCA-USER",
+            "name": "X-EDH-USER",
             "in": "header",
             "required": true,
             "schema": {
@@ -11216,7 +11216,7 @@
             "example": "john.doe"
           },
           {
-            "name": "X-SOCA-TOKEN",
+            "name": "X-EDH-TOKEN",
             "in": "header",
             "required": true,
             "schema": {
@@ -11470,7 +11470,7 @@
         ],
         "parameters": [
           {
-            "name": "X-SOCA-USER",
+            "name": "X-EDH-USER",
             "in": "header",
             "required": true,
             "schema": {
@@ -11483,7 +11483,7 @@
             "example": "john.doe"
           },
           {
-            "name": "X-SOCA-TOKEN",
+            "name": "X-EDH-TOKEN",
             "in": "header",
             "required": true,
             "schema": {
@@ -11700,7 +11700,7 @@
         ],
         "parameters": [
           {
-            "name": "X-SOCA-USER",
+            "name": "X-EDH-USER",
             "in": "header",
             "required": true,
             "schema": {
@@ -11713,7 +11713,7 @@
             "example": "john.doe"
           },
           {
-            "name": "X-SOCA-TOKEN",
+            "name": "X-EDH-TOKEN",
             "in": "header",
             "required": true,
             "schema": {
@@ -11967,7 +11967,7 @@
         ],
         "parameters": [
           {
-            "name": "X-SOCA-USER",
+            "name": "X-EDH-USER",
             "in": "header",
             "schema": {
               "type": "string",
@@ -11978,7 +11978,7 @@
             "example": "admin"
           },
           {
-            "name": "X-SOCA-TOKEN",
+            "name": "X-EDH-TOKEN",
             "in": "header",
             "schema": {
               "type": "string",
@@ -12075,7 +12075,7 @@
         ],
         "parameters": [
           {
-            "name": "X-SOCA-USER",
+            "name": "X-EDH-USER",
             "in": "header",
             "schema": {
               "type": "string",
@@ -12086,7 +12086,7 @@
             "example": "admin"
           },
           {
-            "name": "X-SOCA-TOKEN",
+            "name": "X-EDH-TOKEN",
             "in": "header",
             "schema": {
               "type": "string",
@@ -12175,7 +12175,7 @@
         ],
         "parameters": [
           {
-            "name": "X-SOCA-USER",
+            "name": "X-EDH-USER",
             "in": "header",
             "schema": {
               "type": "string",
@@ -12186,7 +12186,7 @@
             "example": "admin"
           },
           {
-            "name": "X-SOCA-TOKEN",
+            "name": "X-EDH-TOKEN",
             "in": "header",
             "schema": {
               "type": "string",
@@ -12242,13 +12242,13 @@
       "socaAuth": {
         "type": "apiKey",
         "in": "header",
-        "name": "X-SOCA-USER",
+        "name": "X-EDH-USER",
         "description": "SOCA username for authentication"
       },
       "socaToken": {
         "type": "apiKey",
         "in": "header",
-        "name": "X-SOCA-TOKEN",
+        "name": "X-EDH-TOKEN",
         "description": "SOCA authentication token"
       }
     }

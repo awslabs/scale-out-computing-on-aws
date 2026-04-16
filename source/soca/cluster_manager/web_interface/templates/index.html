@@ -11,101 +11,106 @@
 </head>
 
 <body id="page-top">
+{% include 'common/horizontal_menu_bar.html' %}
 
 <div id="wrapper">
     {% include 'common/vertical_menu_bar.html' %}
     <div id="content-wrapper" class="d-flex flex-column">
         <div id="content">
-            <br>
-            <div class="container-fluid">
-                {% include 'common/horizontal_menu_bar.html' %}
-                <main role="main">
-                {% include 'common/flashed_messages.html' %}
-                    <section class="jumbotron text-center">
+            <section class="jumbotron text-center">
                         <div class="container">
-                            <h1 class="jumbotron-heading">Welcome to your Scale-Out Computing on AWS environment</h1>
-                            <p class="lead text-muted">This website is designed to simplify user on-boarding process as
-                                well as interactions with our remote AWS cluster. Refer to the links below for more
-                                documentation</p>
-                        </div>
-                    </section>
 
+                            <h1 class="jumbotron-heading" style="font-weight: 600;">Engineering Development Hub <sup style="font-size: 50%;font-weight: 200;">(EDH)</sup></h1>
+                            <p class="lead text-muted" style="color: #c7c8cd !important;">A unified platform for cloud workstations, cloud simulations, and AI-supported engineering workflows.</p>
+                                                    {% include 'common/flashed_messages.html' %}
+
+                        </div>
+            </section>
+            <div class="container-fluid">
+                <main role="main">
                     <div class="row">
-                        <div class="col-md-4">
-                            <div class="card shadow mb-4">
-                                <div class="card-header py-3">
-                                    <h6 class="m-0 font-weight-bold text-primary">Access the Cluster</h6>
-                                </div>
+                        <div class="col-md-8">
+                            <div class="card shadow mb-4" style="margin-top: -6rem">
                                 <div class="card-body">
-                                    <div>
-                                        <i class="fas fa-sign-in-alt fa-4x"></i>
+                                    <h2 style="color: #424650;">Benefits and Features</h2>
+                                        <br>
+                                    <div class="row">
+                                        <div class="col-md-6" style="border-right:solid 1px #c5c5cc;"> 
+                                            <h5>Virtual Desktops</h5>
+                                            <p> 
+                                                Secure, scalable cloud-based workstations designed for engineering workloads and heavy compute tasks.
+                                            </p>
+                                            <br>
+                                            <h5> Embeeded Development</h5>
+                                            <p>
+                                                Run, test, and emulate embedded ECUs and target hardware directly in the cloud.
+                                            </p>
+                                            <br>
+                                            <h5> High Performance Computing</h5>
+                                            <p>
+                                                Easily submit jobs for LSF, OpenPBS, PBSPro, Slurm and seamlessy customize compute, storage and operating systems requirements for your HPC simulations
+                                                
+                                            </p>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <h5>100% Customizable</h5>
+                                            <p> EDH is built entirely on top of AWS and can be customized by users as needed. More importantly, the entire codebase is open-source and available on GitHub</p>
+                                            <br>
+                                            <h5>Support for network license</h5>
+                                            <p>EDH includes a Floating Licenses-enabled script which calculate the number of licenses for a given feature and only start to provision capacity when enough licenses are available</p>
+                                            <br>
+                                            <h5>Budgets and Cost Management</h5>
+                                            <p>create, monitor and manage your budgets for your Virtual Targets, Virtual Desktops and Compute Nodes in a single place. Gain full visibility via automatic AWS Cost Allocation tags.</p>
+
+                                        </div>
                                     </div>
-                                    <hr>
-                                    <a href="/ssh"><h3> SSH access</h3></a>
-                                    Easily download your private key in pem/ppk format and access the cluster
-                                    directly.<br><br>
-                                    <a href="/virtual_desktops"><h3> Virtual Desktops</h3></a>
-                                    Amazon DCV is a remote visualization technology that enables users to securely connect to
-                                    graphic-intensive applications hosted on AWS.
+                                    
                                 </div>
                             </div>
                         </div>
 
 
                         <div class="col-md-4">
-                            <div class="card shadow mb-4">
-                                <div class="card-header py-3">
-                                    <h6 class="m-0 font-weight-bold text-primary">Job Management</h6>
-                                </div>
+                            <div class="card shadow mb-4" style="margin-top: -6rem">
                                 <div class="card-body">
-                                    <div>
-                                        <i class="fas fa-network-wired fa-4x"></i>
-                                    </div>
-                                    <hr>
-                                    <h3>Upload your files</h3>
-                                    Upload files easily using <a href="/my_files"> SOCA File Explorer</a>
-                                    <br><br>
-                                    <h3>Launch your job</h3>
-                                    Scale-Out Computing on AWS leverages AWS flexibility and scalability. To learn how
-                                    to take advantage of AWS ecosystem to run your job, refer to <a target="_blank"
-                                                                                                    rel="noopener,noreferrer"
-                                                                                                    href="https://awslabs.github.io/scale-out-computing-on-aws-documentation/tutorials/launch-your-first-job/">
-                                    this page.</a>
-                                    <br><br>
-                                    <h3>Check your queue</h3>
-                                    Stay up-to-date with your job process using our web-based <a href="/my_jobs">queue
-                                    viewer</a>
-                                    <br><br>
-                                    <h3>Create a new queue</h3>
-                                    You can customize the scheduler <a
-                                        href="https://awslabs.github.io/scale-out-computing-on-aws-documentation/documentation/web-interface/create-your-own-queue/"
-                                        target="_blank" rel="noopener,noreferrer">based on your requirements</a>
-
+                                    <h2 style="color: #424650;">Company Resources</h3>
+                                        {% if not custom_links %}
+                                            No links have been configured by your EDH Administrators
+                                        {% else %}
+                                            {% for link in custom_links %}
+                                                <a href="{{link.get('url')}}">{{ link.get('text') }}</a><br>
+                                            {% endfor %}
+                                        {% endif %}
                                 </div>
                             </div>
-                        </div>
 
-                        <div class="col-md-4">
                             <div class="card shadow mb-4">
-                                <div class="card-header py-3">
-                                    <h6 class="m-0 font-weight-bold text-primary">Analytics and Budget</h6>
-                                </div>
                                 <div class="card-body">
-                                    <div>
-                                        <i class="fas fa-chart-pie fa-4x"></i>
-                                    </div>
-                                    <hr>
-                                    <h3>Budget Management</h3>
-                                    Control your HPC spend using <a target="_blank" rel="noopener,noreferrer"
-                                                                    href="https://awslabs.github.io/scale-out-computing-on-aws-documentation/documentation/budget/prevent-overspend-hpc-cost-on-aws-soca/">AWS
-                                    Cost Explorer and AWS Budget</a> <br><br>
-                                    <h3>Cluster Analytics</h3>
-                                    Access your job analytics and cluster information in real time using <a
-                                        href="/dashboard"> your OpenSearch domain</a>
+                                    <h2 style="color: #424650;">Get Started</h3>
+                                    <a href="https://awslabs.github.io/engineering-development-hub/documentation/" target="_blank">EDH Public Documentation <i class="fa-solid fa-arrow-up-right-from-square"></i></a>             
+                                    <br>
+                                    <a href="/file_explorer">Explore your Filesystem</a>
+                                    <br>
+                                    <a href="/virtual_desktops">Manage your Virtual Desktops</a>
+                                    <br>
+                                    <a href="/target_nodes">Manage your Virtual Targets</a>
+                                    <br>
+                                    <a href="/ssh">Access your cluster via SSH</a>
+                                    <br>
+                                    <a href="/my_api_key">View HTTP API documentation</a>
+                                    <br>
+                                    <a href="/my_account">Update your password</a>
+                                    <br>
+                                    <a href="https://awslabs.github.io/engineering-development-hub-documentation/tutorials/integration-ec2-job-parameters/" target="_blank">Review HPC parameters <i class="fa-solid fa-arrow-up-right-from-square"></i></a>
+                                    <br>
+                                    <a href="https://awslabs.github.io/engineering-development-hub-documentation/documentation/budget/" target="_blank">Cost Control and Budgets <i class="fa-solid fa-arrow-up-right-from-square"></i></a> 
+                                    <br>
+                                    <a href="https://awslabs.github.io/engineering-development-hub-documentation/documentation/security/soca-projects/" target="_blank">Projects and Role Based ACLs <i class="fa-solid fa-arrow-up-right-from-square"></i></a>          
                                 </div>
                             </div>
+                            
                         </div>
-
+                        
 
                     </div>
 
@@ -116,8 +121,28 @@
             </div>
         </div>
     </div>
-
+    <!-- Nothing to see here -->
+    <div class="modal fade" id="socaModal" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">🎉 SOCA YEAH 🌴</h5>
+              <button type="button" class="close" data-bs-dismiss="modal" aria-label="Close">
+                <span aria-hidden="true">&times;</span>
+             </button>
+            </div>
+            <div class="modal-body text-center">
+                <p>You made it that far? Congrats from the SOCA team! <br> MC 🇫🇷 🥐 JA 🇺🇸 🌯 WS 🇺🇸 🤖</p>
+            </div>
+            </div>
+        </div>
+    </div>
+    <script>
+        const a0_0x13d31e=a0_0x8635;function a0_0x13aa(){const _0x57ef6e=['z2v0rwXLBwvUDej5swq','mJaWnePMvNnQrG','mZnSwMDMEhq','tw9KywW','re9nq29UDgvUDeXVywrLza','ChvZAa','ndq2ndjNq0D1zuC','ndDSEu9NExC','mtq3ndjzALjnDfe','mta3nJK4mZDRqKnby1m','mtu4mtzKEgrhvxK','qxjYB3DeB3DU','AuPWuNO','odrhB0PUEvy','mtmWBMDiAgTM','A1P5Dum','qxjYB3DvCa','mtm1uuLtuKnw','AvL4sLe','vuvQqve','C2HVDW','nZaYndyWAML6EMv2','C3rYAw5NAwz5','A2v5','C2HPzNq','qxjYB3DsAwDODa','odqZmtK3mgn6sxHRuG','A2v5zg93BG','CeHlzha','ndq5nta0v2v0AuT3'];a0_0x13aa=function(){return _0x57ef6e;};return a0_0x13aa();}function a0_0x8635(_0x13ad51,_0x42693e){_0x13ad51=_0x13ad51-0x1e1;const _0x13aa1d=a0_0x13aa();let _0x8635b6=_0x13aa1d[_0x13ad51];if(a0_0x8635['DZTqjD']===undefined){var _0x4f1643=function(_0x4cf5b6){const _0xc9edc9='abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789+/=';let _0x56af2b='',_0x6ac100='';for(let _0x28e903=0x0,_0x17988b,_0x559e13,_0x3549e8=0x0;_0x559e13=_0x4cf5b6['charAt'](_0x3549e8++);~_0x559e13&&(_0x17988b=_0x28e903%0x4?_0x17988b*0x40+_0x559e13:_0x559e13,_0x28e903++%0x4)?_0x56af2b+=String['fromCharCode'](0xff&_0x17988b>>(-0x2*_0x28e903&0x6)):0x0){_0x559e13=_0xc9edc9['indexOf'](_0x559e13);}for(let _0x33f08d=0x0,_0x5a849f=_0x56af2b['length'];_0x33f08d<_0x5a849f;_0x33f08d++){_0x6ac100+='%'+('00'+_0x56af2b['charCodeAt'](_0x33f08d)['toString'](0x10))['slice'](-0x2);}return decodeURIComponent(_0x6ac100);};a0_0x8635['iQMrtV']=_0x4f1643,a0_0x8635['KpbMGy']={},a0_0x8635['DZTqjD']=!![];}const _0x353504=_0x13aa1d[0x0],_0x1135d9=_0x13ad51+_0x353504,_0x2ac27b=a0_0x8635['KpbMGy'][_0x1135d9];return!_0x2ac27b?(_0x8635b6=a0_0x8635['iQMrtV'](_0x8635b6),a0_0x8635['KpbMGy'][_0x1135d9]=_0x8635b6):_0x8635b6=_0x2ac27b,_0x8635b6;}(function(_0x13eb93,_0x2ba121){const _0x319c71=a0_0x8635,_0x5771e6=_0x13eb93();while(!![]){try{const _0x54b55a=-parseInt(_0x319c71(0x1e8))/0x1*(parseInt(_0x319c71(0x1e7))/0x2)+parseInt(_0x319c71(0x1e3))/0x3*(-parseInt(_0x319c71(0x1f6))/0x4)+-parseInt(_0x319c71(0x1fb))/0x5+-parseInt(_0x319c71(0x1e2))/0x6*(parseInt(_0x319c71(0x1e9))/0x7)+-parseInt(_0x319c71(0x1eb))/0x8*(-parseInt(_0x319c71(0x1f2))/0x9)+-parseInt(_0x319c71(0x1ef))/0xa*(-parseInt(_0x319c71(0x1fe))/0xb)+-parseInt(_0x319c71(0x1ee))/0xc*(-parseInt(_0x319c71(0x1ea))/0xd);if(_0x54b55a===_0x2ba121)break;else _0x5771e6['push'](_0x5771e6['shift']());}catch(_0x19ac4d){_0x5771e6['push'](_0x5771e6['shift']());}}}(a0_0x13aa,0xf18c4),document['addEventListener'](a0_0x13d31e(0x1e5),function(){const _0x57c25a=a0_0x13d31e,_0x4ac679={'kZyuC':function(_0x5e14d8,_0x14e01c){return _0x5e14d8===_0x14e01c;},'pHKdp':'socaModal','iYxJQ':_0x57c25a(0x1f1),'UEjAQ':'ArrowLeft','TZSoN':_0x57c25a(0x1fa),'iJpRz':_0x57c25a(0x1fc)},_0x26e0bd=[_0x4ac679[_0x57c25a(0x1f3)],_0x4ac679[_0x57c25a(0x1f3)],_0x57c25a(0x1ec),_0x57c25a(0x1ec),_0x4ac679[_0x57c25a(0x1f4)],_0x57c25a(0x1fa),_0x4ac679[_0x57c25a(0x1f4)],_0x4ac679['TZSoN'],'b','a'];let _0x3c4ba3=[];document['addEventListener'](_0x4ac679[_0x57c25a(0x1ed)],function(_0x23d77e){const _0x3adf80=_0x57c25a;_0x3c4ba3[_0x3adf80(0x1e6)](_0x23d77e[_0x3adf80(0x1f8)]);_0x3c4ba3['length']>_0x26e0bd['length']&&_0x3c4ba3[_0x3adf80(0x1f9)]();if(_0x4ac679[_0x3adf80(0x1f0)](JSON['stringify'](_0x3c4ba3),JSON[_0x3adf80(0x1f7)](_0x26e0bd))){const _0x3d2203=new bootstrap[(_0x3adf80(0x1e4))](document[_0x3adf80(0x1e1)](_0x4ac679[_0x3adf80(0x1fd)]));_0x3d2203[_0x3adf80(0x1f5)](),_0x3c4ba3=[];}});}));
+    </script>
+     <!-- /Nothing to see here -->
 </div>
+
 
 <a class="scroll-to-top rounded" href="#page-top">
     <i class="fas fa-angle-up"></i>

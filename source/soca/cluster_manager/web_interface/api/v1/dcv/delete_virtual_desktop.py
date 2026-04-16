@@ -41,7 +41,7 @@ class DeleteVirtualDesktop(Resource):
         summary: Delete virtual desktop session
         description: Terminates an active DCV virtual desktop session and cleans up associated resources
         parameters:
-          - name: X-SOCA-USER
+          - name: X-EDH-USER
             in: header
             required: true
             schema:
@@ -51,7 +51,7 @@ class DeleteVirtualDesktop(Resource):
               pattern: '^[a-zA-Z0-9._-]+$'
             description: SOCA username for authentication
             example: "john.doe"
-          - name: X-SOCA-TOKEN
+          - name: X-EDH-TOKEN
             in: header
             required: true
             schema:
@@ -130,7 +130,7 @@ class DeleteVirtualDesktop(Resource):
                       example: 401
                     message:
                       type: string
-                      example: "Missing required header: X-SOCA-USER"
+                      example: "Missing required header: X-EDH-USER"
           '403':
             description: Feature not enabled or insufficient permissions
             content:
@@ -196,7 +196,7 @@ class DeleteVirtualDesktop(Resource):
         parser.add_argument("session_uuid", type=str, location="form")
 
         args = parser.parse_args()
-        user = request.headers.get("X-SOCA-USER")
+        user = request.headers.get("X-EDH-USER")
         session_uuid = args["session_uuid"]
         logger.info(f"Receive Delete Desktop for {args} session number {session_uuid}")
 
@@ -206,7 +206,7 @@ class DeleteVirtualDesktop(Resource):
             ).as_flask()
 
         if user is None:
-            return SocaError.CLIENT_MISSING_HEADER(header="X-SOCA-USER").as_flask()
+            return SocaError.CLIENT_MISSING_HEADER(header="X-EDH-USER").as_flask()
 
         _check_session = VirtualDesktopSessions.query.filter_by(
             session_owner=user, session_uuid=session_uuid, is_active=True

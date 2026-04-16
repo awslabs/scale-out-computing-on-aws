@@ -22,7 +22,6 @@ _sts_client = get_boto(service_name="sts").message
 
 class ECRRepository(Resource):
     @private_api
-    @feature_flag(flag_name="CONTAINERS_MANAGEMENT", mode="api")
     def get(self):
         """
         List ECR Repository Images
@@ -34,7 +33,7 @@ class ECRRepository(Resource):
         summary: Retrieve ECR repository images
         description: Lists Amazon ECR images from repositories tagged with the current SOCA cluster ID
         parameters:
-          - name: X-SOCA-USER
+          - name: X-EDH-USER
             in: header
             required: true
             schema:
@@ -44,7 +43,7 @@ class ECRRepository(Resource):
               pattern: '^[a-zA-Z0-9._-]+$'
             description: SOCA username for authentication
             example: "john.doe"
-          - name: X-SOCA-TOKEN
+          - name: X-EDH-TOKEN
             in: header
             required: true
             schema:
@@ -188,7 +187,7 @@ class ECRRepository(Resource):
         try:
             if not _repository:
                 logger.info(
-                    f"List all ECR repository that match tag soca:visibility:{_soca_cluster_id} = true"
+                    f"List all ECR repository that match tag edh:visibility:{_soca_cluster_id} = true"
                 )
                 paginator = _ecr_client.get_paginator("describe_repositories")
                 for page in paginator.paginate():
@@ -206,7 +205,7 @@ class ECRRepository(Resource):
 
                         # Filter by the desired tag
                         if (
-                            tags.get(f"soca:visibility:{_soca_cluster_id}", "").lower()
+                            tags.get(f"edh:visibility:{_soca_cluster_id}", "").lower()
                             != "true"
                         ):
                             continue  # Skip repositories not matching the tag
@@ -241,7 +240,7 @@ class ECRRepository(Resource):
                 for image_page in image_paginator.paginate(repositoryName=repo_name):
                     image_ids = image_page["imageIds"]
                     logger.debug(
-                        f"Found {image_ids=} for repository {repo_name}, getting images metadatas"
+                        f"Found {image_ids=} for repository {repo_name}, getting images metadata"
                     )
                     # Now describe these images to get metadata
                     if image_ids:

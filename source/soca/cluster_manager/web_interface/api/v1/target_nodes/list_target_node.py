@@ -53,7 +53,7 @@ class ListTargetNode(Resource):
         summary: Retrieve target node sessions for the authenticated user
         description: Returns a list of target node sessions with detailed information including connection strings and instance details
         parameters:
-          - name: X-SOCA-USER
+          - name: X-EDH-USER
             in: header
             schema:
               type: string
@@ -61,7 +61,7 @@ class ListTargetNode(Resource):
             required: true
             description: SOCA username for authentication
             example: john.doe
-          - name: X-SOCA-TOKEN
+          - name: X-EDH-TOKEN
             in: header
             schema:
               type: string
@@ -138,9 +138,9 @@ class ListTargetNode(Resource):
         parser.add_argument("state", type=str, location="args")
         args = parser.parse_args()
 
-        user = request.headers.get("X-SOCA-USER")
+        user = request.headers.get("X-EDH-USER")
         if user is None:
-            return SocaError.CLIENT_MISSING_HEADER(header="X-SOCA-USER").as_flask()
+            return SocaError.CLIENT_MISSING_HEADER(header="X-EDH-USER").as_flask()
 
         logger.info(
             f"Received parameter for listing target nodes: {args} for user {user}"
@@ -220,12 +220,12 @@ class ListTargetNode(Resource):
 
                 # Render ami_connection_string if needed
                 _ami_connection_string_variables = {
-                    "SOCA_USER": session_info.session_owner,
-                    "SOCA_NODE_INSTANCE_TYPE": session_info.instance_type,
-                    "SOCA_NODE_INSTANCE_PRIVATE_IP": session_info.instance_private_ip,
-                    "SOCA_NODE_INSTANCE_PRIVATE_DNS": session_info.instance_private_dns,
-                    "SOCA_NODE_INSTANCE_ID": session_info.instance_id,
-                    "SOCA_NODE_INSTANCE_ARCH": ami_arch,
+                    "EDH_USER": session_info.session_owner,
+                    "EDH_NODE_INSTANCE_TYPE": session_info.instance_type,
+                    "EDH_NODE_INSTANCE_PRIVATE_IP": session_info.instance_private_ip,
+                    "EDH_NODE_INSTANCE_PRIVATE_DNS": session_info.instance_private_dns,
+                    "EDH_NODE_INSTANCE_ID": session_info.instance_id,
+                    "EDH_NODE_INSTANCE_ARCH": ami_arch,
                     "AWS_REGION": _soca_parameters.get("/configuration/Region"),
                 }
 

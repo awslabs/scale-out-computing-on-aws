@@ -175,7 +175,7 @@ def verify_job_licenses_requirements(
     _license_error = False
     if job_info.licenses:
         for _license in job_info.licenses:
-            if _license_error is True:
+            if _license_error:
                 break
 
             _lmutil_path = license_mapping.get("settings", {}).get(
@@ -308,7 +308,7 @@ if __name__ == "__main__":
         logger_dispatcher.handlers.clear()
 
     logger_dispatcher = SocaLogger(name="soca_logger").timed_rotating_file_handler(
-        file_path=f"/opt/soca/{_cluster_id}/cluster_manager/orchestrator/logs/dispatcher.log"
+        file_path=f"/opt/edh/{_cluster_id}/cluster_manager/orchestrator/logs/dispatcher.log"
     )
 
     # Retrieve Default parameters for the queues
@@ -318,7 +318,7 @@ if __name__ == "__main__":
 
     # Retrieve License mapping
     _license_mapping = load_license_mapping(
-        license_mapping_file=f"/opt/soca/{_cluster_id}/cluster_manager/orchestrator/settings/licenses_mapping.yml"
+        license_mapping_file=f"/opt/edh/{_cluster_id}/cluster_manager/orchestrator/settings/licenses_mapping.yml"
     )
 
     # Track Future EC2 quota usage across multiple jobs.
@@ -368,7 +368,7 @@ if __name__ == "__main__":
         for queue in _queues_configuration.queues:
 
             logger = get_logger(
-                log_file_rotation=f"/opt/soca/{_cluster_id}/cluster_manager/orchestrator/logs/{_scheduler.identifier}/queues/{queue}.log"
+                log_file_rotation=f"/opt/edh/{_cluster_id}/cluster_manager/orchestrator/logs/{_scheduler.identifier}/queues/{queue}.log"
             )
             logger.info(f"Retrieving jobs for {queue=}")
             logger.debug(f"Scheduler Configuration: {_scheduler}")
@@ -384,7 +384,8 @@ if __name__ == "__main__":
                     logger.info(f"No jobs found for {queue=}")
                     continue
                 else:
-                    logger.info(f"Retrieved jobs: {get_jobs=}")
+                    # This gets really noisy in a busy environment
+                    logger.debug(f"Retrieved jobs: {get_jobs=}")
             else:
                 logger.error(
                     f"Unable to retrieve jobs for {queue=} due to {str(get_jobs_response.get('message', '')).replace('\n', ' ').replace('\r', ' ')}"
@@ -425,7 +426,7 @@ if __name__ == "__main__":
             # Process all queued jobs in this queue
             for job in get_jobs:
                 logger = get_logger(
-                    log_file_rotation=f"/opt/soca/{_cluster_id}/cluster_manager/orchestrator/logs/{_scheduler.identifier}/jobs/{job.job_id}.log"
+                    log_file_rotation=f"/opt/edh/{_cluster_id}/cluster_manager/orchestrator/logs/{_scheduler.identifier}/jobs/{job.job_id}.log"
                 )
 
                 if (
@@ -568,7 +569,7 @@ if __name__ == "__main__":
                                                 job.nodes
                                             )
 
-                                    if _ri_validated is False:
+                                    if not _ri_validated:
                                         SocaHpcJobController(job=job).set_error_message(
                                             errors=[
                                                 "Unable to validate ReservedInstances"

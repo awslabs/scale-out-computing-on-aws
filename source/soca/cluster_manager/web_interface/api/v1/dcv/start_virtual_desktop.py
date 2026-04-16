@@ -43,14 +43,14 @@ class StartVirtualDesktop(Resource):
         description: Start a stopped DCV virtual desktop session with automatic ODCR (On-Demand Capacity Reservation) management
         parameters:
           - in: header
-            name: X-SOCA-USER
+            name: X-EDH-USER
             required: true
             schema:
               type: string
               example: "john.doe"
             description: SOCA username for authentication
           - in: header
-            name: X-SOCA-TOKEN
+            name: X-EDH-TOKEN
             required: true
             schema:
               type: string
@@ -136,9 +136,9 @@ class StartVirtualDesktop(Resource):
                 parameter="_session_uuid"
             ).as_flask()
 
-        _user = request.headers.get("X-SOCA-USER")
+        _user = request.headers.get("X-EDH-USER")
         if _user is None:
-            return SocaError.CLIENT_MISSING_HEADER(header="X-SOCA-USER").as_flask()
+            return SocaError.CLIENT_MISSING_HEADER(header="X-EDH-USER").as_flask()
 
         _check_session = VirtualDesktopSessions.query.filter_by(
             session_owner=_user, session_uuid=_session_uuid, is_active=True

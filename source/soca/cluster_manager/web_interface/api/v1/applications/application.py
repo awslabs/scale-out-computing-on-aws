@@ -33,7 +33,7 @@ class Application(Resource):
         description: Creates a new application profile with job submission form and script (admin access required)
         parameters:
           - in: header
-            name: X-SOCA-USER
+            name: X-EDH-USER
             required: true
             schema:
               type: string
@@ -43,7 +43,7 @@ class Application(Resource):
             description: SOCA username for authentication (must be admin)
             example: "admin.user"
           - in: header
-            name: X-SOCA-TOKEN
+            name: X-EDH-TOKEN
             required: true
             schema:
               type: string
@@ -208,9 +208,9 @@ class Application(Resource):
                 "Provided thumbnail_b64 does not seems to be a valid base64 string"
             ).as_flask()
         
-        _user = request.headers.get("X-SOCA-USER")
+        _user = request.headers.get("X-EDH-USER")
         if _user is None:
-            return SocaError.CLIENT_MISSING_HEADER(header="X-SOCA-USER").as_flask()
+            return SocaError.CLIENT_MISSING_HEADER(header="X-EDH-USER").as_flask()
 
         try:
             new_app_profile = ApplicationProfiles(
@@ -254,7 +254,7 @@ class Application(Resource):
         description: Updates an existing application profile with new configuration (admin access required)
         parameters:
           - in: header
-            name: X-SOCA-USER
+            name: X-EDH-USER
             required: true
             schema:
               type: string
@@ -264,7 +264,7 @@ class Application(Resource):
             description: SOCA username for authentication (must be admin)
             example: "admin.user"
           - in: header
-            name: X-SOCA-TOKEN
+            name: X-EDH-TOKEN
             required: true
             schema:
               type: string
@@ -413,9 +413,9 @@ class Application(Resource):
                     f"submit_job_interpreter is invalid, detected {_submit_job_interpreter}, must be one of {_all_schedulers}"
                 ).as_flask()
 
-        _user = request.headers.get("X-SOCA-USER")
+        _user = request.headers.get("X-EDH-USER")
         if _user is None:
-            return SocaError.CLIENT_MISSING_HEADER(header="X-SOCA-USER").as_flask()
+            return SocaError.CLIENT_MISSING_HEADER(header="X-EDH-USER").as_flask()
 
         try:
             _edit_application_profile = ApplicationProfiles.query.filter_by(
@@ -487,7 +487,7 @@ class Application(Resource):
         description: Deletes an existing application profile from the database (admin access required)
         parameters:
           - in: header
-            name: X-SOCA-USER
+            name: X-EDH-USER
             required: true
             schema:
               type: string
@@ -497,7 +497,7 @@ class Application(Resource):
             description: SOCA username for authentication (must be admin)
             example: "admin.user"
           - in: header
-            name: X-SOCA-TOKEN
+            name: X-EDH-TOKEN
             required: true
             schema:
               type: string

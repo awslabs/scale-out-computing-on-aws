@@ -18,7 +18,7 @@ class SocaSecret:
         secret_id: str,
         secret_id_prefix: Optional[
             str
-        ] = f"/soca/{os.environ.get('SOCA_CLUSTER_ID')}/",
+        ] = f"/edh/{os.environ.get('EDH_CLUSTER_ID')}/",
     ):
         self._secret_id = f"{secret_id_prefix}{secret_id}"
 

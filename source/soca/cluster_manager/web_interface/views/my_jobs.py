@@ -37,7 +37,7 @@ def index():
 
     _get_jobs_info = SocaHttpClient(
         endpoint="/api/scheduler/jobs",
-        headers={"X-SOCA-USER": session["user"], "X-SOCA-TOKEN": session["api_key"]},
+        headers={"X-EDH-USER": session["user"], "X-EDH-TOKEN": session["api_key"]},
     ).get(params={"user": _user, "scheduler_id": _scheduler_id, "queue": _queue})
 
     logger.debug(f"Get Job  Info {_get_jobs_info}")
@@ -76,7 +76,7 @@ def delete_job():
 
     _delete_job = SocaHttpClient(
         endpoint="/api/scheduler/job",
-        headers={"X-SOCA-USER": session["user"], "X-SOCA-TOKEN": session["api_key"]},
+        headers={"X-EDH-USER": session["user"], "X-EDH-TOKEN": session["api_key"]},
     ).delete(data={"job_id": _job_id, "scheduler_id": _scheduler_id})
 
     if _delete_job.get("success") is True:

@@ -5,7 +5,7 @@
 This hook reject the job if at least one check is failing:
 
 create hook validate_job_submit event=queuejob
-import hook validate_job_submit application/x-python default /opt/soca/<SOCA_CLUSTER_ID>/cluster_hooks/pbs/queued_job.py
+import hook validate_job_submit application/x-python default /opt/edh/<EDH_CLUSTER_ID>/cluster_hooks/pbs/queued_job.py
 
 Note: If you make any change to this file, you MUST re-execute the import command.
 """
@@ -31,7 +31,7 @@ pbs_logmsg(
     message="SOCA QueuedJob Hook Validator: Loading /etc/environment to source all required variables"
 )
 
-required_env_variables = ["SOCA_CLUSTER_ID", "AWS_DEFAULT_REGION", "SOCA_DEBUG"]
+required_env_variables = ["EDH_CLUSTER_ID", "AWS_DEFAULT_REGION", "SOCA_DEBUG"]
 try:
     with open("/etc/environment") as f:
         for line in f:
@@ -72,15 +72,15 @@ if site_packages not in sys.path:
     sys.path.append(site_packages)
 
 # Add SOCA environment to load SocaHpcHooksValidator
-SOCA_CLUSTER_ID = os.environ.get("SOCA_CLUSTER_ID", None)
+SOCA_CLUSTER_ID = os.environ.get("EDH_CLUSTER_ID", None)
 if SOCA_CLUSTER_ID is None:
     pbs_logmsg(
-        message=f"SOCA QueuedJob Hook Validator:  Unable to find SOCA_CLUSTER_ID env variable",
+        message=f"SOCA QueuedJob Hook Validator:  Unable to find EDH_CLUSTER_ID env variable",
         exit=True,
     )
 
-if f"/opt/soca/{SOCA_CLUSTER_ID}/cluster_manager" not in sys.path:
-    sys.path.append(f"/opt/soca/{SOCA_CLUSTER_ID}/cluster_manager")
+if f"/opt/edh/{SOCA_CLUSTER_ID}/cluster_manager" not in sys.path:
+    sys.path.append(f"/opt/edh/{SOCA_CLUSTER_ID}/cluster_manager")
 
 #  Import SOCA Utils. Must be done after loading the environment
 from utils.hpc.scheduler_hooks import SocaHpcHooksValidator
@@ -146,13 +146,13 @@ try:
     )
 
     # -- Validate Queue ACLs ---
-    if hook_list.get("check_queue_acls", False) is True:
+    if hook_list.get("check_queue_acls", False):
         _validate_queue_acls = _hook.validate_queue_acls()
         if _validate_queue_acls.get("success") is False:
             e.reject(_validate_queue_acls.get("message"))
 
     # --- Validate Restricted Parameters ---
-    if hook_list.get("check_restricted_parameters", False) is True:
+    if hook_list.get("check_restricted_parameters", False):
         _validate_restricted_parameters = _hook.validate_restricted_parameters(
             job_parameters=requested_resources
         )
@@ -160,7 +160,7 @@ try:
             e.reject(_validate_restricted_parameters.get("message"))
 
     # --- Validate Budget associated to given projects ---
-    if hook_list.get("check_budget", False) is True:
+    if hook_list.get("check_budget", False):
         _validate_budget = _hook.validate_project_budget()
         if _validate_budget.get("success") is False:
             e.reject(_validate_budget.get("message"))

@@ -32,15 +32,15 @@
 </head>
 
 <body id="page-top">
+    {% include 'common/horizontal_menu_bar.html' %}
+
 
     <div id="wrapper">
         {% include 'common/vertical_menu_bar.html' %}
         <div id="content-wrapper" class="d-flex flex-column">
 
-            <div id="content">
-                <br>
+            <div id="content" style="margin-top: 20px;">
                 <div class="container-fluid">
-                    {% include 'common/horizontal_menu_bar.html' %}
                     {% include 'common/flashed_messages.html' %}
 
                     <div class="col-md-12">
@@ -48,15 +48,15 @@
                             <div class="nav nav-tabs" id="nav-tab" role="tablist">
                                 <a class="nav-item nav-link active" id="nav-home-tab" data-bs-toggle="tab"
                                     href="#nav-add" role="tab" aria-controls="nav-home" aria-selected="true">Create new
-                                    application
-                                    profile</a>
+                                    Workflow Profile
+                                    </a>
                                 <a class="nav-item nav-link" id="nav-contact-tab" data-bs-toggle="tab" href="#nav-edit"
-                                    role="tab" aria-controls="nav-contact" aria-selected="false">Edit application
-                                    profile</a>
+                                    role="tab" aria-controls="nav-contact" aria-selected="false">Edit Workflow Profile
+                                    </a>
                                 <a class="nav-item nav-link" id="nav-contact-tab" data-bs-toggle="tab"
                                     href="#nav-delete" role="tab" aria-controls="nav-delete"
-                                    aria-selected="false">Delete application
-                                    profile</a>
+                                    aria-selected="false">Delete Workflow Profile
+                                    </a>
                                 <a class="nav-item nav-link" id="nav-contact-tab" data-bs-toggle="tab"
                                     href="#nav-importexport" role="tab" aria-controls="nav-delete"
                                     aria-selected="false">Import/Export</a>
@@ -69,11 +69,10 @@
                                 aria-labelledby="nav-home-tab">
                                 <br>
                                 <div class="card shadow mb-4">
-                                    <div class="card-header py-3">
-                                        <h6 class="m-0 font-weight-bold text-primary">Create a new application profile
-                                        </h6>
-                                    </div>
+                              
                                     <div class="card-body">
+                                         <h3>Create a new Workflow Profile
+                                        </h3>
                                         <nav>
                                             <div class="nav nav-tabs" id="nav-tab" role="tablist">
                                                 <a class="nav-item nav-link active" id="nav-home-tab"
@@ -93,14 +92,14 @@
                                         </nav>
                                         <br>
                                           <div class="alert alert-warning">
-                                              <strong>Once you have created your Application Profile, please ensure that it is <a href="/admin/projects" target="_blank">assigned to at least one SOCA Project.</a></strong> Failure to do so will result in your profile remaining hidden from users.</strong>
+                                              <strong>Once you have created your Workflow Profile, please ensure that it is <a href="/admin/projects" target="_blank">assigned to at least one EDH Project.</a></strong> Failure to do so will result in your profile remaining hidden from users.</strong>
                                           </div>
 
                                         <div class="tab-content" id="nav-tabContent2">
                                             <div class="tab-pane fade show active" id="nav-designform" role="tabpanel"
                                                 aria-labelledby="nav-designform">
                                                 <br>
-                                                <div class="alert alert-info alert-dismissible fade show" role="alert">
+                                                <div class="alert alert-primary alert-dismissible fade show" role="alert">
                                                     <button type="button" class="close" data-bs-dismiss="alert"
                                                         aria-label="Close">
                                                         <span aria-hidden="true">&times;</span>
@@ -112,19 +111,19 @@
                                                             here to start from scratch.</a></strong>
                                                     <hr>                                         
                                                     
-                                                    <!-- Toggle: SOCA Reserved Variables -->
+                                                    <!-- Toggle: EDH Reserved Variables -->
                                                     <div>
-                                                            <h2 class="mb-0">
+                                                            <h3 class="mb-0">
                                                                 <button class="btn btn-link" type="button" data-bs-toggle="collapse" data-bs-target="#collapseProtectedVariable" aria-expanded="true" aria-controls="collapseProtectedVariable">
-                                                                    SOCA reserved variables
+                                                                    EDH reserved variables
                                                                 </button>
-                                                            </h2>
+                                                            </h3>
                                                             <div id="collapseProtectedVariable" class="collapse show">
                                                                 <div class="card card-body">
                                                                     <p>You can use your own variable names, however note <strong>some automation are pre-configured for you when you use the following variables:</strong>
                                                                     </p>
                                                                         <ul>
-                                                                        <li><code>job_name</code>: If present, auto-filled with the input file name</li>
+                                                                        <li><code>job_name</code>: If present, autofilled with the input file name</li>
                                                                         <li><code>input_name</code>: Auto-filled with the input file path</li>
                                                                         <li><code>instance_type</code>: Used to calculate the number of nodes to provision</li>
                                                                         <li><code>vcpus</code>: Used to calculate the number of node(s) to provision</li>
@@ -136,15 +135,15 @@
 
                                                         <!-- Toggle: Node Provision Calculation -->
                                                         <div class="mt-3">
-                                                            <h2 class="mb-0">
+                                                            <h3 class="mb-0">
                                                                 <button class="btn btn-link" type="button" data-bs-toggle="collapse" data-bs-target="#collapseNodes" aria-expanded="false" aria-controls="collapseNodes">
                                                                     Calculate number of nodes to provision automatically
                                                                 </button>
-                                                            </h2>
+                                                            </h3>
                                                             <div id="collapseNodes" class="collapse">
                                                                 <div class="card card-body">
                                                                     <p>
-                                                                    If <code>instance_type</code> and <code>vcpus</code> parameters are specified, SOCA will automatically
+                                                                    If <code>instance_type</code> and <code>vcpus</code> parameters are specified, EDH will automatically
                                                                     calculate the number of node(s) to provision. Otherwise, you must define the <code>nodes</code> resource manually.
                                                                     </p>
                                                                 </div>
@@ -153,11 +152,11 @@
 
                                                         <!-- Toggle: Job Cost Estimate -->
                                                         <div class="mt-3">
-                                                            <h2 class="mb-0">
+                                                            <h3 class="mb-0">
                                                                 <button class="btn btn-link" type="button" data-bs-toggle="collapse" data-bs-target="#collapseCost" aria-expanded="false" aria-controls="collapseCost">
                                                                     Configure Job Cost Estimate automatically
                                                                 </button>
-                                                            </h2>
+                                                            </h3>
                                                             <div id="collapseCost" class="collapse">
                                                                 <div class="card card-body">
                                                                     Parameters used to estimate the simulation cost:
@@ -188,7 +187,7 @@
                                                 <div class="tab-pane fade" id="nav-designscript" role="tabpanel"
                                                     aria-labelledby="nav-designscript">
                                                     <br>
-                                                    <div class="alert alert-info">
+                                                    <div class="alert alert-primary">
                                                         Edit the test template below to match the variables you have created
                                                         on
                                                         your form or simply write code that cannot be changed by the user.
@@ -217,10 +216,7 @@
                                                         default
                                                         settings configured for your queue (if no queue is specified, the
                                                         job
-                                                        will use <code>normal</code> queue). Refer to <a
-                                                            href="https://awslabs.github.io/scale-out-computing-on-aws-documentation/documentation/web-interface/create-your-own-queue/#option1-i-want-to-use-the-same-settings-as-an-existing-queue"
-                                                            target="_blank" rel="noopener,noreferrer"> this link for
-                                                            more.</a>
+                                                        will use <code>normal</code> queue).
                                                     </div>
                                                 </div> <!-- nav script -->
 
@@ -232,7 +228,7 @@
                                                         action="/admin/applications/edit">
                                                         <div class="form-group">
                                                             <label for="profile_name">How do you want to name this
-                                                                application profile?</label>
+                                                                Workflow Profile?</label>
                                                             <input type="text" class="form-control" name="profile_name"
                                                                 required value="{{ profile_name }}">
                                                         </div>
@@ -266,7 +262,7 @@
                                                         <div>
                                                             <br>
                                                             <button type="submit" class="btn btn-success">Update this
-                                                                application
+                                                                Workflow Profile
                                                             </button>
                                                         </div>
                                                     </form>
@@ -277,7 +273,7 @@
                                                         action="/admin/applications/create" enctype="multipart/form-data">
                                                         <div class="form-group">
                                                             <label for="profile_name">How do you want to name this
-                                                                application profile?</label>
+                                                                Workflow Profile?</label>
                                                             <input type="text" class="form-control" name="profile_name"
                                                                 required>
                                                         </div>
@@ -314,7 +310,7 @@
 
                                                         <div>
                                                             <button type="submit" class="btn btn-success">Create this
-                                                                application
+                                                                Workflow Profile
                                                             </button>
                                                         </div>
                                                     </form>
@@ -330,13 +326,13 @@
                                 aria-labelledby="nav-home-tab">
                                 <br>
                                 <div class="card shadow mb-4">
-                                    <div class="card-header py-3">
-                                        <h6 class="m-0 font-weight-bold text-primary">Edit an existing application</h6>
-                                    </div>
+                                
                                     <div class="card-body">
+                                        <h3>Edit an existing Workflow Profile</h3>
+
                                         <form action="/admin/applications/edit" method="get">
                                             <div class="form-group col-md-6">
-                                                <label for="walltime"> Select the application to edit</label>
+                                                <label for="walltime"> Select the Workflow Profile to edit</label>
                                                 <select class="form-control" name='app' id="app">
                                                     {% for app in application_profiles %}
                                                     <option value="{{ app.id }}">{{ app.profile_name }}</option>
@@ -356,15 +352,14 @@
                                 aria-labelledby="nav-home-tab">
                                 <br>
                                 <div class="card shadow mb-4">
-                                    <div class="card-header py-3">
-                                        <h6 class="m-0 font-weight-bold text-primary">Delete an existing application
-                                        </h6>
-                                    </div>
+                                        
                                     <div class="card-body">
+                                        <h3>Delete an existing Workflow Profile
+                                        </h3>
                                         {% if application_profiles %}
                                         <form action="/admin/applications/delete" method="post">
                                             <div class="form-group col-md-6">
-                                                <label for="walltime"> Select the application to delete</label>
+                                                <label for="walltime"> Select the Workflow Profile to delete</label>
                                                 <select class="form-control" name='application_id' id="application_id">
                                                     {% for app in application_profiles %}
                                                     <option value="{{ app.id }}">{{ app.profile_name }}</option>
@@ -374,7 +369,7 @@
                                             <div class="form-check">
                                                 <input type="checkbox" class="form-check-input" required>
                                                 <label class="form-check-label" for="checkValidation">I want to delete
-                                                    this application</label>
+                                                    this Workflow Profile</label>
                                             </div>
                                             <div>
                                                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
@@ -382,7 +377,7 @@
                                             </div>
                                         </form>
                                         {% else %}
-                                        No application profiles found. Create one first
+                                        No Workflow Profiles found. Create one first
                                         {% endif %}
                                     </div>
                                 </div>
@@ -392,19 +387,18 @@
                                 aria-labelledby="nav-home-tab">
                                 <br>
                                 <div class="card shadow mb-4">
-                                    <div class="card-header py-3">
-                                        <h6 class="m-0 font-weight-bold text-primary">Import/Export existing SOCA
-                                            Application Profiles</h6>
-                                    </div>
+                                
                                     <div class="card-body">
+                                        <h3>Import/Export existing EDH
+                                            Workflow Profile</h3>
                                         <div class="alert alert-warning">
                                             <a target="_blank" rel="noopener,noreferrer"
-                                                href="https://awslabs.github.io/scale-out-computing-on-aws-documentation/documentation/web-interface/import-export-application-profiles">Click
-                                                here to learn how to Import/Export your profiles</a>
+                                                href="https://awslabs.github.io/engineering-development-hub-documentation/documentation/web-interface/import-export-application-profiles">Click
+                                                here to learn how to Import/Export your Workflow Profiles</a>
                                         </div>
                                         <div class="row">
                                             <div class="col-md-6">
-                                                <h5>Export existing application profile</h5>
+                                                <h5>Export existing Workflow Profile</h5>
                                                 {% if application_profiles %}
                                                 <form action="/admin/applications/export" method="get">
                                                     <div class="form-group">
@@ -422,21 +416,21 @@
                                                     </div>
                                                 </form>
                                                 {% else %}
-                                                No application profiles found. Create one first
+                                                No Workflow Profiles found. Create one first
                                                 {% endif %}
                                             </div>
 
                                             <div class="col-md-6">
-                                                <h5>Import application profile</h5>
+                                                <h5>Import Workflow Profile</h5>
 
                                                 <form action="/admin/applications/import" method="post"
                                                     enctype="multipart/form-data">
                                                     <div class="form-group">
                                                         <input type="text" class="form-control" name="profile_name" id="profile_name"
-                                                            placeholder="Application name" required>
+                                                            placeholder="Workflow Profile name" required>
                                                     </div>
                                                     <div class="form-group">
-                                                        <label>Application input file (JSON)</label>
+                                                        <label>Workflow Profile input file (JSON)</label>
                                                         <input type="file" class="form-control-file" name="app_profile"
                                                             id="app_profile" required>
                                                     </div>
@@ -567,7 +561,7 @@
                                             "placeholder": "(Do not delete) This entry will automatically be pre-populated with the absolute path of the input file.",
                                             "className": "form-control",
                                             "name": "input_file",
-                                            "description": "input_file is a reserved name on SOCA. The value will automatically be replaced by the input location provided by the user. You MUST have it and parameter name MUST be input_name",
+                                            "description": "input_file is a reserved name on EDH. The value will automatically be replaced by the input location provided by the user. You MUST have it and parameter name MUST be input_name",
                                             "subtype": "text",
                                             "maxlength": 255
                                         },
@@ -760,7 +754,7 @@
 #PBS -q {{queue_name}}
 #PBS -N {{job_name}}
 #PBS -k oed
-# https://awslabs.github.io/scale-out-computing-on-aws-documentation/tutorials/integration-ec2-job-parameters/
+# https://awslabs.github.io/engineering-development-hub-documentation/documentation/tutorials/integration-ec2-job-parameters/
 #PBS -l instance_type={{instance_type}}
 #PBS -l walltime={{wall_time}}
 #PBS -l force_ri={{force_ri}}
@@ -769,8 +763,8 @@
 ### EXAMPLE FOR LSF
 #BSUB -J {{job_name}}            
 #BSUB -q {{queue_name}}
-# https://awslabs.github.io/scale-out-computing-on-aws-documentation/tutorials/integration-ec2-job-parameters/
-#BSUB -Jd "instance_type={{instance_type}} root_size30"
+# https://awslabs.github.io/engineering-development-hub-documentation/documentation/tutorials/integration-ec2-job-parameters/
+#BSUB -Jd "instance_type={{instance_type}} root_size=30"
 #BSUB -n 1                     
 #############################
 

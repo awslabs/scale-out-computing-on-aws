@@ -13,34 +13,16 @@
 </head>
 
 <body id="page-top">
+{% include 'common/horizontal_menu_bar.html' %}
 <div id="wrapper">
     {% include 'common/vertical_menu_bar.html' %}
     <div id="content-wrapper" class="d-flex flex-column">
-        <div id="content">
-            <br>
+        <div id="content" style="margin-top: 20px;">
             <div class="container-fluid">
-                {% include 'common/horizontal_menu_bar.html' %}
+                {% include 'common/flashed_messages.html' %}
+
                 <main role="main">
-                    {% with messages = get_flashed_messages(with_categories=true) %}
-                        {% if messages %}
-                            {% for category, message in messages %}
-                                <br>
-                                {% if category == "success" %}
-                                    <div class="alert alert-success">
-                                        <strong>{{ message | safe }} </strong>
-                                    </div>
-                                {% elif category == "info" %}
-                                    <div class="alert alert-info">
-                                        <strong>{{ message | safe }} </strong>
-                                    </div>
-                                {% else %}
-                                    <div class="alert alert-danger">
-                                        <strong>{{ message | safe }} </strong>
-                                    </div>
-                                {% endif %}
-                            {% endfor %}
-                        {% endif %}
-                    {% endwith %}
+
                     <div class="col-md-12">
                         <div class="card shadow mb-4">
                             <div class="container">
@@ -49,7 +31,7 @@
                                 {% if opensearch_enabled %}
                                     <div class="alert alert-primary">
                                         Your Analytics endpoint <strong>is only accessible from within your VPC</strong>.
-                                        You can access it via your SOCA Virtual Desktops (Linux or Windows).
+                                        You can access it via your EDH Virtual Desktops (Linux or Windows).
                                         <hr>
 
                                         Make sure to have established connectivity between AWS and your corporate
@@ -73,9 +55,9 @@
                                     </div>
                                 {% else %}
                                     <div class="alert alert-warning">
-                                        SOCA Analytics module is not enabled on your SOCA environment.
+                                        EDH Analytics module is not enabled on your EDH environment.
                                         <hr>
-                                        Contact your SOCA administrator if you want to add Analytics capability to your
+                                        Contact your EDH administrator if you want to add Analytics capability to your
                                         cluster.
                                     </div>
                                 {% endif %}

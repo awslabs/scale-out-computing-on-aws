@@ -11,32 +11,18 @@
 </head>
 
 <body id="page-top">
+    {% include 'common/horizontal_menu_bar.html' %}
+
 
 <div id="wrapper">
     {% include 'common/vertical_menu_bar.html' %}
     <div id="content-wrapper" class="d-flex flex-column">
 
-        <div id="content">
-            <br>
+        <div id="content" style="margin-top: 20px;">
             <div class="container-fluid">
-                {% include 'common/horizontal_menu_bar.html' %}
 
-                {% with messages = get_flashed_messages(with_categories=true) %}
-                    {% if messages %}
-                        {% for category, message in messages %}
-                            <br>
-                            {% if category == "success" %}
-                                <div class="alert alert-success">
-                                    <strong>{{ message | safe }} </strong>
-                                </div>
-                            {% else %}
-                                <div class="alert alert-danger">
-                                    <strong>{{ message | safe }} </strong>
-                                </div>
-                            {% endif %}
-                        {% endfor %}
-                    {% endif %}
-                {% endwith %}
+                {% include 'common/flashed_messages.html' %}
+
                 <div class="col-md-12">
                     <nav>
                         <nav>
@@ -60,10 +46,9 @@
                                  aria-labelledby="nav-home-tab">
                                 <br>
                                 <div class="card shadow mb-4">
-                                    <div class="card-header py-3">
-                                        <h6 class="m-0 font-weight-bold text-primary">Create a new group</h6>
-                                    </div>
                                     <div class="card-body">
+                                        <h3>Create a new group</h3>
+
                                         <form action="/admin/create_group" method="post">
                                             <div class="form-group">
                                                 <input id="group_name" placeholder="Group name" class="form-control"
@@ -79,7 +64,7 @@
                                             <br>
                                             <div>
                                                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                                                <button type="submit" class="btn btn-primary btn-lg">Create Group
+                                                <button type="submit" class="btn btn-primary">Create Group
                                                 </button>
                                             </div>
                                         </form>
@@ -91,10 +76,9 @@
                                  aria-labelledby="nav-profile-tab">
                                 <br>
                                 <div class="card shadow mb-4">
-                                    <div class="card-header py-3">
-                                        <h6 class="m-0 font-weight-bold text-primary">Delete Group</h6>
-                                    </div>
                                     <div class="card-body">
+                                        <h3>Delete Group</h3>
+
                                         <div class="alert alert-primary" role="alert">
                                             <strong>Important </strong>
                                             Deleting group may cause access issue. Make sure your group is no longer in
@@ -119,7 +103,7 @@
                                             </div>
                                             <div>
                                                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                                                <button type="submit" class="btn btn-danger btn-lg">Delete group
+                                                <button type="submit" class="btn btn-danger">Delete group
                                                 </button>
                                             </div>
                                         </form>
@@ -130,10 +114,8 @@
                             <div class="tab-pane fade" id="nav-check" role="tabpanel" aria-labelledby="nav-contact-tab">
                                 <br>
                                 <div class="card shadow mb-4">
-                                    <div class="card-header py-3">
-                                        <h6 class="m-0 font-weight-bold text-primary">Check group membership</h6>
-                                    </div>
                                     <div class="card-body">
+                                        <h3>Check group membership</h3>
                                         <form action="/admin/check_group" method="post">
                                             <div class="form-group">
                                                 <select class="form-control" id="group" name="group">
@@ -145,7 +127,7 @@
                                             </div>
                                             <div>
                                                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                                                <button type="submit" class="btn btn-primary btn-lg">Check group
+                                                <button type="submit" class="btn btn-primary">Check group
                                                 </button>
                                             </div>
                                         </form>
@@ -158,10 +140,8 @@
                                 <div class="row">
                                     <div class="col-md-6">
                                         <div class="card shadow mb-4">
-                                            <div class="card-header py-3">
-                                                <h6 class="m-0 font-weight-bold text-primary">Add to group</h6>
-                                            </div>
                                             <div class="card-body">
+                                                <h3>Add to group</h3>
                                                 <form action="/admin/manage_group" method="post">
                                                     <div class="form-group">
                                                         Select user:
@@ -191,7 +171,7 @@
                                                         <input type="hidden" name="csrf_token"
                                                                value="{{ csrf_token() }}">
 
-                                                        <button type="submit" class="btn btn-success btn-lg">Add user
+                                                        <button type="submit" class="btn btn-success">Add user
                                                         </button>
                                                     </div>
                                                 </form>
@@ -200,10 +180,8 @@
                                     </div>
                                     <div class="col-md-6">
                                         <div class="card shadow mb-4">
-                                            <div class="card-header py-3">
-                                                <h6 class="m-0 font-weight-bold text-primary">Remove from group</h6>
-                                            </div>
                                             <div class="card-body">
+                                                <h3>Remove from group</h3>
                                                 <form action="/admin/manage_group" method="post">
                                                     <div class="form-group">
                                                         Select user:
@@ -235,7 +213,7 @@
                                                         <input type="hidden" name="csrf_token"
                                                                value="{{ csrf_token() }}">
 
-                                                        <button type="submit" class="btn btn-danger btn-lg">Remove
+                                                        <button type="submit" class="btn btn-danger">Remove
                                                             user
                                                         </button>
                                                     </div>

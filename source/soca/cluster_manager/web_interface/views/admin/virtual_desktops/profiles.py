@@ -35,7 +35,7 @@ def index():
     logger.info(f"Get all profiles")
     _all_profiles = SocaHttpClient(
         endpoint="/api/dcv/virtual_desktops/profiles",
-        headers={"X-SOCA-USER": session["user"], "X-SOCA-TOKEN": session["api_key"]},
+        headers={"X-EDH-USER": session["user"], "X-EDH-TOKEN": session["api_key"]},
     ).get()
 
     if _all_profiles.get("success") is False:
@@ -75,7 +75,7 @@ def create_new_profile():
     logger.info(f"Creating new VDI profile")
     _create_new_profile = SocaHttpClient(
         endpoint="/api/dcv/virtual_desktops/profiles",
-        headers={"X-SOCA-USER": session["user"], "X-SOCA-TOKEN": session["api_key"]},
+        headers={"X-EDH-USER": session["user"], "X-EDH-TOKEN": session["api_key"]},
     ).post(request.form.to_dict())
 
     if _create_new_profile.get("success") is False:
@@ -98,7 +98,7 @@ def delete_profile():
     logger.info(f"Deleting VDI profile")
     _delete_new_profile = SocaHttpClient(
         endpoint="/api/dcv/virtual_desktops/profiles",
-        headers={"X-SOCA-USER": session["user"], "X-SOCA-TOKEN": session["api_key"]},
+        headers={"X-EDH-USER": session["user"], "X-EDH-TOKEN": session["api_key"]},
     ).delete(request.form.to_dict())
 
     if _delete_new_profile.get("success") is False:
@@ -129,12 +129,12 @@ def profile_edit():
 
     _get_profile_info = SocaHttpClient(
         endpoint="/api/dcv/virtual_desktops/profiles",
-        headers={"X-SOCA-USER": session["user"], "X-SOCA-TOKEN": session["api_key"]},
+        headers={"X-EDH-USER": session["user"], "X-EDH-TOKEN": session["api_key"]},
     ).get(params={"profile_id": request.form.get("profile_id")})
 
     _list_profiles = SocaHttpClient(
         endpoint="/api/dcv/virtual_desktops/profiles",
-        headers={"X-SOCA-USER": session["user"], "X-SOCA-TOKEN": session["api_key"]},
+        headers={"X-EDH-USER": session["user"], "X-EDH-TOKEN": session["api_key"]},
     ).get()
 
     if _get_profile_info.get("success") is True:
@@ -170,7 +170,7 @@ def profile_update():
 
     _modify_profile = SocaHttpClient(
         endpoint="/api/dcv/virtual_desktops/profiles",
-        headers={"X-SOCA-USER": session["user"], "X-SOCA-TOKEN": session["api_key"]},
+        headers={"X-EDH-USER": session["user"], "X-EDH-TOKEN": session["api_key"]},
     ).put(data=request.form.to_dict())
 
     if _modify_profile.get("success") is True:

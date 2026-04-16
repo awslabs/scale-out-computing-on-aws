@@ -31,7 +31,7 @@ admin_users = Blueprint("admin_users", __name__, template_folder="templates")
 def index():
     get_all_users = get(
         config.Config.FLASK_ENDPOINT + "/api/ldap/users",
-        headers={"X-SOCA-TOKEN": session["api_key"], "X-SOCA-USER": session["user"]},
+        headers={"X-EDH-TOKEN": session["api_key"], "X-EDH-USER": session["user"]},
         verify=False,
     ).json()  # nosec
 
@@ -69,8 +69,8 @@ def manage_sudo():
                 give_sudo = post(
                     config.Config.FLASK_ENDPOINT + "/api/ldap/sudo",
                     headers={
-                        "X-SOCA-TOKEN": session["api_key"],
-                        "X-SOCA-USER": session["user"],
+                        "X-EDH-TOKEN": session["api_key"],
+                        "X-EDH-USER": session["user"],
                     },
                     data={"user": user},
                     verify=False,  # nosec
@@ -86,8 +86,8 @@ def manage_sudo():
                 remove_sudo = delete(
                     config.Config.FLASK_ENDPOINT + "/api/ldap/sudo",
                     headers={
-                        "X-SOCA-TOKEN": session["api_key"],
-                        "X-SOCA-USER": session["user"],
+                        "X-EDH-TOKEN": session["api_key"],
+                        "X-EDH-USER": session["user"],
                     },
                     data={"user": user},
                     verify=False,  # nosec
@@ -123,7 +123,7 @@ def create_new_account():
     )  # 0 if not specified. Will automatically generate gid
     create_new_user = post(
         config.Config.FLASK_ENDPOINT + "/api/ldap/user",
-        headers={"X-SOCA-TOKEN": session["api_key"], "X-SOCA-USER": session["user"]},
+        headers={"X-EDH-TOKEN": session["api_key"], "X-EDH-USER": session["user"]},
         data={
             "user": user,
             "password": password,
@@ -140,7 +140,7 @@ def create_new_account():
         # Create API key
         create_user_key = get(
             config.Config.FLASK_ENDPOINT + "/api/user/api_key",
-            headers={"X-SOCA-TOKEN": config.Config.API_ROOT_KEY},
+            headers={"X-EDH-TOKEN": config.Config.API_ROOT_KEY},
             params={"user": user},
             verify=False,
         )  # nosec
@@ -182,7 +182,7 @@ def delete_account():
 
     delete_user = delete(
         config.Config.FLASK_ENDPOINT + "/api/ldap/user",
-        headers={"X-SOCA-TOKEN": session["api_key"], "X-SOCA-USER": session["user"]},
+        headers={"X-EDH-TOKEN": session["api_key"], "X-EDH-USER": session["user"]},
         data={"user": user},
         verify=False,  # nosec
     ).json()

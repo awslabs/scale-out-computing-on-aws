@@ -14,7 +14,7 @@
 ######################################################################################################################
 
 """
-It's recommended to trigger this script via ./soca_installer.sh as python's virtual env and all required
+It's recommended to trigger this script via ./edh_installer.sh as python's virtual env and all required
 libraries/dependencies will be automatically installed.
 
 If you trigger ./install_soca.py directly, make sure to have all the Python and CDK dependencies installed
@@ -315,7 +315,7 @@ def detect_customer_ip(address_family: Literal["ipv4", "ipv6"]) -> str:
         },
         "ipv6": {
             "enabled": True if args.ipv6 else False,
-            "url": "https://icanhazip.com",
+            "url": "https://checkip.global.api.aws",
             "aggregate_mask_bits": 64,
         },
     }
@@ -1367,7 +1367,7 @@ def get_install_parameters():
         or len(install_parameters["cluster_name"]) > 11
     ):
         print(
-            f"[red]SOCA cluster name must greater than 3 chars and shorter than 11 characters (soca- is automatically added as a prefix) "
+            f"[red]SOCA cluster name must greater than 3 chars and shorter than 11 characters (edh- is automatically added as a prefix) "
         )
         install_parameters["cluster_name"] = get_input(
             prompt=f"{install_phases.get('cluster_name', 'unk-prompt')}",
@@ -1379,10 +1379,10 @@ def get_install_parameters():
     # Sanitize cluster name (remove any non-alphanumerical character) or generate random cluster identifier
     sanitized_cluster_id = re.sub(r"\W+", "-", install_parameters["cluster_name"])
     sanitized_cluster_id = re.sub(
-        r"soca-", "", sanitized_cluster_id
-    )  # remove "soca-" if specified by the user
+        r"edh-", "", sanitized_cluster_id
+    )  # remove "edh-" if specified by the user
     install_parameters["cluster_id"] = (
-        f"soca-{sanitized_cluster_id.lower()}"  # do not remove "soca-" prefix or DCV IAM permission will not be working.
+        f"edh-{sanitized_cluster_id.lower()}"  # do not remove "edh-" prefix or DCV IAM permission will not be working.
     )
 
     install_parameters["bucket"] = get_input(
@@ -2343,7 +2343,7 @@ def override_keys(keys_to_override, install_properties):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
-        description="Create SOCA installer. Visit https://awslabs.github.io/scale-out-computing-on-aws-documentation/documentation/01-install-soca-cluster/ if you need help"
+        description="Create EDH installer. Visit https://awslabs.github.io/engineering-development-hub-documentation/documentation/01-install-edh-cluster/ if you need help"
     )
 
     parser.add_argument(
@@ -2586,7 +2586,7 @@ if __name__ == "__main__":
     os.chdir(path=_install_directory)
 
     # Append Solution ID to Boto3 Construct
-    aws_solution_user_agent = {"user_agent_extra": "AwsSolution/SO0072/26.3.0"}
+    aws_solution_user_agent = {"user_agent_extra": "AwsSolution/SO0072/26.4.0"}
     boto_extra_config = config.Config(**aws_solution_user_agent)
 
     splash_info = f"""
@@ -2597,15 +2597,15 @@ if __name__ == "__main__":
          [red]/____/[bright_blue]\\____/[magenta]\\____[yellow]/_/  |_|
         [red]Scale-[bright_blue]Out [magenta]Computing on [yellow]AWS[default]
     ================================
-    > Documentation: https://awslabs.github.io/scale-out-computing-on-aws-documentation/
-    > Source Code: https://github.com/awslabs/scale-out-computing-on-aws/
+    > Documentation: https://awslabs.github.io/engineering-development-hub-documentation/
+    > Source Code: https://github.com/awslabs/engineering-development-hub/
     """
 
     logger.info(splash_info)
 
     install_phases = {
         "email_address": "Please provide a valid email address for cluster notifications (This may include critical or time-sensitive items related to cluster health/availability)",
-        "cluster_name": "Please provide a cluster name ('soca-' is automatically added as a prefix)",
+        "cluster_name": "Please provide a cluster name ('edh-' is automatically added as a prefix)",
         "bucket": "Enter the name of an S3 bucket you own",
         "baseos": "Choose the default operating system (this can be changed later for the compute nodes)",
         "key_pair": "Choose the SSH keypair to use",
@@ -3278,7 +3278,7 @@ if __name__ == "__main__":
         if len(check_if_name_exist["Stacks"]) != 0:
             if args.cdk_cmd == "create":
                 logger.error(
-                    f"{install_parameters['cluster_id']} already exists in CloudFormation. Please pick a different name and try again (soca- is automatically added as a prefix)."
+                    f"{install_parameters['cluster_id']} already exists in CloudFormation. Please pick a different name and try again (edh- is automatically added as a prefix)."
                 )
                 sys.exit(1)
             elif args.cdk_cmd == "deploy":
@@ -3429,9 +3429,9 @@ if __name__ == "__main__":
                 "existing_active_directory",
             ]:
                 _get_admin_password = retrieve_secret_value(
-                    secret_id="/soca/"
+                    secret_id="/edh/"
                     + install_parameters["cluster_id"]
-                    + "/SocaAdminUser"
+                    + "/EDHAdminUser"
                 )
 
                 logger.info(f"{'=' * 44}")

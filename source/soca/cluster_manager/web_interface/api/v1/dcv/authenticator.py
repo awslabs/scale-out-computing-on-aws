@@ -51,7 +51,7 @@ class DcvAuthenticator(Resource):
         summary: Authenticate DCV desktop session
         description: Validates DCV session authentication token and returns XML response for session access
         parameters:
-          - name: X-SOCA-USER
+          - name: X-EDH-USER
             in: header
             required: true
             schema:
@@ -61,7 +61,7 @@ class DcvAuthenticator(Resource):
               pattern: '^[a-zA-Z0-9._-]+$'
             description: SOCA username for authentication
             example: "john.doe"
-          - name: X-SOCA-TOKEN
+          - name: X-EDH-TOKEN
             in: header
             required: true
             schema:

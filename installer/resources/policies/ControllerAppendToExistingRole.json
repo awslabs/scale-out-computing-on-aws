@@ -45,7 +45,7 @@
         {
             "Condition": {
                 "StringLike": {
-                    "aws:ResourceTag/soca:ClusterId": "%%CLUSTER_ID%%*"
+                    "aws:ResourceTag/edh:ClusterId": "%%CLUSTER_ID%%*"
                 }
             },
             "Action": [

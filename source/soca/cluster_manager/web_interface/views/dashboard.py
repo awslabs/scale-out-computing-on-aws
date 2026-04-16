@@ -19,15 +19,3 @@ from utils.config import SocaConfig
 
 logger = logging.getLogger("soca_logger")
 dashboard = Blueprint("dashboard", __name__, template_folder="templates")
-
-
-@dashboard.route("/dashboard", methods=["GET"])
-@login_required
-def index():
-    loadbalancer_dns_name = (
-        SocaConfig(key="/configuration/LoadBalancerDNSName").get_value().get("message")
-    )
-    _user = session.get("user", "unknown-user")
-
-    kibana_url = "https://" + loadbalancer_dns_name + "/_dashboards/"
-    return render_template("dashboard.html", kibana_url=kibana_url)

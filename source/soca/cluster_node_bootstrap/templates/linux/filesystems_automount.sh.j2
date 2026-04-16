@@ -20,7 +20,7 @@
 {% include "templates/linux/shared_storage/mount_s3.sh.j2" %}
 
 # Retrieve SocaConfig "/configuration/Filesystems" which contains all the FileSystem mount logic, return a dictionary of key/v
-SOCA_FILESYSTEMS_SSM_TREE=$(aws_cli ssm get-parameters-by-path --path "/soca/{{ context.get("/configuration/ClusterId") }}/configuration/FileSystems"  \
+SOCA_FILESYSTEMS_SSM_TREE=$(aws_cli ssm get-parameters-by-path --path "/edh/{{ context.get("/configuration/ClusterId") }}/configuration/FileSystems"  \
   --recursive \
   --with-decryption \
   --query "Parameters" \
@@ -35,7 +35,7 @@ if ! verify_package_installed jq; then
 fi
 
 # Transform SSM Hierarchy into readable dictionary
-FS_MAP=$(echo "$SOCA_FILESYSTEMS_SSM_TREE" | jq -r --arg prefix "/soca/{{ context.get("/configuration/ClusterId") }}/configuration/FileSystems/" '
+FS_MAP=$(echo "$SOCA_FILESYSTEMS_SSM_TREE" | jq -r --arg prefix "/edh/{{ context.get("/configuration/ClusterId") }}/configuration/FileSystems/" '
   reduce map({key: .Name | sub($prefix; ""), value: .Value})[] as $item ({};
     ($item.key | split("/")) as $keys |
     setpath($keys; $item.value)

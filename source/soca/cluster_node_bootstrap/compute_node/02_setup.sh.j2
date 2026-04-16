@@ -19,10 +19,10 @@ log_info "Running Kernel $(uname -r)"
 # Install Required System library/packages
 {% include "templates/linux/system_packages/install_required_packages.sh.j2" %}
 
-# Create /opt/soca/{{ context.get('/configuration/ClusterId') }}/ if needed
-mkdir -p /opt/soca/{{ context.get('/configuration/ClusterId') }}/
+# Create /opt/edh/{{ context.get('/configuration/ClusterId') }}/ if needed
+mkdir -p /opt/edh/{{ context.get('/configuration/ClusterId') }}/
 
-{% if context.get("/configuration/BaseOS") in ("ubuntu2204", "ubuntu2404") %}
+{% if context.get("/job/BaseOS") in ("ubuntu2204", "ubuntu2404") %}
   log_info "Disabling auto-update on Ubuntu"
   sed -ie 's/"1"/"0"/g' /etc/apt/apt.conf.d/20auto-upgrades
 {% endif %}
@@ -32,27 +32,29 @@ mkdir -p /opt/soca/{{ context.get('/configuration/ClusterId') }}/
 
 # Adding additional SOCA Environment Variables
 set_environment_variable "AWS_DEFAULT_REGION" "{{ context.get("/configuration/Region") }}"
-set_environment_variable "SOCA_BOOTSTRAP_ASSETS_FOLDER" "/root/soca_bootstrap_$(instance_id)"
-set_environment_variable "SOCA_BOOTSTRAP_LOGS_FOLDER" "{{ context.get("/job/BootstrapPath") }}/$(hostname -s)"
-set_environment_variable "SOCA_NODE_TYPE" "{{ context.get("/job/NodeType") }}"
-set_environment_variable "SOCA_VERSION" "{{ context.get("/configuration/Version") }}"
-set_environment_variable "SOCA_INSTALL_BUCKET" "{{ context.get("/configuration/S3Bucket") }}"
-set_environment_variable "SOCA_CONTROLLER_IP" "{{ context.get("/configuration/ControllerPrivateIP") }}"
-set_environment_variable "SOCA_HOME" "/opt/soca/{{ context.get("/configuration/ClusterId") }}"
+set_environment_variable "EDH_BOOTSTRAP_ASSETS_FOLDER" "/root/edh_bootstrap_$(instance_id)"
+set_environment_variable "EDH_BOOTSTRAP_LOGS_FOLDER" "{{ context.get("/job/BootstrapPath") }}/$(hostname -s)"
+set_environment_variable "EDH_NODE_TYPE" "{{ context.get("/job/NodeType") }}"
+set_environment_variable "EDH_VERSION" "{{ context.get("/configuration/Version") }}"
+set_environment_variable "EDH_INSTALL_BUCKET" "{{ context.get("/configuration/S3Bucket") }}"
+set_environment_variable "EDH_CONTROLLER_IP" "{{ context.get("/configuration/ControllerPrivateIP") }}"
+set_environment_variable "EDH_HOME" "/opt/edh/{{ context.get("/configuration/ClusterId") }}"
+set_environment_variable "EDH_CLUSTER_ID" "{{ context.get("/configuration/ClusterId") }}"
+set_environment_variable "SOCA_CLUSTER_ID" "{{ context.get("/configuration/ClusterId") }}" # Legacy
 
 {% if context.get("/job/NodeType") == "compute_node" %}
   # Added via cluster_manager/orchestrator/cloudformation_builder.py
-  set_environment_variable "SOCA_JOB_QUEUE" "{{ context.get("/job/JobQueue") }}"
-  set_environment_variable "SOCA_JOB_OWNER" "{{ context.get("/job/JobOwner") }}"
-  set_environment_variable "SOCA_JOB_NAME" "{{ context.get("/job/JobName") }}"
-  set_environment_variable "SOCA_JOB_PROJECT" "{{ context.get("/job/JobProject") }}"
-  set_environment_variable "SOCA_JOB_ID" "{{ context.get("/job/JobId") }}"
+  set_environment_variable "EDH_JOB_QUEUE" "{{ context.get("/job/JobQueue") }}"
+  set_environment_variable "EDH_JOB_OWNER" "{{ context.get("/job/JobOwner") }}"
+  set_environment_variable "EDH_JOB_NAME" "{{ context.get("/job/JobName") }}"
+  set_environment_variable "EDH_JOB_PROJECT" "{{ context.get("/job/JobProject") }}"
+  set_environment_variable "EDH_JOB_ID" "{{ context.get("/job/JobId") }}"
 {% elif context.get("/job/NodeType") == "dcv_node" %}
   # Added via cluster_manager/web_interface/api/v1/dcv/create_linux_desktop.py
-  set_environment_variable "SOCA_DCV_SESSION_OWNER" "{{ context.get("/dcv/SessionOwner") }}"
-  # Set the SOCA_DCV_SESSION_ID (same name on Windows). This is used by the scheduled task to retrieve the DCV Session ID
-  set_environment_variable "SOCA_DCV_SESSION_ID" "{{ context.get("/dcv/SessionId") }}"
-  set_environment_variable "SOCA_DCV_SESSION_NAME" "{{ context.get("/dcv/SessionName") }}"
+  set_environment_variable "EDH_DCV_SESSION_OWNER" "{{ context.get("/dcv/SessionOwner") }}"
+  # Set the EDH_DCV_SESSION_ID (same name on Windows). This is used by the scheduled task to retrieve the DCV Session ID
+  set_environment_variable "EDH_DCV_SESSION_ID" "{{ context.get("/dcv/SessionId") }}"
+  set_environment_variable "EDH_DCV_SESSION_NAME" "{{ context.get("/dcv/SessionName") }}"
 {% elif context.get("/job/NodeType") == "login_node" %}
   # Add any additional variable for login nodes if needed
 {% endif %}
@@ -116,14 +118,14 @@ log_info "Setup End Date: $(date)"
 REBOOT_REQUIRED=$(get_reboot_required)
 {% if context.get("/job/NodeType") in ("dcv_node", "compute_node") %}
 if [[ "${REBOOT_REQUIRED}" == "yes" ]]; then
-  (crontab -l 2>/dev/null; echo "@reboot /bin/bash ${SOCA_BOOTSTRAP_ASSETS_FOLDER}/03_setup_post_reboot.sh >> ${SOCA_BOOTSTRAP_LOGS_FOLDER}/03_setup_post_reboot.log 2>&1") | crontab -
+  (crontab -l 2>/dev/null; echo "@reboot /bin/bash ${EDH_BOOTSTRAP_ASSETS_FOLDER}/03_setup_post_reboot.sh >> ${EDH_BOOTSTRAP_LOGS_FOLDER}/03_setup_post_reboot.log 2>&1") | crontab -
   log_info "Final bootstrap sequence will be executed post reboot, verifying crontab"
   crontab -l
   log_info "Rebooting the machine"
   reboot
 else
   log_info "No reboot needed, continuing bootstrap sequence"
-  /bin/bash "${SOCA_BOOTSTRAP_ASSETS_FOLDER}/03_setup_post_reboot.sh" >> ${SOCA_BOOTSTRAP_LOGS_FOLDER}/03_setup_post_reboot.log 2>&1
+  /bin/bash "${EDH_BOOTSTRAP_ASSETS_FOLDER}/03_setup_post_reboot.sh" >> ${EDH_BOOTSTRAP_LOGS_FOLDER}/03_setup_post_reboot.log 2>&1
 fi
 
 {% else %} 
@@ -144,7 +146,7 @@ systemctl enable soca_lsfdaemons.service
 systemctl start soca_lsfdaemons.service
 {% endif %}
 source /etc/environment
-echo "Node Ready - ${SOCA_NODE_TYPE}" > /etc/motd
+echo "Node Ready - ${EDH_NODE_TYPE}" > /etc/motd
 EOF
     chmod +x /etc/rc.d/rc.local
     systemctl enable rc-local

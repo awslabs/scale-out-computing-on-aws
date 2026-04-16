@@ -35,15 +35,15 @@ function log_wrapper() {
   fi
 
   local LOG_MESSAGE="[$(date +"%Y-%m-%d %H:%M:%S,%3N")] [${LOG_LEVEL}] ${@}"
-  if [[ -n "${SOCA_BOOTSTRAP_LOGS_FOLDER}" ]] && [[ -d "${SOCA_BOOTSTRAP_LOGS_FOLDER}" ]]; then
+  if [[ -n "${EDH_BOOTSTRAP_LOGS_FOLDER}" ]] && [[ -d "${EDH_BOOTSTRAP_LOGS_FOLDER}" ]]; then
     # Keep track of warning/fatal/error on stdout as well as separate files
     if [[ ${LOG_LEVEL} == "WARNING" ]] || [[ ${LOG_LEVEL} == "FATAL" ]] || [[ ${LOG_LEVEL} == "ERROR" ]]; then
-      echo "${LOG_MESSAGE}" | tee -a "${SOCA_BOOTSTRAP_LOGS_FOLDER}/bootstrap_${LOG_LEVEL}.log" >&2
+      echo "${LOG_MESSAGE}" | tee -a "${EDH_BOOTSTRAP_LOGS_FOLDER}/bootstrap_${LOG_LEVEL}.log" >&2
     else
       echo "${LOG_MESSAGE}" >&2
     fi
   else
-    # Handle case where SOCA_BOOTSTRAP_LOGS_FOLDER is not set
+    # Handle case where EDH_BOOTSTRAP_LOGS_FOLDER is not set
     echo "${LOG_MESSAGE}" >&2
   fi
 }

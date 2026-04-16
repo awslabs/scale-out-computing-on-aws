@@ -115,6 +115,20 @@ class CustomResourceSendAnonymousMetrics(AWSCustomObject):
     }
 
 
+class CustomResourceNestedVirtLauncher(AWSCustomObject):
+    resource_type = "Custom::NestedVirtLauncher"
+    props = {
+        "ServiceToken": (str, True),
+        "LaunchTemplateId": (str, True),
+        "LaunchTemplateVersion": (str, True),
+        "NodeCount": (str, True),
+        "InstanceTypes": (list, True),
+        "StackName": (str, True),
+        "CoreCount": (str, False),
+        "ThreadsPerCore": (str, False),
+    }
+
+
 class SocaCloudFormationBuilderHpc:
 
     def __init__(
@@ -200,6 +214,9 @@ class SocaCloudFormationBuilderHpc:
             # job/xxx -> Job Specific (JobId, InstanceType, JobProject ...)
             # configuration/xxx -> SOCA environment specific (ClusterName, Base OS, Region ...)
             # system/xxx -> system related information (e.g: packages to install, DCV version, EFA version ...)
+            _soca_parameters["/job/JobResources"] = (
+                _job.model_dump()
+            )  # send the SocaHpcJob information as a dictionary to jinja template
             _soca_parameters["/job/JobId"] = _job.job_id
             _soca_parameters["/job/JobOwner"] = _job.job_owner
             _soca_parameters["/job/JobName"] = _job.job_name
@@ -210,36 +227,21 @@ class SocaCloudFormationBuilderHpc:
             )  # cannot ass AWS:StackName as this is a troposphere ref object
             _soca_parameters["/job/TerminateWhenIdle"] = str(self.terminate_when_idle)
             _soca_parameters["/job/KeepForever"] = str(self.keep_forever)
-            if _job.efa_support is True:
-                _soca_parameters["/job/Efa"] = True
-
             _soca_parameters["/job/SchedulerIdentifier"] = (
                 _job.job_scheduler_info.identifier
             )
-            if _job.fsx_lustre:
-                # compatibility with legacy dispatcher. In the future this can be simplified with just a single key and not a dict
-                _soca_parameters["/job/FSxLustreConfiguration"] = {
-                    "fsx_lustre": _job.fsx_lustre,
-                    "existing_fsx": (
-                        False
-                        if not str(_job.fsx_lustre).startswith("fs-")
-                        else _job.fsx_lustre
-                    ),
-                }
-
+            _soca_parameters["/job/BaseOS"] = _job.base_os
+            _soca_parameters["/configuration/BaseOS"] = _job.base_os  # legacy
             # Location of Boostrap scripts on S3
             _bootstrap_s3_location_folder = f"{_cluster_id}/config/do_not_delete/bootstrap/compute_node/{self.bootstrap_uuid}"
 
             # Add custom bootstrap path specific to current job id
             _soca_parameters["/job/BootstrapPath"] = (
-                f"/apps/soca/{_cluster_id}/shared/logs/bootstrap/compute_node/{_job.job_id}/{self.bootstrap_uuid}"
+                f"/apps/edh/{_cluster_id}/shared/logs/bootstrap/compute_node/{_job.job_id}/{self.bootstrap_uuid}"
             )
 
             # add custom NodeType
             _soca_parameters["/job/NodeType"] = "compute_node"
-
-            # Replace default /configuration/BaseOS to match whatever OS is requested for the job
-            _soca_parameters["/configuration/BaseOS"] = _job.base_os
 
             _soca_parameters["/job/BootstrapScriptsS3Location"] = (
                 f"s3://{_soca_parameters.get('/configuration/S3Bucket')}/{_bootstrap_s3_location_folder}/"
@@ -250,7 +252,7 @@ class SocaCloudFormationBuilderHpc:
             logger.debug(f"Creating User Data for {_job.job_id=}")
             _render_user_data = SocaJinja2Generator(
                 get_template="compute_node/01_user_data.sh.j2",
-                template_dirs=[f"/opt/soca/{_cluster_id}/cluster_node_bootstrap/"],
+                template_dirs=[f"/opt/edh/{_cluster_id}/cluster_node_bootstrap/"],
                 variables=_soca_parameters,
             ).to_stdout(autocast_values=True)
 
@@ -279,7 +281,6 @@ class SocaCloudFormationBuilderHpc:
             # Check if using AD, if yes check if we need to auto join the HPC nodes
             if _soca_parameters.get("/configuration/UserDirectory/provider") in [
                 "aws_ds_managed_activedirectory",
-                "aws_ds_simple_activedirectory",
                 "existing_activedirectory",
             ]:
                 _check_ephemeral_nodes_domain_join = SocaCastEngine(
@@ -305,13 +306,13 @@ class SocaCloudFormationBuilderHpc:
                     logger.info(
                         "AD is enabled and JoinEphemeralNodesToAD is False will attempt to sync AD users"
                     )
-                    _json_output_file = f"/apps/soca/{_cluster_id}/shared/active_directory/sync/users_info.json"
-                    if pathlib.Path(_json_output_file).exists() is False:
+                    _json_output_file = f"/apps/edh/{_cluster_id}/shared/active_directory/sync/users_info.json"
+                    if not pathlib.Path(_json_output_file).exists():
                         logger.error(
                             f"Unable to sync AD users because {_json_output_file} does not exist, creating it automatically"
                         )
                         _create_user_mapping_file = SocaSubprocessClient(
-                            run_command=f"/opt/soca/{_cluster_id}/cluster_manager/socactl ad export"
+                            run_command=f"/opt/edh/{_cluster_id}/cluster_manager/edhctl ad export"
                         ).run()
                         if _create_user_mapping_file.get("success") is False:
                             logger.error(
@@ -341,7 +342,7 @@ class SocaCloudFormationBuilderHpc:
                                 "AD Local User Last sync is older than 60 minutes, updating file ..."
                             )
                             _create_user_mapping_file = SocaSubprocessClient(
-                                run_command=f"/opt/soca/{_cluster_id}/cluster_manager/socactl ad export"
+                                run_command=f"/opt/edh/{_cluster_id}/cluster_manager/edhctl ad export"
                             ).run()
                             if _create_user_mapping_file.get("success") is False:
                                 logger.error(
@@ -369,7 +370,7 @@ class SocaCloudFormationBuilderHpc:
                 # Render Template
                 _render_bootstrap_setup_template = SocaJinja2Generator(
                     get_template=f"{_t}.sh.j2",
-                    template_dirs=[f"/opt/soca/{_cluster_id}/cluster_node_bootstrap/"],
+                    template_dirs=[f"/opt/edh/{_cluster_id}/cluster_node_bootstrap/"],
                     variables=_soca_parameters,
                 ).to_s3(
                     bucket_name=_soca_parameters.get("/configuration/S3Bucket"),
@@ -387,19 +388,19 @@ class SocaCloudFormationBuilderHpc:
             # Base tags
             _base_tags = {
                 "Name": f"{_cluster_id}-compute-job-{_job.job_id}",
-                "soca:JobId": str(_job.job_id),
-                "soca:JobName": str(_job.job_name),
-                "soca:JobQueue": str(_job.job_queue),
-                "soca:StackId": Ref("AWS::StackName"),
-                "soca:JobOwner": str(_job.job_owner),
-                "soca:NodeType": "compute_node",
-                "soca:JobProject": str(_job.job_project),
-                "soca:ClusterId": str(_cluster_id),
-                "soca:TerminateWhenIdle": str(self.terminate_when_idle),
-                "soca:KeepForever": str(self.keep_forever),
-                "soca:SchedulerProvider": _job.job_scheduler_info.provider,
-                "soca:SchedulerEndpoint": _job.job_scheduler_info.endpoint,
-                "soca:SchedulerIdentifier": _job.job_scheduler_info.identifier,
+                "edh:JobId": str(_job.job_id),
+                "edh:JobName": str(_job.job_name),
+                "edh:JobQueue": str(_job.job_queue),
+                "edh:StackId": Ref("AWS::StackName"),
+                "edh:JobOwner": str(_job.job_owner),
+                "edh:NodeType": "compute_node",
+                "edh:JobProject": str(_job.job_project),
+                "edh:ClusterId": str(_cluster_id),
+                "edh:TerminateWhenIdle": str(self.terminate_when_idle),
+                "edh:KeepForever": str(self.keep_forever),
+                "edh:SchedulerProvider": _job.job_scheduler_info.provider,
+                "edh:SchedulerEndpoint": _job.job_scheduler_info.endpoint,
+                "edh:SchedulerIdentifier": _job.job_scheduler_info.identifier,
             }
 
             # Get custom tags if specified
@@ -586,6 +587,12 @@ class SocaCloudFormationBuilderHpc:
                             )
                         )
 
+            # When using nested virt, the Lambda calls RunInstances with the launch
+            # template directly — subnet must be in NetworkInterfaces
+            if _job.nested_virtualization:
+                for ni in ltd.NetworkInterfaces:
+                    ni.SubnetId = _job.subnet_ids[0]
+
             # Configure EBS Root Device
             _ebs_root_device_name = _ami_information["Images"][0].get("RootDeviceName")
             _ebs_scratch_device_name = "/dev/xvdbx"
@@ -642,7 +649,7 @@ class SocaCloudFormationBuilderHpc:
                 HttpTokens=_soca_parameters.get("/configuration/MetadataHttpTokens"),
             )
 
-            # note: _job.placement_group is a boolean checking whether or not SOCA has created a placement group via provision_job()
+            # note: _job.placement_group is a boolean checking whether SOCA has created a placement group via provision_job()
             # if _job_placement_group is True, provision_job() create a placement group and send the group name to SocaCloudFormationBuilderHpc
             if self.placement_group_name:
                 ltd.Placement = Placement(GroupName=self.placement_group_name)
@@ -696,7 +703,45 @@ class SocaCloudFormationBuilderHpc:
                 f"Determining the SocaHpcJobOrchestrationMethod: {_job.job_orchestration_method=}"
             )
 
-            if _job.job_orchestration_method == SocaHpcJobOrchestrationMethod.ASG:
+            if _job.nested_virtualization is True:
+                # Check feature flag
+                _nested_virt_allowed = SocaConfig(
+                    key="/configuration/FeatureFlags/Hpc/EnableNestedVirtualization"
+                ).get_value(return_as=bool)
+                if not (_nested_virt_allowed.get("success") is True and _nested_virt_allowed.get("message") is True):
+                    logger.warning(
+                        "nested_virtualization=True requested but FeatureFlags/Hpc/EnableNestedVirtualization is not enabled, ignoring"
+                    )
+                    _job.nested_virtualization = False
+
+            if _job.nested_virtualization is True:
+                # Nested virtualization requires CpuOptions.NestedVirtualization which is not
+                # supported by CloudFormation. Use a Custom Resource Lambda to call RunInstances directly.
+                logger.info(
+                    f"nested_virtualization=True, using Custom::NestedVirtLauncher instead of EC2Fleet/ASG"
+                )
+                _nested_virt_cr = CustomResourceNestedVirtLauncher("NestedVirtLauncher")
+                _nested_virt_cr.DependsOn = "NodeLaunchTemplate"
+                _nested_virt_cr.ServiceToken = _soca_parameters.get(
+                    "/configuration/NestedVirtLauncherLambda"
+                )
+                _nested_virt_cr.LaunchTemplateId = Ref(lt)
+                _nested_virt_cr.LaunchTemplateVersion = GetAtt(lt, "LatestVersionNumber")
+                _nested_virt_cr.NodeCount = str(_job.nodes)
+                _nested_virt_cr.InstanceTypes = _job.instance_types
+                _nested_virt_cr.StackName = self.stack_name
+
+                # Pass CpuOptions if they were computed for HT control
+                if hasattr(ltd, "CpuOptions") and ltd.CpuOptions:
+                    logger.info(f"LTD has CpuOptions {ltd.CpuOptions=}")
+                    _nested_virt_cr.CoreCount = str(ltd.CpuOptions.resource.get("CoreCount", ""))
+                    _nested_virt_cr.ThreadsPerCore = str(ltd.CpuOptions.resource.get("ThreadsPerCore", ""))
+                    # Remove CpuOptions from LaunchTemplateData since the Lambda handles it
+                    #del ltd.CpuOptions
+
+                t.add_resource(_nested_virt_cr)
+
+            elif _job.job_orchestration_method == SocaHpcJobOrchestrationMethod.ASG:
                 logger.info(f"Generating ASG due to SocaHpcJobOrchestrationMethod")
                 _asg_lt = asg_LaunchTemplate()
 
@@ -874,7 +919,7 @@ class SocaCloudFormationBuilderHpc:
                         )
 
                     fsx_lustre.LustreConfiguration = fsx_lustre_configuration
-                    fsx_lustre.Tags = Tags({**_base_tags, "soca:FSxL": "true"})
+                    fsx_lustre.Tags = Tags({**_base_tags, "edh:FSxL": "true"})
                     t.add_resource(fsx_lustre)
             # End FSx For Lustre
 

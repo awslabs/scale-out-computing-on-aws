@@ -1,30 +1,42 @@
-<ul class="navbar-nav bg-aws sidebar sidebar-dark accordion {{ 'toggled' if page in ['my_files', 'editor', 'application'] else '' }}" id="accordionSidebar">
-    <hr class="sidebar-divider my-0">
-    <li class="nav-item active">
-        <a class="nav-link" href="/">
-            <i class="fas fa-home"></i>
-            <span>{{ user }}'s dashboard</span>
+<ul class="navbar-nav bg-aws sidebar sidebar-dark accordion" id="accordionSidebar">
+  
+    <!-- <li class="nav-item mt-3 {{ 'active-section' if CURRENT_PATH.endswith('/containers') or CURRENT_PATH.endswith('/containers/my_jobs') else '' }}">
+        <a class="nav-link sidebar-heading align-items-center w-100" href="#" data-bs-toggle="collapse" data-bs-target="#collapseProfile" aria-expanded="true" aria-controls="collapseContainer">
+            <span class="flex-grow-1">{{ user | capitalize }}'s Profile</span>
+             <i class="fa-solid fa-angles-down" style="position:absolute; right:1rem; top:50%; transform:translateY(-50%);"></i>
         </a>
-    </li>
+        <div id="collapseProfile" class="collapse">
+            <div class="bg-white py-2 collapse-inner rounded">
+                <a class="collapse-item" href="/ssh">My SSH access</a>
+                <a class="collapse-item" href="/my_account">My Account</a>
+                <a class="collapse-item" href="/my_api_key">My API Key (Developer mode)</a>
+                <hr class="dropdown-divider">
+                <a class="collapse-item" href="/logout">Logout</a>
+            </div>
+        </div>
+    </li> -->
 
-    <hr class="sidebar-divider">
-    <div class="sidebar-heading">Access Cluster</div>
+    <div class="mt-3 sidebar-heading d-flex align-items-center">
+        Menu
+    </div>
 
-    {% set login_nodes_flag = feature_flags.get("LOGIN_NODES", {}) %}
-    {% set login_allowed = login_nodes_flag.get("allowed_users", []) %}
-    {% set login_denied = login_nodes_flag.get("denied_users", []) %}
-    {% set login_show = login_nodes_flag.get("enabled", True)
-        and (login_allowed == [] or user in login_allowed)
-        and user not in login_denied %}
-    {% if login_show %}
-    <li class="nav-item">
-        <a class="nav-link" href="/ssh">
-            <i class="fas fa-keyboard"></i>
-            <span>SSH access</span>
+    
+
+      
+    {% set file_browser_flag = feature_flags.get("FILE_BROWSER", {}) %}
+    {% set fb_allowed = file_browser_flag.get("allowed_users", []) %}
+    {% set fb_denied = file_browser_flag.get("denied_users", []) %}
+    {% set fb_show = file_browser_flag.get("enabled", True)
+        and (fb_allowed == [] or user in fb_allowed)
+        and user not in fb_denied %}
+    {% if fb_show %}
+    <li class="nav-item {{ 'active-section' if '/file_explorer' in CURRENT_PATH else '' }}">
+        <a class="nav-link" href="/file_explorer">
+            <span>File Explorer</span>
         </a>
     </li>
     {% endif %}
-
+    
     {% set virtual_desktops_flag = feature_flags.get("VIRTUAL_DESKTOPS", {}) %}
     {% set vd_allowed = virtual_desktops_flag.get("allowed_users", []) %}
     {% set vd_denied = virtual_desktops_flag.get("denied_users", []) %}
@@ -32,9 +44,8 @@
         and (vd_allowed == [] or user in vd_allowed)
         and user not in vd_denied %}
     {% if vd_show %}
-    <li class="nav-item">
+    <li class="nav-item {{ 'active-section' if CURRENT_PATH.endswith('/virtual_desktops') else '' }}">
         <a class="nav-link" href="/virtual_desktops">
-            <i class="fa-solid fa-desktop"></i>
             <span>Virtual Desktops</span>
         </a>
     </li>
@@ -47,97 +58,52 @@
         and (tn_allowed == [] or user in tn_allowed)
         and user not in tn_denied %}
     {% if tn_show %}
-    <li class="nav-item">
+    <li class="nav-item {{ 'active-section' if CURRENT_PATH.endswith('/target_nodes') else '' }}">
         <a class="nav-link" href="/target_nodes">
-            <i class="fa-solid fa-code"></i>
             <span>Target Nodes</span>
         </a>
     </li>
     {% endif %}
 
-    {% set container_nodes_flag = feature_flags.get("CONTAINERS_MANAGEMENT", {}) %}
-    {% set containers_allowed = container_nodes_flag.get("allowed_users", []) %}
-    {% set containers_denied = container_nodes_flag.get("denied_users", []) %}
-    {% set containers_show = container_nodes_flag.get("enabled", True)
-        and (containers_allowed == [] or user in containers_allowed)
-        and user not in containers_denied %}
-    {% if containers_show %}
-    <li class="nav-item">
-        <a class="nav-link d-flex align-items-center w-100" href="#" data-bs-toggle="collapse" data-bs-target="#collapseContainer" aria-expanded="true" aria-controls="collapseContainer">
-            <i class="fa-solid fa-box"></i>
-            <span class="flex-grow-1">Containers</span>
-            <i class="fa-solid fa-angles-down ms-auto"></i>
+    {% set container_eks_flag = feature_flags.get("CONTAINERS_MANAGEMENT_EKS", {}) %}
+    {% set containers_eks_allowed = container_eks_flag.get("allowed_users", []) %}
+    {% set containers_eks_denied = container_eks_flag.get("denied_users", []) %}
+    {% set containers_eks_show = container_eks_flag.get("enabled", True)
+            and (containers_eks_allowed == [] or user in containers_eks_allowed)
+            and user not in containers_eks_denied %}
+    {% if containers_eks_show %}
+    <li class="nav-item {{ 'active-section' if CURRENT_PATH.endswith('/containers/images') or CURRENT_PATH.endswith('/containers/eks/list') or CURRENT_PATH.endswith('/containers/eks/setup') else '' }}">
+        <a class="nav-link align-items-center w-100" href="#" data-bs-toggle="collapse" data-bs-target="#collapseEKSContainer" aria-expanded="true" aria-controls="collapseContainer">
+            <span class="flex-grow-1">Amazon EKS Containers</span>
+             <i class="fa-solid fa-angles-down" style="position:absolute; right:1rem; top:50%; transform:translateY(-50%);"></i>
         </a>
-        <div id="collapseContainer" class="collapse">
+        <div id="collapseEKSContainer" class="collapse">
             <div class="bg-white py-2 collapse-inner rounded">
-                <a class="collapse-item" href="/containers">Submit Job</a>
-                <a class="collapse-item" href="/containers/my_containers">My Containers</a>
+                <a class="collapse-item" href="/containers/images">Launch EKS Container</a>
+                <a class="collapse-item" href="/containers/eks/list">My EKS Containers</a>
             </div>
         </div>
     </li>
     {% endif %}
 
-
-    {% set sftp_flag = feature_flags.get("SFTP_INSTRUCTIONS", {}) %}
-    {% set sftp_allowed = sftp_flag.get("allowed_users", []) %}
-    {% set sftp_denied = sftp_flag.get("denied_users", []) %}
-    {% set sftp_show = sftp_flag.get("enabled", True)
-        and (sftp_allowed == [] or user in sftp_allowed)
-        and user not in sftp_denied %}
-    {% if sftp_show %}
-    <li class="nav-item">
-        <a class="nav-link" href="/sftp">
-            <i class="fas fa-exchange-alt"></i>
-            <span>Transfer Files (SFTP)</span>
+    {% set container_batch_flag = feature_flags.get("CONTAINERS_MANAGEMENT_BATCH", {}) %}
+    {% set containers_batch_allowed = container_batch_flag.get("allowed_users", []) %}
+    {% set containers_batch_denied = container_batch_flag.get("denied_users", []) %}
+    {% set containers_batch_show = container_batch_flag.get("enabled", True)
+            and (containers_batch_allowed == [] or user in containers_batch_allowed)
+            and user not in containers_batch_denied %}
+    {% if containers_batch_show %}
+    <li class="nav-item {{ 'active-section' if CURRENT_PATH.endswith('/containers/batch/setup') or CURRENT_PATH.endswith('/containers/batch/list') else '' }}">
+        <a class="nav-link align-items-center w-100" href="#" data-bs-toggle="collapse" data-bs-target="#collapseBatchContainer" aria-expanded="true" aria-controls="collapseContainer">
+            <span class="flex-grow-1">AWS Batch Containers</span>
+             <i class="fa-solid fa-angles-down" style="position:absolute; right:1rem; top:50%; transform:translateY(-50%);"></i>
         </a>
-    </li>
-    {% endif %}
-
-    <hr class="sidebar-divider">
-    <div class="sidebar-heading">Profile</div>
-
-    {% set account_flag = feature_flags.get("MY_ACCOUNT_MANAGEMENT", {}) %}
-    {% set acct_allowed = account_flag.get("allowed_users", []) %}
-    {% set acct_denied = account_flag.get("denied_users", []) %}
-    {% set acct_show = account_flag.get("enabled", True)
-        and (acct_allowed == [] or user in acct_allowed)
-        and user not in acct_denied %}
-    {% if acct_show %}
-    <li class="nav-item">
-        <a class="nav-link" href="/my_account">
-            <i class="fas fa-user"></i>
-            <span>My Account</span>
-        </a>
-    </li>
-    {% endif %}
-
-    {% set api_key_flag = feature_flags.get("MY_API_KEY_MANAGEMENT", {}) %}
-    {% set api_allowed = api_key_flag.get("allowed_users", []) %}
-    {% set api_denied = api_key_flag.get("denied_users", []) %}
-    {% set api_show = api_key_flag.get("enabled", True)
-        and (api_allowed == [] or user in api_allowed)
-        and user not in api_denied %}
-    {% if api_show %}
-    <li class="nav-item">
-        <a class="nav-link" href="/my_api_key">
-            <i class="fas fa-key"></i>
-            <span>My API key</span>
-        </a>
-    </li>
-    {% endif %}
-
-    {% set file_browser_flag = feature_flags.get("FILE_BROWSER", {}) %}
-    {% set fb_allowed = file_browser_flag.get("allowed_users", []) %}
-    {% set fb_denied = file_browser_flag.get("denied_users", []) %}
-    {% set fb_show = file_browser_flag.get("enabled", True)
-        and (fb_allowed == [] or user in fb_allowed)
-        and user not in fb_denied %}
-    {% if fb_show %}
-    <li class="nav-item">
-        <a class="nav-link" href="/my_files">
-            <i class="fas fa-sitemap"></i>
-            <span>My Files</span>
-        </a>
+        <div id="collapseBatchContainer" class="collapse">
+            <div class="bg-white py-2 collapse-inner rounded">            
+                    <a class="collapse-item" href="/containers/batch/setup">Launch Batch Job</a>
+                    <a class="collapse-item" href="/containers/batch/list">My Batch Jobs</a>
+            </div>
+        </div>
     </li>
     {% endif %}
 
@@ -148,29 +114,9 @@
         and (hpc_allowed == [] or user in hpc_allowed)
         and user not in hpc_denied %}
     {% if hpc_show %}
-    <li class="nav-item">
+    <li class="nav-item  {{ 'active-section' if CURRENT_PATH == '/my_jobs' else '' }}">
         <a class="nav-link" href="/my_jobs">
-            <i class="fas fa-fw fa-table"></i>
-            <span>My Job Queue</span>
-        </a>
-    </li>
-
-    <hr class="sidebar-divider">
-    <div class="sidebar-heading">Job Documentation</div>
-
-    <li class="nav-item">
-        <a class="nav-link" href="/submit_job">
-            <i class="fas fa-cogs"></i>
-            <span>Submit job (Web)</span>
-        </a>
-    </li>
-
-    <li class="nav-item">
-        <a class="nav-link"
-           href="https://awslabs.github.io/scale-out-computing-on-aws-documentation/tutorials/launch-your-first-job/"
-           target="_blank" rel="noopener,noreferrer">
-            <i class="fas fa-cogs"></i>
-            <span>Submit job (CLI)</span>
+            <span>My HPC Jobs</span>
         </a>
     </li>
     {% endif %}
@@ -187,17 +133,15 @@
 
     <li class="nav-item">
         <a class="nav-link" href="/my_activity">
-            <i class="fas fa-fw fa-chart-area"></i>
             <span>Cluster Metrics</span>
         </a>
     </li>
 
     <li class="nav-item">
         <a class="nav-link"
-           href="https://awslabs.github.io/scale-out-computing-on-aws-documentation/documentation/budget/prevent-overspend-hpc-cost-on-aws-soca/"
+           href="https://awslabs.github.io/engineering-development-hub-documentation/documentation/budget/prevent-overspend-hpc-cost-on-aws-soca/"
            target="_blank" rel="noopener,noreferrer">
-            <i class="fas fa-money-bill-alt"></i>
-            <span>Cost Management</span>
+            <span>Cost Management <i class="fa-solid fa-arrow-up-right-from-square"></i></span>
         </a>
     </li>
     {% endif %}
@@ -207,10 +151,10 @@
     <div class="sidebar-heading">Admin Section</div>
 
     <li class="nav-item">
-        <a class="nav-link d-flex align-items-center w-100" href="#" data-bs-toggle="collapse" data-bs-target="#collapseProjects" aria-expanded="true" aria-controls="collapseVDI">
-            <i class="fa-solid fa-list-check"></i>
-            <span class="flex-grow-1">SOCA Projects</span>
-            <i class="fa-solid fa-angles-down ms-auto"></i>
+        <a class="nav-link align-items-center w-100" href="#" data-bs-toggle="collapse" data-bs-target="#collapseProjects" aria-expanded="true" aria-controls="collapseVDI">
+            <span class="flex-grow-1">EDH Projects</span>
+            <i class="fa-solid fa-angles-down" style="position:absolute; right:1rem; top:50%; transform:translateY(-50%);"></i>
+
         </a>
         <div id="collapseProjects" class="collapse">
             <div class="bg-white py-2 collapse-inner rounded">
@@ -221,10 +165,10 @@
     </li>
 
     <li class="nav-item">
-        <a class="nav-link d-flex align-items-center w-100" href="#" data-bs-toggle="collapse" data-bs-target="#collapseProfile" aria-expanded="true" aria-controls="collapseProfile">
-            <i class="fa-solid fa-sliders"></i>
-            <span class="flex-grow-1">SOCA Profiles</span>
-            <i class="fa-solid fa-angles-down ms-auto"></i>
+        <a class="nav-link align-items-center w-100" href="#" data-bs-toggle="collapse" data-bs-target="#collapseProfile" aria-expanded="true" aria-controls="collapseProfile">
+            <span class="flex-grow-1">EDH Profiles</span>
+            <i class="fa-solid fa-angles-down" style="position:absolute; right:1rem; top:50%; transform:translateY(-50%);"></i>
+
         </a>
         <div id="collapseProfile" class="collapse">
             <div class="bg-white py-2 collapse-inner rounded">
@@ -235,10 +179,10 @@
     </li>
 
     <li class="nav-item">
-    <a class="nav-link d-flex align-items-center w-100" href="#" data-bs-toggle="collapse" data-bs-target="#collapeSoftareStack" aria-expanded="true" aria-controls="collapeSoftareStack">
-        <i class="fa-solid fa-cubes"></i>
-        <span class="flex-grow-1">SOCA Software Stacks</span>
-        <i class="fa-solid fa-angles-down ms-auto"></i>
+    <a class="nav-link align-items-center w-100" href="#" data-bs-toggle="collapse" data-bs-target="#collapeSoftareStack" aria-expanded="true" aria-controls="collapeSoftareStack">
+        <span class="flex-grow-1">EDH Software Stacks</span>
+        <i class="fa-solid fa-angles-down" style="position:absolute; right:1rem; top:50%; transform:translateY(-50%);"></i>
+
     </a>
         <div id="collapeSoftareStack" class="collapse">
             <div class="bg-white py-2 collapse-inner rounded">
@@ -249,10 +193,9 @@
     </li>
 
     <li class="nav-item">
-        <a class="nav-link d-flex align-items-center w-100" href="#" data-bs-toggle="collapse" data-bs-target="#collapseAdvance" aria-expanded="true" aria-controls="collapseAdvance">
-            <i class="fas fa-fw fa-screwdriver-wrench me-2"></i>
+        <a class="nav-link align-items-center w-100" href="#" data-bs-toggle="collapse" data-bs-target="#collapseAdvance" aria-expanded="true" aria-controls="collapseAdvance">
             <span class="flex-grow-1">Advanced Settings</span>
-            <i class="fa-solid fa-angles-down ms-auto"></i></a>
+                         <i class="fa-solid fa-angles-down" style="position:absolute; right:1rem; top:50%; transform:translateY(-50%);"></i></a>
         <div id="collapseAdvance" class="collapse">
             <div class="bg-white py-2 collapse-inner rounded">
                 <h6 class="collapse-header">Virtual Desktops</h6>
@@ -264,27 +207,25 @@
     </li>
     <li class="nav-item">
         <a class="nav-link" href="/admin/users">
-            <i class="fas fa-users"></i>
             <span>Users Management</span>
         </a>
     </li>
 
     <li class="nav-item">
         <a class="nav-link" href="/admin/groups">
-            <i class="fas fa-users-cog"></i>
             <span>Groups Management</span>
         </a>
     </li>
 
     <li class="nav-item">
         <a class="nav-link" href="/admin/applications">
-            <i class="fas fa-rocket"></i>
-            <span>Application Management</span>
+            <span>Workflows Management</span>
         </a>
     </li>
     {% endif %}
 
-    <div class="text-center d-none d-md-inline">
-        <button class="rounded-circle border-0" id="sidebarToggle"></button>
-    </div>
+       <div class="pt-3 text-center d-none d-md-inline mt-auto">
+            <i id="sidebarToggle" class="ml-auto"></i>
+        </div>
+
 </ul>

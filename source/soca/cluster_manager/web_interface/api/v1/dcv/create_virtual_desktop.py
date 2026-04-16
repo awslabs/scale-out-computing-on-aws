@@ -86,7 +86,7 @@ class CreateVirtualDesktop(Resource):
         summary: Create new virtual desktop session
         description: Provisions a new EC2 instance with DCV for remote desktop access
         parameters:
-          - name: X-SOCA-USER
+          - name: X-EDH-USER
             in: header
             required: true
             schema:
@@ -96,7 +96,7 @@ class CreateVirtualDesktop(Resource):
               pattern: '^[a-zA-Z0-9._-]+$'
             description: SOCA username for authentication
             example: "john.doe"
-          - name: X-SOCA-TOKEN
+          - name: X-EDH-TOKEN
             in: header
             required: true
             schema:
@@ -277,6 +277,7 @@ class CreateVirtualDesktop(Resource):
         parser.add_argument("subnet_id", type=str, location="form")
         parser.add_argument("hibernate", type=str, location="form")
         parser.add_argument("tenancy", type=str, location="form")
+        parser.add_argument("nested_virtualization", type=str, location="form")
         parser.add_argument("session_type", type=str, location="form")
         parser.add_argument("capacity_reservation_id", type=str, location="form")
         args = parser.parse_args()
@@ -287,9 +288,9 @@ class CreateVirtualDesktop(Resource):
             f"Received parameter for new DCV session request: {args}, setting up session uuid {_session_uuid}"
         )
         try:
-            _user = request.headers.get("X-SOCA-USER")
+            _user = request.headers.get("X-EDH-USER")
             if _user is None:
-                return SocaError.CLIENT_MISSING_HEADER(header="X-SOCA-USER").as_flask()
+                return SocaError.CLIENT_MISSING_HEADER(header="X-EDH-USER").as_flask()
 
             # sanitize session_name
             if args["session_name"] is None:
@@ -403,6 +404,7 @@ class CreateVirtualDesktop(Resource):
                     ).as_flask()
             else:
                 _ami_id = _software_stack_info.get("ami_id")
+            
             _check_disk_size = SocaCastEngine(args["disk_size"]).cast_as(
                 expected_type=int
             )
@@ -425,6 +427,25 @@ class CreateVirtualDesktop(Resource):
                     args["hibernate"] = _check_hibernate.get("message")
                 else:
                     args["hibernate"] = False
+
+            if not args["nested_virtualization"]:
+                args["nested_virtualization"] = False
+            else:
+                _check_nested_virt = SocaCastEngine(args["nested_virtualization"]).cast_as(
+                    expected_type=bool
+                )
+                if _check_nested_virt.get("success"):
+                    args["nested_virtualization"] = _check_nested_virt.get("message")
+                else:
+                    args["nested_virtualization"] = False
+
+            if args["nested_virtualization"] is True:
+                _nv_flag = SocaConfig(
+                    key="/configuration/FeatureFlags/VirtualDesktops/EnableNestedVirtualization"
+                ).get_value(return_as=bool)
+                if not (_nv_flag.get("success") is True and _nv_flag.get("message") is True):
+                    logger.warning("nested_virtualization requested but EnableNestedVirtualization feature flag is disabled, ignoring")
+                    args["nested_virtualization"] = False
 
             if not args["subnet_id"]:
                 logger.info("No subnet_id specified, default to 'auto'")
@@ -648,7 +669,7 @@ class CreateVirtualDesktop(Resource):
 
             # Add custom bootstrap path specific to current job id
             soca_parameters["/job/BootstrapPath"] = (
-                f"/apps/soca/{soca_parameters.get('/configuration/ClusterId')}/shared/logs/bootstrap/dcv_node/{_user}/{_session_name}/{_session_uuid}/{_bootstrap_uuid}"
+                f"/apps/edh/{soca_parameters.get('/configuration/ClusterId')}/shared/logs/bootstrap/dcv_node/{_user}/{_session_name}/{_session_uuid}/{_bootstrap_uuid}"
             )
 
             _bootstrap_s3_location_folder = f"{soca_parameters.get('/configuration/ClusterId')}/config/do_not_delete/bootstrap/dcv_node/{_bootstrap_uuid}/{_session_uuid}"
@@ -690,10 +711,12 @@ class CreateVirtualDesktop(Resource):
             else:
                 _session_local_admin_password = None
 
-            # Replace default SOCA wide BaseOs value with job specific
-            soca_parameters["/configuration/BaseOS"] = _software_stack_info.get(
+            soca_parameters["/job/BaseOS"] = _software_stack_info.get(
                 "ami_base_os"
             )
+            soca_parameters["/configuration/BaseOS"] = _software_stack_info.get(
+                "ami_base_os"
+            ) # legacy
 
             logger.debug(f"soca_parameters for DCV User Data: {soca_parameters}")
 
@@ -706,7 +729,7 @@ class CreateVirtualDesktop(Resource):
             _generate_user_data = SocaJinja2Generator(
                 get_template=_user_data_template,
                 template_dirs=[
-                    f"/opt/soca/{os.environ.get('SOCA_CLUSTER_ID')}/cluster_node_bootstrap/"
+                    f"/opt/edh/{os.environ.get('EDH_CLUSTER_ID')}/cluster_node_bootstrap/"
                 ],
                 variables=soca_parameters,
             ).to_stdout(autocast_values=True)
@@ -758,7 +781,7 @@ class CreateVirtualDesktop(Resource):
                 _render_bootstrap_setup_template = SocaJinja2Generator(
                     get_template=f"{_t}.j2",
                     template_dirs=[
-                        f"/opt/soca/{os.environ.get('SOCA_CLUSTER_ID')}/cluster_node_bootstrap/"
+                        f"/opt/edh/{os.environ.get('EDH_CLUSTER_ID')}/cluster_node_bootstrap/"
                     ],
                     variables=soca_parameters,
                 ).to_s3(
@@ -849,12 +872,16 @@ class CreateVirtualDesktop(Resource):
                 "SolutionMetricsLambda": _get_soca_parameters.get(
                     "/configuration/SolutionMetricsLambda"
                 ),
+                "NestedVirtLauncherLambda": _get_soca_parameters.get(
+                    "/configuration/NestedVirtLauncherLambda"
+                ),
                 "ComputeNodeInstanceProfileArn": _get_soca_parameters.get(
                     "/configuration/ComputeNodeInstanceProfileArn"
                 ),
                 "user_data": _encoded_user_data,
                 "custom_tags": {},
                 "capacity_reservation_id": args["capacity_reservation_id"],
+                "nested_virtualization": args["nested_virtualization"],
             }
 
             # Get custom tags if specified
@@ -921,19 +948,19 @@ class CreateVirtualDesktop(Resource):
 
                     _cfn_stack_tags = [
                         {
-                            "Key": "soca:JobName",
+                            "Key": "edh:JobName",
                             "Value": str(launch_parameters["session_name"]),
                         },
-                        {"Key": "soca:JobOwner", "Value": _user},
-                        {"Key": "soca:JobProject", "Value": "desktop"},
+                        {"Key": "edh:JobOwner", "Value": _user},
+                        {"Key": "edh:JobProject", "Value": "desktop"},
                         {
-                            "Key": "soca:ClusterId",
+                            "Key": "edh:ClusterId",
                             "Value": str(launch_parameters["cluster_id"]),
                         },
-                        {"Key": "soca:JobProject", "Value": args.get("project")},
-                        {"Key": "soca:NodeType", "Value": "dcv_node"},
+                        {"Key": "edh:JobProject", "Value": args.get("project")},
+                        {"Key": "edh:NodeType", "Value": "dcv_node"},
                         {
-                            "Key": "soca:BaseOS",
+                            "Key": "edh:BaseOS",
                             "Value": _software_stack_info.get("ami_base_os"),
                         },
                     ]

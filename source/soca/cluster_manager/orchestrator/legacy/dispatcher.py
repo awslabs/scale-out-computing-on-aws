@@ -32,7 +32,7 @@ from botocore.exceptions import ClientError
 import pathlib
 
 sys.path.append(
-    f"/opt/soca/{os.environ.get('SOCA_CLUSTER_ID', 'SOCA_CONFIGURATION_NOT_FOUND')}/cluster_manager"
+    f"/opt/edh/{os.environ.get('EDH_CLUSTER_ID', 'SOCA_CONFIGURATION_NOT_FOUND')}/cluster_manager"
 )
 from utils.aws.boto3_wrapper import get_boto
 from utils.logger import SocaLogger
@@ -540,22 +540,22 @@ if __name__ == "__main__":
         )
         sys.exit(1)
 
-    if "SOCA_CLUSTER_ID" not in os.environ:
-        print("SOCA_CLUSTER_ID not found, make sure to source /etc/environment first")
+    if "EDH_CLUSTER_ID" not in os.environ:
+        print("EDH_CLUSTER_ID not found, make sure to source /etc/environment first")
         sys.exit(1)
 
     # Begin Pre-requisite
     system_cmds = {
-        "qstat": f"/opt/soca/{os.environ['SOCA_CLUSTER_ID']}/schedulers/default/openpbs/bin/qstat",
-        "qmgr": f"/opt/soca/{os.environ['SOCA_CLUSTER_ID']}/schedulers/default/openpbs/bin/qmgr",
-        "qalter": f"/opt/soca/{os.environ['SOCA_CLUSTER_ID']}/schedulers/default/openpbs/bin/qalter",
-        "qdel": f"/opt/soca/{os.environ['SOCA_CLUSTER_ID']}/schedulers/default/openpbs/bin/qdel",
-        "pbsnodes": f"/opt/soca/{os.environ['SOCA_CLUSTER_ID']}/schedulers/default/openpbs/bin/pbsnodes",
-        "socaqstat": "/opt/soca/"
-        + os.environ["SOCA_CLUSTER_ID"]
+        "qstat": f"/opt/edh/{os.environ['EDH_CLUSTER_ID']}/schedulers/default/openpbs/bin/qstat",
+        "qmgr": f"/opt/edh/{os.environ['EDH_CLUSTER_ID']}/schedulers/default/openpbs/bin/qmgr",
+        "qalter": f"/opt/edh/{os.environ['EDH_CLUSTER_ID']}/schedulers/default/openpbs/bin/qalter",
+        "qdel": f"/opt/edh/{os.environ['EDH_CLUSTER_ID']}/schedulers/default/openpbs/bin/qdel",
+        "pbsnodes": f"edh/{os.environ['EDH_CLUSTER_ID']}/schedulers/default/openpbs/bin/pbsnodes",
+        "socaqstat": "/opt/edh/"
+        + os.environ["EDH_CLUSTER_ID"]
         + "/cluster_manager/orchestrator/legacy/socaqstat.py",
-        "python": "/opt/soca/"
-        + os.environ["SOCA_CLUSTER_ID"]
+        "python": "/opt/edh/"
+        + os.environ["EDH_CLUSTER_ID"]
         + "/python/latest/bin/python3",
     }
     # AWS Clients
@@ -595,8 +595,8 @@ if __name__ == "__main__":
 
     # Retrieve Default Queue parameters
     queue_settings_file = (
-        "/opt/soca/"
-        + os.environ["SOCA_CLUSTER_ID"]
+        "/opt/edh/"
+        + os.environ["EDH_CLUSTER_ID"]
         + "/cluster_manager/orchestrator/settings/queue_mapping.yml"
     )
     try:
@@ -622,8 +622,8 @@ if __name__ == "__main__":
 
     # Generate FlexLM mapping
     license_mapping_file = (
-        "/opt/soca/"
-        + os.environ["SOCA_CLUSTER_ID"]
+        "/opt/edh/"
+        + os.environ["EDH_CLUSTER_ID"]
         + "/cluster_manager/orchestrator/legacy/licenses_mapping.yml"
     )
     try:
@@ -665,7 +665,7 @@ if __name__ == "__main__":
 
         logger.info(f"Queue provisioning: {queue_mode}, scaling mode: {scaling_mode}")
 
-        if check_if_queue_started(queue_name) is False:
+        if not check_if_queue_started(queue_name):
             logger.warning("Queue does not seem to be enabled")
             skip_queue = True
 
@@ -700,7 +700,7 @@ if __name__ == "__main__":
             if queued_jobs.__len__() == 0:
                 skip_queue = True
 
-            if skip_queue is False:
+            if not skip_queue:
                 logger.info("=" * 64)
                 logger.info(
                     f"Detected Default Parameters for this queue: {queue_parameter_values}"
@@ -1028,7 +1028,7 @@ if __name__ == "__main__":
                                     logger.warning("Skipping job: " + str(job_id))
                                     skip_job = True
 
-                            if skip_job is False:
+                            if not skip_job:
                                 for res in job_required_resource:
                                     if res in job_parameter_values.keys():
                                         logger.info(
@@ -1084,7 +1084,7 @@ if __name__ == "__main__":
                                 )
                                 compute_unit = "job" + job_hash
                                 stack_id = (
-                                    os.environ["SOCA_CLUSTER_ID"] + "-job-" + job_hash
+                                    os.environ["EDH_CLUSTER_ID"] + "-job-" + job_hash
                                 )
                                 # logger.info(str(job_id) + " : compute_node=" + str(compute_unit) + " | stack_id=" +str(stack_id))
                                 select = (
@@ -1547,7 +1547,7 @@ if __name__ == "__main__":
             if queued_jobs.__len__() == 0:
                 skip_queue = True
 
-            if skip_queue is False:
+            if not skip_queue:
                 logger.info("=" * 64)
                 logger.info(
                     f"Detected Default Parameters for this queue: {queue_parameter_values}"
@@ -1954,7 +1954,7 @@ if __name__ == "__main__":
                                 )
                                 can_run = False
 
-                        if can_run is True:
+                        if can_run:
                             for queue_param in queue_parameter_values.keys():
                                 if queue_param not in job_parameter_values.keys():
                                     job_parameter_values[queue_param] = (

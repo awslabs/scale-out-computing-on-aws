@@ -8,12 +8,12 @@
 
   # Install Cache CLI if needed (only on controller).
   # You can add compute_node as well, however please note CLI install will take a couple of minutes.
-  # Create SOCA Optimized AMI to avoid this time penalty for ephemeral nodes  https://awslabs.github.io/scale-out-computing-on-aws-documentation/tutorials/reduce-compute-node-launch-time-with-custom-ami/
+  # Create SOCA Optimized AMI to avoid this time penalty for ephemeral nodes  https://awslabs.github.io/engineering-development-hub-documentation/tutorials/reduce-compute-node-launch-time-with-custom-ami/
   {% if context.get("/job/NodeType") in ("controller") %}
     function install_cache_cli() {
       log_info "Installing Cache CLI client"
-      mkdir -p "${SOCA_BOOTSTRAP_ASSETS_FOLDER}/cache"
-      pushd "${SOCA_BOOTSTRAP_ASSETS_FOLDER}/cache"
+      mkdir -p "${EDH_BOOTSTRAP_ASSETS_FOLDER}/cache"
+      pushd "${EDH_BOOTSTRAP_ASSETS_FOLDER}/cache"
       {% if context.get("/configuration/Cache/engine") == "redis" %}
         # Note: do not yum install redis as the default package won't include TLS support (required for ElastiCache)
         CACHE_CMD="/usr/local/bin/redis-cli"
@@ -48,8 +48,8 @@
     # WRAPPER FUNCTIONS BELOW
     function get_cache_credentials() {
       local CREDENTIAL_KEY="${1}"
-      local CACHE_USERNAME_PATH="${SOCA_BOOTSTRAP_ASSETS_FOLDER}/.cache_user_username_{{ context.get('/configuration/ClusterId') }}.cache"
-      local CACHE_PASSWORD_PATH="${SOCA_BOOTSTRAP_ASSETS_FOLDER}/.cache_user_password_{{ context.get('/configuration/ClusterId') }}.cache"
+      local CACHE_USERNAME_PATH="${EDH_BOOTSTRAP_ASSETS_FOLDER}/.cache_user_username_{{ context.get('/configuration/ClusterId') }}.cache"
+      local CACHE_PASSWORD_PATH="${EDH_BOOTSTRAP_ASSETS_FOLDER}/.cache_user_password_{{ context.get('/configuration/ClusterId') }}.cache"
       local CACHE_USER_CREDENTIALS_SECRETMANAGER_ID
       local CACHE_USERNAME
       local CACHE_PASSWORD
@@ -58,10 +58,10 @@
 
         {% if context.get("/job/NodeType") == "controller" %}
           # Controller Host is the only host that can query Cache Admin User
-          CACHE_USER_CREDENTIALS_SECRETMANAGER_ID=$(get_secret "/soca/{{ context.get("/configuration/ClusterId") }}/CacheAdminUser")
+          CACHE_USER_CREDENTIALS_SECRETMANAGER_ID=$(get_secret "/edh/{{ context.get("/configuration/ClusterId") }}/CacheAdminUser")
         {% else %}
           # Retrieve ReadOnly user for non-controller machines (dcv_node / login_node / compute_node ...)
-          CACHE_USER_CREDENTIALS_SECRETMANAGER_ID=$(get_secret "/soca/{{ context.get("/configuration/ClusterId") }}/CacheReadOnlyUser")
+          CACHE_USER_CREDENTIALS_SECRETMANAGER_ID=$(get_secret "/edh/{{ context.get("/configuration/ClusterId") }}/CacheReadOnlyUser")
         {% endif %}
 
         CACHE_USERNAME=$(echo ${CACHE_USER_CREDENTIALS_SECRETMANAGER_ID} | jq -r ". | fromjson.username")

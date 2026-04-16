@@ -44,14 +44,14 @@ class SocaHpcHooksValidator:
         self.job_owner = job_owner
         self.job_queue = job_queue
         self.job_project = job_project
-        self.queue_settings_file = f"/opt/soca/{_soca_cluster_id}/cluster_manager/orchestrator/settings/queue_mapping.yml"
-        self.budget_config_file = f"/opt/soca/{_soca_cluster_id}/cluster_manager/orchestrator/settings/project_cost_manager.txt"
-        self.license_settings_file = f"/opt/soca/{_soca_cluster_id}/cluster_manager/orchestrator/settings/licenses_mapping.yml"
+        self.queue_settings_file = f"/opt/edh/{_soca_cluster_id}/cluster_manager/orchestrator/settings/queue_mapping.yml"
+        self.budget_config_file = f"/opt/edh/{_soca_cluster_id}/cluster_manager/orchestrator/settings/project_cost_manager.txt"
+        self.license_settings_file = f"/opt/edh/{_soca_cluster_id}/cluster_manager/orchestrator/settings/licenses_mapping.yml"
         self.queue_config = None
 
         # Create SocaLogger
         logger = SocaLogger(name="soca_logger").timed_rotating_file_handler(
-            file_path=f"/opt/soca/{_soca_cluster_id}/cluster_manager/orchestrator/logs/hooks.log"
+            file_path=f"/opt/edh/{_soca_cluster_id}/cluster_manager/orchestrator/logs/hooks.log"
         )
 
         try:

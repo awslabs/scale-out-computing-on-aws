@@ -11,7 +11,7 @@
       # ON_MOUNT_FAILURE (required): What to do if the mount is not successful (exit or ignore)
       # MOUNT_OPTIONS (optional): NFS options to use
       # ENABLED (optional): Whether the automount is enabled
-      pushd ${SOCA_BOOTSTRAP_ASSETS_FOLDER}
+      pushd ${EDH_BOOTSTRAP_ASSETS_FOLDER}
 
       if ! verify_package_installed mount-s3; then
         log_info "mount-s3 not found, installing it ..."

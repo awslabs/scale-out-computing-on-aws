@@ -25,8 +25,8 @@ def retrieve_desktops(cluster_id: str) -> dict:
                     "stopped",
                 ],
             },
-            {"Name": "tag:soca:NodeType", "Values": ["dcv_node"]},
-            {"Name": "tag:soca:ClusterId", "Values": [cluster_id]},
+            {"Name": "tag:edh:NodeType", "Values": ["dcv_node"]},
+            {"Name": "tag:edh:ClusterId", "Values": [cluster_id]},
         ],
     )
 
@@ -59,17 +59,22 @@ def retrieve_desktops(cluster_id: str) -> dict:
     return desktop_information
 
 
-if __name__ == "__main__":
-    ec2_client = get_boto(service_name="ec2").message
-    _index_name = "soca_desktops"
+if __name__ == "__main__":    
     _cluster_id = SocaConfig(key="/configuration/ClusterId").get_value().message
-    _log_file_location = f"/opt/soca/{_cluster_id}/cluster_manager/analytics/logs/desktop_hosts_tracking.log"
+    _index_name = f"edh_desktops_{_cluster_id}"
+
+    _log_file_location = f"/opt/edh/{_cluster_id}/cluster_manager/analytics/logs/desktop_hosts_tracking.log"
     logger = SocaLogger(name="analytics_desktop_hosts_tracking").rotating_file_handler(
         file_path=_log_file_location
     )
 
     logger.info(f"Tracking active SOCA Virtual Desktops . Log: {_log_file_location}")
 
+    _ec2_response = get_boto(service_name="ec2")
+    if _ec2_response.get("success") is False:
+        logger.error(f"Failed to get ec2 client: {_ec2_response.get('message')}")
+        sys.exit(1)
+    ec2_client = _ec2_response.get("message")
     _analytics_client = SocaAnalyticsClient(
         endpoint=SocaConfig(key="/configuration/Analytics/endpoint")
         .get_value()

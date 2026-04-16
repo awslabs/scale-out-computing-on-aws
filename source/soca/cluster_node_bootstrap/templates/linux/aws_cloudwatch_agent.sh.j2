@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 # Begin: Install AWS CloudWatch agent
-{% if context.get("/configuration/BaseOS") in ("amazonlinux2", "amazonlinux2023", "centos7", "rhel7", "rhel8", "rhel9", "rocky8", "rocky9") %}
+{% if context.get("/job/BaseOS") in ("amazonlinux2", "amazonlinux2023", "centos7", "rhel7", "rhel8", "rhel9", "rocky8", "rocky9") %}
 function install_aws_cloudwatch_agent () {
   # AWS CloudWatch agent is disabled by default
   # change to "enabled" to activate CloudWatch log agent
@@ -14,13 +14,13 @@ function install_aws_cloudwatch_agent () {
     log_info "Installing CloudWatch Agent"
     local DOWNLOAD_LINK_PATTERN="{{ context.get("/system/cloudwatch_agent/download_link_pattern") }}"
     local AWS_REGION="{{ context.get("/configuration/Region") }}"
-    {% if context.get("/configuration/BaseOS") in ("amazonlinux2", "amazonlinux2023") %}
+    {% if context.get("/job/BaseOS") in ("amazonlinux2", "amazonlinux2023") %}
     local OS="amazon_linux"
     local EXT="rpm"
-    {% elif context.get("/configuration/BaseOS") in ("rhel7", "rhel8", "rhel9", "rocky8", "rocky9") %}
+    {% elif context.get("/job/BaseOS") in ("rhel7", "rhel8", "rhel9", "rocky8", "rocky9") %}
     local OS="redhat"
     local EXT="rpm"
-    {% elif context.get("/configuration/BaseOS") == "centos7" %}
+    {% elif context.get("/job/BaseOS") == "centos7" %}
     local OS="centos"
     local EXT="rpm"
     {% endif %}
@@ -54,7 +54,7 @@ function install_aws_cloudwatch_agent () {
       "buffer_duration": 5000,
       "log_stream_name": "{instance_id}",
       "initial_position": "start_of_file",
-      "log_group_name": "/soca/var/log/messages"
+      "log_group_name": "/edh/var/log/messages"
     }
   },
   "metrics": {

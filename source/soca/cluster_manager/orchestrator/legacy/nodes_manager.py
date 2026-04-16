@@ -18,7 +18,7 @@ import sys
 import logging
 
 sys.path.append(
-    f"/opt/soca/{os.environ.get('SOCA_CLUSTER_ID', 'SOCA_CONFIGURATION_NOT_FOUND')}/cluster_manager"
+    f"/opt/edh/{os.environ.get('EDH_CLUSTER_ID', 'SOCA_CONFIGURATION_NOT_FOUND')}/cluster_manager"
 )
 
 from datetime import datetime, timezone, timedelta
@@ -80,12 +80,12 @@ def get_all_compute_instances(cluster_id: str):
                     "running",
                 ],
             },
-            {"Name": "tag:soca:NodeType", "Values": ["compute_node"]},
+            {"Name": "tag:edh:NodeType", "Values": ["compute_node"]},
             {
-                "Name": "tag:soca:KeepForever",
+                "Name": "tag:edh:KeepForever",
                 "Values": ["true", "false", "True", "False"],
             },
-            {"Name": "tag:soca:ClusterId", "Values": [cluster_id]},
+            {"Name": "tag:edh:ClusterId", "Values": [cluster_id]},
         ],
     )
 
@@ -111,25 +111,25 @@ def get_all_compute_instances(cluster_id: str):
                     job_id = [
                         x.get("Value")
                         for x in instance.get("Tags")
-                        if x.get("Key") == "soca:JobId"
+                        if x.get("Key") == "edh:JobId"
                     ]
 
                     job_queue = [
                         x["Value"]
                         for x in instance["Tags"]
-                        if x["Key"] == "soca:JobQueue"
+                        if x["Key"] == "edh:JobQueue"
                     ][0]
 
                     keep_forever = [
                         x["Value"]
                         for x in instance["Tags"]
-                        if x["Key"] == "soca:KeepForever"
+                        if x["Key"] == "edh:KeepForever"
                     ][0]
 
                     terminate_when_idle = [
                         x["Value"]
                         for x in instance["Tags"]
-                        if x["Key"] == "soca:TerminateWhenIdle"
+                        if x["Key"] == "edh:TerminateWhenIdle"
                     ][0]
 
                     cloudformation_stack = ""
@@ -143,7 +143,7 @@ def get_all_compute_instances(cluster_id: str):
                             asg_spotfleet_id = x["Value"]
                         elif x["Key"] == "aws:ec2spot:fleet-request-id":
                             asg_spotfleet_id = x["Value"]
-                        if x["Key"] == "soca:StackId":
+                        if x["Key"] == "edh:StackId":
                             stack_id = x["Value"]
 
                     if cloudformation_stack == "":
@@ -456,7 +456,7 @@ def remove_offline_nodes_spotfleet(spotfleets):
             )
 
             for x in resp["Reservations"][0]["Instances"][0]["Tags"]:
-                if x.get("Key") == "soca:StackId":
+                if x.get("Key") == "edh:StackId":
                     cloudformation_stack = x.get("Value")
 
             logger.info(f"Terminating SpotFleet {spotfleet}")
@@ -653,7 +653,7 @@ if __name__ == "__main__":
     cloudformation_client = get_boto(service_name="cloudformation").message
     autoscaling_client = get_boto(service_name="autoscaling").message
     _cluster_id = SocaConfig(key="/configuration/ClusterId").get_value().get("message")
-    _pbs_bin_path: str = f"/opt/soca/{_cluster_id}/schedulers/default/openpbs/bin/"
+    _pbs_bin_path: str = f"/opt/edh/{_cluster_id}/schedulers/default/openpbs/bin/"
     sbins: dict = {
         "qstat": f"{_pbs_bin_path}/qstat",
         "qmgr": f"{_pbs_bin_path}/qmgr",

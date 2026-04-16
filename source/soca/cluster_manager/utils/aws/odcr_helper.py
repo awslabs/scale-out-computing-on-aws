@@ -195,7 +195,7 @@ def create_capacity_reservation(
         str
     ] = None,  # This can be an Literal/Enum - but the list is long
     instance_ami: Optional[str] = None,
-    instance_match_criteria: Literal["open", "targeted"] = "open",
+    instance_match_criteria: Literal["open", "targeted"] = "targeted",
     placement_group_arn: Optional[str] = None,
 ) -> SocaResponse:
     # https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/ec2-capacity-reservations.html
@@ -243,41 +243,41 @@ def create_capacity_reservation(
 
     _odcr_tags = [
         {"Key": "Name", "Value": capacity_reservation_name},
-        {"Key": "soca:ClusterId", "Value": _soca_cluster_id},
+        {"Key": "edh:ClusterId", "Value": _soca_cluster_id},
         {
-            "Key": "soca:CapacityReservationAZ",
+            "Key": "edh:CapacityReservationAZ",
             "Value": str(_subnet_az),
         },
         {
-            "Key": "soca:ValidatedSubnetId",
+            "Key": "edh:ValidatedSubnetId",
             "Value": str(subnet_id),
         },
         {
-            "Key": "soca:CapacityReservationCount",
+            "Key": "edh:CapacityReservationCount",
             "Value": str(desired_capacity),
         },
         {
-            "Key": "soca:CapacityReservationInstanceType",
+            "Key": "edh:CapacityReservationInstanceType",
             "Value": str(instance_type),
         },
-        {"Key": "soca:AssociatedStackId", "Value": capacity_reservation_name},
+        {"Key": "edh:AssociatedStackId", "Value": capacity_reservation_name},
     ]
 
     # Provide an expiration date for the ODCR
     # This can be controlled via the kwargs
     if not end_date:
         _now = datetime.now(timezone.utc)
-        if probe_capacity_only is True:
+        if probe_capacity_only:
             # short TTL as we don't actually need to keep the reservation active
             # note: we submit a cancel_capacity_reservation()
             logger.info(
-                f"end_date is not specified, but probe_capacity_only is True. CR expirate date will be set to now + 2 minute: {end_date}"
+                f"end_date is not specified, but probe_capacity_only is True. CR expiration date will be set to now + 2 minute: {end_date}"
             )
             end_date = _now + timedelta(minutes=_default_capacity_probing_cr_duration)
         else:
             # Longer TTL as we need the capacity reservation to be active until the capacity/fleet is provisioned as the CR ID will be mapped to the CloudFormation request
             logger.info(
-                f"end_date is not specified, but probe_capacity_only is False. CR expirate date will be set to now + 5 minutes to ensure capacity has the time to be provisioned: {end_date}"
+                f"end_date is not specified, but probe_capacity_only is False. CR expiration date will be set to now + 5 minutes to ensure capacity has the time to be provisioned: {end_date}"
             )
             end_date = _now + timedelta(minutes=_default_capacity_cr_duration)
     else:
@@ -328,7 +328,7 @@ def create_capacity_reservation(
         logger.info(
             f"Capacity Reservation ID success: {_reservation_id=}, capacity is available"
         )
-        if probe_capacity_only is True:
+        if probe_capacity_only:
             logger.info("probe_capacity_only is True, cancelling capacity reservation")
             try:
                 client_ec2.cancel_capacity_reservation(

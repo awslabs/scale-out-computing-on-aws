@@ -45,7 +45,9 @@ class Config(object):
     SOCA_DATA_SHARING_SYMMETRIC_KEY = os.environ.get("SOCA_FLASK_FERNET_KEY", False)
     TIMEZONE = "UTC"  # Change to match your local timezone if needed. See https://en.wikipedia.org/wiki/List_of_tz_database_time_zones for all TZ
 
-    USER_REGEX_PATTERN = r"^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,31}$" # Username must be alphanumeric and - _ . 
+    USER_REGEX_PATTERN = (
+        r"^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,31}$"  # Username must be alphanumeric and - _ .
+    )
     # WEB
     APPS_LOCATION = "/apps/"
     USER_HOME = "/data/home"
@@ -97,7 +99,7 @@ class Config(object):
     COGNITO_APP_ID = "<YOUR_APP_ID>"
     COGNITO_ROOT_URL = "<YOUR_WEB_URL>"
     COGNITO_CALLBACK_URL = "<YOUR_CALLBACK_URL>"
-    COGNITO_USER_CLAIM = "email" # Claim containing the SOCA username. If set to email, SOCA will split("@") and consider the first part is the SOCA user. Replace as needed with another claim.
+    COGNITO_USER_CLAIM = "email"  # Claim containing the SOCA username. If set to email, SOCA will split("@") and consider the first part is the SOCA user. Replace as needed with another claim.
 
     # DCV Linux
     DCV_LINUX_SESSION_COUNT = 4
@@ -356,11 +358,7 @@ class Config(object):
         sys.exit(1)
 
     # PBS
-    CLUSTER_ID = (
-        SocaConfig(key="/configuration/ClusterId")
-        .get_value()
-        .get("message")
-    )
+    CLUSTER_ID = SocaConfig(key="/configuration/ClusterId").get_value().get("message")
 
     # SSH
     SSH_PRIVATE_KEY_LOCATION = "tmp/ssh"
@@ -368,6 +366,18 @@ class Config(object):
     # Amazon Q for Business
     # Add your Amazon Q for Business URL (ex: https://t5i9puav.chat.qbusiness.us-west-2.on.aws/) to display Amazon Q logo in the horizontal bar
     AMAZON_Q_BUSINESS_URL = False
+
+    # Custom Link to be displayed on the Index Page
+    # Format: List of dictionary with text and url
+    # URL must start with http or https
+    # ex: [{ "text": "Internal Wiki", "url": "https://example.com"}, {"text": "Submit a Ticket", "url": "https://example2.com"}]
+    INDEX_PAGE_CUSTOM_LINKS =  []
+
+    # Custom Link to be displayed on the Login Page
+    # Format: List of dictionary with text and url
+    # URL must start with http or https
+    # ex: [{ "text": "Internal Wiki", "url": "https://example.com"}, {"text": "Submit a Ticket", "url": "https://example2.com"}]
+    LOGIN_PAGE_CUSTOM_LINKS = []
 
 
 app_config = Config()

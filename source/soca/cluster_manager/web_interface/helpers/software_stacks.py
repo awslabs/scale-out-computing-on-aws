@@ -85,7 +85,7 @@ class SoftwareStacksHelper:
         _check_vdi_permissions = SocaHttpClient(
             endpoint=f"/api/user/resources_permissions",
             headers={
-                "X-SOCA-TOKEN": config.Config.API_ROOT_KEY,
+                "X-EDH-TOKEN": config.Config.API_ROOT_KEY,
             },
         ).post(
             data={
@@ -147,7 +147,7 @@ class SoftwareStacksHelper:
             _check_budget = SocaHttpClient(
                 endpoint=f"/api/cost_management/budget",
                 headers={
-                    "X-SOCA-TOKEN": config.Config.API_ROOT_KEY,
+                    "X-EDH-TOKEN": config.Config.API_ROOT_KEY,
                 },
             ).get(params={"project_name": project})
             if _check_budget.get("success") is False:

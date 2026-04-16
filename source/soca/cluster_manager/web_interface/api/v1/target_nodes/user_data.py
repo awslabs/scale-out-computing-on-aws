@@ -55,7 +55,7 @@ class TargetNodeUserDataManager(Resource):
           - socaAuth: []
         parameters:
           - in: header
-            name: X-SOCA-USER
+            name: X-EDH-USER
             required: true
             schema:
               type: string
@@ -65,7 +65,7 @@ class TargetNodeUserDataManager(Resource):
               example: "admin"
             description: SOCA username for authentication
           - in: header
-            name: X-SOCA-TOKEN
+            name: X-EDH-TOKEN
             required: true
             schema:
               type: string
@@ -108,7 +108,7 @@ class TargetNodeUserDataManager(Resource):
             socaAuth:
               type: apiKey
               in: header
-              name: X-SOCA-USER
+              name: X-EDH-USER
               description: SOCA authentication using username and token headers
         """
         parser = reqparse.RequestParser()
@@ -164,7 +164,7 @@ class TargetNodeUserDataManager(Resource):
           - socaAuth: []
         parameters:
           - in: header
-            name: X-SOCA-USER
+            name: X-EDH-USER
             required: true
             schema:
               type: string
@@ -174,7 +174,7 @@ class TargetNodeUserDataManager(Resource):
               example: "admin"
             description: SOCA username for authentication
           - in: header
-            name: X-SOCA-TOKEN
+            name: X-EDH-TOKEN
             required: true
             schema:
               type: string
@@ -242,7 +242,7 @@ class TargetNodeUserDataManager(Resource):
             socaAuth:
               type: apiKey
               in: header
-              name: X-SOCA-USER
+              name: X-EDH-USER
               description: SOCA authentication using username and token headers
         """
         parser = reqparse.RequestParser()
@@ -277,9 +277,9 @@ class TargetNodeUserDataManager(Resource):
                 helper=f"User Data on EC2 are limited to 16 KB. Current size is {kb_size:.1f} KB"
             ).as_flask()
 
-        _user = request.headers.get("X-SOCA-USER")
+        _user = request.headers.get("X-EDH-USER")
         if _user is None:
-            return SocaError.CLIENT_MISSING_HEADER(header="X-SOCA-USER").as_flask()
+            return SocaError.CLIENT_MISSING_HEADER(header="X-EDH-USER").as_flask()
 
         if len(_description) > 500:
             return SocaError.GENERIC_ERROR(
@@ -342,7 +342,7 @@ class TargetNodeUserDataManager(Resource):
           - socaAuth: []
         parameters:
           - in: header
-            name: X-SOCA-USER
+            name: X-EDH-USER
             required: true
             schema:
               type: string
@@ -352,7 +352,7 @@ class TargetNodeUserDataManager(Resource):
               example: "admin"
             description: SOCA username for authentication
           - in: header
-            name: X-SOCA-TOKEN
+            name: X-EDH-TOKEN
             required: true
             schema:
               type: string
@@ -405,7 +405,7 @@ class TargetNodeUserDataManager(Resource):
             socaAuth:
               type: apiKey
               in: header
-              name: X-SOCA-USER
+              name: X-EDH-USER
               description: SOCA authentication using username and token headers
         """
         parser = reqparse.RequestParser()
@@ -429,9 +429,9 @@ class TargetNodeUserDataManager(Resource):
                 helper=f"template_id does not seems to be a valid integer {args['template_id']}",
             ).as_flask()
 
-        _user = request.headers.get("X-SOCA-USER")
+        _user = request.headers.get("X-EDH-USER")
         if _user is None:
-            return SocaError.CLIENT_MISSING_HEADER(header="X-SOCA-USER").as_flask()
+            return SocaError.CLIENT_MISSING_HEADER(header="X-EDH-USER").as_flask()
 
         _check_template_id = TargetNodeUserData.query.filter_by(
             id=_template_id, is_active=True
@@ -497,7 +497,7 @@ class TargetNodeUserDataManager(Resource):
           - socaAuth: []
         parameters:
           - in: header
-            name: X-SOCA-USER
+            name: X-EDH-USER
             required: true
             schema:
               type: string
@@ -507,7 +507,7 @@ class TargetNodeUserDataManager(Resource):
               example: "admin"
             description: SOCA username for authentication
           - in: header
-            name: X-SOCA-TOKEN
+            name: X-EDH-TOKEN
             required: true
             schema:
               type: string
@@ -573,7 +573,7 @@ class TargetNodeUserDataManager(Resource):
             socaAuth:
               type: apiKey
               in: header
-              name: X-SOCA-USER
+              name: X-EDH-USER
               description: SOCA authentication using username and token headers
         """
         parser = reqparse.RequestParser()
@@ -611,9 +611,9 @@ class TargetNodeUserDataManager(Resource):
             return SocaError.GENERIC_ERROR(
                 helper="User Data must start with #!/bin/bash<return carriage>"
             ).as_flask()
-        _user = request.headers.get("X-SOCA-USER")
+        _user = request.headers.get("X-EDH-USER")
         if _user is None:
-            return SocaError.CLIENT_MISSING_HEADER(header="X-SOCA-USER").as_flask()
+            return SocaError.CLIENT_MISSING_HEADER(header="X-EDH-USER").as_flask()
 
         if len(_description) > 500:
             return SocaError.GENERIC_ERROR(

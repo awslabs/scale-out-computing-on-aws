@@ -33,8 +33,8 @@ def index():
     _list_all_applications = SocaHttpClient(
         endpoint="/api/applications/list_applications",
         headers={
-            "X-SOCA-TOKEN": session.get("api_key",""),
-            "X-SOCA-USER": session.get("user",""),
+            "X-EDH-TOKEN": session.get("api_key",""),
+            "X-EDH-USER": session.get("user",""),
         },
     ).get()
     if _list_all_applications.get("success") is False:
@@ -76,8 +76,8 @@ def edit():
     _list_all_applications = SocaHttpClient(
         endpoint="/api/applications/list_applications",
         headers={
-            "X-SOCA-TOKEN": session.get("api_key",""),
-            "X-SOCA-USER": session.get("user",""),
+            "X-EDH-TOKEN": session.get("api_key",""),
+            "X-EDH-USER": session.get("user",""),
         },
     ).get()
     if _list_all_applications.get("success") is False:
@@ -142,8 +142,8 @@ def create_application():
     _create_application = SocaHttpClient(
         "/api/applications/application",
         headers={
-            "X-SOCA-TOKEN": session.get("api_key",""),
-            "X-SOCA-USER": session.get("user",""),
+            "X-EDH-TOKEN": session.get("api_key",""),
+            "X-EDH-USER": session.get("user",""),
         },
     ).post(
         data={
@@ -169,8 +169,8 @@ def edit_application():
     _update_application = SocaHttpClient(
         "/api/applications/application",
         headers={
-            "X-SOCA-TOKEN": session.get("api_key",""),
-            "X-SOCA-USER": session.get("user",""),
+            "X-EDH-TOKEN": session.get("api_key",""),
+            "X-EDH-USER": session.get("user",""),
         },
     ).put(
         data={
@@ -197,8 +197,8 @@ def delete_application():
     _delete_application = SocaHttpClient(
         "/api/applications/application",
         headers={
-            "X-SOCA-TOKEN": session.get("api_key",""),
-            "X-SOCA-USER": session.get("user",""),
+            "X-EDH-TOKEN": session.get("api_key",""),
+            "X-EDH-USER": session.get("user",""),
         },
     ).delete(data={"application_id": request.form.get("application_id", "")})
     flash(
@@ -217,8 +217,8 @@ def export_application():
     _get_json = SocaHttpClient(
         endpoint="/api/applications/export",
         headers={
-            "X-SOCA-TOKEN": session.get("api_key",""),
-            "X-SOCA-USER": session.get("user",""),
+            "X-EDH-TOKEN": session.get("api_key",""),
+            "X-EDH-USER": session.get("user",""),
         },
     ).get(params={"application_id": _application_id})
     if _get_json.get("success") is True:
@@ -251,8 +251,8 @@ def import_application():
     _import_app = SocaHttpClient(
         "/api/applications/import",
         headers={
-            "X-SOCA-TOKEN": session.get("api_key",""),
-            "X-SOCA-USER": session.get("user",""),
+            "X-EDH-TOKEN": session.get("api_key",""),
+            "X-EDH-USER": session.get("user",""),
         },
     ).post(
         data={"profile_name": _profile_name},

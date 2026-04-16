@@ -6,7 +6,7 @@ function configure_munge () {
     log_info "Configuring MUNGE"
     local MUNGE_USER="munge"
     local MUNGE_USER_GROUP="munge"
-    local MUNGE_KEY_DIR="/apps/soca/{{context.get("/configuration/ClusterId")}}/shared/munge"
+    local MUNGE_KEY_DIR="/apps/edh/{{context.get("/configuration/ClusterId")}}/shared/munge"
 
     log_info "Creating MUNGE User/Group ..."
     groupadd -r ${MUNGE_USER_GROUP}
@@ -71,7 +71,7 @@ EOF
 
 function install_munge {
     local INSTALLED_MUNGE_VERSION=$(munged --version | awk '{print $1}' | grep -oP '\d+\.\d+\.\d+')
-    local INSTALLER_DIR="${SOCA_BOOTSTRAP_ASSETS_FOLDER}/munge"
+    local INSTALLER_DIR="${EDH_BOOTSTRAP_ASSETS_FOLDER}/munge"
     local MUNGE_VERSION="{{ context.get("/system/munge/version") }}"
     local MUNGE_URL="{{ context.get("/system/munge/url") }}"
 
@@ -82,9 +82,9 @@ function install_munge {
         log_info "Installing MUNGE ${MUNGE_VERSION}"
 
         log_info "Removing any potential system-installed MUNGE"
-        {% if context.get("/configuration/BaseOS") in ["amazonlinux2", "amazonlinux2023", "rhel8", "rhel9", "rocky8", "rocky9"] %}
+        {% if context.get("/job/BaseOS") in ["amazonlinux2", "amazonlinux2023", "rhel8", "rhel9", "rocky8", "rocky9"] %}
           packages_generic_command  remove -y munge munge-devel munge-libs
-        {% elif context.get("/configuration/BaseOS") in ["ubuntu2204", "ubuntu2404"] %}
+        {% elif context.get("/job/BaseOS") in ["ubuntu2204", "ubuntu2404"] %}
           packages_generic_command remove --purge -y munge
         {% endif %}
 

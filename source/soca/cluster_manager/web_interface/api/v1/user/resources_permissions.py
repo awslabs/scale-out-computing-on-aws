@@ -199,7 +199,7 @@ class GetUserResourcesPermissions(Resource):
         summary: Get current user's resource permissions
         description: Retrieves resource permissions for the authenticated user (private API)
         parameters:
-          - name: X-SOCA-USER
+          - name: X-EDH-USER
             in: header
             schema:
               type: string
@@ -207,7 +207,7 @@ class GetUserResourcesPermissions(Resource):
             required: true
             description: SOCA username for authentication
             example: user.name
-          - name: X-SOCA-TOKEN
+          - name: X-EDH-TOKEN
             in: header
             schema:
               type: string
@@ -301,31 +301,31 @@ class GetUserResourcesPermissions(Resource):
         _application_profiles = args.get("application_profiles")
         _exclude_columns = args.get("exclude_columns").split(",")
 
-        if _validate_stack_ids(_application_profiles) is False:
+        if not _validate_stack_ids(_application_profiles):
             return SocaError.GENERIC_ERROR(
                 helper=f"{_application_profiles} must be empty, 'all' or a csv of integer"
             ).as_flask()
 
-        if _validate_stack_ids(_virtual_desktops) is False:
+        if not _validate_stack_ids(_virtual_desktops):
             return SocaError.GENERIC_ERROR(
                 helper=f"{_virtual_desktops} must be empty, 'all' or a csv of integer"
             ).as_flask()
 
-        if _validate_stack_ids(_target_nodes) is False:
+        if not _validate_stack_ids(_target_nodes):
             return SocaError.GENERIC_ERROR(
                 helper=f"{_target_nodes} must be empty, 'all' or a csv of integer"
             ).as_flask()
 
-        _user = request.headers.get("X-SOCA-USER")
+        _user = request.headers.get("X-EDH-USER")
 
         if _user is None:
-            return SocaError.CLIENT_MISSING_HEADER(header="X-SOCA-USER").as_flask()
+            return SocaError.CLIENT_MISSING_HEADER(header="X-EDH-USER").as_flask()
         else:
             _get_user_info = SocaHttpClient(
                 endpoint="/api/ldap/user",
                 headers={
-                    "X-SOCA-TOKEN": request.headers.get("X-SOCA-TOKEN"),
-                    "X-SOCA-USER": request.headers.get("X-SOCA-USER"),
+                    "X-EDH-TOKEN": request.headers.get("X-EDH-TOKEN"),
+                    "X-EDH-USER": request.headers.get("X-EDH-USER"),
                 },
             ).get(params={"user": _user})
             if _get_user_info.success is False:
@@ -474,7 +474,7 @@ class GetUserResourcesPermissions(Resource):
         summary: Get resource permissions for a specific user
         description: Retrieves resource permissions for a specified user (admin access required)
         parameters:
-          - name: X-SOCA-USER
+          - name: X-EDH-USER
             in: header
             schema:
               type: string
@@ -482,7 +482,7 @@ class GetUserResourcesPermissions(Resource):
             required: true
             description: SOCA username for authentication (must be admin)
             example: admin.user
-          - name: X-SOCA-TOKEN
+          - name: X-EDH-TOKEN
             in: header
             schema:
               type: string
@@ -581,17 +581,17 @@ class GetUserResourcesPermissions(Resource):
         _exclude_columns = args.get("exclude_columns").split(",")
         _user = args.get("user")
 
-        if _validate_stack_ids(_application_profiles) is False:
+        if not _validate_stack_ids(_application_profiles):
             return SocaError.GENERIC_ERROR(
                 helper=f"{_application_profiles} must be empty, 'all' or a csv of integer"
             ).as_flask()
 
-        if _validate_stack_ids(_virtual_desktops) is False:
+        if not _validate_stack_ids(_virtual_desktops):
             return SocaError.GENERIC_ERROR(
                 helper=f"{_virtual_desktops} must be empty, 'all' or a csv of integer"
             ).as_flask()
 
-        if _validate_stack_ids(_target_nodes) is False:
+        if not _validate_stack_ids(_target_nodes):
             return SocaError.GENERIC_ERROR(
                 helper=f"{_target_nodes} must be empty, 'all' or a csv of integer"
             ).as_flask()
@@ -605,8 +605,8 @@ class GetUserResourcesPermissions(Resource):
         _get_user_info = SocaHttpClient(
             endpoint="/api/ldap/user",
             headers={
-                "X-SOCA-TOKEN": request.headers.get("X-SOCA-TOKEN"),
-                "X-SOCA-USER": request.headers.get("X-SOCA-USER"),
+                "X-EDH-TOKEN": request.headers.get("X-EDH-TOKEN"),
+                "X-EDH-USER": request.headers.get("X-EDH-USER"),
             },
         ).get(params={"user": _user})
         if _get_user_info.success is False:

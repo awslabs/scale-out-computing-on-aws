@@ -56,9 +56,9 @@ def lambda_handler(event, context):
                 _role_name = _role.get("RoleName", "")
                 logging.info(f"Considering IAM Role: {_role_name}")
                 if (
-                    _role_name.startswith(f"soca-{_cluster_id}-ControllerRole") or
-                    _role_name.startswith(f"soca-{_cluster_id}-ComputeNodeRole") or
-                    _role_name.startswith(f"soca-{_cluster_id}-LoginNodeRole")
+                    _role_name.startswith(f"edh-{_cluster_id}-ControllerRole") or
+                    _role_name.startswith(f"edh-{_cluster_id}-ComputeNodeRole") or
+                    _role_name.startswith(f"edh-{_cluster_id}-LoginNodeRole")
                 ):
                     _role_arn = _role.get("Arn", "")
                     if _role_arn:
@@ -85,7 +85,7 @@ def lambda_handler(event, context):
                     logging.info(f"Found AOSS collection: {_cluster_id}")
 
             # Create the data policy
-            _policy_name: str = f"soca-{_cluster_id}-data-policy"
+            _policy_name: str = f"edh-{_cluster_id}-data-policy"
             _policy_doc: list = [
                 {
                     "Description":  f"{_cluster_id} Data Policy",

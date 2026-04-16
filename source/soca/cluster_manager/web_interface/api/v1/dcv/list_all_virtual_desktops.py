@@ -45,7 +45,7 @@ class ListAllVirtualDesktops(Resource):
         summary: List all virtual desktop sessions
         description: Retrieves detailed information about all active DCV virtual desktop sessions (admin access required)
         parameters:
-          - name: X-SOCA-USER
+          - name: X-EDH-USER
             in: header
             required: true
             schema:
@@ -55,7 +55,7 @@ class ListAllVirtualDesktops(Resource):
               pattern: '^[a-zA-Z0-9._-]+$'
             description: SOCA username for authentication (must be admin)
             example: "admin.user"
-          - name: X-SOCA-TOKEN
+          - name: X-EDH-TOKEN
             in: header
             required: true
             schema:
@@ -159,7 +159,7 @@ class ListAllVirtualDesktops(Resource):
                       example: 401
                     message:
                       type: string
-                      example: "Missing required header: X-SOCA-USER"
+                      example: "Missing required header: X-EDH-USER"
           '403':
             description: Insufficient permissions or feature not enabled
             content:
@@ -205,9 +205,9 @@ class ListAllVirtualDesktops(Resource):
         args = parser.parse_args()
         logger.debug(f"Received parameter for listing all DCV desktop: {args}")
 
-        user = request.headers.get("X-SOCA-USER")
+        user = request.headers.get("X-EDH-USER")
         if user is None:
-            return SocaError.CLIENT_MISSING_HEADER(header="X-SOCA-USER").as_flask()
+            return SocaError.CLIENT_MISSING_HEADER(header="X-EDH-USER").as_flask()
 
         _all_dcv_sessions = (
             VirtualDesktopSessions.query.join(

@@ -9,7 +9,7 @@ function openpbs_configure_server_{{  SCHEDULER_VARS.get("IDENTIFIER") }} () {
     local SCHEDULER_HOSTNAME="{{ SCHEDULER_VARS.get("ENDPOINT") }}"
     local SCHEDULER_IDENTIFIER="{{ SCHEDULER_VARS.get("IDENTIFIER") }}"
     local SOCA_CLUSTER_ID="{{ context.get("/configuration/ClusterId") }}"
-    local SOCA_BASE_OS="{{ context.get("/configuration/BaseOS") }}"
+    local SOCA_BASE_OS="{{ context.get("/job/BaseOS") }}"
     local OPENPBS_INSTALL_DIR="{{ SCHEDULER_VARS.get("PBS_CONFIGURATION").get("pbs_exec") }}"
     local OPENPBS_PBS_HOME="{{ SCHEDULER_VARS.get("PBS_CONFIGURATION").get("pbs_home") }}"
     
@@ -74,22 +74,23 @@ subnet_ids type=string
 retry_attempt type=string
 terminate_when_idle type=string flag=h
 keep_forever type=string flag=h
+nested_virtualization type=string
 EOF
     
-    log_info "Starting  soca_scheduler_${SCHEDULER_IDENTIFIER}.service"
-    systemctl enable soca_scheduler_${SCHEDULER_IDENTIFIER}.service
-    if ! systemctl start soca_scheduler_${SCHEDULER_IDENTIFIER}.service; then
-        journalctl -xeu soca_scheduler_${SCHEDULER_IDENTIFIER}.service
-        exit_fail "Unable to start OpenPBS via soca_scheduler_${SCHEDULER_IDENTIFIER}.service, check logs"
+    log_info "Starting  edh_scheduler_${SCHEDULER_IDENTIFIER}.service"
+    systemctl enable edh_scheduler_${SCHEDULER_IDENTIFIER}.service
+    if ! systemctl start edh_scheduler_${SCHEDULER_IDENTIFIER}.service; then
+        journalctl -xeu edh_scheduler_${SCHEDULER_IDENTIFIER}.service
+        exit_fail "Unable to start OpenPBS via edh_scheduler_${SCHEDULER_IDENTIFIER}.service, check logs"
     fi
     
     sleep 30
 
     # Create Default PBS hooks
-    sed -i "s/%SOCA_CLUSTER_ID/${SOCA_CLUSTER_ID}/g" "/opt/soca/"${SOCA_CLUSTER_ID}"/cluster_hooks/pbs/job_notifications.py"
+    sed -i "s/%SOCA_CLUSTER_ID/${SOCA_CLUSTER_ID}/g" "/opt/edh/"${SOCA_CLUSTER_ID}"/cluster_hooks/pbs/job_notifications.py"
 
     ${OPENPBS_INSTALL_DIR}/bin/qmgr -c "create hook validate_job_submit event=queuejob"
-    ${OPENPBS_INSTALL_DIR}/bin/qmgr -c "import hook validate_job_submit application/x-python default /opt/soca/${SOCA_CLUSTER_ID}/cluster_hooks/pbs/queued_job.py"
+    ${OPENPBS_INSTALL_DIR}/bin/qmgr -c "import hook validate_job_submit application/x-python default /opt/edh/${SOCA_CLUSTER_ID}/cluster_hooks/pbs/queued_job.py"
 
     # Scheduler node creation
     ${OPENPBS_INSTALL_DIR}/bin/qmgr -c "create node ${SCHEDULER_HOSTNAME}"
@@ -130,10 +131,10 @@ EOF
     # Add compute_node to list of required resource
     sed -i '/^resources:/ s/^\(resources: "[^"]*\)"/\1, compute_node"/' ${OPENPBS_PBS_HOME}/sched_priv/sched_config
     
-    log_info "Restarting soca_scheduler_${SCHEDULER_IDENTIFIER}.service"
-    if ! systemctl restart soca_scheduler_${SCHEDULER_IDENTIFIER}.service; then
-        journalctl -xeu soca_scheduler_${SCHEDULER_IDENTIFIER}.service
-        exit_fail "Unable to restart OpenPBS via soca_scheduler_${SCHEDULER_IDENTIFIER}.service, check logs"
+    log_info "Restarting edh_scheduler_${SCHEDULER_IDENTIFIER}.service"
+    if ! systemctl restart edh_scheduler_${SCHEDULER_IDENTIFIER}.service; then
+        journalctl -xeu edh_scheduler_${SCHEDULER_IDENTIFIER}.service
+        exit_fail "Unable to restart OpenPBS via edh_scheduler_${SCHEDULER_IDENTIFIER}.service, check logs"
     fi
     sleep 30
     log_info "[END] openpbs_configure_server .. "

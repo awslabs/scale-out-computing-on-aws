@@ -13,21 +13,21 @@ function install_amd_gpu_drivers() {
   # Instance GPU
   # G4ad     Radeon Pro V520
   #
-  mkdir -p "${SOCA_BOOTSTRAP_ASSETS_FOLDER}/gpu_drivers"
-  pushd "${SOCA_BOOTSTRAP_ASSETS_FOLDER}/gpu_drivers"
+  mkdir -p "${EDH_BOOTSTRAP_ASSETS_FOLDER}/gpu_drivers"
+  pushd "${EDH_BOOTSTRAP_ASSETS_FOLDER}/gpu_drivers"
 
-  {% if context.get("/configuration/BaseOS") =='amazonlinux2' %}
+  {% if context.get("/job/BaseOS") =='amazonlinux2' %}
      packages_install mesa* mesa-libEGL mesa-dri-drivers vulkan vulkan-amdgpu vulkan-devel vulkan-filesystem
   {% endif %}
 
-  {% if context.get("/configuration/BaseOS") in ('rhel7', 'centos7', 'amazonlinux2') %}
+  {% if context.get("/job/BaseOS") in ('rhel7', 'centos7', 'amazonlinux2') %}
     local DRIVER_BUCKET_REGION=$(curl -s --head "{{ context.get("/system/gpu/gpu_settings/amd/linux/s3_bucket_url") }}" | grep bucket-region | awk '{print $2}' | tr -d '\r\n')
     aws_cli s3 cp --region ${DRIVER_BUCKET_REGION} --quiet --recursive {{ context.get("/system/gpu/gpu_settings/amd/linux/s3_bucket_path") }} .
     tar -xf amdgpu-pro-*rhel*.tar.xz
     cd $(find . -maxdepth 1 -mindepth 1 -type d -name "amdgpu-pro*rhel*")
     /bin/bash ./amdgpu-pro-install -y --opencl=pal,legacy
 
-  {% elif context.get("/configuration/BaseOS") in ("rhel8", "rhel9", "rocky8", "rocky9") %}
+  {% elif context.get("/job/BaseOS") in ("rhel8", "rhel9", "rocky8", "rocky9") %}
      local AMD_RADEON_REPO_BASE_URL="{{ context.get("/system/gpu/gpu_settings/amd/linux/radeon_repo_url") }}"
      local AMD_GPU_VERSION
      local OS_VERSION=$(awk -F= '/^VERSION_ID/ {gsub(/"/, "", $2); print $2}' /etc/os-release)
@@ -41,7 +41,7 @@ function install_amd_gpu_drivers() {
           *"8.10"*) AMD_GPU_VERSION="6.2.3" ;;
           *"8.8"*) AMD_GPU_VERSION="6.2.3" ;;
           *"8.9"*) AMD_GPU_VERSION="6.2.3" ;;
-          *) log_error "Unable to found AMD GPU drivers for {{ context.get("/configuration/BaseOS") }} version ${OS_VERSION}. Update cluster_node_bootstrap/templates/linux/gpu/amd_drivers.sh.j2 with the new version" ;;
+          *) log_error "Unable to found AMD GPU drivers for {{ context.get("/job/BaseOS") }} version ${OS_VERSION}. Update cluster_node_bootstrap/templates/linux/gpu/amd_drivers.sh.j2 with the new version" ;;
       esac
 
      local RHEL_ROCKY_INSTALLER_URL="${AMD_RADEON_REPO_BASE_URL}/${AMD_GPU_VERSION}/el/${OS_VERSION}/main/x86_64/"

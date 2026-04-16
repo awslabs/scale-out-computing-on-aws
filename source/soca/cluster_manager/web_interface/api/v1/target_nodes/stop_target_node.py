@@ -46,7 +46,7 @@ class StopTargetNode(Resource):
           - socaAuth: []
         parameters:
           - in: header
-            name: X-SOCA-USER
+            name: X-EDH-USER
             required: true
             schema:
               type: string
@@ -56,7 +56,7 @@ class StopTargetNode(Resource):
               example: "john.doe"
             description: SOCA username for authentication
           - in: header
-            name: X-SOCA-TOKEN
+            name: X-EDH-TOKEN
             required: true
             schema:
               type: string
@@ -128,7 +128,7 @@ class StopTargetNode(Resource):
                       example: false
                     message:
                       type: string
-                      example: "Missing X-SOCA-USER header"
+                      example: "Missing X-EDH-USER header"
           '404':
             description: Session not found
             content:
@@ -169,7 +169,7 @@ class StopTargetNode(Resource):
             socaAuth:
               type: apiKey
               in: header
-              name: X-SOCA-USER
+              name: X-EDH-USER
               description: SOCA authentication using username and token headers
         """
 
@@ -177,10 +177,10 @@ class StopTargetNode(Resource):
         parser.add_argument("session_uuid", type=str, location="form")
 
         args = parser.parse_args()
-        _user = request.headers.get("X-SOCA-USER")
+        _user = request.headers.get("X-EDH-USER")
         _session_uuid = args.get("session_uuid", None)
         if _user is None:
-            return SocaError.CLIENT_MISSING_HEADER(header="X-SOCA-USER").as_flask()
+            return SocaError.CLIENT_MISSING_HEADER(header="X-EDH-USER").as_flask()
 
         logger.debug(
             f"Received stop target node request for {_session_uuid}, user {_user}"

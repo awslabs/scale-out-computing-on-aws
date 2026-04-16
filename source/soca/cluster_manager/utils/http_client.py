@@ -59,8 +59,9 @@ class SocaHttpClient:
         return self.return_request(method="delete", params=data)
 
     def return_request(self, method: str, params: dict, files: dict = None):
-        # Remove X-SOCA-TOKEN, password etc from log
+        # Remove X-EDH-TOKEN, password etc from log
         _sanitize_log = [
+            "X-EDH-TOKEN",
             "X-SOCA-TOKEN",
             "password",
             "passwd",

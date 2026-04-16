@@ -43,7 +43,7 @@ class UpdateTargetNodeSchedule(Resource):
           - socaAuth: []
         parameters:
           - in: header
-            name: X-SOCA-USER
+            name: X-EDH-USER
             required: true
             schema:
               type: string
@@ -53,7 +53,7 @@ class UpdateTargetNodeSchedule(Resource):
               example: "john.doe"
             description: SOCA username for authentication
           - in: header
-            name: X-SOCA-TOKEN
+            name: X-EDH-TOKEN
             required: true
             schema:
               type: string
@@ -150,7 +150,7 @@ class UpdateTargetNodeSchedule(Resource):
             socaAuth:
               type: apiKey
               in: header
-              name: X-SOCA-USER
+              name: X-EDH-USER
               description: SOCA authentication using username and token headers
         """
         parser = reqparse.RequestParser()
@@ -166,9 +166,9 @@ class UpdateTargetNodeSchedule(Resource):
                 parameter="Your administrator has disabled target node schedule update"
             ).as_flask()
 
-        _user = request.headers.get("X-SOCA-USER")
+        _user = request.headers.get("X-EDH-USER")
         if _user is None:
-            return SocaError.CLIENT_MISSING_HEADER(header="X-SOCA-USER").as_flask()
+            return SocaError.CLIENT_MISSING_HEADER(header="X-EDH-USER").as_flask()
 
         if _session_uuid is None:
             return SocaError.CLIENT_MISSING_PARAMETER(

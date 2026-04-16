@@ -4,10 +4,10 @@
 # SPDX-License-Identifier: Apache-2.0
 
 source /etc/environment
-if [[ -z "${SOCA_CLUSTER_ID}" ]]; then
-  echo "SOCA_CLUSTER_ID environment variable not found."
+if [[ -z "${EDH_CLUSTER_ID}" ]]; then
+  echo "EDH_CLUSTER_ID environment variable not found."
   exit 1
 else
-  source "/opt/soca/${SOCA_CLUSTER_ID}/python/latest/soca_python.env"
-  "/opt/soca/${SOCA_CLUSTER_ID}/python/latest/bin/python3" "/opt/soca/${SOCA_CLUSTER_ID}/cluster_manager/tools/j2generator/app.py" "$@"
+  source "/opt/edh/${EDH_CLUSTER_ID}/python/latest/edh_python.env"
+  "/opt/edh/${EDH_CLUSTER_ID}/python/latest/bin/python3" "/opt/edh/${EDH_CLUSTER_ID}/cluster_manager/tools/j2generator/app.py" "$@"
 fi

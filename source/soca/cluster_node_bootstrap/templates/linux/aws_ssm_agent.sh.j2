@@ -5,7 +5,7 @@
 function install_ssm_agent () {
   log_info "# Begin: Install AWS SSM agent"
   local MACHINE=$(uname -m)
-  {% if context.get("/configuration/BaseOS") in ("ubuntu2204", "ubuntu2404") %}
+  {% if context.get("/job/BaseOS") in ("ubuntu2204", "ubuntu2404") %}
     if ! snap list amazon-ssm-agent; then
       snap install amazon-ssm-agent --classic
       snap enable amazon-ssm-agent

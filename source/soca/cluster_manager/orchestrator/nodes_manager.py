@@ -64,24 +64,24 @@ def get_failed_cloudformation_stacks_assigned_to_scheduler(
 
                         logger.info(f"Found all tags for {_stack_name}: {_tags=}")
 
-                        if _tags.get("soca:ClusterId") != _cluster_id:
-                            logger.debug("soca:ClusterId not there, ignoring ... ")
+                        if _tags.get("edh:ClusterId") != _cluster_id:
+                            logger.debug("edh:ClusterId not there, ignoring ... ")
                             continue
 
                         if (
-                            _tags.get("soca:SchedulerIdentifier")
+                            _tags.get("edh:SchedulerIdentifier")
                             != scheduler_info.identifier
                         ):
                             logger.debug(
-                                f"soca:SchedulerIdentifier not matching {scheduler_info.identifier}, ignoring ... "
+                                f"edh:SchedulerIdentifier not matching {scheduler_info.identifier}, ignoring ... "
                             )
                             continue
 
                         job_id = _tags.get(
-                            "soca:JobId",
+                            "edh:JobId",
                         )
                         if not job_id:
-                            logger.debug("soca:JobId not there, ignoring ... ")
+                            logger.debug("edh:JobId not there, ignoring ... ")
                             continue
 
                         _stacks[_stack_name] = job_id
@@ -117,12 +117,12 @@ def get_provisioned_ec2_nodes_assigned_to_scheduler(
             "Name": "instance-state-name",
             "Values": ["running", "pending"],
         },
-        {"Name": "tag:soca:NodeType", "Values": ["compute_node"]},
+        {"Name": "tag:edh:NodeType", "Values": ["compute_node"]},
         {
-            "Name": "tag:soca:KeepForever",
+            "Name": "tag:edh:KeepForever",
             "Values": ["false", "False", "true", "True"],
         },
-        {"Name": "tag:soca:ClusterId", "Values": [_cluster_id]},
+        {"Name": "tag:edh:ClusterId", "Values": [_cluster_id]},
     ]
     logger.debug(f"Fetching EC2 instances using {_filters=}")
     _fetch_all_ec2_nodes_for_scheduler = describe_instances_as_soca_nodes(
@@ -146,7 +146,7 @@ if __name__ == "__main__":
     _cluster_id = SocaConfig(key="/configuration/ClusterId").get_value().message
 
     logger = SocaLogger(name="soca_logger").timed_rotating_file_handler(
-        file_path=f"/opt/soca/{_cluster_id}/cluster_manager/orchestrator/logs/nodes_manager.log"
+        file_path=f"/opt/edh/{_cluster_id}/cluster_manager/orchestrator/logs/nodes_manager.log"
     )
 
     _all_schedulers = get_schedulers()
@@ -157,7 +157,7 @@ if __name__ == "__main__":
         # List of SocaHpcJob found in all queues assigned to the scheduler
         _jobs_in_queues: list[SocaHpcJobLSF | SocaHpcJobPBS | SocaHpcJobSlurm] = []
 
-        # List of SocaNode provisionined on EC2 and attached to this scheduler
+        # List of SocaNode provisioned on EC2 and attached to this scheduler
         _provisioned_ec2_nodes: list[SocaNode] = []
 
         if _scheduler.soca_managed_nodes_provisioning is False:

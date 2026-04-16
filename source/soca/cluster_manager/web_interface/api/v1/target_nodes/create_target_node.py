@@ -30,6 +30,7 @@ import utils.aws.boto3_wrapper as utils_boto3
 from utils.aws.odcr_helper import create_capacity_reservation
 from utils.aws.ec2_helper import create_capacity_dry_run
 from utils.aws.cloudformation_client import SocaCfnClient
+from utils.aws.ssm_helper import get_ami_id_from_alias
 from utils.error import SocaError
 from utils.cast import SocaCastEngine
 from utils.response import SocaResponse
@@ -105,7 +106,7 @@ class CreateTargetNode(Resource):
         summary: Create a new target node session for CAE simulations
         description: Creates a new target node session with specified configuration including instance type, software stack, and networking parameters
         parameters:
-          - name: X-SOCA-USER
+          - name: X-EDH-USER
             in: header
             schema:
               type: string
@@ -113,7 +114,7 @@ class CreateTargetNode(Resource):
             required: true
             description: SOCA username for authentication
             example: john.doe
-          - name: X-SOCA-TOKEN
+          - name: X-EDH-TOKEN
             in: header
             schema:
               type: string
@@ -199,6 +200,7 @@ class CreateTargetNode(Resource):
         parser.add_argument("software_stack_id", type=str, location="form")
         parser.add_argument("subnet_id", type=str, location="form")
         parser.add_argument("tenancy", type=str, location="form")
+        parser.add_argument("nested_virtualization", type=str, location="form")
         parser.add_argument("project", type=str, location="form")
         args = parser.parse_args()
 
@@ -208,9 +210,9 @@ class CreateTargetNode(Resource):
             f"Received parameter for new target node session request: {args}, setting up session uuid {_session_uuid}"
         )
         try:
-            _user = request.headers.get("X-SOCA-USER")
+            _user = request.headers.get("X-EDH-USER")
             if _user is None:
-                return SocaError.CLIENT_MISSING_HEADER(header="X-SOCA-USER").as_flask()
+                return SocaError.CLIENT_MISSING_HEADER(header="X-EDH-USER").as_flask()
 
             _check_disk_size = SocaCastEngine(args["disk_size"]).cast_as(
                 expected_type=int
@@ -238,6 +240,25 @@ class CreateTargetNode(Resource):
             if not args["subnet_id"]:
                 logger.info("No subnet_id specified, default to 'auto'")
                 args["subnet_id"] = "auto"
+
+            if not args["nested_virtualization"]:
+                args["nested_virtualization"] = False
+            else:
+                _check_nested_virt = SocaCastEngine(args["nested_virtualization"]).cast_as(
+                    expected_type=bool
+                )
+                if _check_nested_virt.get("success"):
+                    args["nested_virtualization"] = _check_nested_virt.get("message")
+                else:
+                    args["nested_virtualization"] = False
+
+            if args["nested_virtualization"] is True:
+                _nv_flag = SocaConfig(
+                    key="/configuration/FeatureFlags/TargetNodes/EnableNestedVirtualization"
+                ).get_value(return_as=bool)
+                if not (_nv_flag.get("success") is True and _nv_flag.get("message") is True):
+                    logger.warning("nested_virtualization requested but EnableNestedVirtualization feature flag is disabled, ignoring")
+                    args["nested_virtualization"] = False
 
             logger.debug(f"Session name {_session_name}")
 
@@ -334,6 +355,21 @@ class CreateTargetNode(Resource):
                     helper=f"disk_size error: {_check_disk_size.message} ",
                 ).as_flask()
 
+            # Check if specified AMI ID is an alias
+            if _software_stack_info.get("ami_id").startswith("/aws/service/"):
+                _fetch_ami = get_ami_id_from_alias(
+                    alias_name=_software_stack_info.get("ami_id")
+                )
+                if _fetch_ami.get("success") is False:
+                    return SocaError.GENERIC_ERROR(
+                        helper=_fetch_ami.get("message")
+                    ).as_flask()
+                else:
+                    _ami_id = _fetch_ami.get("message")
+                    
+            else:
+                _ami_id = _software_stack_info.get("ami_id")
+
             # Note: if subnet_id is set to `auto`, SOCA will cycle trough the list until capacity is available
             _selected_subnet = None
             _soca_private_subnets = (
@@ -374,7 +410,7 @@ class CreateTargetNode(Resource):
                     )
                     _selected_subnet = args.get("subnet_id")
                     logger.info(
-                        f"Requesting ODCR for {args.get('instance_type')}, instance_count=1, capacity_reservation_name={_stack_name}, subnet_ids={[_selected_subnet]}, {_software_stack_info.get('ami_id')}"
+                        f"Requesting ODCR for {args.get('instance_type')}, instance_count=1, capacity_reservation_name={_stack_name}, subnet_ids={[_selected_subnet]}, {_ami_id}"
                     )
                     _request_on_demand_capacity_reservation = (
                         create_capacity_reservation(
@@ -383,7 +419,7 @@ class CreateTargetNode(Resource):
                             capacity_reservation_name=_stack_name,
                             instance_type=args.get("instance_type"),
                             subnet_id=_selected_subnet,
-                            instance_ami=_software_stack_info.get("ami_id"),
+                            instance_ami=_ami_id,
                             tenancy=args.get("tenancy"),
                         )
                     )
@@ -404,7 +440,7 @@ class CreateTargetNode(Resource):
                     random.shuffle(_soca_private_subnets)
                     for _subnet_id in _soca_private_subnets:
                         logger.info(
-                            f"Requesting ODCR for {args.get('instance_type')}, instance_count=1, capacity_reservation_name={_stack_name}, subnet_id={_subnet_id}, {_software_stack_info.get('ami_id')}"
+                            f"Requesting ODCR for {args.get('instance_type')}, instance_count=1, capacity_reservation_name={_stack_name}, subnet_id={_subnet_id}, {_ami_id}"
                         )
                         _request_on_demand_capacity_reservation = (
                             create_capacity_reservation(
@@ -413,7 +449,7 @@ class CreateTargetNode(Resource):
                                 instance_type=args.get("instance_type"),
                                 capacity_reservation_name=_stack_name,
                                 subnet_id=_subnet_id,
-                                instance_ami=_software_stack_info.get("ami_id"),
+                                instance_ami=_ami_id,
                                 tenancy=args.get("tenancy"),
                             )
                         )
@@ -488,8 +524,8 @@ class CreateTargetNode(Resource):
 
             # Must add the variable specific to the software stack
             _user_data_variables = {
-                "SOCA_USER": _user,  # default
-                "SOCA_USER_PUBLIC_KEYS": _user_public_keys,  # default
+                "EDH_USER": _user,  # default
+                "EDH_USER_PUBLIC_KEYS": _user_public_keys,  # default
                 **_extra_user_data_variables,
             }
 
@@ -530,7 +566,7 @@ class CreateTargetNode(Resource):
                 "project": args.get("project"),
                 "subnet_id": _selected_subnet,
                 "tenancy": args["tenancy"],
-                "image_id": _software_stack_info.get("ami_id"),
+                "image_id": _ami_id,
                 "session_name": _session_name,
                 "session_uuid": _session_uuid,
                 "disk_size": args["disk_size"],
@@ -552,6 +588,9 @@ class CreateTargetNode(Resource):
                 "SolutionMetricsLambda": _get_soca_parameters.get(
                     "/configuration/SolutionMetricsLambda"
                 ),
+                "NestedVirtLauncherLambda": _get_soca_parameters.get(
+                    "/configuration/NestedVirtLauncherLambda"
+                ),
                 "TargetNodeInstanceProfileArn": _get_soca_parameters.get(
                     "/configuration/TargetNodeInstanceProfileArn"
                 ),
@@ -559,6 +598,7 @@ class CreateTargetNode(Resource):
                     _rendered_user_data.encode("utf-8")
                 ).decode("utf-8"),
                 "custom_tags": {},
+                "nested_virtualization": args["nested_virtualization"],
             }
 
             # Get custom tags if specified
@@ -636,20 +676,20 @@ class CreateTargetNode(Resource):
 
                     _cfn_stack_tags = [
                         {
-                            "Key": "soca:JobName",
+                            "Key": "edh:JobName",
                             "Value": str(launch_parameters["session_name"]),
                         },
                         {
-                            "Key": "soca:TargetNodeSessionUUID",
+                            "Key": "edh:TargetNodeSessionUUID",
                             "Value": str(launch_parameters["session_uuid"]),
                         },
-                        {"Key": "soca:JobProject", "Value": args.get("project")},
-                        {"Key": "soca:JobOwner", "Value": _user},
+                        {"Key": "edh:JobProject", "Value": args.get("project")},
+                        {"Key": "edh:JobOwner", "Value": _user},
                         {
-                            "Key": "soca:ClusterId",
+                            "Key": "edh:ClusterId",
                             "Value": str(launch_parameters["cluster_id"]),
                         },
-                        {"Key": "soca:NodeType", "Value": "target_node"},
+                        {"Key": "edh:NodeType", "Value": "target_node"},
                     ]
 
                     _create_stack = SocaCfnClient(

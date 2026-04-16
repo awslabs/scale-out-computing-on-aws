@@ -17,12 +17,12 @@ function Log-Warning {
     param ([string]$message)
     $logMessage = "$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss') [WARNING] $message"
     Write-Output $logMessage
-    if (Test-Path -Path "C:\ProgramData\SOCA\${instanceId}") {
-        $logMessage | Out-File -Append -FilePath "C:\ProgramData\SOCA\${instanceId}\bootstrap_WARNING.log"
+    if (Test-Path -Path "C:\ProgramData\EDH\${instanceId}") {
+        $logMessage | Out-File -Append -FilePath "C:\ProgramData\EDH\${instanceId}\bootstrap_WARNING.log"
     }
     else
     {
-        Write-Output  "$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss') [WARNING] Default SOCABootstrap Path does not exist or has been changed:  C:\ProgramData\SOCA\${instanceId}, bootstrap_WARNING.log won't be created.'"
+        Write-Output  "$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss') [WARNING] Default EDHBootstrap Path does not exist or has been changed:  C:\ProgramData\EDH\${instanceId}, bootstrap_WARNING.log won't be created.'"
     }
 }
 
@@ -30,12 +30,12 @@ function Log-Error {
     param ([string]$message)
     $logMessage = "$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss') [ERROR] $message"
     Write-Output $logMessage
-    if (Test-Path -Path "C:\ProgramData\SOCA\${instanceId}") {
-        $logMessage | Out-File -Append -FilePath "C:\ProgramData\SOCA\${instanceId}\bootstrap_ERROR.log"
+    if (Test-Path -Path "C:\ProgramData\EDH\${instanceId}") {
+        $logMessage | Out-File -Append -FilePath "C:\ProgramData\EDH\${instanceId}\bootstrap_ERROR.log"
     }
     else
     {
-        Write-Output  "$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss') [WARNING] Default SOCABootstrap Path does not exist or has been changed: C:\ProgramData\SOCA\${instanceId}, bootstrap_ERROR.log won't be created.'"
+        Write-Output  "$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss') [WARNING] Default EDHBootstrap Path does not exist or has been changed: C:\ProgramData\EDH\${instanceId}, bootstrap_ERROR.log won't be created.'"
     }
 }
 
@@ -43,12 +43,12 @@ function Exit-Fail {
     param ([string]$message)
     $logMessage = "$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss') [FATAL] $message"
     Write-Output $logMessage
-    if (Test-Path -Path "C:\ProgramData\SOCA\${instanceId}") {
-        $logMessage | Out-File -Append -FilePath "C:\ProgramData\SOCA\${instanceId}\bootstrap_FATAL.log"
+    if (Test-Path -Path "C:\ProgramData\EDH\${instanceId}") {
+        $logMessage | Out-File -Append -FilePath "C:\ProgramData\EDH\${instanceId}\bootstrap_FATAL.log"
     }
     else
     {
-        Write-Output  "$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss') [WARNING] Default SOCABootstrap Path does not exist or has been changed: C:\ProgramData\SOCA\${instanceId}, bootstrap_FATAL.log won't be created.'"
+        Write-Output  "$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss') [WARNING] Default EDHBootstrap Path does not exist or has been changed: C:\ProgramData\EDH\${instanceId}, bootstrap_FATAL.log won't be created.'"
     }
 
     exit 1

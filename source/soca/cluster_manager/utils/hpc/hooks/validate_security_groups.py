@@ -4,7 +4,7 @@
 """
 This hook reject the job if the user specify invalid security group or IAM roles
 Doc:
-> https://awslabs.github.io/scale-out-computing-on-aws-documentation/documentation/security/use-custom-sgs-roles/
+> https://awslabs.github.io/engineering-development-hub-documentation/documentation/security/use-custom-sgs-roles/
 """
 
 from __future__ import annotations

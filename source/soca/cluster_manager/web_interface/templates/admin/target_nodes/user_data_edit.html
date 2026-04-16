@@ -10,14 +10,13 @@
     {% include 'common/header.html' %}
 </head>
 <body id="page-top">
+    {% include 'common/horizontal_menu_bar.html' %}
 <div id="wrapper">
     {% include 'common/monaco_editor.html' %}
     {% include 'common/vertical_menu_bar.html' %}
     <div id="content-wrapper" class="d-flex flex-column">
-        <div id="content">
-            <br>
+        <div id="content" style="margin-top: 20px;">
             <div class="container-fluid">
-                {% include 'common/horizontal_menu_bar.html' %}
                 {% include 'common/flashed_messages.html' %}
 
                 <div class="col-md-12">
@@ -26,10 +25,9 @@
                              aria-labelledby="nav-home-tab">
                             <br>
                             <div class="card shadow mb-4">
-                                <div class="card-header py-3">
-                                    <h6 class="m-0 font-weight-bold text-primary">Edit SOCA User Data Template</h6>
-                                </div>
                                     <div class="card-body">
+                                        <h3>Edit SOCA User Data Template</h3>
+
                                         <form id="edit-template" action="/admin/target_nodes/user_data/edit/update" method="post">
                                             <div class="form-group">
                                                 <label for="template_name" data-toggle="tooltip" data-placement="top"
@@ -62,10 +60,10 @@
                                                     <h5>Supported variables (case-sensitive)</h5>
                                                     <ul>
                                                         <li>
-                                                        <kbd>{%raw%}{{ SOCA_USER }}{%endraw%}</kbd> Name of the current SOCA user requesting the target node
+                                                        <kbd>{%raw%}{{ EDH_USER }}{%endraw%}</kbd> Name of the current EDH user requesting the target node
                                                         </li>
                                                         <li>
-                                                        <kbd>{%raw%}{{ SOCA_USER_PUBLIC_KEYS }}{%endraw%}</kbd> Return a list where each item is the value of one public key assigned to the user (id_rsa.pub, id_edcsa.pub etc ...).
+                                                        <kbd>{%raw%}{{ EDH_USER_PUBLIC_KEYS }}{%endraw%}</kbd> Return a list where each item is the value of one public key assigned to the user (id_rsa.pub, id_edcsa.pub etc ...).
                                                         </li>
                                                     </ul>
                                                     <h5>
@@ -92,7 +90,7 @@
                                                 <input type="hidden" name="template_id" value="{{template_info.id}}">
                                                 <input type="hidden" name="csrf_token"
                                                        value="{{ csrf_token() }}">
-                                                <button type="submit" class="btn btn-primary btn-lg">Update User Data Template
+                                                <button type="submit" class="btn btn-primary">Update User Data Template
                                                 </button>
                                             </div>
                                         </form>

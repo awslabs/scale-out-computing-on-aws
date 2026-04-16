@@ -5,20 +5,20 @@
 
 # Usage: Ensure NodeJS  environment is installed as SOCA Web Interface needs some specific modules
 function install_nodejs () {
-  pushd "${SOCA_BOOTSTRAP_ASSETS_FOLDER}"
+  pushd "${EDH_BOOTSTRAP_ASSETS_FOLDER}"
   local NODEJS_URL="{{ context.get("/system/nodejs/url") }}"
   local NODEJS_SHA256="{{ context.get("/system/nodejs/sha256") }}"
 
   # Install NodeJS/NPM if needed
   if ! command -v npm; then
     log_info "npm not detected, installing node ... "
-    export SOCA_NODEJS_DIR="${SOCA_BOOTSTRAP_ASSETS_FOLDER}/node/"
+    export SOCA_NODEJS_DIR="${EDH_BOOTSTRAP_ASSETS_FOLDER}/node/"
     mkdir -p ${SOCA_NODEJS_DIR}
     file_download --download-url="${NODEJS_URL}" --save-as="nodejs.tar.xz" --sha256-checksum="${NODEJS_SHA256}"
     tar xvf "./nodejs.tar.xz" -C "${SOCA_NODEJS_DIR}" --strip-components=1
     # attention, this path is loaded only for the current shell
     # add to your profile or re-export if planning to use post shell reload
-    export PATH=${SOCA_BOOTSTRAP_ASSETS_FOLDER}/node/bin:$PATH
+    export PATH=${EDH_BOOTSTRAP_ASSETS_FOLDER}/node/bin:$PATH
   else
     log_info "npm/node is already installed on this machine"
   fi

@@ -69,7 +69,7 @@
                 "logs:PutLogEvents",
                 "logs:DescribeLogStreams"
             ],
-            "Resource": "arn:%%AWS_PARTITION%%:logs:%%AWS_REGION%%:*"
+            "Resource": "arn:%%AWS_PARTITION%%:logs:%%AWS_REGION%%:*:*"
         },
         {
             "Sid": "AllowSerialConsoleAccess",
@@ -81,7 +81,7 @@
             "Effect": "Allow",
             "Condition": {
                 "StringEquals": {
-                    "ec2:ResourceTag/soca:ClusterId": "%%CLUSTER_ID%%"
+                    "ec2:ResourceTag/edh:ClusterId": "%%CLUSTER_ID%%"
                 }
             }
         }

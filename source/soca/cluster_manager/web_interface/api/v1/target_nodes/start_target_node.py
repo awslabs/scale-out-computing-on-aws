@@ -45,7 +45,7 @@ class StartTargetNode(Resource):
           - socaAuth: []
         parameters:
           - in: header
-            name: X-SOCA-USER
+            name: X-EDH-USER
             required: true
             schema:
               type: string
@@ -55,7 +55,7 @@ class StartTargetNode(Resource):
               example: "john.doe"
             description: SOCA username for authentication
           - in: header
-            name: X-SOCA-TOKEN
+            name: X-EDH-TOKEN
             required: true
             schema:
               type: string
@@ -128,7 +128,7 @@ class StartTargetNode(Resource):
                       example: false
                     message:
                       type: string
-                      example: "Missing X-SOCA-USER header"
+                      example: "Missing X-EDH-USER header"
           '404':
             description: Session not found
             content:
@@ -170,7 +170,7 @@ class StartTargetNode(Resource):
             socaAuth:
               type: apiKey
               in: header
-              name: X-SOCA-USER
+              name: X-EDH-USER
               description: SOCA authentication using username and token headers
         """
         parser = reqparse.RequestParser()
@@ -185,9 +185,9 @@ class StartTargetNode(Resource):
                 parameter="session_uuid"
             ).as_flask()
 
-        _user = request.headers.get("X-SOCA-USER")
+        _user = request.headers.get("X-EDH-USER")
         if _user is None:
-            return SocaError.CLIENT_MISSING_HEADER(header="X-SOCA-USER").as_flask()
+            return SocaError.CLIENT_MISSING_HEADER(header="X-EDH-USER").as_flask()
 
         _check_session = TargetNodeSessions.query.filter_by(
             session_owner=_user, session_uuid=_session_uuid, is_active=True

@@ -35,12 +35,12 @@ def index():
     logger.info(f"List all SOCA Projects")
     _list_projects = SocaHttpClient(
         endpoint="/api/projects",
-        headers={"X-SOCA-USER": session["user"], "X-SOCA-TOKEN": session["api_key"]},
+        headers={"X-EDH-USER": session["user"], "X-EDH-TOKEN": session["api_key"]},
     ).get()
 
     _list_all_users = SocaHttpClient(
         endpoint="/api/ldap/users",
-        headers={"X-SOCA-TOKEN": session["api_key"], "X-SOCA-USER": session["user"]},
+        headers={"X-EDH-TOKEN": session["api_key"], "X-EDH-USER": session["user"]},
     ).get()
 
     if _list_all_users.get("success") is True:
@@ -51,7 +51,7 @@ def index():
         
     _list_all_groups = SocaHttpClient(
         endpoint="/api/ldap/groups",
-        headers={"X-SOCA-TOKEN": session["api_key"], "X-SOCA-USER": session["user"]},
+        headers={"X-EDH-TOKEN": session["api_key"], "X-EDH-USER": session["user"]},
     ).get()
 
     if _list_all_groups.get("success") is True:
@@ -62,7 +62,7 @@ def index():
 
     _list_software_stacks = SocaHttpClient(
         endpoint="/api/dcv/virtual_desktops/software_stacks",
-        headers={"X-SOCA-USER": session["user"], "X-SOCA-TOKEN": session["api_key"]},
+        headers={"X-EDH-USER": session["user"], "X-EDH-TOKEN": session["api_key"]},
     ).get()
 
     if _list_software_stacks.get("success") is False:
@@ -76,7 +76,7 @@ def index():
 
     _list_target_nodes_software_stacks = SocaHttpClient(
         endpoint="/api/target_nodes/software_stacks",
-        headers={"X-SOCA-USER": session["user"], "X-SOCA-TOKEN": session["api_key"]},
+        headers={"X-EDH-USER": session["user"], "X-EDH-TOKEN": session["api_key"]},
     ).get()
 
     if _list_target_nodes_software_stacks.get("success") is False:
@@ -92,7 +92,7 @@ def index():
 
     _list_application_profiles = SocaHttpClient(
         endpoint="/api/applications/list_applications",
-        headers={"X-SOCA-USER": session["user"], "X-SOCA-TOKEN": session["api_key"]},
+        headers={"X-EDH-USER": session["user"], "X-EDH-TOKEN": session["api_key"]},
     ).get()
 
     if _list_application_profiles.get("success") is False:
@@ -106,7 +106,7 @@ def index():
 
     _list_target_nodes_software_stacks = SocaHttpClient(
         endpoint="/api/target_nodes/software_stacks",
-        headers={"X-SOCA-USER": session["user"], "X-SOCA-TOKEN": session["api_key"]},
+        headers={"X-EDH-USER": session["user"], "X-EDH-TOKEN": session["api_key"]},
     ).get()
 
     if _list_target_nodes_software_stacks.get("success") is False:
@@ -123,8 +123,8 @@ def index():
     _check_budget = SocaHttpClient(
         endpoint=f"/api/cost_management/budgets",
         headers={
-            "X-SOCA-USER": session["user"],
-            "X-SOCA-TOKEN": session["api_key"],
+            "X-EDH-USER": session["user"],
+            "X-EDH-TOKEN": session["api_key"],
         },
     ).get()
     if _check_budget.get("success") is False:
@@ -162,7 +162,7 @@ def project_create():
     logger.info(f"Received following parameters {request.form} to create soca projects")
     _create_project = SocaHttpClient(
         endpoint="/api/projects",
-        headers={"X-SOCA-USER": session["user"], "X-SOCA-TOKEN": session["api_key"]},
+        headers={"X-EDH-USER": session["user"], "X-EDH-TOKEN": session["api_key"]},
     ).post(data=request.form.to_dict())
 
     if _create_project.get("success") is True:
@@ -187,7 +187,7 @@ def project_delete():
 
     _delete_project = SocaHttpClient(
         endpoint="/api/projects",
-        headers={"X-SOCA-USER": session["user"], "X-SOCA-TOKEN": session["api_key"]},
+        headers={"X-EDH-USER": session["user"], "X-EDH-TOKEN": session["api_key"]},
     ).delete(data=request.form.to_dict())
 
     if _delete_project.get("success") is True:
@@ -219,12 +219,12 @@ def project_edit():
 
     _get_project_info = SocaHttpClient(
         endpoint="/api/projects",
-        headers={"X-SOCA-USER": session["user"], "X-SOCA-TOKEN": session["api_key"]},
+        headers={"X-EDH-USER": session["user"], "X-EDH-TOKEN": session["api_key"]},
     ).get(params={"project_id": request.form.get("project_id")})
 
     _list_software_stacks = SocaHttpClient(
         endpoint="/api/dcv/virtual_desktops/software_stacks",
-        headers={"X-SOCA-USER": session["user"], "X-SOCA-TOKEN": session["api_key"]},
+        headers={"X-EDH-USER": session["user"], "X-EDH-TOKEN": session["api_key"]},
     ).get()
 
     if _list_software_stacks.get("success") is False:
@@ -238,7 +238,7 @@ def project_edit():
 
     _list_all_groups = SocaHttpClient(
         endpoint="/api/ldap/groups",
-        headers={"X-SOCA-TOKEN": session["api_key"], "X-SOCA-USER": session["user"]},
+        headers={"X-EDH-TOKEN": session["api_key"], "X-EDH-USER": session["user"]},
     ).get()
 
     if _list_all_groups.get("success") is True:
@@ -249,7 +249,7 @@ def project_edit():
         
     _list_target_nodes_software_stacks = SocaHttpClient(
         endpoint="/api/target_nodes/software_stacks",
-        headers={"X-SOCA-USER": session["user"], "X-SOCA-TOKEN": session["api_key"]},
+        headers={"X-EDH-USER": session["user"], "X-EDH-TOKEN": session["api_key"]},
     ).get()
 
     if _list_target_nodes_software_stacks.get("success") is False:
@@ -265,7 +265,7 @@ def project_edit():
 
     _list_all_users = SocaHttpClient(
         endpoint="/api/ldap/users",
-        headers={"X-SOCA-TOKEN": session["api_key"], "X-SOCA-USER": session["user"]},
+        headers={"X-EDH-TOKEN": session["api_key"], "X-EDH-USER": session["user"]},
     ).get()
 
     if _list_all_users.get("success") is True:
@@ -276,7 +276,7 @@ def project_edit():
 
     _list_application_profiles = SocaHttpClient(
         endpoint="/api/applications/list_applications",
-        headers={"X-SOCA-USER": session["user"], "X-SOCA-TOKEN": session["api_key"]},
+        headers={"X-EDH-USER": session["user"], "X-EDH-TOKEN": session["api_key"]},
     ).get()
 
     if _list_application_profiles.get("success") is False:
@@ -291,8 +291,8 @@ def project_edit():
     _check_budget = SocaHttpClient(
         endpoint=f"/api/cost_management/budgets",
         headers={
-            "X-SOCA-USER": session["user"],
-            "X-SOCA-TOKEN": session["api_key"],
+            "X-EDH-USER": session["user"],
+            "X-EDH-TOKEN": session["api_key"],
         },
     ).get()
     if _check_budget.get("success") is False:
@@ -346,7 +346,7 @@ def project_update():
 
     _modify_project = SocaHttpClient(
         endpoint="/api/projects",
-        headers={"X-SOCA-USER": session["user"], "X-SOCA-TOKEN": session["api_key"]},
+        headers={"X-EDH-USER": session["user"], "X-EDH-TOKEN": session["api_key"]},
     ).put(data=_converted_data)
 
     if _modify_project.get("success") is True:
@@ -373,8 +373,8 @@ def projects_by_user():
         _get_all_projects_for_user = SocaHttpClient(
             endpoint=f"/api/user/resources_permissions",
             headers={
-                "X-SOCA-USER": session["user"],
-                "X-SOCA-TOKEN": session["api_key"],
+                "X-EDH-USER": session["user"],
+                "X-EDH-TOKEN": session["api_key"],
             },
         ).post(
             data={
@@ -389,7 +389,7 @@ def projects_by_user():
 
     _get_all_soca_users = SocaHttpClient(
         endpoint=f"/api/ldap/users",
-        headers={"X-SOCA-USER": session["user"], "X-SOCA-TOKEN": session["api_key"]},
+        headers={"X-EDH-USER": session["user"], "X-EDH-TOKEN": session["api_key"]},
     ).get()
 
     return render_template(

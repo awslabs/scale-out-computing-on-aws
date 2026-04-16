@@ -48,7 +48,7 @@ def get_boto(
 
     if extra_config:
         _extra_parameters = {
-            "user_agent_extra": "AwsSolution/SO0072/26.3.0",
+            "user_agent_extra": "AwsSolution/SO0072/26.4.0",
             "retries": retry_config,
         }
         _config = botocore.config.Config(**_extra_parameters)

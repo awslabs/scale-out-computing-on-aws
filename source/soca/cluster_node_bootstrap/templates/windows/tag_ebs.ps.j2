@@ -9,10 +9,10 @@ function Tag-EBS {
     $tagName = -join($clusterName, "-dcv-", "{{ context.get('/dcv/SessionOwner') }}", "-", "{{ context.get('/dcv/SessionId') }}")
     $tags = @(
         @{Key="Name";Value="$tagName"}
-        @{Key="soca:JobOwner";Value="{{ context.get('/dcv/SessionOwner') }}"}
-        @{Key="soca:JobProject";Value="desktop"}
-        @{Key="soca:NodeType";Value="dcv_node"}
-        @{Key="soca:BaseOS";Value="{{ context.get('/configuration/BaseOS') }}"}
+        @{Key="edh:JobOwner";Value="{{ context.get('/dcv/SessionOwner') }}"}
+        @{Key="edh:JobProject";Value="desktop"}
+        @{Key="edh:NodeType";Value="dcv_node"}
+        @{Key="edh:BaseOS";Value="{{ context.get('/job/BaseOS') }}"}
     )
 
     $volumes = Invoke-SOCAAwsCli ec2 describe-instances --instance-ids $instanceId --query "Reservations[].Instances[].BlockDeviceMappings[].Ebs.VolumeId" --output text

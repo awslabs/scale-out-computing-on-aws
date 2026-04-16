@@ -10,7 +10,7 @@ function create_static_hostkey {
   log_info "Commenting existing HostKey sections"
   cp /etc/ssh/sshd_config /etc/ssh/sshd_config.original.$(date +%s)
   sed -i '/^HostKey/ s/^/#/' /etc/ssh/sshd_config
-  local STATIC_KEY_FOLDER="/opt/soca/{{  context.get("/configuration/ClusterId") }}/cluster_node_bootstrap/custom_automation/static_ssh_keys"
+  local STATIC_KEY_FOLDER="/opt/edh/{{  context.get("/configuration/ClusterId") }}/cluster_node_bootstrap/custom_automation/static_ssh_keys"
   local RSA_KEY_NAME="soca_ssh_host_rsa_key"
   local ED25519_KEY_NAME="soca_ssh_host_ed25519_key"
   local ECDSA_KEY_NAME="soca_ssh_host_ecdsa_key"

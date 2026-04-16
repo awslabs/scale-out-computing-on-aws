@@ -65,7 +65,7 @@
                 "logs:PutLogEvents",
                 "logs:DescribeLogStreams"
             ],
-            "Resource": "arn:%%AWS_PARTITION%%:logs:%%AWS_REGION%%:*"
+            "Resource": "arn:%%AWS_PARTITION%%:logs:%%AWS_REGION%%:*:*"
         }
     ]
 }

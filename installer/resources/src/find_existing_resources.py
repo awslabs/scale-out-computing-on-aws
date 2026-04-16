@@ -705,7 +705,7 @@ class FindExistingResource:
 
                     # See if we see a prior SOCA cluster via our Tags
                     for _tag in _sg.get("Tags", []):
-                        if _tag.get("Key", "") == "soca:ClusterId":
+                        if _tag.get("Key", "") == "edh:ClusterId":
                             if _tag.get("Value", ""):
                                 _sg_info_list.append(f"[green]SOCA\n{_tag.get('Value', '')}[default]")
 
@@ -925,7 +925,7 @@ class FindExistingResource:
                 pass
                 # print(f"DEBUG - No Security groups to evaluate")
 
-            if check_fs is True:
+            if check_fs:
                 # print(f"DEBUG - Getting Filesystem SG: {cfn_params}")
                 fs_sg = self.get_fs_security_groups(cfn_params)
                 # print(f"DEBUG - FS-SG Now: {fs_sg}")
@@ -1001,7 +1001,7 @@ class FindExistingResource:
                     "resolution": f"Add a new (INGRESS) rule on {cfn_params['vpc_endpoint_sg']} that allows TCP port '443' from {cfn_params['scheduler_sg']}. Make sure you configure INGRESS rule and not EGRESS",
                 }
 
-            if check_fs is True:
+            if check_fs:
                 errors["FS_APP_SG"] = {
                     "status": False,
                     "error": f"SG assigned to EFS App {cfn_params['fs_apps']} must allow Scheduler SG and Compute SG",
@@ -1093,7 +1093,7 @@ class FindExistingResource:
                                     "status"
                                 ] = True
 
-            if check_fs is True:
+            if check_fs:
                 if (
                     cfn_params["scheduler_sg"]
                     in fs_sg["message"][cfn_params["fs_apps"]]

@@ -23,7 +23,7 @@ logger = logging.getLogger("scheduled_tasks_db_backup")
 
 # Note: This script frequency is managed via app.py
 def backup_db(
-    socaweb_folder: str = f"/opt/soca/{SocaConfig(key='/configuration/ClusterId').get_value().get('message')}/cluster_manager/web_interface",
+    socaweb_folder: str = f"/opt/edh/{SocaConfig(key='/configuration/ClusterId').get_value().get('message')}/cluster_manager/web_interface",
     backup_retention_days: int = 10,
 ):
     _backup_dir = f"{socaweb_folder}/db_backups"

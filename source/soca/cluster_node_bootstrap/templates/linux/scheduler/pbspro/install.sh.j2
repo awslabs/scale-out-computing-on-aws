@@ -7,26 +7,26 @@ function pbspro_install_{{  SCHEDULER_VARS.get("IDENTIFIER") }} {
 
     log_info "[BEGIN] pbspro_install"
 
-    {% if context.get("/configuration/BaseOS") == "rhel9" %}
+    {% if context.get("/job/BaseOS") == "rhel9" %}
         local PBSPRO_INSTALL_RPM_X86="{{ context.get("/system/scheduler/pbspro/x86/pbspro_installer_rhel9_filename") }}"
         local PBSPRO_INSTALL_RPM_AARCH64="{{ context.get("/system/scheduler/pbspro/aarch64/pbspro_installer_rhel9_filename") }}"
-    {% elif context.get("/configuration/BaseOS") == "rhel8" %}
+    {% elif context.get("/job/BaseOS") == "rhel8" %}
         local PBSPRO_INSTALL_RPM_X86="{{ context.get("/system/scheduler/pbspro/x86/pbspro_installer_rhel8_filename") }}"
         local PBSPRO_INSTALL_RPM_AARCH64="{{ context.get("/system/scheduler/pbspro/aarch64/pbspro_installer_rhel8_filename") }}"
-    {% elif context.get("/configuration/BaseOS") == "rocky9" %}
+    {% elif context.get("/job/BaseOS") == "rocky9" %}
         local PBSPRO_INSTALL_RPM_X86="{{ context.get("/system/scheduler/pbspro/x86/pbspro_installer_rocky9_filename") }}"
         local PBSPRO_INSTALL_RPM_AARCH64="{{ context.get("/system/scheduler/pbspro/aarch64/pbspro_installer_rocky9_filename") }}"
-    {% elif context.get("/configuration/BaseOS") == "rocky8" %}
+    {% elif context.get("/job/BaseOS") == "rocky8" %}
         local PBSPRO_INSTALL_RPM_X86="{{ context.get("/system/scheduler/pbspro/x86/pbspro_installer_rocky8_filename") }}"
         local PBSPRO_INSTALL_RPM_AARCH64="{{ context.get("/system/scheduler/pbspro/aarch64/pbspro_installer_rocky8_filename") }}"
-    {% elif context.get("/configuration/BaseOS") == "ubuntu2204" %}
+    {% elif context.get("/job/BaseOS") == "ubuntu2204" %}
         local PBSPRO_INSTALL_RPM_X86="{{ context.get("/system/scheduler/pbspro/x86/pbspro_installer_ubuntu2204_filename") }}"
         local PBSPRO_INSTALL_RPM_AARCH64="{{ context.get("/system/scheduler/pbspro/aarch64/pbspro_installer_ubuntu2204_filename") }}"
-    {% elif context.get("/configuration/BaseOS") == "ubuntu2404" %}
+    {% elif context.get("/job/BaseOS") == "ubuntu2404" %}
         local PBSPRO_INSTALL_RPM_X86="{{ context.get("/system/scheduler/pbspro/x86/pbspro_installer_ubuntu2404_filename") }}"
         local PBSPRO_INSTALL_RPM_AARCH64="{{ context.get("/system/scheduler/pbspro/aarch64/pbspro_installer_ubuntu2404_filename") }}"
     {% else %}
-        exit_fail "PBSPro is only supported on RHEL9, RHEL8, Rocky8, Rocky9, Ubuntu 22.04 and Ubuntu 24.04. Detected {{ context.get('/configuration/BaseOS')}}"
+        exit_fail "PBSPro is only supported on RHEL9, RHEL8, Rocky8, Rocky9, Ubuntu 22.04 and Ubuntu 24.04. Detected {{ context.get('/job/BaseOS')}}"
     {% endif %}
 
     local PBSPRO_INSTALL_S3_URI="{{ context.get("/system/scheduler/pbspro/pbspro_installer_s3_uri") }}"
@@ -34,13 +34,13 @@ function pbspro_install_{{  SCHEDULER_VARS.get("IDENTIFIER") }} {
     local MACHINE=$(uname -m)
     local SCHEDULER_IDENTIFIER="{{ SCHEDULER_VARS.get("IDENTIFIER") }}"
     local PBSPRO_INSTALL_DIR="{{ SCHEDULER_VARS.get("PBS_CONFIGURATION").get("pbs_exec") }}"
-    local INSTALLER_DIR="${SOCA_BOOTSTRAP_ASSETS_FOLDER}/pbspro"
+    local INSTALLER_DIR="${EDH_BOOTSTRAP_ASSETS_FOLDER}/pbspro"
 
     # Override default PBS install path when installing pbspro from binary
     # This can only be overriden via environment variable
     export PBS_HOME="{{ SCHEDULER_VARS.get("PBS_CONFIGURATION").get("pbs_home") }}" # default /var/spool/pbs
 
-    {% if context.get("/configuration/BaseOS") in ["ubuntu2204", "ubuntu2404"] %}
+    {% if context.get("/job/BaseOS") in ["ubuntu2204", "ubuntu2404"] %}
         local FILE_EXTENSION="deb"
     {% else %}
         local FILE_EXTENSION="rpm"
@@ -86,35 +86,35 @@ function pbspro_install_{{  SCHEDULER_VARS.get("IDENTIFIER") }} {
       fi
 
      # Note: even with custom --prefix / --sysconfig, PBS compiler will generate a default /etc/pbs.conf and default services
-    log_info "Disabling default pbs service created via binary install. Use /etc/systemd/system/soca_scheduler_${SCHEDULER_IDENTIFIER}.service instead"
+    log_info "Disabling default pbs service created via binary install. Use /etc/systemd/system/edh_scheduler_${SCHEDULER_IDENTIFIER}.service instead"
     systemctl stop pbs
     systemctl disable pbs
 
-    log_info "Creating custom /bin/soca_${SCHEDULER_IDENTIFIER} wrapper"
-    cat << EOF > "/bin/soca_${SCHEDULER_IDENTIFIER}"
+    log_info "Creating custom /bin/edh_${SCHEDULER_IDENTIFIER} wrapper"
+    cat << EOF > "/bin/edh_${SCHEDULER_IDENTIFIER}"
 export PATH=${PBSPRO_INSTALL_DIR}/bin:$PATH
 export PBS_CONF_FILE=${PBSPRO_INSTALL_DIR}/pbs.conf
-echo "========= SOCA ========= "
+echo "========= EDH ========= "
 echo ">> PBSPro environment loaded, you can now run commands such as qsub/qstat/qalter etc ..."
 echo ">> PBSPro is installed under: ${PBSPRO_INSTALL_DIR}"
-echo ">> Add /bin/soca_${SCHEDULER_IDENTIFIER} to your .bashrc or .bash_profile to automatically run this script"
+echo ">> Add /bin/edh_${SCHEDULER_IDENTIFIER} to your .bashrc or .bash_profile to automatically run this script"
 echo ">> Type exit to close this shell"
 echo "======================== "
-export PS1="(soca_pbspro) \u@\h:\w\$ "
+export PS1="(edh_pbspro) \u@\h:\w\$ "
 exec "$SHELL" -i
 
 EOF
-    chmod +x /bin/soca_${SCHEDULER_IDENTIFIER}
+    chmod +x /bin/edh_${SCHEDULER_IDENTIFIER}
 
     log_info "Creating pbsdata user, required when installing PBSPro from binary"
     id pbsdata >/dev/null 2>&1 || adduser pbsdata
 
-    log_info "Creating new one with patched PBS_CONF_FILE /etc/systemd/system/soca_scheduler_${SCHEDULER_IDENTIFIER}.service"
-    cat << EOF > "/etc/systemd/system/soca_scheduler_${SCHEDULER_IDENTIFIER}.service"
+    log_info "Creating new one with patched PBS_CONF_FILE /etc/systemd/system/edh_scheduler_${SCHEDULER_IDENTIFIER}.service"
+    cat << EOF > "/etc/systemd/system/edh_scheduler_${SCHEDULER_IDENTIFIER}.service"
 [Unit]
 Documentation=man:pbs(8)
 SourcePath=${PBSPRO_INSTALL_DIR}/libexec/pbs_init.d
-Description=Manage PBSPro installed via SOCA
+Description=Manage PBSPro installed via EDH
 After=network-online.target remote-fs.target nss-lookup.target
 Wants=network-online.target
 DefaultDependencies=true

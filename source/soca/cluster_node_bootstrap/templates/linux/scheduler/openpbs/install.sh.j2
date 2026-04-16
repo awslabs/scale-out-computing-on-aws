@@ -7,14 +7,14 @@ function build_openpbs_{{  SCHEDULER_VARS.get("IDENTIFIER") }} {
   pushd ${1}
   log_info "Building OpenPBS from $(pwd)"
   local NCPUS=$(nproc)
-  local SOCA_PYTHON="/opt/soca/{{ context.get('/configuration/ClusterId') }}/python"
+  local SOCA_PYTHON="/opt/edh/{{ context.get('/configuration/ClusterId') }}/python"
   local OPENPBS_INSTALL_DIR="{{ SCHEDULER_VARS.get("PBS_CONFIGURATION").get("pbs_exec") }}"
   local OPENPBS_PBS_HOME="{{ SCHEDULER_VARS.get("PBS_CONFIGURATION").get("pbs_home") }}"
 
   
-  {% if context.get("/configuration/BaseOS") in ("amazonlinux2", "rhel8", "rocky8") %}
+  {% if context.get("/job/BaseOS") in ("amazonlinux2", "rhel8", "rocky8") %}
     log_info "Detected old Linux Distro, patching libtool/automake/pkg-config to make sure we can compile OpenPBS with python3.13"
-    local COMPAT_PACKAGE_INSTALLER_PATH="/opt/soca/{{ context.get('/configuration/ClusterId') }}/packages"
+    local COMPAT_PACKAGE_INSTALLER_PATH="/opt/edh/{{ context.get('/configuration/ClusterId') }}/packages"
 
     log_info "Installing custom automake ${COMPAT_PACKAGE_INSTALLER_PATH}/automake"
     file_download --download-url="{{ context.get("/system/scheduler/openpbs/compatibility_packages/automake/url") }}" --save-as="automake_installer.tar.gz" --sha256-checksum="{{ context.get("/system/scheduler/openpbs/compatibility_packages/automake/sha256") }}"
@@ -124,7 +124,7 @@ function openpbs_install_{{  SCHEDULER_VARS.get("IDENTIFIER") }} {
 
 
     local SCHEDULER_IDENTIFIER="{{ SCHEDULER_VARS.get("IDENTIFIER") }}"
-    local INSTALLER_DIR="${SOCA_BOOTSTRAP_ASSETS_FOLDER}/openpbs"
+    local INSTALLER_DIR="${EDH_BOOTSTRAP_ASSETS_FOLDER}/openpbs"
     
     mkdir -p ${INSTALLER_DIR}
     pushd ${INSTALLER_DIR}
@@ -164,7 +164,7 @@ function openpbs_install_{{  SCHEDULER_VARS.get("IDENTIFIER") }} {
           {% endif %}
 
           # Install Pre-requisite
-          {% if context.get("/configuration/BaseOS") in ("ubuntu2204", "ubuntu2404") %}
+          {% if context.get("/job/BaseOS") in ("ubuntu2204", "ubuntu2404") %}
             # Debian Based Distro
             if ! verify_package_installed cmake; then
               log_info "cmake version 3+ not installed, installing it"
@@ -188,7 +188,7 @@ function openpbs_install_{{  SCHEDULER_VARS.get("IDENTIFIER") }} {
             tar zxvf "cjson.tar.gz" --strip-components=1
             mkdir build
             pushd build
-            {% if context.get("/configuration/BaseOS") in ("ubuntu2204", "ubuntu2404") %}
+            {% if context.get("/job/BaseOS") in ("ubuntu2204", "ubuntu2404") %}
               cmake ..
             {% else %}
               cmake3 ..
@@ -211,32 +211,32 @@ function openpbs_install_{{  SCHEDULER_VARS.get("IDENTIFIER") }} {
     popd
 
     # Note: even with custom --prefix / --sysconfig, PBS compiler will generate a default /etc/pbs.conf and default services
-    log_info "Disabling default pbs service created by the compilation command. Use /etc/systemd/system/soca_scheduler_${SCHEDULER_IDENTIFIER}.service instead"
+    log_info "Disabling default pbs service created by the compilation command. Use /etc/systemd/system/edh_scheduler_${SCHEDULER_IDENTIFIER}.service instead"
     systemctl stop pbs
     systemctl disable pbs
 
-    log_info "Creating custom /bin/soca_${SCHEDULER_IDENTIFIER} wrapper"
-    cat << EOF > "/bin/soca_${SCHEDULER_IDENTIFIER}"
+    log_info "Creating custom /bin/edh_${SCHEDULER_IDENTIFIER} wrapper"
+    cat << EOF > "/bin/edh_${SCHEDULER_IDENTIFIER}"
 export PATH=${OPENPBS_INSTALL_DIR}/bin:$PATH
 export PBS_CONF_FILE=${OPENPBS_INSTALL_DIR}/pbs.conf 
-echo "========= SOCA ========= "
+echo "========= EDH ========= "
 echo ">> OpenPBS environment loaded, you can now run commands such as qsub/qstat/qalter etc ..."
 echo ">> OpenPBS is installed under: ${OPENPBS_INSTALL_DIR}"
-echo ">> Add /bin/soca_${SCHEDULER_IDENTIFIER} to your .bashrc or .bash_profile to automatically run this script"
+echo ">> Add /bin/edh_${SCHEDULER_IDENTIFIER} to your .bashrc or .bash_profile to automatically run this script"
 echo ">> Type exit to close this shell"
 echo "======================== "
-export PS1="(soca_openpbs) \u@\h:\w\$ "
+export PS1="(edh_openpbs) \u@\h:\w\$ "
 exec "$SHELL" -i
 
 EOF
-    chmod +x /bin/soca_${SCHEDULER_IDENTIFIER}
+    chmod +x /bin/edh_${SCHEDULER_IDENTIFIER}
 
-    log_info "Creating new one with patched PBS_CONF_FILE /etc/systemd/system/soca_scheduler_${SCHEDULER_IDENTIFIER}.service"
-    cat << EOF > "/etc/systemd/system/soca_scheduler_${SCHEDULER_IDENTIFIER}.service"
+    log_info "Creating new one with patched PBS_CONF_FILE /etc/systemd/system/edh_scheduler_${SCHEDULER_IDENTIFIER}.service"
+    cat << EOF > "/etc/systemd/system/edh_scheduler_${SCHEDULER_IDENTIFIER}.service"
 [Unit]
 Documentation=man:pbs(8)
 SourcePath=${OPENPBS_INSTALL_DIR}/libexec/pbs_init.d
-Description=Manage OpenPBS installed via SOCA
+Description=Manage OpenPBS installed via EDH
 After=network-online.target remote-fs.target nss-lookup.target
 Wants=network-online.target
 DefaultDependencies=true

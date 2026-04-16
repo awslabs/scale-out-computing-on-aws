@@ -105,12 +105,12 @@ class Groups(Resource):
             socaAuth:
               type: apiKey
               in: header
-              name: X-SOCA-USER
+              name: X-EDH-USER
               description: SOCA username for authentication
             socaToken:
               type: apiKey
               in: header
-              name: X-SOCA-TOKEN
+              name: X-EDH-TOKEN
               description: SOCA authentication token
         """
         # List all LDAP users
@@ -133,7 +133,7 @@ class Groups(Resource):
                 attr_list=_attr_list,
             )
             if _groups.success:
-                # ex: ('cn=socaadminsocagroup,ou=group,dc=soca-dev200,dc=local', {'cn': [b'socaadminsocagroup'], 'memberUid': [b'socaadmin']})
+                # ex: ('cn=edhadminsocagroup,ou=group,dc=soca-dev200,dc=local', {'cn': [b'edhadminsocagroup'], 'memberUid': [b'edhadmin']})
                 for group in _groups.message:
                     group_base = group[0]
                     group_name = (

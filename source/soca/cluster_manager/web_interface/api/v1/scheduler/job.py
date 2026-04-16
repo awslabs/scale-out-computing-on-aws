@@ -42,7 +42,7 @@ class Job(Resource):
         tags:
           - Scheduler
         parameters:
-          - name: X-SOCA-USER
+          - name: X-EDH-USER
             in: header
             schema:
               type: string
@@ -50,7 +50,7 @@ class Job(Resource):
             required: true
             description: SOCA username for authentication
             example: admin
-          - name: X-SOCA-TOKEN
+          - name: X-EDH-TOKEN
             in: header
             schema:
               type: string
@@ -192,7 +192,7 @@ class Job(Resource):
         tags:
           - Scheduler
         parameters:
-          - name: X-SOCA-USER
+          - name: X-EDH-USER
             in: header
             schema:
               type: string
@@ -200,7 +200,7 @@ class Job(Resource):
             required: true
             description: SOCA username for authentication
             example: admin
-          - name: X-SOCA-TOKEN
+          - name: X-EDH-TOKEN
             in: header
             schema:
               type: string
@@ -226,7 +226,7 @@ class Job(Resource):
                   interpreter:
                     type: string
                     minLength: 1
-                    description: Interpreter to use (either valid scheduler indetifier or system interpreter such as /bin/bash, /bin/csh, /bin/sh or /bin/zsh)
+                    description: Interpreter to use (either valid scheduler identifier or system interpreter such as /bin/bash, /bin/csh, /bin/sh or /bin/zsh)
                     example: qsub
         responses:
           '200':
@@ -277,9 +277,9 @@ class Job(Resource):
                 ).as_flask()
 
         try:
-            _user = request.headers.get("X-SOCA-USER")
+            _user = request.headers.get("X-EDH-USER")
             if _user is None:
-                return SocaError.CLIENT_MISSING_HEADER(header="X-SOCA-USER").as_flask()
+                return SocaError.CLIENT_MISSING_HEADER(header="X-EDH-USER").as_flask()
 
             if _interpreter in _all_schedulers:
                 _submit_job = SocaHpcJobSubmit(
@@ -319,7 +319,7 @@ class Job(Resource):
         tags:
           - Scheduler
         parameters:
-          - name: X-SOCA-USER
+          - name: X-EDH-USER
             in: header
             schema:
               type: string
@@ -327,7 +327,7 @@ class Job(Resource):
             required: true
             description: SOCA username for authentication
             example: admin
-          - name: X-SOCA-TOKEN
+          - name: X-EDH-TOKEN
             in: header
             schema:
               type: string
@@ -435,9 +435,9 @@ class Job(Resource):
 
             _job_info = _get_job_info.get("message")[0]
             _job_owner = _job_info.job_owner
-            _request_user = request.headers.get("X-SOCA-USER")
+            _request_user = request.headers.get("X-EDH-USER")
             if _request_user is None:
-                return SocaError.CLIENT_MISSING_HEADER(header="X-SOCA-USER").as_flask()
+                return SocaError.CLIENT_MISSING_HEADER(header="X-EDH-USER").as_flask()
 
             if _request_user != _job_owner:
                 return SocaError.GENERIC_ERROR(

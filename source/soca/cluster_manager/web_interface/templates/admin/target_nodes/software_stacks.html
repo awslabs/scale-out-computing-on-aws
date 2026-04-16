@@ -10,13 +10,12 @@
     {% include 'common/header.html' %}
 </head>
 <body id="page-top">
+    {% include 'common/horizontal_menu_bar.html' %}
 <div id="wrapper">
     {% include 'common/vertical_menu_bar.html' %}
     <div id="content-wrapper" class="d-flex flex-column">
-        <div id="content">
-            <br>
+        <div id="content" style="margin-top: 20px;">
             <div class="container-fluid">
-                {% include 'common/horizontal_menu_bar.html' %}
                 {% include 'common/flashed_messages.html' %}
 
                 <div class="col-md-12">
@@ -26,7 +25,7 @@
                     </div>
 
                       <div class="alert alert-warning">
-                          <strong>Once you have created your Target Node Software Stack, please ensure that it is <a href="/admin/projects" target="_blank">assigned to at least one SOCA Project.</a></strong> Failure to do so will result in your profile remaining hidden from users.</strong>
+                          <strong>Once you have created your Target Node Software Stack, please ensure that it is <a href="/admin/projects" target="_blank">assigned to at least one EDH Project.</a></strong> Failure to do so will result in your profile remaining hidden from users.
                       </div>
 
                     <nav>
@@ -43,20 +42,19 @@
                              aria-labelledby="nav-home-tab">
                             <br>
                             <div class="card shadow mb-4">
-                                <div class="card-header py-3">
-                                    <h6 class="m-0 font-weight-bold text-primary">Register a new Target Node Software Stack
-                                        (AMI) to SOCA</h6>
-                                </div>
+                                    
                                     <div class="card-body">
+                                        <h3>Register a new Target Node Software Stack
+                                        (AMI) to EDH</h3>
                                         <form action="/admin/target_nodes/software_stacks/create" method="post" enctype="multipart/form-data">
                                             <div class="form-group">
                                                 <label for="ami_id" data-toggle="tooltip" data-placement="top"
-                                                       title="Unique ID of your Amazon image. Must be a valid image, start with ami- and between 8 to 21 chars">AMI
+                                                       title="Unique ID of your Amazon image. Must be a valid image, start with ami-  or AMI alias (/aws/service/...)">AMI
                                                     ID</label>
-                                                <input id="ami_id" placeholder="Image ID (start with ami-xxx)"
+                                                <input id="ami_id" placeholder="Image ID (start with ami-xxx or) or AMI alias (/aws/service/...)"
                                                        class="form-control"
                                                        type="text"
-                                                       required name="ami_id" minlength="8" maxlength="21">
+                                                       required name="ami_id">
                                             </div>
 
                                             <div class="form-group">
@@ -124,22 +122,22 @@
                                                     <h5>Supported Variables (case-sensitive)</h5>
                                                       <ul>
                                                           <li>
-                                                              <kbd>{%raw%}{{ SOCA_USER }}{%endraw%}</kbd> Name of the current SOCA user requesting the target node
+                                                              <kbd>{%raw%}{{ EDH_USER }}{%endraw%}</kbd> Name of the current SOCA user requesting the target node
                                                           </li>
                                                           <li>
-                                                              <kbd>{%raw%}{{ SOCA_NODE_INSTANCE_PRIVATE_IP }}{%endraw%}</kbd> Private IP of the target node
+                                                              <kbd>{%raw%}{{ EDH_NODE_INSTANCE_PRIVATE_IP }}{%endraw%}</kbd> Private IP of the target node
                                                           </li>
                                                           <li>
-                                                              <kbd>{%raw%}{{ SOCA_NODE_INSTANCE_PRIVATE_DNS }}{%endraw%}</kbd> Private DNS of the target node
+                                                              <kbd>{%raw%}{{ EDH_NODE_INSTANCE_PRIVATE_DNS }}{%endraw%}</kbd> Private DNS of the target node
                                                           </li>
                                                            <li>
-                                                              <kbd>{%raw%}{{ SOCA_NODE_INSTANCE_ID }}{%endraw%}</kbd> Instance ID of the target node
+                                                              <kbd>{%raw%}{{ EDH_NODE_INSTANCE_ID }}{%endraw%}</kbd> Instance ID of the target node
                                                           </li>
                                                            <li>
-                                                              <kbd>{%raw%}{{ SOCA_NODE_INSTANCE_TYPE }}{%endraw%}</kbd> Instance type of the target node
+                                                              <kbd>{%raw%}{{ EDH_NODE_INSTANCE_TYPE }}{%endraw%}</kbd> Instance type of the target node
                                                           </li>
                                                           <li>
-                                                              <kbd>{%raw%}{{ SOCA_NODE_INSTANCE_ARCH }}{%endraw%}</kbd> Architecture (x86_64/ aarch64) of the target node
+                                                              <kbd>{%raw%}{{ EDH_NODE_INSTANCE_ARCH }}{%endraw%}</kbd> Architecture (x86_64/ aarch64) of the target node
                                                           </li>
                                                           <li>
                                                               <kbd>{%raw%}{{ AWS_REGION }}{%endraw%}</kbd> AWS Region of the target node
@@ -148,14 +146,14 @@
 
                                                      Example: <br>
                                                      <code>
-                                                         &lt;strong&gt;Connect via SSH &lt;/strong&gt;: ssh {%raw%}{{ SOCA_USER }}@{{ SOCA_NODE_INSTANCE_PRIVATE_IP }} &lt;br&gt;  &lt;strong&gt;Access ADB &lt;/strong&gt;: adb connect {{ SOCA_NODE_INSTANCE_PRIVATE_DNS }}:65324{%endraw%}
+                                                         &lt;strong&gt;Connect via SSH &lt;/strong&gt;: ssh {%raw%}{{ EDH_USER }}@{{ EDH_NODE_INSTANCE_PRIVATE_IP }} &lt;br&gt;  &lt;strong&gt;Access ADB &lt;/strong&gt;: adb connect {{ EDH_NODE_INSTANCE_PRIVATE_DNS }}:65324{%endraw%}
                                                      </code>
                                                      <hr>
                                                      <i>Note: <code>&lt;br&gt;</code> is HTML tag for new line</i>
 
                                                 </div>
                                                 <textarea id="connection_string" required
-                                                          class="form-control" rows="3"  name="connection_string">{%raw%}<strong>Instance IP:</strong> {{ SOCA_NODE_INSTANCE_PRIVATE_IP }} <br> <strong>Instance ID:</strong> {{ SOCA_NODE_INSTANCE_ID }} {% endraw %}</textarea>
+                                                          class="form-control" rows="3"  name="connection_string">{%raw%}<strong>Instance IP:</strong> {{ EDH_NODE_INSTANCE_PRIVATE_IP }} <br> <strong>Instance ID:</strong> {{ EDH_NODE_INSTANCE_ID }} {% endraw %}</textarea>
                                             </div>
 
                                             <div class="form-group">
@@ -198,7 +196,7 @@
                                             <div>
                                                 <input type="hidden" name="csrf_token"
                                                        value="{{ csrf_token() }}">
-                                                <button type="submit" class="btn btn-primary btn-lg">Register Software Stack in SOCA
+                                                <button type="submit" class="btn btn-primary">Register Software Stack in EDH
                                                 </button>
                                             </div>
                                         </form>
@@ -209,14 +207,12 @@
                             <div class="tab-pane fade" id="nav-delete" role="tabpanel" aria-labelledby="nav-profile-tab">
                                 <br>
                                 <div class="card shadow mb-4">
-                                    <div class="card-header py-3">
-                                        <h6 class="m-0 font-weight-bold text-primary">Manage Software Stacks</h6>
-                                    </div>
                                     <div class="card-body">
+                                        <h3>Manage Software Stacks</h3>
                                         <div class="alert alert-primary" role="alert">
                                             <strong>Important:</strong> <br>
 
-                                            Removing the Software Stack from SOCA will not remove the AMI from your AWS account
+                                            Removing the Software Stack from EDH will not remove the AMI from your AWS account
                                             <br>
                                             Removing a software stack won't impact existing virtual desktops
                                         </div>
@@ -252,10 +248,10 @@
                                                 </div>
                                                 <div class="d-flex justify-content-center">
                                                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                                                    <button type="submit" class="btn btn-danger btn-lg mr-2">Unregister Software Stack from
+                                                    <button type="submit" class="btn btn-danger mr-2">Unregister Software Stack from
                                                         SOCA
                                                     </button>
-                                                    <button type="button" class="btn btn-primary btn-lg" onclick="submitEditForm()">Edit Software Stack</button>
+                                                    <button type="button" class="btn btn-primary" onclick="submitEditForm()">Edit Software Stack</button>
 
                                                 </div>
                                             </form>

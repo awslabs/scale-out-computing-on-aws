@@ -6,7 +6,7 @@
 function lsf_install_{{  SCHEDULER_VARS.get("IDENTIFIER") }} {
     local SCHEDULER_HOSTNAME="{{ SCHEDULER_VARS.get("ENDPOINT") }}"
     local SCHEDULER_IDENTIFIER="{{ SCHEDULER_VARS.get("IDENTIFIER") }}"
-    local INSTALLER_DIR="${SOCA_BOOTSTRAP_ASSETS_FOLDER}/lsf"
+    local INSTALLER_DIR="${EDH_BOOTSTRAP_ASSETS_FOLDER}/lsf"
     local CLUSTER_ID="{{ context.get("/configuration/ClusterId") }}"
     
     # Default path for LSF_TOP variable, folder where LSF will be installed.
@@ -35,7 +35,7 @@ function lsf_install_{{  SCHEDULER_VARS.get("IDENTIFIER") }} {
         log_info "Creating LSF installer config file"
         # https://www.ibm.com/docs/en/spectrum-lsf/10.1.0?topic=linux-installconfig
 
-        {% if context.get("/configuration/BaseOS") in ["ubuntu2204", "ubuntu2404"] %}
+        {% if context.get("/job/BaseOS") in ["ubuntu2204", "ubuntu2404"] %}
            local LSF_ADMINS="ubuntu root"
         {% else %}
             local LSF_ADMINS="ec2-user root"
@@ -154,26 +154,26 @@ EOF
 
     {% endif %}
     
-    log_info 'Creating custom /bin/soca_${SCHEDULER_IDENTIFIER}'
-    cat << EOF > "/bin/soca_${SCHEDULER_IDENTIFIER}"
+    log_info 'Creating custom /bin/edh_${SCHEDULER_IDENTIFIER}'
+    cat << EOF > "/bin/edh_${SCHEDULER_IDENTIFIER}"
 source ${LSF_SOCA_INSTALL_DIR}/conf/profile.lsf
-echo "========= SOCA ========= "
+echo "========= EDH ========= "
 echo ">> LSF environment loaded, you can now run commands such as bsub/bjobs/lshosts etc ..."
 echo ">> LSF is installed under: ${LSF_SOCA_INSTALL_DIR}"
-echo ">> Add /bin/soca_${SCHEDULER_IDENTIFIER} to your .bashrc / .bash_profile to automatically run this script"
+echo ">> Add /bin/edh_${SCHEDULER_IDENTIFIER} to your .bashrc / .bash_profile to automatically run this script"
 echo ">> Type exit to close this shell"
 echo "======================== "
-export PS1="(soca_lsf) \u@\h:\w\$ "
+export PS1="(edh_lsf) \u@\h:\w\$ "
 exec "$SHELL" -i
 EOF
-    chmod +x /bin/soca_${SCHEDULER_IDENTIFIER}
+    chmod +x /bin/edh_${SCHEDULER_IDENTIFIER}
 
-    log_info "Creating custom SOCA bsub"
+    log_info "Creating custom EDH bsub"
     local ORIGINAL_BSUB_PATH=$(command -v bsub)
 
     mv "${ORIGINAL_BSUB_PATH}" "${ORIGINAL_BSUB_PATH}.lsf.default"
     cat <<EOF > "${ORIGINAL_BSUB_PATH}"
-#!/opt/soca/{{ context.get("/configuration/ClusterId") }}/python/latest/bin/python3
+#!/opt/edh/{{ context.get("/configuration/ClusterId") }}/python/latest/bin/python3
 
 import sys
 import subprocess

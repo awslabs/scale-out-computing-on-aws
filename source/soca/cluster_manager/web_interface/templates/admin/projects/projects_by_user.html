@@ -10,13 +10,12 @@
     {% include 'common/header.html' %}
 </head>
 <body id="page-top">
+{% include 'common/horizontal_menu_bar.html' %}
 <div id="wrapper">
     {% include 'common/vertical_menu_bar.html' %}
     <div id="content-wrapper" class="d-flex flex-column">
-        <div id="content">
-            <br>
+        <div id="content" style="margin-top: 20px;">
             <div class="container-fluid">
-                {% include 'common/horizontal_menu_bar.html' %}
                 {% include 'common/flashed_messages.html' %}
 
                 <div class="col-md-12">
@@ -25,10 +24,8 @@
                              aria-labelledby="nav-home-tab">
                             <br>
                             <div class="card shadow mb-4">
-                                <div class="card-header py-3">
-                                    <h6 class="m-0 font-weight-bold text-primary">Check project membership for a given user</h6>
-                                </div>
                                     <div class="card-body">
+                                        <h3>Check project membership for a given user</h3>
                                         <div class="row">
                                             <div class="col-md-4">
                                                 <form action="/admin/projects/by_user" method="POST">
@@ -41,7 +38,7 @@
                                                     </div>
                                                     <div>
                                                         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                                                        <button type="submit" class="btn btn-primary btn-lg">Check Project Membership</button>
+                                                        <button type="submit" class="btn btn-primary">Check Project Membership</button>
                                                     </div>
                                                 </form>
                                             </div>

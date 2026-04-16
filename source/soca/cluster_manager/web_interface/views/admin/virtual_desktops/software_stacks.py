@@ -39,12 +39,12 @@ def index():
     logger.info(f"List all DCV images registered to SOCA")
     _list_software_stacks = SocaHttpClient(
         endpoint="/api/dcv/virtual_desktops/software_stacks",
-        headers={"X-SOCA-USER": session["user"], "X-SOCA-TOKEN": session["api_key"]},
+        headers={"X-EDH-USER": session["user"], "X-EDH-TOKEN": session["api_key"]},
     ).get()
 
     _list_profiles = SocaHttpClient(
         endpoint="/api/dcv/virtual_desktops/profiles",
-        headers={"X-SOCA-USER": session["user"], "X-SOCA-TOKEN": session["api_key"]},
+        headers={"X-EDH-USER": session["user"], "X-EDH-TOKEN": session["api_key"]},
     ).get()
 
     if _list_software_stacks.get("success") is True:
@@ -87,7 +87,7 @@ def software_stack_create():
     )
     _create_software_stack = SocaHttpClient(
         endpoint="/api/dcv/virtual_desktops/software_stacks",
-        headers={"X-SOCA-USER": session["user"], "X-SOCA-TOKEN": session["api_key"]},
+        headers={"X-EDH-USER": session["user"], "X-EDH-TOKEN": session["api_key"]},
     ).post(data=request.form.to_dict(), files=_files)
 
     if _create_software_stack.get("success") is True:
@@ -117,7 +117,7 @@ def software_stack_delete():
 
     _delete_software_stack = SocaHttpClient(
         endpoint="/api/dcv/virtual_desktops/software_stacks",
-        headers={"X-SOCA-USER": session["user"], "X-SOCA-TOKEN": session["api_key"]},
+        headers={"X-EDH-USER": session["user"], "X-EDH-TOKEN": session["api_key"]},
     ).delete(data=request.form.to_dict())
 
     if _delete_software_stack.get("success") is True:
@@ -153,12 +153,12 @@ def software_stack_edit():
 
     _get_software_stack_info = SocaHttpClient(
         endpoint="/api/dcv/virtual_desktops/software_stacks",
-        headers={"X-SOCA-USER": session["user"], "X-SOCA-TOKEN": session["api_key"]},
+        headers={"X-EDH-USER": session["user"], "X-EDH-TOKEN": session["api_key"]},
     ).get(params={"software_stack_id": request.form.get("software_stack_id")})
 
     _list_profiles = SocaHttpClient(
         endpoint="/api/dcv/virtual_desktops/profiles",
-        headers={"X-SOCA-USER": session["user"], "X-SOCA-TOKEN": session["api_key"]},
+        headers={"X-EDH-USER": session["user"], "X-EDH-TOKEN": session["api_key"]},
     ).get()
 
     if _get_software_stack_info.get("success") is True:
@@ -201,7 +201,7 @@ def software_stack_update():
 
     _modify_software_stack = SocaHttpClient(
         endpoint="/api/dcv/virtual_desktops/software_stacks",
-        headers={"X-SOCA-USER": session["user"], "X-SOCA-TOKEN": session["api_key"]},
+        headers={"X-EDH-USER": session["user"], "X-EDH-TOKEN": session["api_key"]},
     ).put(data=request.form.to_dict(), files=_files)
 
     if _modify_software_stack.get("success") is True:

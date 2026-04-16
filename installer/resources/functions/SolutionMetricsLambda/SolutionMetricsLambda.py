@@ -20,7 +20,7 @@ import os
 
 """
 To improve performance and usability, SOCA sends anonymous metrics to AWS.
-You can disable this by setting "/configuration/DefaultMetricCollection" to "false" via `socactl`
+You can disable this by setting "/configuration/DefaultMetricCollection" to "false" via `edhctl`
 
 Anonymous Data tracked:
   - SOCA Instance information (Type, Count, BaseOS, Disk sizing, EFA, DCV) 

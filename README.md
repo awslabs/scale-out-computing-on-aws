@@ -1,6 +1,7 @@
-# Scale-Out Computing on AWS - CAE Made Easy :palm_tree:
+# Engineering Development Hub :palm_tree:
 
-Scale-Out Computing on AWS (SOCA) is a complete environment designed to help you run your engineering workloads on AWS and run your simulations at scale.
+Engineering Development Hub (EDH) is a complete environment designed to help you run your engineering workloads on AWS and run your simulations at scale. Originally released in 2019 as Scale-Out Computing on AWS (SOCA), the project has been renamed Engineering Development Hub in April 2026.
+
 Key Features:
 
 - Web Interface
@@ -18,11 +19,11 @@ Key Features:
 
 ## :book: Documentation
 
-[https://awslabs.github.io/scale-out-computing-on-aws-documentation/](https://awslabs.github.io/scale-out-computing-on-aws-documentation/)
+[https://awslabs.github.io/engineering-development-hub-documentation/](https://awslabs.github.io/engineering-development-hub-documentation/)
 
 ## :rocket: How to install Scale-Out Computing on AWS
 
-Refer to [SOCA Installation Documentation](https://awslabs.github.io/scale-out-computing-on-aws-documentation/documentation/01-install-soca-cluster/) for installation instructions.
+Refer to [SOCA Installation Documentation](https://awslabs.github.io/engineering-development-hub-documentation/documentation/01-install-edh-cluster/) for installation instructions.
 
 
 This solution collects anonymous operational metrics to help AWS improve the quality of features of the solution. For more information, including how to disable this capability, please see the [https://docs.aws.amazon.com/solutions/latest/scale-out-computing-on-aws/appendix-d.html](https://docs.aws.amazon.com/solutions/latest/scale-out-computing-on-aws/appendix-d.html).

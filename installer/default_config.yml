@@ -4,13 +4,13 @@
 # SPDX-License-Identifier: Apache-2.0
 
 Config:
-  version: "26.3.0"  # version automatically populated as part of RELEASE-PIPELINE.sh (see github_release.py)
+  version: "26.4.0"  # version automatically populated as part of RELEASE-PIPELINE.sh (see github_release.py)
   termination_protection: true  # Enable (recommended) or Disable Cloudformation Stack termination protection
   entry_points_subnets: "Public"  # Public (recommended) or Private. In public mode the scheduler and ELB are deployed on PublicSubnets and assigned Public IPS. In Private mode scheduler and ELB are deployed in private subnets. In both case compute nodes and OpenSearch/EFS/FSxL are deployed in private subnets. Public does not means your cluster will be accessible to everyone by default, access to your cluster is still protected by security groups
-  admin_user_name: "socaadmin"  # The name of the default admin username that will be created.
+  admin_user_name: "edhadmin"  # The name of the default admin username that will be created.
   metadata_http_tokens: "required"  # Supported values are "required" (recommended) for IMDSv2 or "optional" for IMDSv1 (https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-ec2-launchtemplate-launchtemplatedata-metadataoptions.html#cfn-ec2-launchtemplate-launchtemplatedata-metadataoptions-httptokens)
   kms_key_id: ~  # A Global KMS KeyID (ARN) for any encrypted operations. Setting this removes the need to set on a per-resource basis. Note a per-resource key will over-ride this setting.
-  # Uncomment section below if you want to add additional tags to the resources created by SOCA. You can add additional tags post-deployment via `socactl`
+  # Uncomment section below if you want to add additional tags to the resources created by SOCA. You can add additional tags post-deployment via `edhctl`
   # custom_tags:
   #  - Key: 'example:custom:Tag1Name'
   #    Value: 'Tag1Value'
@@ -50,10 +50,13 @@ Config:
       ttl:
         short: 3600
         long: 86400
+    aws_batch:
+      create_default_edh_environment: true  # [Preview] Enable (True) or Disable (False) a default AWS Batch Compute Environment (Fargate) / Queue and basic Job Definition
 
+    
     logging:
       kms_key_id: ~  # KMS KeyID used for CloudWatch / logging operations
-      log_group_prefix: ~  # Create a specific log group prefix. If empty (~) , will use /soca by default. Including a leading / if needed.
+      log_group_prefix: ~  # Create a specific log group prefix. If empty (~) , will use /edh by default. Including a leading / if needed.
       log_group_class: "STANDARD"  # STANDARD or INFREQUENT_ACCESS . NOTE - feature differences existing between the classes
       log_group_include_cluster_id: true  #  By default(true), include the cluster name in the created log-group so logs appear as <prefix>/<cluster_id>/<resource>
       retention_policy: "THREE_YEARS"  # For valid values see the Enum: https://docs.aws.amazon.com/cdk/api/v2/python/aws_cdk.aws_logs/RetentionDays.html
@@ -133,7 +136,7 @@ Config:
         throughput_capacity: 384
         storage_capacity: 1024
         junction_path: "/apps"
-        netbios_name: "SOCAAPPSSVM"  # 15 Chars Max, must be unique to your AD
+        netbios_name: "EDHAPPSSVM"  # 15 Chars Max, must be unique to your AD
         file_system_administrators_group: ~  # Leave default if using AWS DS (will use AWS Delegated FSx Administrators)
         organizational_unit_distinguished_name: ~  # Leave default if using AWS DS (OU=Computers, <BASE_DOMAIN>)
       fsx_lustre:
@@ -158,7 +161,7 @@ Config:
         throughput_capacity: 384
         storage_capacity: 1024
         junction_path: "/data"
-        netbios_name: "SOCADATASVM"  # 15 Chars Max, must be unique to your AD.
+        netbios_name: "EDHDATASVM"  # 15 Chars Max, must be unique to your AD.
         file_system_administrators_group: ~  # Leave default if using AWS DS (will use AWS Delegated FSx Administrators)
         organizational_unit_distinguished_name: ~  # Leave default if using AWS DS (OU=Computers, <BASE_DOMAIN>)
       fsx_lustre:
@@ -232,7 +235,7 @@ Config:
     #   - "arn:aws:backup:us-east-1:123456789012:backup-vault:backupvaultname"
 
   dcv:
-    # Default allowed EC2 instance types for VDI. Can be changed post-deployment via Virtual Desktop Profiles https://awslabs.github.io/scale-out-computing-on-aws-documentation/documentation/virtual-desktops/vdi-profiles/
+    # Default allowed EC2 instance types for VDI. Can be changed post-deployment via Virtual Desktop Profiles https://awslabs.github.io/engineering-development-hub-documentation/documentation/virtual-desktops/vdi-profiles/
     allowed_instances: [
       "m8i-flex.*",
       "m8i.*",
@@ -301,6 +304,30 @@ Config:
       # people_search_base: "cn=Users,<base_dn>", group_search_base: "cn=Group,<base_dn>", admins_search_base: "cn=AWS Delegated Administrators,ou=AWS Delegated Groups,<base_dn>"
       admins_search_base: "cn=socasudoadminsgroup"  # Any users created in this group will have Linux SUDO & SOCA Admin permissions
 
+      # Password policy settings applied to the AWS Managed AD PSO during controller bootstrap.
+      # Set to ~ (null) to skip password policy configuration entirely.
+      # Only applies when provider is aws_ds_managed_activedirectory.
+      # Reference: https://learn.microsoft.com/en-us/windows/win32/adschema/c-msds-passwordsettings
+      # AWS Directory Service Managed Microsoft AD defaults can be found: https://docs.aws.amazon.com/directoryservice/latest/admin-guide/ms_ad_password_policies.html
+      #
+      # Specifically - The changes from the AWS Directory Service for Microsoft Active Directory defaults:
+      #   ***Password Expiration is Disabled*** to prevent disruption from the 42-day expiration cycle.
+      #
+      #
+      password_policy:
+        enabled: true                                        # Set to false to skip password policy updates during the bootstrap process
+        pso_name: "CustomerPSO-01"                           # msDS-PasswordSettings object CN
+        max_password_age_days: 0                             # 0 = never expires, or number of days (AWS Managed AD Default is 42 days)
+        min_password_age_days: 1                             # Minimum days before password can be changed, 0 = no minimum
+        min_password_length: 7                               # Minimum password characters
+        password_history_length: 24                          # Number of previous passwords remembered
+        lockout_threshold: 0                                 # Failed attempts before lockout, 0 = never lock
+        lockout_duration_minutes: 30                         # Minutes locked out, 0 = unlock immediately
+        lockout_observation_window_minutes: 30               # Minutes before failed attempt counter resets, 0 = reset immediately
+        complexity_enabled: true                             # Require complex passwords
+        reversible_encryption: false                         # Store passwords with reversible encryption
+        max_retries: 10                                      # Number of LDAP query retry attempts with exponential backoff
+
     openldap:
       people_search_base: "ou=People"  # Users will be created or authenticated in this OrganizationAL Unit (OU) - (base_dn is automatically added as suffix if not present)
       group_search_base: "ou=Group"  # Groups in this OU will be usable in SOCA - (base_dn is automatically added as suffix if not present)
@@ -366,10 +393,14 @@ Config:
       #    - Save, Copy the "Secret ARN" below (Important: copy "Secret ARN", not "Secret Name")
       service_account_secret_name_arn: ~
 
+  # Lambda Layer configuration
+  lambda_layers:
+    Boto3Version: "1.42.87" # boto3 version to bundle as a Lambda layer for all functions
+
   # Enable/Disable specific FF
   # NOTE: Web API Feature Flag can be found under cluster_manager/web_interface/feature_flags
-  # Feature can be enabled/disabled post-deployment via `socactl`
-  # List of allowed/denied users can also be managed post-deployment via `socactl`
+  # Feature can be enabled/disabled post-deployment via `edhctl`
+  # List of allowed/denied users can also be managed post-deployment via `edhctl`
   feature_flags:
     RunRemoteCommand: false # When true, /api/user/run_command will be enabled and end user will have the ability to run remote command on the controller.
     EnableCapacityReservation: true # When false, SOCA will try to provision EC2 capacity and ignore capacity reservation request.
@@ -379,6 +410,7 @@ Config:
       AllowCustomTags: true
       EnableDryRun: true # Enforce EC2 DryRun prior to provisioning capacity
       EnableQuotasCheck: true # Query AWS Service Quotas before trying to provision capacity
+      EnableNestedVirtualization: true # When true, users can request nested virtualization for HPC jobs via nested_virtualization=True resource directive
       JoinEphemeralNodesToAD: false # Decide whether or not you want to join ephemeral HPC nodes to your Active Directory. Ignored if using OpenLDAP. If false, a local dump of your users it deployed as local users on each nodes
 
     Networking:
@@ -387,12 +419,14 @@ Config:
     
     VirtualDesktops:
        AllowCustomTags: true
+       EnableNestedVirtualization: false # When true, users can enable nested virtualization for virtual desktops
 
     TargetNodes:
       AllowCustomTags: true
+      EnableNestedVirtualization: false # When true, users can enable nested virtualization for target nodes
 
-# Parameters below will be stored on AWS Parameter Store via /soca/<cluster_id/<root>/<key>
-# ex: /soca/soca-mycluster/system/awscliv2/x86_64
+# Parameters below will be stored on AWS Parameter Store via /edh/<cluster_id/<root>/<key>
+# ex: /edh/edh-mycluster/system/awscliv2/x86_64
 Parameters:
   system:
     base_os:
@@ -446,9 +480,9 @@ Parameters:
       slurm:
         # Install path. We recommend you to not change this path
         # if you do, make sure to update relevant cluster_analytics / log_backup  paths as well
-        # Note: $SOCA_CLUSTER_ID will be automatically replaced by the SOCA Cluster Name specified at install time
-        install_prefix_path: "/opt/soca/$SOCA_CLUSTER_ID/schedulers/default/slurm"
-        install_sysconfig_path: "/opt/soca/$SOCA_CLUSTER_ID/schedulers/default/slurm/etc"
+        # Note: $EDH_CLUSTER_ID will be automatically replaced by the SOCA Cluster Name specified at install time
+        install_prefix_path: "/opt/edh/$EDH_CLUSTER_ID/schedulers/default/slurm"
+        install_sysconfig_path: "/opt/edh/$EDH_CLUSTER_ID/schedulers/default/slurm/etc"
 
         version: "25-05-3-1"
         url: "https://github.com/SchedMD/slurm/archive/refs/tags/slurm-25-05-3-1.tar.gz"
@@ -464,8 +498,8 @@ Parameters:
         # Install path. We recommend you to not change this path
         # if you do, make sure to update relevant cluster_analytics / log_backup paths as well
         # Note: there is no sysconfigdir_path for LSF, everything is self-contained within install_prefix_path
-        # Note: $SOCA_CLUSTER_ID will be automatically replaced by the SOCA Cluster Name specified at install time
-        lsf_top: "/opt/soca/$SOCA_CLUSTER_ID/schedulers/default/lsf"
+        # Note: $EDH_CLUSTER_ID will be automatically replaced by the SOCA Cluster Name specified at install time
+        lsf_top: "/opt/edh/$EDH_CLUSTER_ID/schedulers/default/lsf"
         
         # LSF version, used to browse default LSF folder name
         # Supported Version:
@@ -492,9 +526,9 @@ Parameters:
       openpbs:
         # Install path. We recommend you to not change this path
         # if you do, make sure to update relevant cluster_analytics / log_backup paths as well
-        # Note: $SOCA_CLUSTER_ID will be automatically replaced by the SOCA Cluster Name specified at install time
-        pbs_exec: "/opt/soca/$SOCA_CLUSTER_ID/schedulers/default/openpbs" # Default is "/opt/pbs"
-        pbs_home: "/opt/soca/$SOCA_CLUSTER_ID/schedulers/default/openpbs/var/spool/pbs" # Default is "/var/spool/pbs" include spooler dirs, hierarchy will be created at compilation time but use the same tree as install_prefix_path. You can override this setting if needed.
+        # Note: $EDH_CLUSTER_ID will be automatically replaced by the SOCA Cluster Name specified at install time
+        pbs_exec: "/opt/edh/$EDH_CLUSTER_ID/schedulers/default/openpbs" # Default is "/opt/pbs"
+        pbs_home: "/opt/edh/$EDH_CLUSTER_ID/schedulers/default/openpbs/var/spool/pbs" # Default is "/var/spool/pbs" include spooler dirs, hierarchy will be created at compilation time but use the same tree as install_prefix_path. You can override this setting if needed.
         
         deployment_type: "git" # tgz or git
         tgz:  # Download OpenPBS tgz from the URL listed below
@@ -539,9 +573,9 @@ Parameters:
 
         # Install path. We recommend you to not change this path
         # if you do, make sure to update relevant cluster_analytics / log_backup paths as well
-        # Note: $SOCA_CLUSTER_ID will be automatically replaced by the SOCA Cluster Name specified at install time
-        pbs_exec: "/opt/soca/$SOCA_CLUSTER_ID/schedulers/default/pbspro"
-        pbs_home: "/opt/soca/$SOCA_CLUSTER_ID/schedulers/default/pbspro/var/spool/pbs" # include spooler dirs, hierarchy will be created at compilation time but use the same tree as install_prefix_path. You can override this setting if needed.
+        # Note: $EDH_CLUSTER_ID will be automatically replaced by the SOCA Cluster Name specified at install time
+        pbs_exec: "/opt/edh/$EDH_CLUSTER_ID/schedulers/default/pbspro"
+        pbs_home: "/opt/edh/$EDH_CLUSTER_ID/schedulers/default/pbspro/var/spool/pbs" # include spooler dirs, hierarchy will be created at compilation time but use the same tree as install_prefix_path. You can override this setting if needed.
         
 
         # Required -  Path to your S3 folder containing PBSPro installer: e.g: s3://mybucket/pbspro/ (IMPORTANT: Must end with a /).
@@ -598,7 +632,7 @@ Parameters:
       aarch64: "https://s3.amazonaws.com/ec2-downloads-windows/SSMAgent/latest/linux_arm64/amazon-ssm-agent.rpm"
 
     # S3 Mountpoint is only used if you mount an S3 path via SOCA Shared Storage
-    # https://awslabs.github.io/scale-out-computing-on-aws-documentation/documentation/storage/dedicated-storage/
+    # https://awslabs.github.io/engineering-development-hub-documentation/documentation/storage/dedicated-storage/
     s3_mountpoint:
       x86_64:
         url: "https://s3.amazonaws.com/mountpoint-s3-release/1.14.0/x86_64/mount-s3-1.14.0-x86_64.rpm"

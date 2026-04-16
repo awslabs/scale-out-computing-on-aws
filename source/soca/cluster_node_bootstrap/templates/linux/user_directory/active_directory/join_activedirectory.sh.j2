@@ -4,21 +4,21 @@
 # Begin: Join Active Directory
 
 
-# Disable autoamtic node AD Domain Join by enabling local user synchronization using:
-# socactl config set --key "/configuration/FeatureFlags/Hpc/JoinEphemeralNodesToAD" --value "false"
+# Disable automatic node AD Domain Join by enabling local user synchronization using:
+# edhctl config set --key "/configuration/FeatureFlags/Hpc/JoinEphemeralNodesToAD" --value "false"
 
 # Note: This is an experimental feature
 {% if not context.get("/configuration/FeatureFlags/Hpc/JoinEphemeralNodesToAD") and context.get("/job/NodeType") == "compute_node" %}
   function sync_ad_users_locally {
-    local LOCAL_SOCA_AD_SCRIPT="/opt/soca/{{ context.get("/configuration/ClusterId") }}/sync_ad_users_locally.sh"
+    local LOCAL_SOCA_AD_SCRIPT="/opt/edh/{{ context.get("/configuration/ClusterId") }}/sync_ad_users_locally.sh"
     {% if context.get("/job/JobQueue") == "alwayson" %}
         local USERS_TO_SYNC="" # sync all users in alwayson nodes, please note this can cause some slowness if you have a large number of users
     {% else %}
         local USERS_TO_SYNC="{{ context.get("/job/JobOwner") }}" # Only sync job owner. empty string if you want to sync ALL SOCA users, this may cause some slowness if you have a large number of users.
     {% endif %}
-    log_info "Ephemeral HPC Compute Node are now joined to AD, instead, we re-create the SOCA users locally to avoid a AD domain join. User info ${LOCAL_SOCA_AD_USERS}"
+    log_info "Creating local user for ephemeral HPC due to no AD join. User info ${LOCAL_SOCA_AD_USERS}"
 
-    log_info "Writting local SOCA AD script to ${LOCAL_SOCA_AD_SCRIPT}"
+    log_info "Writing local SOCA AD script to ${LOCAL_SOCA_AD_SCRIPT}"
     cat > "$LOCAL_SOCA_AD_SCRIPT" <<'EOF'
 {% include "templates/linux/user_directory/active_directory/sync_ad_users_locally.sh.j2" %}
 EOF
@@ -39,7 +39,7 @@ EOF
     log_info "configuring ${LOCAL_SOCA_AD_SCRIPT} as recurring cron on the remote machine"
     # delete crontab if already there and create new one
     ( crontab -l 2>/dev/null | grep -v "${LOCAL_SOCA_AD_SCRIPT}"; \
-  echo "*/10 * * * * ${LOCAL_SOCA_AD_SCRIPT} ${USERS_TO_SYNC} >> ${SOCA_BOOTSTRAP_LOGS_FOLDER}/sync_ad_users.log 2>&1" \
+  echo "*/10 * * * * ${LOCAL_SOCA_AD_SCRIPT} ${USERS_TO_SYNC} >> ${EDH_BOOTSTRAP_LOGS_FOLDER}/sync_ad_users.log 2>&1" \
     ) | crontab -
   }
   sync_ad_users_locally
@@ -86,10 +86,11 @@ EOF
     log_info "${DS_DOMAIN_NAME} is reachable"
 
     # Create cached location if needed. This location is restricted to admin user only
-    local AD_AUTOMATION_CACHED_LOCATION="/apps/soca/{{ context.get("/configuration/ClusterId") }}/shared/custom_automation/ad_automation"
+    local AD_AUTOMATION_CACHED_LOCATION="/apps/edh/{{ context.get("/configuration/ClusterId") }}/shared/custom_automation/ad_automation"
     local AD_AUTOMATION_CACHED_USERNAME_LOCATION="${AD_AUTOMATION_CACHED_LOCATION}/join_domain_user.cache"
     local AD_AUTOMATION_CACHED_PASSWORD_LOCATION="${AD_AUTOMATION_CACHED_LOCATION}/join_domain.cache"
     log_info "AD Cached Location is ${AD_AUTOMATION_CACHED_LOCATION}"
+
     # Retrieve account with join permission if available, otherwise query SecretManager
     # to migrate to AD OTP
     {% if context.get("/job/NodeType") == "controller" %}
@@ -107,6 +108,7 @@ EOF
       chmod 600 ${AD_AUTOMATION_CACHED_USERNAME_LOCATION}
       chmod 600 ${AD_AUTOMATION_CACHED_PASSWORD_LOCATION}
       log_info "AD Domain User cached on filesystem via ${AD_AUTOMATION_CACHED_LOCATION}"
+
     {% else %}
       log_info "Non SOCA controller host, fetching AD Service Account via ${AD_AUTOMATION_CACHED_LOCATION}"
       {% if context.get("/job/NodeType") == "login_node" %}
@@ -138,7 +140,7 @@ EOF
     # As hosts are recycled, we ensure we register them to AD with unique and random identifier (15 chars max)
     # Name include SOCA information, which can then easily be decipher by AD admins if/when they want to determine what hosts registered on their AD are SOCA related
     log_info "Generating unique & random 15 char SERVER name to be registered to AD"
-    local HOSTNAME_DATA=$(echo "${SOCA_CLUSTER_ID}-${AWS_REGION}-${AWS_INSTANCE_ID}"  | openssl dgst -sha1 -binary | xxd -p | awk '{split($0,h,"."); print toupper(h[1])}')
+    local HOSTNAME_DATA=$(echo "${EDH_CLUSTER_ID}-${AWS_REGION}-${AWS_INSTANCE_ID}"  | openssl dgst -sha1 -binary | xxd -p | awk '{split($0,h,"."); print toupper(h[1])}')
     local HOSTNAME_PREFIX="SOCA-"
     {{ 'AVAILABLE_CHAR=$((15 - ${#HOSTNAME_PREFIX}))' }} # Jinja2 Escape otherwise $ { # HOSTNAME_PREFIX will return an J2 error
     SHAKE_VALUE=${HOSTNAME_DATA: -${AVAILABLE_CHAR}}
@@ -242,5 +244,12 @@ homedir_substring = /data/home
       echo "sudoers: files sss" >> /etc/nsswitch.conf
   }
   join_ad
+
+  {% if context.get("/job/NodeType") == "controller" and context.get("/configuration/UserDirectory/provider") == "aws_ds_managed_activedirectory" %}
+      # If we are a controller using AWS DS Managed AD - apply AD password policy updates
+      log_info "AWS DS Managed AD - Apply PW policy"
+      {% include "templates/linux/user_directory/active_directory/apply_ad_password_policy.sh.j2" %}
+  {% endif %}
+
 {% endif %}
 # End: Join Active Directory

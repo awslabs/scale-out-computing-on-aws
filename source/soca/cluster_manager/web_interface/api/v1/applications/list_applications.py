@@ -25,7 +25,7 @@ class ListApplications(Resource):
         description: Retrieves all application profiles (admin access required)
         parameters:
           - in: header
-            name: X-SOCA-USER
+            name: X-EDH-USER
             required: true
             schema:
               type: string
@@ -35,7 +35,7 @@ class ListApplications(Resource):
             description: SOCA username for authentication (must be admin)
             example: "admin.user"
           - in: header
-            name: X-SOCA-TOKEN
+            name: X-EDH-TOKEN
             required: true
             schema:
               type: string

@@ -93,48 +93,48 @@ class SocaNode(BaseModel):
 
         _soca_specific_attributes = {}
         _tags_to_retrieve = [
-            "soca:JobId",
-            "soca:JobQueue",
-            "soca:StackId",
-            "soca:NodeType",
-            "soca:ClusterId",
-            "soca:KeepForever",
-            "soca:TerminateWhenIdle",
+            "edh:JobId",
+            "edh:JobQueue",
+            "edh:StackId",
+            "edh:NodeType",
+            "edh:ClusterId",
+            "edh:KeepForever",
+            "edh:TerminateWhenIdle",
         ]
         for tag in instance.get("Tags", []):
             if tag.get("Key") in _tags_to_retrieve:
                 _soca_specific_attributes[tag.get("Key")] = tag.get("Value")
 
-        if "soca:NodeType" in _soca_specific_attributes:
-            if _soca_specific_attributes.get("soca:NodeType") == "compute_node":
+        if "edh:NodeType" in _soca_specific_attributes:
+            if _soca_specific_attributes.get("edh:NodeType") == "compute_node":
                 _node_type = SocaNodeType.COMPUTE_NODE
-            elif _soca_specific_attributes.get("soca:NodeType") == "login_node":
+            elif _soca_specific_attributes.get("edh:NodeType") == "login_node":
                 _node_type = SocaNodeType.LOGIN_NODE
-            elif _soca_specific_attributes.get("soca:NodeType") == "dcv_node":
+            elif _soca_specific_attributes.get("edh:NodeType") == "dcv_node":
                 _node_type = SocaNodeType.DCV_NODE
             else:
                 _node_type = SocaNodeType.UNKNOWN
 
         logger.debug(f"Found Soca Custom Attributes: {_soca_specific_attributes}")
 
-        _keep_forever = _soca_specific_attributes.get("soca:KeepForever", None)
-        _job_id = _soca_specific_attributes.get("soca:JobId", None)
+        _keep_forever = _soca_specific_attributes.get("edh:KeepForever", None)
+        _job_id = _soca_specific_attributes.get("edh:JobId", None)
 
         if not _keep_forever and not _job_id:
             raise ValueError(
-                f"Instance {instance.get('InstanceId')} is not tagged with soca:KeepForever or soca:JobId"
+                f"Instance {instance.get('InstanceId')} is not tagged with edh:KeepForever or edh:JobId"
             )
 
         return cls(
             job_id=_job_id,
-            job_queue=_soca_specific_attributes.get("soca:JobQueue", None),
-            stack_id=_soca_specific_attributes.get("soca:StackId", None),
-            cluster_id=_soca_specific_attributes.get("soca:ClusterId", None),
+            job_queue=_soca_specific_attributes.get("edh:JobQueue", None),
+            stack_id=_soca_specific_attributes.get("edh:StackId", None),
+            cluster_id=_soca_specific_attributes.get("edh:ClusterId", None),
             node_type=_node_type,
             scheduler_info=scheduler_info,
             keep_forever=_keep_forever,
             terminate_when_idle=_soca_specific_attributes.get(
-                "soca:TerminateWhenIdle", 0
+                "edh:TerminateWhenIdle", 0
             ),
             architecture=instance.get("Architecture"),
             availability_zone=instance.get("Placement", {}).get("AvailabilityZone"),

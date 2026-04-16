@@ -11,46 +11,32 @@
 </head>
 
 <body id="page-top">
+        {% include 'common/horizontal_menu_bar.html' %}
+
 
 <div id="wrapper">
     {% include 'common/vertical_menu_bar.html' %}
     <div id="content-wrapper" class="d-flex flex-column">
 
-        <div id="content">
-            <br>
+        <div id="content" style="margin-top: 20px;">
             <div class="container-fluid">
-                {% include 'common/horizontal_menu_bar.html' %}
-                {% with messages = get_flashed_messages(with_categories=true) %}
-                    {% if messages %}
-                        {% for category, message in messages %}
-                            <br>
-                            {% if category == "success" %}
-                                <div class="alert alert-success">
-                                    <strong>{{ message | safe }} </strong>
-                                </div>
-                            {% else %}
-                                <div class="alert alert-danger">
-                                    <strong>{{ message | safe }} </strong>
-                                </div>
-                            {% endif %}
-                        {% endfor %}
-                    {% endif %}
-                {% endwith %}
+                {% include 'common/flashed_messages.html' %}
+
                 <div class="col-md-12">
                     <nav>
                         <nav>
                             <div class="nav nav-tabs" id="nav-tab" role="tablist">
                                 <a class="nav-item nav-link active" id="nav-home-tab" data-bs-toggle="tab"
-                                   data-bs-target="#nav-add" role="tab" aria-controls="nav-home" aria-selected="true">Add
+                                   href="#nav-add" role="tab" aria-controls="nav-home" aria-selected="true">Add
                                     new user</a>
                                 <a class="nav-item nav-link" id="nav-profile-tab" data-bs-toggle="tab"
-                                   data-bs-target="#nav-delete" role="tab" aria-controls="nav-profile"
+                                   href="#nav-delete" role="tab" aria-controls="nav-profile"
                                    aria-selected="false">Delete user</a>
                                 <a class="nav-item nav-link" id="nav-contact-tab" data-bs-toggle="tab"
-                                   data-bs-target="#nav-reset" role="tab" aria-controls="nav-contact"
+                                   href="#nav-reset" role="tab" aria-controls="nav-contact"
                                    aria-selected="false">Reset user password</a>
                                 <a class="nav-item nav-link" id="nav-contact-tab" data-bs-toggle="tab"
-                                   data-bs-target="#nav-admin" role="tab" aria-controls="nav-contact"
+                                   href="#nav-admin" role="tab" aria-controls="nav-contact"
                                    aria-selected="false">Grant/Revoke Admin permissions</a>
                             </div>
                         </nav>
@@ -59,15 +45,14 @@
                                  aria-labelledby="nav-home-tab">
                                 <br>
                                 <div class="card shadow mb-4">
-                                    <div class="card-header py-3">
-                                        <h6 class="m-0 font-weight-bold text-primary">Add New User</h6>
-                                    </div>
+                                       
                                     <div class="card-body">
+                                         <h3>Add New User</h3>
                                         {% if directory in ["aws_ds_managed_activedirectory"] %}
                                             <div class="alert alert-primary" role="alert">
                                                 <strong>Important: Active Directory</strong> <br>
                                                 Creating a user on Active Directory can take up to 1 minute. Do not
-                                                refresh the page while SOCA is creating a new account.
+                                                refresh the page while EDH is creating a new account.
                                             </div>
                                         {% endif %}
 
@@ -120,7 +105,7 @@
                                             </div>
                                             <div>
                                                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                                                <button type="submit" class="btn btn-primary btn-lg">Create Account
+                                                <button type="submit" class="btn btn-primary">Create Account
                                                 </button>
                                             </div>
                                         </form>
@@ -132,10 +117,9 @@
                                  aria-labelledby="nav-profile-tab">
                                 <br>
                                 <div class="card shadow mb-4">
-                                    <div class="card-header py-3">
-                                        <h6 class="m-0 font-weight-bold text-primary">Delete User</h6>
-                                    </div>
                                     <div class="card-body">
+                                        <h3>Delete User</h3>
+
                                         <div class="alert alert-primary" role="alert">
                                             <strong>Important </strong>
                                             Deleting user will prevent user to access the cluster but does not remove
@@ -160,7 +144,7 @@
                                             </div>
                                             <div>
                                                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                                                <button type="submit" class="btn btn-danger btn-lg">Delete User</button>
+                                                <button type="submit" class="btn btn-danger">Delete User</button>
                                             </div>
                                         </form>
                                     </div>
@@ -169,10 +153,9 @@
                             <div class="tab-pane fade" id="nav-reset" role="tabpanel" aria-labelledby="nav-contact-tab">
                                 <br>
                                 <div class="card shadow mb-4">
-                                    <div class="card-header py-3">
-                                        <h6 class="m-0 font-weight-bold text-primary">Reset Password</h6>
-                                    </div>
                                     <div class="card-body">
+                                        <h3>Reset Password</h3>
+
                                         <div class="alert alert-primary" role="alert">
                                             <strong>Important </strong>
                                             This will generate a temporary password for a given user
@@ -196,7 +179,7 @@
                                             <div>
                                                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                                                 <input type="hidden" name="admin_reset" value="yes">
-                                                <button type="submit" class="btn btn-danger btn-lg">Generate temporary
+                                                <button type="submit" class="btn btn-danger">Generate temporary
                                                     password
                                                 </button>
                                             </div>
@@ -209,11 +192,10 @@
                                 <div class="row">
                                     <div class="col-md-6">
                                         <div class="card shadow mb-4">
-                                            <div class="card-header py-3">
-                                                <h6 class="m-0 font-weight-bold text-primary">Grant user Admin
-                                                    permission</h6>
-                                            </div>
+                                           
                                             <div class="card-body">
+                                                <h3>Grant user Admin
+                                                    permission</h3>
                                                 <form action="/admin/manage_sudo" method="post">
                                                     <div class="form-group">
                                                         <select class="form-control" id="user" name="user">
@@ -233,7 +215,7 @@
                                                         <input type="hidden" name="csrf_token"
                                                                value="{{ csrf_token() }}">
 
-                                                        <button type="submit" class="btn btn-success btn-lg">Grant Admin
+                                                        <button type="submit" class="btn btn-success">Grant Admin
                                                             permission
                                                         </button>
                                                     </div>
@@ -243,11 +225,10 @@
                                     </div>
                                     <div class="col-md-6">
                                         <div class="card shadow mb-4">
-                                            <div class="card-header py-3">
-                                                <h6 class="m-0 font-weight-bold text-primary">Revoke user Admin
-                                                    permission</h6>
-                                            </div>
+                                           
                                             <div class="card-body">
+                                                  <h3>Revoke user Admin
+                                                    permission</h3>
                                                 <form action="/admin/manage_sudo" method="post">
                                                     <div class="form-group">
                                                         <select class="form-control" id="user" name="user">
@@ -267,7 +248,7 @@
                                                         <input type="hidden" name="action" value="revoke">
                                                         <input type="hidden" name="csrf_token"
                                                                value="{{ csrf_token() }}">
-                                                        <button type="submit" class="btn btn-danger btn-lg">Revoke Admin
+                                                        <button type="submit" class="btn btn-danger">Revoke Admin
                                                             permission
                                                         </button>
                                                     </div>

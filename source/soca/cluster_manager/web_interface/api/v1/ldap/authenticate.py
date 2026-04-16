@@ -137,12 +137,12 @@ class Authenticate(Resource):
             socaAuth:
               type: apiKey
               in: header
-              name: X-SOCA-USER
+              name: X-EDH-USER
               description: SOCA username for authentication
             socaToken:
               type: apiKey
               in: header
-              name: X-SOCA-TOKEN
+              name: X-EDH-TOKEN
               description: SOCA authentication token
         """
         parser = reqparse.RequestParser()
@@ -177,14 +177,14 @@ class Authenticate(Resource):
                 check_user = SocaHttpClient(
                     endpoint="/api/ldap/user",
                     headers={
-                        "X-SOCA-USER": request.headers.get("X-SOCA-USER"),
-                        "X-SOCA-TOKEN": request.headers.get("X-SOCA-TOKEN"),
+                        "X-EDH-USER": request.headers.get("X-EDH-USER"),
+                        "X-EDH-TOKEN": request.headers.get("X-EDH-TOKEN"),
                     },
                 ).get(params={"user": user})
 
                 if check_user.get("success") is False:
                     logger.error(
-                        f"Valid credentials but {user} could not be found in the specified OU. Verify specified People Base OU (/configuration/UserDirectory/people_search_base) and update it via cluster_manager/socactl config set --key '/configuration/UserDirectory/people_search_base' --value 'MY_NEW_OU'  if needed. error {check_user.get('message')}"
+                        f"Valid credentials but {user} could not be found in the specified OU. Verify specified People Base OU (/configuration/UserDirectory/people_search_base) and update it via cluster_manager/edhctl config set --key '/configuration/UserDirectory/people_search_base' --value 'MY_NEW_OU'  if needed. error {check_user.get('message')}"
                     )
                     return SocaError.IDENTITY_PROVIDER_ERROR(
                         helper="User could not be found in the directory OU. See logs for more details."

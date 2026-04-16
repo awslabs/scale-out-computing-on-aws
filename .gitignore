@@ -142,3 +142,5 @@ cfg.tmp.json
 deployment/global-s3-assets/
 deployment/regional-s3-assets/
 
+# Lambda layer build artifacts
+.lambda_layers/

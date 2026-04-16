@@ -8,49 +8,48 @@
 </head>
 
 <body id="page-top">
+{% include 'common/horizontal_menu_bar.html' %}
     <div id="wrapper">
         {% include 'common/vertical_menu_bar.html' %}
         <div id="content-wrapper" class="d-flex flex-column">
-            <div id="content">
-                <br>
+            <div id="content" style="margin-top: 20px;">
                 <div class="container-fluid">
-                    {% include 'common/horizontal_menu_bar.html' %}
                     {% include 'common/flashed_messages.html' %}
                     <div class="card shadow mb-4">
-                        <div class="card-header py-3 d-flex justify-content-between align-items-center">
-                            <h6 class="m-0 font-weight-bold text-primary">Your Virtual Desktops</h6>
-
-                            <div class="d-flex ms-auto align-items-center">
-                                <div id="selectedCardsToDisplay" class="btn-group btn-group-toggle mr-3" data-toggle="buttons">
-                                    <label class="btn btn-outline-primary active">
-                                        <input type="radio" name="options" id="all" value="all" autocomplete="off" checked onchange="displayCards(this.value)"> All
-                                    </label>
-                                    <label class="btn btn-outline-primary">
-                                        <input type="radio" name="options" id="windows" value="windows" autocomplete="off" onchange="displayCards(this.value)"> Windows
-                                    </label>
-                                    <label class="btn btn-outline-primary">
-                                        <input type="radio" name="options" id="linux" value="linux" autocomplete="off" onchange="displayCards(this.value)"> Linux
-                                    </label>
-                                </div>
-
-                                <button type="button" class="btn btn-success" data-bs-toggle="modal" data-bs-target="#launchNewDesktopModal">
-                                    Launch a New Virtual Desktop
-                                </button>
-                            </div>
-                        </div>
-
                         <div class="card-body">
+                            <div class="d-flex align-items-center">
+                                <h3 class="mb-0" data-toggle="tooltip" data-placement="top" title="List your Windows or Linux Virtual Desktops. Provision machines connected to your EDH environment that can mount shared or local filers">My Virtual Desktops <i class="fas fa-question-circle"></i></h3>
+
+                                <div class="d-flex align-items-center ml-auto">
+                                    <div id="selectedCardsToDisplay" class="btn-group btn-group-toggle mr-3" data-toggle="buttons">
+                                        <label class="btn btn-outline-primary active">
+                                            <input type="radio" name="options" value="all" autocomplete="off" checked onchange="displayCards(this.value)"> All
+                                        </label>
+                                        <label class="btn btn-outline-primary">
+                                            <input type="radio" name="options" value="windows" autocomplete="off" onchange="displayCards(this.value)"> Windows
+                                        </label>
+                                        <label class="btn btn-outline-primary">
+                                            <input type="radio" name="options" value="linux" autocomplete="off" onchange="displayCards(this.value)"> Linux
+                                        </label>
+                                    </div>
+
+                                    <button type="button" class="btn btn-success" data-bs-toggle="modal" data-bs-target="#launchNewDesktopModal">
+                                        Launch a New Virtual Desktop
+                                    </button>
+                                </div>
+                            </div>
+
                             {% set CURRENT_SESSION_COUNT = user_sessions | length %}
                                 {% if not user_sessions %}
                                 <p class="card-text">
                                     <div class="text-center">
-                                        <p class="m-0">
+                                        <p class="mt-5">
                                             You do not have a virtual desktop yet. Create one by clicking the button above.
                                         </p>
                                     </div>
                                 </p>
                                 {% else %}
-                                <div class="row">
+                                <div class="row mt-5">
                                     {% for session_data in user_sessions.values() %}
                                         {% set DCV_CARD_UUID = 'dcvUserSessionCard-' ~ session_data.session_uuid ~ '-' ~ session_data.instance_base_os %}
                                         {% set STOP_IDLE_SESSION = linux_stop_idle_session if session_data.os_family == "linux" else windows_stop_idle_session %}
@@ -154,7 +153,7 @@
                                             <!-- card body -->
                                             {% if session_data.session_state == 'pending' %}
                                             <div class="card-body p-0">
-                                                <div class="alert alert-warning m-0 rounded-0 w-100 h-100" role="alert">
+                                                <div class="alert alert-warning-vdi m-0 rounded-0 w-100 h-100" role="alert">
                                                     <div class="text-center">
                                                         <i class="fa-solid fa-3x fa-hourglass-half"></i>
                                                         <p class="m-0">
@@ -163,13 +162,13 @@
                                                         </p>
                                                     </div>
                                                     <hr>
-                                                    <i class="fa-solid fa-lightbulb"></i> You can create <a href="https://awslabs.github.io/scale-out-computing-on-aws-documentation/tutorials/reduce-compute-node-launch-time-with-custom-ami/" target="_blank">SOCA Optimized image</a> to provision your virtual desktop faster.
+                                                    <i class="fa-solid fa-lightbulb"></i> You can create <a href="https://awslabs.github.io/engineering-development-hub-documentation/documentation/architecture/reduce-compute-node-launch-time-with-custom-ami/" target="_blank">EDH Optimized image</a> to provision your virtual desktop faster.
                                                 </div>
                                             </div>
 
                                             {% elif session_data.session_state == 'error' %}
                                             <div class="card-body p-0">
-                                                <div class="alert alert-danger m-0 rounded-0 w-100 h-100" role="alert">
+                                                <div class="alert alert-danger-vdi m-0 rounded-0 w-100 h-100" role="alert">
                                                     <div class="text-center">
                                                         <i class="fa-solid fa-3x fa-xmark"></i>
                                                         <p class="m-0">
@@ -178,15 +177,15 @@
                                                         </p>
                                                     </div>
                                                     <hr>
-                                                    <a href="https://aws.amazon.com/hpc/dcv/" target="_blank">Amazon DCV</a> is running but SOCA could not validate your session via <code>dcv describe-session {{ session_data.session_uuid }}</code>.
-                                                    <br> SOCA tried to restart the session automatically, but was unable to do so. Please contact your SOCA administrator for further troubleshooting.
+                                                    <a href="https://aws.amazon.com/hpc/dcv/" target="_blank">Amazon DCV</a> is running but EDG could not validate your session via <code>dcv describe-session {{ session_data.session_uuid }}</code>.
+                                                    <br> EDH tried to restart the session automatically, but was unable to do so. Please contact your EDH administrator for further troubleshooting.
                                                     <hr>
                                                 </div>
                                             </div>
 
                                             {% elif session_data.session_state == 'stopped' %}
                                             <div class="card-body p-0">
-                                                  <div class="alert alert-warning m-0 rounded-0 w-100 h-100" role="alert">
+                                                  <div class="alert alert-warning-vdi m-0 rounded-0 w-100 h-100" role="alert">
                                                        <div class="text-center">
                                                             <i class="fa-solid fa-3x fa-pause"></i>
                                                             <p class="m-0">
@@ -235,7 +234,7 @@
 
                                             {% else %}
                                             <div class="card-body p-0">
-                                                  <div class="alert alert-warning m-0 rounded-0 w-100 h-100" role="alert">
+                                                  <div class="alert alert-warning-vdi m-0 rounded-0 w-100 h-100" role="alert">
                                                        <div class="text-center">
                                                             <i class="fa-solid fa-3x fa-question"></i>
                                                             <p class="m-0">
@@ -283,7 +282,7 @@
                                                                           Deleting a virtual desktop will NOT delete content from <kbd>/data/home/{{session_data.session_owner}}</kbd> partition <br>
                                                                           {% else %}
                                                                           Deleting a virtual desktop will delete content stored on your local partition (ex: <kbd>C:\</kbd>). <br>
-                                                                          <strong>Make sure to have uploaded your data to SOCA first to prevent data loss</strong>
+                                                                          <strong>Make sure to have uploaded your data to EDH first to prevent data loss</strong>
                                                                           <br>
                                                                           {% endif %}
 
@@ -702,7 +701,7 @@
 
                                                     <div class="form-group row">
                                                         <label for="selectAMI" data-toggle="tooltip" data-placement="top" title="Select an image with pre-installed applications or use the default vanilla image" class="col-sm-2 col-form-label"><i class="fa-solid fa-sliders"></i> Software Stack</label>
-                                                        <div required class="col-sm-10" id="divSelectAMI" style="display: none;">
+                                                        <div class="col-sm-10" id="divSelectAMI" style="display: none;">
                                                             <select name="software_stack_id" class="form-control" id="selectAMI" onchange="updateInstanceTypes()"></select>
                                                         </div>
                                                     </div>
@@ -711,15 +710,15 @@
                                                         <label for="selectInstanceType" data-toggle="tooltip" data-placement="top" title="Select the instance type to provision" class="col-sm-2 col-form-label"><i class="fa-solid fa-microchip"></i> Session Type</label>
                                                         <div class="col-sm-10" id="divSelectInstanceType" style="display: none;">
                                                             <select name="instance_type" required class="form-control" id="selectInstanceType"></select>
-                                                            <small class="form-text text-muted">EC2 Instance Types you are authorized to deploy for this software stack. Manage list via <a href="/admin/virtual_desktops/profiles">SOCA VDI Profiles.</a></small>
+                                                            <small class="form-text text-muted">EC2 Instance Types you are authorized to deploy for this software stack. Manage list via <a href="/admin/virtual_desktops/profiles">EDH VDI Profiles.</a></small>
                                                         </div>
                                                     </div>
 
                                                     <div class="form-group row">
-                                                        <label for="project" data-toggle="tooltip" data-placement="top" title="Select the SOCA Projects and optional AWS Budget for this desktop" class="col-sm-2 col-form-label"><i class="fa-solid fa-folder-open"></i> Project</label>
+                                                        <label for="project" data-toggle="tooltip" data-placement="top" title="Select the EDH Projects and optional AWS Budget for this desktop" class="col-sm-2 col-form-label"><i class="fa-solid fa-folder-open"></i> Project</label>
                                                         <div class="col-sm-10" id="divSelectProject" style="display: none;">
                                                             <select name="project" required class="form-control" id="project"></select>
-                                                            <small class="form-text text-muted">SOCA projects you are authorized to use for this stack. Resources will use the assigned budget if specified. Manage list via <a href="/admin/projects">SOCA Projects.</a></small>
+                                                            <small class="form-text text-muted">EDH projects you are authorized to use for this stack. Resources will use the assigned budget if specified. Manage list via <a href="/admin/projects">EDH Projects.</a></small>
                                                         </div>
                                                     </div>
 
@@ -732,7 +731,7 @@
                                                             </div>
                                                             <hr>
 
-                                                            <button class="btn btn-info btn-sm" type="button" data-bs-toggle="collapse" data-bs-target="#advancedOptions" aria-expanded="false">
+                                                            <button class="btn btn-primary btn-sm" type="button" data-bs-toggle="collapse" data-bs-target="#advancedOptions" aria-expanded="false">
                                                                 View Advanced Options
                                                             </button>
 
@@ -746,7 +745,7 @@
                                                                 </div>
                                                                 <div>
                                                                     <div class="form-group">
-                                                                         <input type="text" name="capacity_reservation_id" class="form-control" id="capacity_reservation_id" placeholder="cr-123456abc"></input>
+                                                                         <input type="text" name="capacity_reservation_id" class="form-control" id="capacity_reservation_id" placeholder="cr-123456abc">
                                                                          <small class="form-text text-muted">Assign this desktop to an existing capacity reservation id</small>
                                                                     </div>
                                                                 </div>
@@ -763,6 +762,12 @@
                                                                 </select>
                                                                 <small class="form-text text-muted">Enable Hibernation Support. <a href="https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/Hibernate.html" target="_blank">See Documentation.</a> </small>
                                                                 <br>
+                                                                <select class="form-control" name="nested_virtualization">
+                                                                    <option value="false" selected>No</option>
+                                                                    <option value="true">Yes</option>
+                                                                </select>
+                                                                <small class="form-text text-muted">Enable Nested Virtualization. Requires an 8th generation AWS Instance Type Family (e.g. c8i, r8i, m8i).</small>
+                                                                <br>
                                                                 <select class="form-control" name="session_type">
                                                                     {% for dcv_session_type in allowed_dcv_session_types %}
                                                                       <option value="{{ dcv_session_type }}"> {{ dcv_session_type }}</option>
@@ -775,7 +780,7 @@
                                                     </div>
                                                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                                                     <div class="d-flex justify-content-center">
-                                                        <button type="submit" class="btn btn-primary btn-lg px-5 py-3" id="launchButton" style="display: none;">Launch My Desktop</button>
+                                                        <button type="submit" class="btn btn-primary px-5 py-3" id="launchButton" style="display: none;">Launch My Desktop</button>
                                                     </div>
 
                                                 </form>
@@ -823,9 +828,9 @@
             const selectInstanceType = document.getElementById('selectInstanceType');
             const selectProject = document.getElementById('project');
             const selectAMI = document.getElementById('selectAMI');
-            selectAMI.innerHTML = '<option value="" selected disabled>Choose a SOCA software stack for ' + selectedOS + '</option>';
+            selectAMI.innerHTML = '<option value="" selected disabled>Choose a EDH software stack for ' + selectedOS + '</option>';
             selectInstanceType.innerHTML = '<option value="" selected disabled>Choose an Instance Type supported for this Software Stack</option>';
-            selectProject.innerHTML = '<option value="" selected disabled>Select a SOCA Project</option>'
+            selectProject.innerHTML = '<option value="" selected disabled>Select an EDH Project</option>'
         }
 
         function checkSessionName() {
@@ -1036,7 +1041,7 @@
             selectInstanceType.onchange = function () {
                 if (selectInstanceType.value) {
                     divSelectProject.style.display = 'block';
-                    selectProject.innerHTML = '<option value="" selected disabled>Select a SOCA Project</option>';
+                    selectProject.innerHTML = '<option value="" selected disabled>Select an EDH Project</option>';
                     allowedProjects.forEach(projectName => {
                         const option = document.createElement('option');
                         option.value = projectName;
@@ -1107,7 +1112,7 @@
                                                             if (filteredData.length === 0) {
                                                                 var noDataMessage = `
                                                                     <div class="col-12 text-center">
-                                                                        <h3>No software stack found. Please verify that you’ve been added to the appropriate <a href="/admin/projects">SOCA projects</a>. If the issue persists, contact your SOCA administrator.</h3>
+                                                                        <h3>No software stack found. Please verify that you’ve been added to the appropriate <a href="/admin/projects">EDH projects</a>. If the issue persists, contact your EDH administrator.</h3>
                                                                     </div>
                                                                 `;
                                                                 gridContainer.append(noDataMessage);

@@ -56,6 +56,7 @@ class SocaAWSBatchClient:
         job_queue: str,
         job_status: Optional[str] = None,
         max_results: int = 100,
+        next_token: Optional[str] = None,
     ) -> Dict:
         params = {
             "jobQueue": job_queue,
@@ -63,6 +64,8 @@ class SocaAWSBatchClient:
         }
         if job_status:
             params["jobStatus"] = job_status
+        if next_token:
+            params["nextToken"] = next_token
         return self._batch_client.list_jobs(**params)
 
     @aws_batch_api_wrapper("Unable to describe AWS Batch jobs.")
@@ -75,25 +78,35 @@ class SocaAWSBatchClient:
         job_name: str,
         job_queue: str,
         job_definition: str,
+        timeout: Dict[str, Any],
         depends_on: Optional[List[Dict[str, Any]]] = [],
         parameters: Optional[Dict[str, str]] = None,
         container_overrides: Optional[Dict[str, Any]] = None,
-        array_properties: Optional[Dict[str, Any]] = {},
+        array_properties: Optional[Dict[str, Any]] = None,
         retry_strategy: Optional[Dict[str, Any]] = None,
-        timeout: Optional[Dict[str, Any]] = {},
+        tags: Optional[Dict[str, str]] = None,
     ) -> Dict:
         payload = {
             "jobName": job_name,
             "jobQueue": job_queue,
             "jobDefinition": job_definition,
-            "dependsOn": depends_on,
-            "arrayProperties": array_properties,
-            "timeout": timeout,
         }
+
+        if timeout:
+            payload["timeout"] = timeout
+        if depends_on:
+            payload["dependsOn"] = depends_on
+        if retry_strategy:
+            payload["retryStrategy"] = retry_strategy
+        if array_properties:
+            payload["arrayProperties"] = array_properties
         if parameters:
             payload["parameters"] = parameters
         if container_overrides:
             payload["containerOverrides"] = container_overrides
+        if tags:
+            payload["tags"] = tags
+            
         return self._batch_client.submit_job(**payload)
 
     @aws_batch_api_wrapper("Unable to terminate AWS Batch job.")
@@ -106,10 +119,16 @@ class SocaAWSBatchClient:
     # --- Job Queues ---
 
     @aws_batch_api_wrapper("Unable to describe AWS Batch job queues.")
-    def describe_job_queues(self, job_queues: Optional[List[str]] = None) -> Dict:
+    def describe_job_queues(
+        self,
+        job_queues: Optional[List[str]] = None,
+        next_token: Optional[str] = None,
+    ) -> Dict:
         params = {}
         if job_queues:
             params["jobQueues"] = job_queues
+        if next_token:
+            params["nextToken"] = next_token
         return self._batch_client.describe_job_queues(**params)
 
     @aws_batch_api_wrapper("Unable to create AWS Batch job queue.")
@@ -160,7 +179,7 @@ class SocaAWSBatchClient:
         self,
         compute_environment_name: str,
         compute_resources: Dict[str, Any],
-        environment_type: str = "MANAGED",
+        type: str = "MANAGED",
         state: str = "ENABLED",
         service_role: Optional[str] = None,
     ) -> Dict:
@@ -170,7 +189,7 @@ class SocaAWSBatchClient:
             logger.info("service_role not specified, defaulting to ")
         return self._batch_client.create_compute_environment(
             computeEnvironmentName=compute_environment_name,
-            type=environment_type,
+            type=type,
             state=state,
             serviceRole=service_role,
             computeResources=compute_resources,
@@ -197,19 +216,22 @@ class SocaAWSBatchClient:
         self,
         job_definition_name: Optional[str] = None,
         status: Optional[str] = None,
+        next_token: Optional[str] = None,
     ) -> Dict:
         params = {}
         if job_definition_name:
             params["jobDefinitionName"] = job_definition_name
         if status:
             params["status"] = status
+        if next_token:
+            params["nextToken"] = next_token
         return self._batch_client.describe_job_definitions(**params)
 
     @aws_batch_api_wrapper("Unable to register AWS Batch job definition.")
     def register_job_definition(
         self,
         job_definition_name: str,
-        job_type: str,
+        type: str,
         container_properties: Dict[str, Any],
         retry_strategy: Optional[Dict[str, Any]] = None,
         timeout: Optional[Dict[str, Any]] = None,
@@ -219,7 +241,7 @@ class SocaAWSBatchClient:
     ) -> Dict:
         payload = {
             "jobDefinitionName": job_definition_name,
-            "type": job_type,
+            "type": type,
             "containerProperties": container_properties,
         }
 

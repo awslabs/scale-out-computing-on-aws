@@ -34,25 +34,25 @@ function Install-NvidiaGpuDrivers {
             $bucketRegion = (Invoke-WebRequest -Method Head -Uri $bucketUrl -UseBasicParsing).Headers["x-amz-bucket-region"]
             $installerFolderPrefix = "nvidia_grid_driver"
             Log-Info -Message "Downloading Nvidia Drivers from S3"
-            Invoke-SOCAAwsCli s3 cp --region $bucketRegion --quiet "{{ context.get("/system/gpu/gpu_settings/nvidia/windows/grid_drivers/s3_bucket_path") }}/${GridVersion}/" "${SOCABootstrapAssetsFolder}\${installerFolderPrefix}" --recursive --exclude "*" --include "$keyPrefix*"
+            Invoke-SOCAAwsCli s3 cp --region $bucketRegion --quiet "{{ context.get("/system/gpu/gpu_settings/nvidia/windows/grid_drivers/s3_bucket_path") }}/${GridVersion}/" "${EDHSBootstrapAssetsFolder}\${installerFolderPrefix}" --recursive --exclude "*" --include "$keyPrefix*"
 
             Log-Info -Message "Disabling Licensing Page"
             reg add "HKLM\SOFTWARE\NVIDIA Corporation\Global\GridLicensing" /v NvCplDisableManageLicensePage /t REG_DWORD /d 1 /f
 
             # https://enterprise-support.nvidia.com/s/article/Silent-Install-of-GRID-VM-Driver-for-Windows
             Log-Info -Message "Installing Nvidia Drivers"
-            $driverFileName = (Get-ChildItem -Path "${SOCABootstrapAssetsFolder}\${installerFolderPrefix}" -Filter $keyPrefix).Name
+            $driverFileName = (Get-ChildItem -Path "${EDHSBootstrapAssetsFolder}\${installerFolderPrefix}" -Filter $keyPrefix).Name
             Set-ExecutionPolicy RemoteSigned -Scope Process
 
             # Install 7zip if needed, use 7zip.install as it will automatically add the bin to your system PATH
             Invoke-SOCAInstallPackage -PackageName "7zip.install"
 
-            # Extract Driver Content from the self-extractubg executable
-            7z x "${SOCABootstrapAssetsFolder}\${installerFolderPrefix}\$keyPrefix" -o"${SOCABootstrapAssetsFolder}\${installerFolderPrefix}" -y
+            # Extract Driver Content from the self-extracting executable
+            7z x "${EDHSBootstrapAssetsFolder}\${installerFolderPrefix}\$keyPrefix" -o"${EDHSBootstrapAssetsFolder}\${installerFolderPrefix}" -y
 
             # Install Driver
-            Log-Info "About to execute ${SOCABootstrapAssetsFolder}\${installerFolderPrefix}\setup.exe with Arguments -n -s"
-            $installDriver = Start-Process -FilePath "${SOCABootstrapAssetsFolder}\${installerFolderPrefix}\setup.exe" -ArgumentList "-n", "-s" -Wait -PassThru
+            Log-Info "About to execute ${EDHSBootstrapAssetsFolder}\${installerFolderPrefix}\setup.exe with Arguments -n -s"
+            $installDriver = Start-Process -FilePath "${EDHSBootstrapAssetsFolder}\${installerFolderPrefix}\setup.exe" -ArgumentList "-n", "-s" -Wait -PassThru
             $exitCode = $installDriver.ExitCode
             Log-Info -Message "Exit Code ${exitCode}"
 

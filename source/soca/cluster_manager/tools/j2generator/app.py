@@ -44,11 +44,11 @@ def main(
     ssm_key: str,
 ):
     """
-    ex: /apps/opt/soca-dev/python/latest/bin/python3 j2generator/app.py \
+    ex: /apps/edh/edh-dev/python/latest/bin/python3 j2generator/app.py \
        --get-template "controller/setup.j2" \
        --output-file "/root/rendered_template.sh \
        --ssm-key "/Configuration/" \
-       --template-dirs = "/opt/soca/soca-test/cluster_node_bootstrap/"
+       --template-dirs = "/opt/edh/soca-test/cluster_node_bootstrap/"
        This command will fetch the entire SOCA Configuration. Retrieve value via {{ context.get("<SSM_KEY>") }}
 
        Note: if --output-file is not specified, the rendered template will be printed to stdout

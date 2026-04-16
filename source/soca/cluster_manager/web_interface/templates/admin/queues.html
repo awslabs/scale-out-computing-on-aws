@@ -11,15 +11,17 @@
 </head>
 
 <body id="page-top">
+    {% include 'common/horizontal_menu_bar.html' %}
+
 
 <div id="wrapper">
     {% include 'common/vertical_menu_bar.html' %}
     <div id="content-wrapper" class="d-flex flex-column">
 
-        <div id="content">
-            <br>
+        <div id="content" style="margin-top: 20px;">
             <div class="container-fluid">
-                {% include 'common/horizontal_menu_bar.html' %}
+                {% include 'common/flashed_messages.html' %}
+
                 {% if sudoers == false %}
                     <div class="alert alert-danger" role="alert">
                         <strong>Access denied </strong>
@@ -28,22 +30,7 @@
                     </div>
                 {% else %}
                     <div id="accessok">
-                    {% with messages = get_flashed_messages(with_categories=true) %}
-                        {% if messages %}
-                            {% for category, message in messages %}
-                                <br>
-                                {% if category == "success" %}
-                                    <div class="alert alert-success">
-                                        <strong>{{ message }} </strong>
-                                    </div>
-                                {% else %}
-                                    <div class="alert alert-danger">
-                                        <strong>{{ message }} </strong>
-                                    </div>
-                                {% endif %}
-                            {% endfor %}
-                        {% endif %}
-                    {% endwith %}
+
                     <div class="col-md-12">
                     <nav>
                     <nav>
@@ -61,10 +48,9 @@
                              aria-labelledby="nav-home-tab">
                             <br>
                             <div class="card shadow mb-4">
-                                <div class="card-header py-3">
-                                    <h6 class="m-0 font-weight-bold text-primary">Create a new queue</h6>
-                                </div>
                                 <div class="card-body">
+                                    <h3>Create a new queue</h3>
+
                                     <form action="/admin/queues/create" method="post">
                                         <div class="form-group">
                                             <input id="queue_name" placeholder="Queue name" class="form-control"
@@ -77,12 +63,12 @@
                                         <br>
                                         <div>
                                             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                                            <button type="submit" class="btn btn-primary btn-lg">Create new Queue
+                                            <button type="submit" class="btn btn-primary">Create new Queue
                                             </button>
                                         </div>
                                     </form>
                                     <br>
-                                    <div class="alert alert-info">
+                                    <div class="alert alert-primary">
                                         <strong>Automatic Provisioning</strong><br>
                                         Hosts in this queue will be provisioned automatically based on the number of
                                         queued jobs. Hosts are restricted to a given job ID and are automatically
@@ -99,10 +85,8 @@
                         <div class="tab-pane fade" id="nav-delete" role="tabpanel" aria-labelledby="nav-profile-tab">
                             <br>
                             <div class="card shadow mb-4">
-                                <div class="card-header py-3">
-                                    <h6 class="m-0 font-weight-bold text-primary">Delete a queue</h6>
-                                </div>
                                 <div class="card-body">
+                                    <h3>Delete a queue</h3>
                                     <div class="alert alert-primary" role="alert">
                                         <strong>Important </strong>
                                         It's not recommended to delete the default queues: low,normal,high,test,desktop
@@ -126,7 +110,7 @@
                                         </div>
                                         <div>
                                             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                                            <button type="submit" class="btn btn-danger btn-lg">Delete Queue</button>
+                                            <button type="submit" class="btn btn-danger">Delete Queue</button>
                                         </div>
                                     </form>
                                 </div>
@@ -135,10 +119,9 @@
                         <div class="tab-pane fade" id="nav-reset" role="tabpanel" aria-labelledby="nav-contact-tab">
                             <br>
                             <div class="card shadow mb-4">
-                                <div class="card-header py-3">
-                                    <h6 class="m-0 font-weight-bold text-primary">Reset Password</h6>
-                                </div>
                                 <div class="card-body">
+                                    <h3>Reset Password</h3>
+
                                     <div class="alert alert-primary" role="alert">
                                         <strong>Important </strong>
                                         This will generate a temporary password for a given user
@@ -162,7 +145,7 @@
                                         <div>
                                             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                                             <input type="hidden" name="admin_reset" value="yes">
-                                            <button type="submit" class="btn btn-danger btn-lg">Generate temporary
+                                            <button type="submit" class="btn btn-danger">Generate temporary
                                                 password
                                             </button>
                                         </div>
@@ -175,11 +158,10 @@
                             <div class="row">
                                 <div class="col-md-6">
                                     <div class="card shadow mb-4">
-                                        <div class="card-header py-3">
-                                            <h6 class="m-0 font-weight-bold text-primary">Grant user Admin
-                                                permission</h6>
-                                        </div>
+                                           
                                         <div class="card-body">
+                                             <h3>Grant user Admin
+                                                permission</h3>
                                             <form action="/admin/manage_sudo" method="post">
                                                 <div class="form-group">
                                                     <select class="form-control" id="username" name="username">
@@ -198,7 +180,7 @@
                                                     <input type="hidden" name="action" value="grant">
                                                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 
-                                                    <button type="submit" class="btn btn-success btn-lg">Grant Admin
+                                                    <button type="submit" class="btn btn-success">Grant Admin
                                                         permission
                                                     </button>
                                                 </div>
@@ -208,11 +190,10 @@
                                 </div>
                                 <div class="col-md-6">
                                     <div class="card shadow mb-4">
-                                        <div class="card-header py-3">
-                                            <h6 class="m-0 font-weight-bold text-primary">Revoke user Admin
-                                                permission</h6>
-                                        </div>
+                                     
                                         <div class="card-body">
+                                              <h3>Revoke user Admin
+                                                permission</h3>
                                             <form action="/admin/manage_sudo" method="post">
                                                 <div class="form-group">
                                                     <select class="form-control" id="username" name="username">
@@ -232,7 +213,7 @@
                                                     <input type="hidden" name="action" value="revoke">
                                                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 
-                                                    <button type="submit" class="btn btn-danger btn-lg">Revoke Admin
+                                                    <button type="submit" class="btn btn-danger">Revoke Admin
                                                         permission
                                                     </button>
                                                 </div>
@@ -245,13 +226,12 @@
                         <div class="tab-pane fade" id="nav-ldap" role="tabpanel" aria-labelledby="nav-home-tab">
                             <br>
                             <div class="card shadow mb-4">
-                                <div class="card-header py-3">
-                                    <h6 class="m-0 font-weight-bold text-primary">Technical Details</h6>
-                                </div>
                                 <div class="card-body">
+                                                                        <h3>Technical Details</h3>
+
                                     Scale-Out Computing on AWS uses OpenLDAP and you can interact with your directory
                                     using LDIF directly. If you are not familiar with LDIF, you can use our custom
-                                    wrapper available at <code>/opt/soca/cluster_manager/ldap_manager.py</code>
+                                    wrapper available at <code>/opt/edh/cluster_manager/ldap_manager.py</code>
                                     <br><br>
                                     <ul>
                                         <li>People: OU=People,DC=soca,DC=local</li>

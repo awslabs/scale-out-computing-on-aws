@@ -24,41 +24,41 @@ function system_packages_install {
   {% include "templates/linux/system_packages/user_extra_packages.sh.j2" %}
 
   if [[ ! -f "${PACKAGES_ALREADY_INSTALLED_FILE_LOCK}" ]]; then
-    log_info "No preinstalled package log found on ${PACKAGES_ALREADY_INSTALLED_FILE_LOCK} - preparing BaseOS - {{ context.get("/configuration/BaseOS") }} .."
+    log_info "No preinstalled package log found on ${PACKAGES_ALREADY_INSTALLED_FILE_LOCK} - preparing BaseOS - {{ context.get("/job/BaseOS") }} .."
 
     # Get list of Linux packages to install for each distribution
-    {% if context.get("/configuration/BaseOS") == "amazonlinux2023" %}
+    {% if context.get("/job/BaseOS") == "amazonlinux2023" %}
       {% include "templates/linux/system_packages/os/amazonlinux2023.sh.j2" %}
 
-    {% elif context.get("/configuration/BaseOS") == "amazonlinux2" %}
+    {% elif context.get("/job/BaseOS") == "amazonlinux2" %}
       {% include "templates/linux/system_packages/os/amazonlinux2.sh.j2" %}
 
-    {% elif context.get("/configuration/BaseOS") == "centos7"  %}
+    {% elif context.get("/job/BaseOS") == "centos7"  %}
       {% include "templates/linux/system_packages/os/centos7.sh.j2" %}
 
-    {% elif context.get("/configuration/BaseOS") == "rhel7"  %}
+    {% elif context.get("/job/BaseOS") == "rhel7"  %}
       {% include "templates/linux/system_packages/os/rhel7.sh.j2" %}
 
-    {% elif context.get("/configuration/BaseOS") == "rhel8" %}
+    {% elif context.get("/job/BaseOS") == "rhel8" %}
       {% include "templates/linux/system_packages/os/rhel8.sh.j2" %}
 
-    {% elif context.get("/configuration/BaseOS") == "rhel9" %}
+    {% elif context.get("/job/BaseOS") == "rhel9" %}
       {% include "templates/linux/system_packages/os/rhel9.sh.j2" %}
 
-    {% elif context.get("/configuration/BaseOS") == "rocky8" %}
+    {% elif context.get("/job/BaseOS") == "rocky8" %}
       {% include "templates/linux/system_packages/os/rocky8.sh.j2" %}
 
-    {% elif context.get("/configuration/BaseOS") == "rocky9" %}
+    {% elif context.get("/job/BaseOS") == "rocky9" %}
       {% include "templates/linux/system_packages/os/rocky9.sh.j2" %}
 
-    {% elif context.get("/configuration/BaseOS") == "ubuntu2204" %}
+    {% elif context.get("/job/BaseOS") == "ubuntu2204" %}
       {% include "templates/linux/system_packages/os/ubuntu2204.sh.j2" %}
 
-    {% elif context.get("/configuration/BaseOS") == "ubuntu2404" %}
+    {% elif context.get("/job/BaseOS") == "ubuntu2404" %}
       {% include "templates/linux/system_packages/os/ubuntu2404.sh.j2" %}
 
     {% else %}
-      exit_fail "System Packages Installer: Unrecognized base os: {{ context.get('/configuration/BaseOS') }}"
+      exit_fail "System Packages Installer: Unrecognized base os: {{ context.get('/job/BaseOS') }}"
     {% endif %}
 
     # Add distro specific packages and ensure uniqueness
@@ -67,7 +67,7 @@ function system_packages_install {
     # Avoid kernel update if Lustre is on the mount table as lustre-client is kernel specific.
     if cat /etc/fstab | grep -q lustre; then
       log_info "Lustre filesystem found in /etc/fstab. Removing kernel from package update to avoid version mismatch with lustre-client version"
-      {%  if context.get("/configuration/BaseOS") in ("ubuntu2204", "ubuntu2404") %}
+      {%  if context.get("/job/BaseOS") in ("ubuntu2204", "ubuntu2404") %}
         log_info "Detected Debian distro, removing linux-aws from the package list"
         REMOVE_PKGS+=(linux-aws)
       {% else %}
@@ -89,13 +89,13 @@ function system_packages_install {
     touch ${PACKAGES_ALREADY_INSTALLED_FILE_LOCK}
 
     # Post Install commands
-    {% if context.get("/configuration/BaseOS") in ("rhel8", "rocky8", "rhel9", "rocky9") %}
+    {% if context.get("/job/BaseOS") in ("rhel8", "rocky8", "rhel9", "rocky9") %}
       systemctl enable hibinit-agent
     {% endif %}
 
     # Check if machine will run a newer reboot post reboot, and if yes, force reboot now
     local CURRENT_KERNEL=$(uname -r)
-    {%  if context.get("/configuration/BaseOS") in ("ubuntu2204", "ubuntu2404") %}
+    {%  if context.get("/job/BaseOS") in ("ubuntu2204", "ubuntu2404") %}
         # Best-effort detection of the kernel that will be used on next reboot
         # Ubuntu usually selects the latest installed kernel unless GRUB has been modified (so if you did, simply comment out this section or make sure NEXT_BOOT_KERNEL points to the kernel name)
         # Worst case: you get a free reboot.

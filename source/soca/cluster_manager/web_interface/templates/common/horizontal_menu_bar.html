@@ -1,25 +1,141 @@
-<div class="d-sm-flex align-items-center justify-content-between mb-4">
-    <h1 class="h3 mb-0 text-gray-800">__SOCA_CLUSTER__NAME__ <small>(SOCA version 26.3.0)</small></h1>
-    <div>
+<nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+  <div class="container-fluid">
+            <a class="navbar-brand d-flex align-items-center" href="/">
+                <img src="{{ url_for('static', filename='img/soca_logo.png') }}" 
+                    alt="SOCA Logo" 
+                    width="30" height="30" 
+                    class="d-inline-block align-text-top me-2">
+                <span style="font-weight: 600;"> __SOCA_CLUSTER__NAME__</span>
+                <small class="text-muted" style="padding-left: 0.4rem;"> (EDH version 26.4.0)</small>
+            </a>
+
+    <div class="collapse navbar-collapse" id="navbarSupportedContent">
+
+      <ul class="navbar-nav ml-auto">
+
         {% if AMAZON_Q_BUSINESS_URL %}
-           <img style="height: 50px; width: 50px; cursor: pointer;"
-                src="{{ url_for('static', filename='img/amazonq-logo.svg') }}"
-                onclick="window.open('{{AMAZON_Q_BUSINESS_URL}}', '_blank', 'top=100,right=100,menubar=no,toolbar=no,resizable=yes,scrollbars=yes,width=860,height=900');"
-                alt="SOCA CAE Assistant"
-           >
+            <li class="nav-item"> 
+            <img style="height: 50px; width: 50px; cursor: pointer;"
+                    src="{{ url_for('static', filename='img/amazonq-logo.svg') }}"
+                    onclick="window.open('{{AMAZON_Q_BUSINESS_URL}}', '_blank', 'top=100,right=100,menubar=no,toolbar=no,resizable=yes,scrollbars=yes,width=860,height=900');"
+                    alt="EDH CAE Assistant">
+           </li>
         {% endif %}
 
-        <a href="https://github.com/awslabs/scale-out-computing-on-aws" target="_blank" rel="noopener,noreferrer"
-           class="d-none d-sm-inline-block btn btn-sm btn-primary shadow-sm"><i class="fab fa-github"></i> Source
-            Code</a>
-        <a href="https://github.com/awslabs/scale-out-computing-on-aws/issues/new" target="_blank"
-           rel="noopener,noreferrer" class="d-none d-sm-inline-block btn btn-sm btn-primary shadow-sm"><i
-                class="fas fa-question-circle"></i> Help and Support</a>
+        <li class="nav-item"> 
+            <a class="nav-link" style="font-size: 14px; font-weight: 600;" href="https://github.com/awslabs/scale-out-computing-on-aws" target="_blank" rel="noopener,noreferrer">
+                <i class="fab fa-github"></i> Source Code
+            </a>
+        </li>
 
-        <a href="https://awslabs.github.io/scale-out-computing-on-aws-documentation/" target="_blank"
-           rel="noopener,noreferrer" class="d-none d-sm-inline-block btn btn-sm btn-primary shadow-sm"><i
-                class="fas fa-book"></i> Documentation</a>
-        <a href="/logout" class="d-none d-sm-inline-block btn btn-sm btn-danger shadow-sm"><i
-                class="fas fa-sign-out-alt"></i> Logout</a>
+        <li class="nav-item"> 
+            <a class="nav-link" 
+            style="font-size: 14px; font-weight: 600;"
+            href="#"
+            data-bs-toggle="modal"
+            data-bs-target="#githubWarningModal">
+                <i class="fas fa-exclamation-triangle"></i> Report an issue
+            </a>
+        </li>
+
+        <div class="modal fade" id="githubWarningModal" tabindex="-1" role="dialog" aria-labelledby="githubWarningLabel" aria-hidden="true">
+  <div class="modal-dialog" role="document">
+    <div class="modal-content">
+      
+      <div class="modal-header">
+        <h5 class="modal-title" id="githubWarningLabel">
+          <i class="fas fa-exclamation-triangle text-warning"></i> External Website Notice
+        </h5>
+        <button type="button" class="close" data-bs-dismiss="modal" aria-label="Close">
+          <span aria-hidden="true">&times;</span>
+        </button>
+        
+      </div>
+
+      <div class="modal-body">
+        <p>
+          You are about to be redirected to <strong>EDH public GitHub repository</strong>.
+        </p>
+
+        <p>
+          Please <strong>do not include any confidential, sensitive, or customer-specific information</strong>
+          when creating an issue.
+        </p>
+
+        <p>
+          Use this link only to <strong>contact the AWS maintainers</strong> regarding issues with the Engineering Development Hub (EDH) project.
+        </p>
+
+        <p>
+            For internal support, refer to the links provided by your Administrator or contact your AWS account team.
+        </p>
+      </div>
+
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+          Cancel
+        </button>
+
+        <a href="https://github.com/awslabs/scale-out-computing-on-aws/issues/new"
+           target="_blank"
+           class="btn btn-warning">
+          Continue to GitHub
+        </a>
+      </div>
+
     </div>
+  </div>
 </div>
+            
+        <li class="nav-item"> 
+            <a class="nav-link" style="font-size: 14px; font-weight: 600;"  href="https://awslabs.github.io/engineering-development-hub-documentation/" target="_blank" rel="noopener,noreferrer">
+                <i class="fas fa-book"></i> Documentation
+            </a>
+        </li>
+
+
+        <li class="nav-item dropdown">
+          <a class="nav-link dropdown-toggle" style="font-size: 14px; font-weight: 600;" href="#" id="navbarDropdown"
+            role="button" data-bs-toggle="dropdown">
+            <i class="fas fa-user"></i>
+            <span>{{ user }}</span>
+          </a>
+          <ul class="dropdown-menu dropdown-menu-end">
+             {% set login_nodes_flag = feature_flags.get("LOGIN_NODES", {}) %}
+            {% set login_allowed = login_nodes_flag.get("allowed_users", []) %}
+            {% set login_denied = login_nodes_flag.get("denied_users", []) %}
+            {% set login_show = login_nodes_flag.get("enabled", True)
+                and (login_allowed == [] or user in login_allowed)
+                and user not in login_denied %}
+            {% if login_show %}
+            <li><a class="dropdown-item" href="/ssh">My SSH access</a></li>
+            {% endif %}
+
+            {% set account_flag = feature_flags.get("MY_ACCOUNT_MANAGEMENT", {}) %}
+            {% set acct_allowed = account_flag.get("allowed_users", []) %}
+            {% set acct_denied = account_flag.get("denied_users", []) %}
+            {% set acct_show = account_flag.get("enabled", True)
+                and (acct_allowed == [] or user in acct_allowed)
+                and user not in acct_denied %}
+            {% if acct_show %}
+            <li><a class="dropdown-item" href="/my_account">My Account</a></li>
+            {% endif %}
+
+            {% set api_key_flag = feature_flags.get("MY_API_KEY_MANAGEMENT", {}) %}
+            {% set api_allowed = api_key_flag.get("allowed_users", []) %}
+            {% set api_denied = api_key_flag.get("denied_users", []) %}
+            {% set api_show = api_key_flag.get("enabled", True)
+                    and (api_allowed == [] or user in api_allowed)
+                    and user not in api_denied %}
+            {% if api_show %}
+            <li><a class="dropdown-item" href="/my_api_key">My API Key</a></li>
+            {% endif %}
+            <li><hr class="dropdown-divider"></li>
+            <li><a class="dropdown-item" href="/logout">Logout</a></li>
+          </ul>
+        </li>
+      </ul>
+
+    </div>
+  </div>
+</nav>

@@ -13,7 +13,7 @@ function Invoke-SOCAInstallPackage {
     # Ensure TLS 1.2 is enabled for secure connections
     [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 
-    # Install Module if neededed
+    # Install Module if needed
     if (-not (Get-Module -ListAvailable -Name $PackageName)) {
         Log-Info -Message "$PackageName is not installed. Installing now..."
         choco.exe install $PackageName -y --no-progress

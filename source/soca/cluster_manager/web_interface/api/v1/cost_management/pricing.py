@@ -100,7 +100,7 @@ class AwsPrice(Resource):
         summary: Calculate AWS pricing for compute and storage resources
         description: Estimates the cost of running a job with specified compute and storage requirements
         parameters:
-          - name: X-SOCA-USER
+          - name: X-EDH-USER
             in: header
             required: true
             schema:
@@ -110,7 +110,7 @@ class AwsPrice(Resource):
               pattern: '^[a-zA-Z0-9._-]+$'
             description: SOCA username for authentication
             example: "john.doe"
-          - name: X-SOCA-TOKEN
+          - name: X-EDH-TOKEN
             in: header
             required: true
             schema:

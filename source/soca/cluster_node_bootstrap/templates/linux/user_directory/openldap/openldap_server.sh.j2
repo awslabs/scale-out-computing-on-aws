@@ -4,9 +4,9 @@
 # Begin: OpenLDAP Server Template
 function openldap_server_install () {
   log_info "Configuring OpenLDAP Server"
-  pushd ${SOCA_BOOTSTRAP_ASSETS_FOLDER}
+  pushd ${EDH_BOOTSTRAP_ASSETS_FOLDER}
 
-  {% if context.get("/configuration/BaseOS") in ("ubuntu2204", "ubuntu2404") %}
+  {% if context.get("/job/BaseOS") in ("ubuntu2204", "ubuntu2404") %}
     # Debian Based Distro
     if ! verify_package_installed slapd; then
       log_info "slapd not installed, installing it "
@@ -51,7 +51,7 @@ function openldap_server_install () {
   local ADMIN_LDAP_SERVICE_ACCOUNT_PASSWORD_ENCRYPTED=$(/sbin/slappasswd -s "${ADMIN_LDAP_SERVICE_ACCOUNT_PASSWORD}" -h "{SSHA}")
 
   local OPENLDAP_PATH_PREFIX
-  {% if context.get("/configuration/BaseOS") in ("ubuntu2204", "ubuntu2404") %}
+  {% if context.get("/job/BaseOS") in ("ubuntu2204", "ubuntu2404") %}
     OPENLDAP_PATH_PREFIX="/etc/ldap"
   {% else %}
     OPENLDAP_PATH_PREFIX="/etc/openldap"
@@ -61,10 +61,10 @@ function openldap_server_install () {
 
   # Note: you can disable ldap:/// by removing the entry below
   log_info "Preparing ldaps:// listener"
-  {% if context.get("/configuration/BaseOS") in ("amazonlinux2023") %}
+  {% if context.get("/job/BaseOS") in ("amazonlinux2023") %}
     log_info "No SLAPD_SERVICES updates needed on AmazonLinux 2023, services ldap:/// ldapi:/// ldaps:/// managed via /usr/lib/systemd/system/slapd.service"
   
-  {% elif context.get("/configuration/BaseOS") in ("ubuntu2204", "ubuntu2404") %}
+  {% elif context.get("/job/BaseOS") in ("ubuntu2204", "ubuntu2404") %}
      ATTEMPT=1
      while [[ ${ATTEMPT} -le 5 ]]; do
         if cp /etc/default/slapd /etc/default/slapd.soca.backup; then
@@ -106,7 +106,7 @@ function openldap_server_install () {
       -subj "/CN=${SOCA_LDAP_DOMAIN_NAME}" \
       -keyout ${OPENLDAP_PATH_PREFIX}/certs/soca.key -out ${OPENLDAP_PATH_PREFIX}/certs/soca.crt
 
-  {% if context.get("/configuration/BaseOS") in ("ubuntu2204", "ubuntu2404") %}
+  {% if context.get("/job/BaseOS") in ("ubuntu2204", "ubuntu2404") %}
     chown openldap:openldap ${OPENLDAP_PATH_PREFIX}/certs/soca.key ${OPENLDAP_PATH_PREFIX}/certs/soca.crt
     chmod 600 ${OPENLDAP_PATH_PREFIX}/certs/soca.key ${OPENLDAP_PATH_PREFIX}/certs/soca.crt
   {% else %}
@@ -114,7 +114,7 @@ function openldap_server_install () {
     chmod 600 ${OPENLDAP_PATH_PREFIX}/certs/soca.key ${OPENLDAP_PATH_PREFIX}/certs/soca.crt
   {% endif %}
 
-  {% if context.get("/configuration/BaseOS") in ("amazonlinux2023", "amazonlinux2","centos7", "rhel7", "rhel8", "rhel9", "rocky8", "rocky9")  %}
+  {% if context.get("/job/BaseOS") in ("amazonlinux2023", "amazonlinux2","centos7", "rhel7", "rhel8", "rhel9", "rocky8", "rocky9")  %}
       log_info "Adding OpenLDAP self-signed certificate to system CA trust store"
       cp ${OPENLDAP_PATH_PREFIX}/certs/soca.crt /etc/pki/ca-trust/source/anchors/
       log_info "Updating system CA Trust Store"
@@ -239,7 +239,7 @@ ou: ${SOCA_LDAP_ADMIN_OU_NAME}
   /bin/ldapadd -x -w "${ADMIN_LDAP_SERVICE_ACCOUNT_PASSWORD}" -D "${ADMIN_LDAP_SERVICE_ACCOUNT_DN}" -f base.ldif
 
   log_info "Performing Authconfig adjustments"
-  {% if context.get("/configuration/BaseOS") in ("centos7", "rhel7", "amazonlinux2")  %}
+  {% if context.get("/job/BaseOS") in ("centos7", "rhel7", "amazonlinux2")  %}
     authconfig --disablesssd \
       --disablesssdauth \
       --disableldap \

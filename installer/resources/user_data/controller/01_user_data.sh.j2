@@ -35,40 +35,43 @@
 # Install awscli
 {% include "templates/linux/awscli.sh.j2" %}
 
-# Remove any previous references of SOCA to the environment file (if any)
+# Remove any previous references of SOCA/EDH to the environment file (if any)
 cp /etc/environment /etc/environment.original.$(date +%s)
+sed -i '/EDH_/d' /etc/environment
 sed -i '/SOCA_/d' /etc/environment
 log_info "Running Kernel $(uname -r)"
 unset_reboot_required
 
 # Create SOCA Bootstrap structure
-SOCA_BOOTSTRAP_ASSETS_FOLDER="/root/soca_bootstrap_$(instance_id)"
-SOCA_BOOTSTRAP_LOGS_FOLDER="${SOCA_BOOTSTRAP_ASSETS_FOLDER}/logs"
+EDH_BOOTSTRAP_ASSETS_FOLDER="/root/edh_bootstrap_$(instance_id)"
+EDH_BOOTSTRAP_LOGS_FOLDER="${EDH_BOOTSTRAP_ASSETS_FOLDER}/logs"
 
-if [[ ! -d "${SOCA_BOOTSTRAP_ASSETS_FOLDER}" ]]; then
+if [[ ! -d "${EDH_BOOTSTRAP_ASSETS_FOLDER}" ]]; then
     log_info "First user data execution, downloading bootstrap sequence"
     # Retrieve Boostrap sequence from S3
-    {% if context.get("/configuration/Region") in ("us-gov-east-1', 'us-gov-west-1")  %}
-    S3_BUCKET_REGION=$(curl -s --head {{ context.get("/configuration/S3Bucket") }}.s3.{{ context.get("/configuration/Region") }}.amazonaws.com | grep bucket-region | awk '{print $2}' | tr -d '\r\n')
-    {% elif context.get("/configuration/Region") in ("cn-north-1", "cn-northwest-1")  %}
-    S3_BUCKET_REGION=$(curl -s --head {{ context.get("/configuration/S3Bucket") }}.s3.amazonaws.com.cn | grep bucket-region | awk '{print $2}' | tr -d '\r\n')
+    {% if context.get("/configuration/Region") in ["us-gov-east-1', 'us-gov-west-1"]  %}
+        S3_BUCKET_REGION=$(curl -s --head {{ context.get("/configuration/S3Bucket") }}.s3.{{ context.get("/configuration/Region") }}.amazonaws.com | grep bucket-region | awk '{print $2}' | tr -d '\r\n')
+    {% elif context.get("/configuration/Region") in ["cn-north-1", "cn-northwest-1"]  %}
+        S3_BUCKET_REGION=$(curl -s --head {{ context.get("/configuration/S3Bucket") }}.s3.amazonaws.com.cn | grep bucket-region | awk '{print $2}' | tr -d '\r\n')
+    {% elif context.get("/configuration/Region") in ["eusc-de-east-1"] %}
+        S3_BUCKET_REGION=$(curl -s --head {{ context.get("/configuration/S3Bucket") }}.s3.{{ context.get("/configuration/Region") }}.amazonaws.eu | grep bucket-region | awk '{print $2}' | tr -d '\r\n')
     {% else %}
-    S3_BUCKET_REGION=$(curl -s --head {{ context.get("/configuration/S3Bucket") }}.s3.amazonaws.com | grep bucket-region | awk '{print $2}' | tr -d '\r\n')
+        S3_BUCKET_REGION=$(curl -s --head {{ context.get("/configuration/S3Bucket") }}.s3.amazonaws.com | grep bucket-region | awk '{print $2}' | tr -d '\r\n')
     {% endif %}
 
     log_info "Detected S3 Bucket Region: ${S3_BUCKET_REGION}"
     # Retrieve Boostrap sequences
-    aws_cli s3 --region ${S3_BUCKET_REGION} sync s3://{{ context.get("/configuration/S3Bucket") }}/{{ context.get("/configuration/ClusterId") }}/config/do_not_delete/bootstrap/controller/ ${SOCA_BOOTSTRAP_ASSETS_FOLDER}
+    aws_cli s3 --region ${S3_BUCKET_REGION} sync s3://{{ context.get("/configuration/S3Bucket") }}/{{ context.get("/configuration/ClusterId") }}/config/do_not_delete/bootstrap/controller/ ${EDH_BOOTSTRAP_ASSETS_FOLDER}
 fi
 
-mkdir -p ${SOCA_BOOTSTRAP_LOGS_FOLDER}
+mkdir -p ${EDH_BOOTSTRAP_LOGS_FOLDER}
 log_info "EC2 UserData script is being executed, check logs in /var/log/cloud-init*" >> "${PRE_FILESYSTEM_MOUNT_LOGS_FOLDER}/01_user_data.sh.log" 2>&1
 
 # Install Required System library/packages
-/bin/bash ${SOCA_BOOTSTRAP_ASSETS_FOLDER}/install_required_packages.sh >> ${SOCA_BOOTSTRAP_LOGS_FOLDER}/install_required_packages.sh.log 2>&1
+/bin/bash ${EDH_BOOTSTRAP_ASSETS_FOLDER}/install_required_packages.sh >> ${EDH_BOOTSTRAP_LOGS_FOLDER}/install_required_packages.sh.log 2>&1
 
 if [[ "$(get_reboot_required)" == "yes" ]]; then
-    cp /var/log/cloud-init-output.log "${SOCA_BOOTSTRAP_LOGS_FOLDER}/cloud-init-output-post-install-required-packages-$(date +%s).log" || echo "/cloud-init-output not found"
+    cp /var/log/cloud-init-output.log "${EDH_BOOTSTRAP_LOGS_FOLDER}/cloud-init-output-post-install-required-packages-$(date +%s).log" || echo "/cloud-init-output not found"
     log_info "Rebooting and re-running user data post install_required_packages"
     cloud_init_rerun_user_data
     reboot
@@ -76,4 +79,4 @@ if [[ "$(get_reboot_required)" == "yes" ]]; then
 fi
 
 # Continue Bootstrap sequence
-/bin/bash ${SOCA_BOOTSTRAP_ASSETS_FOLDER}/02_prerequisites.sh >> ${SOCA_BOOTSTRAP_LOGS_FOLDER}/02_prerequisites.sh.log 2>&1
+/bin/bash ${EDH_BOOTSTRAP_ASSETS_FOLDER}/02_prerequisites.sh >> ${EDH_BOOTSTRAP_LOGS_FOLDER}/02_prerequisites.sh.log 2>&1

@@ -5,14 +5,14 @@
             "Sid": "SNSClusterTopicsByClusterTag",
             "Condition": {
                 "StringLike": {
-                    "aws:ResourceTag/soca:ClusterId": "%%CLUSTER_ID%%*"
+                    "aws:ResourceTag/edh:ClusterId": "%%CLUSTER_ID%%*"
                 }
             },
             "Action": [
                 "sns:*"
             ],
             "Resource": [
-                "arn:%%AWS_PARTITION%%:sns:%%AWS_REGION%%:%%AWS_ACCOUNT_ID%%:soca-*"
+                "arn:%%AWS_PARTITION%%:sns:%%AWS_REGION%%:%%AWS_ACCOUNT_ID%%:edh-*"
             ],
             "Effect": "Allow"
         },
@@ -37,13 +37,23 @@
                 "elasticloadbalancing:RegisterTargets",
                 "elasticloadbalancing:AddTags"
             ],
-            "Resource": "arn:%%AWS_PARTITION%%:elasticloadbalancing:%%AWS_REGION%%:%%AWS_ACCOUNT_ID%%:targetgroup/soca*/*",
+            "Resource": "arn:%%AWS_PARTITION%%:elasticloadbalancing:%%AWS_REGION%%:%%AWS_ACCOUNT_ID%%:targetgroup/edh*/*",
             "Effect": "Allow"
         },
         {
             "Action": [
                 "pricing:GetProducts",
                 "budgets:ViewBudget",
+                "batch:DescribeJobQueues",
+				"batch:DescribeJobs",
+				"batch:DescribeJobDefinitions",
+				"batch:DescribeComputeEnvironments",
+                "batch:ListJobs",
+                "batch:ListJobsByConsumableResource",
+                "batch:ListConsumableResources",
+                "batch:ListServiceJobs",
+                "batch:DescribeServiceJob",
+                "batch:ListTagsForResource",
                 "ec2:CreateFleet",
                 "ec2:DescribeFleet*",
                 "ec2:DeleteFleets",
@@ -186,6 +196,40 @@
         },
         {
             "Action": [
+                "batch:SubmitJob",
+                "batch:SubmitServiceJob",
+                "batch:CancelJob",
+                "batch:TerminateJob",
+                "batch:CreateJobQueue",
+                "batch:DeleteJobQueue",
+                "batch:RegisterJobDefinition",
+                "batch:DeregisterJobDefinition", 
+                "batch:TagResource" 
+            ],
+            "Resource": [
+                "arn:%%AWS_PARTITION%%:batch:%%AWS_REGION%%:%%AWS_ACCOUNT_ID%%:job-definition/edh-*",
+                "arn:%%AWS_PARTITION%%:batch:%%AWS_REGION%%:%%AWS_ACCOUNT_ID%%:job-queue/edh-*",
+                "arn:%%AWS_PARTITION%%:batch:%%AWS_REGION%%:%%AWS_ACCOUNT_ID%%:job/edh-*"
+
+            ],
+            "Effect": "Allow"
+        },
+         {
+            "Action": "batch:TerminateJob",
+            "Resource": [
+                "arn:%%AWS_PARTITION%%:batch:%%AWS_REGION%%:%%AWS_ACCOUNT_ID%%:job/*"
+            ],
+            "Effect": "Allow",
+            "Condition": {
+                "StringEquals": {
+                    "aws:ResourceTag/edh:ClusterId": "%%CLUSTER_ID%%"
+                }
+            }
+        },
+
+      
+        {
+            "Action": [
                 "ssm:SendCommand"
             ],
             "Resource": [
@@ -236,7 +280,7 @@
         {
             "Condition": {
                 "StringLike": {
-                    "aws:ResourceTag/soca:ClusterId": "%%CLUSTER_ID%%*"
+                    "aws:ResourceTag/edh:ClusterId": "%%CLUSTER_ID%%*"
                 }
             },
             "Action": [

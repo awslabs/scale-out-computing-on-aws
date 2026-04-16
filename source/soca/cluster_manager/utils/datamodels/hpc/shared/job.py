@@ -100,7 +100,7 @@ class SocaHpcJob(SocaHpcJobResourceModel):
     job_scheduler_info: SocaHpcScheduler
 
     # How many times SOCA provisioned capacity but job failed to run. Max attempts count configurable via dispatcher.py
-    job_failed_provisioning_retry_count: int = 1
+    job_failed_provisioning_retry_count: int = 0
 
     # If the job configuration has been validated
     job_config_validated: bool = False
@@ -134,7 +134,7 @@ class SocaHpcJob(SocaHpcJobResourceModel):
             # Assign defaults and normalize values
             self._normalize()
 
-            # Pydandic validations
+            # Pydantic validations
             self.__class__.model_validate(self.__dict__)
 
             # Reset job_errors
@@ -216,38 +216,34 @@ class SocaHpcJob(SocaHpcJobResourceModel):
             if not self.subnet_ids:
                 self.subnet_ids = [random.choice(_allowed_private_subnets)]
             else:
-                # You can pass an integer as subnet_ids value. If that's the case SOCA will returns a sample based on the integer number
-                # Eg: say your /configuration/PrivateSubnets has 15 subnets, launching a job with subnet_ids=4 will have SOCA pick 4 randoms subnet IDs from the list
-                _is_subnet_id_int = SocaCastEngine(data=self.subnet_ids).cast_as(
-                    expected_type=int
-                )
-                if _is_subnet_id_int.get("success") is True:
-                    logger.debug(
-                        f"subnet_id is an integer, detected {self.subnet_ids}, SOCA will choose {self.subnet_ids} random subnets"
-                    )
-                    _subnet_count = int(_is_subnet_id_int.get("message"))
-                    _subnet_list = random.sample(
-                        _allowed_private_subnets,
-                        min(_subnet_count, len(_allowed_private_subnets)),
-                    )
-                else:
-                    if Validators.is_string(self.subnet_ids) is True:
+                if Validators.is_string(self.subnet_ids) is True:
+                    # subnet_ids will always be a string when received via SocaHpcJob, however we do accept integer as a valid input to specify how many subnets to randomly select from allowed private subnets list
+                    if self.subnet_ids.isdigit():
+                        _subnet_count = int(self.subnet_ids)
+                        _subnet_list = random.sample(
+                            _allowed_private_subnets,
+                            min(_subnet_count, len(_allowed_private_subnets)),
+                        )
+                    else:
+                        # subnet_ids received a a string but string is not a digit, so we expect a list of subnet_ids separated by + as we cannot receive list when job is created via CLI
                         logger.debug(
                             f"{self.subnet_ids} is a string, casting it as list with + as separator"
                         )
                         _subnet_list = self.subnet_ids.split("+")
 
-                    elif Validators.is_list(self.subnet_ids) is True:
-                        _subnet_list = self.subnet_ids
-                    else:
-                        raise ValueError(
-                            f"{self.subnet_ids=} must either be a list or str"
-                        )
+                elif Validators.is_list(self.subnet_ids) is True:
+                    # subnet_ids received as list are only received via our internal APIs
+                    _subnet_list = self.subnet_ids
+
+                else:
+                    raise ValueError(
+                        f"{self.subnet_ids=} must be an integer or a string"
+                    )
 
                 for _subnet in _subnet_list:
                     if _subnet not in _allowed_private_subnets:
                         raise ValueError(
-                            f"{_subnet} does not seems to be a SOCA registered private subnet. Allowed value {_allowed_private_subnets}"
+                            f"{_subnet} does not seems to be a SOCA registered private subnet. Allowed values: {_allowed_private_subnets}"
                         )
                 self.subnet_ids = _subnet_list
 
@@ -360,7 +356,7 @@ class SocaHpcJob(SocaHpcJobResourceModel):
             logger.debug(f"Validating placement_group: {self.placement_group}")
             try:
                 self.placement_group = bool(self.placement_group)
-                if self.placement_group is True:
+                if self.placement_group:
                     if self.nodes == 1:
                         logger.info(
                             "placement_group is set but will be ignored when nodes=1. Ignoring placement_group"
@@ -786,7 +782,7 @@ class SocaHpcJob(SocaHpcJobResourceModel):
                         _cr_validated = True
                         break
 
-                if _cr_validated is False:
+                if not _cr_validated:
                     raise ValueError(
                         f"Unable to validate specified capacity reservation configuration"
                     )
@@ -844,7 +840,7 @@ class SocaHpcJob(SocaHpcJobResourceModel):
                         StackName=self.stack_id
                     )
                     _cfn_status = _check_cfn_stack["Stacks"][0]["StackStatus"]
-                    logger.info(
+                    logger.debug(
                         f"CloudFormation stack status for {self.job_id=} with {self.stack_id=} is {_cfn_status}"
                     )
 
@@ -933,7 +929,7 @@ class SocaHpcJob(SocaHpcJobResourceModel):
                 # no cloudformation stack assigned yet
                 self.job_provisioning_state = SocaHpcJobProvisioningState.PENDING
 
-        logger.info(
+        logger.debug(
             f"Found {self.job_provisioning_state=} for {self.job_id=} with {self.stack_id=}"
         )
         return self.job_provisioning_state
@@ -966,7 +962,7 @@ class SocaHpcJob(SocaHpcJobResourceModel):
             f"Trying to provision capacity for {self.job_id} with {stack_name=}"
         )
 
-        if self.job_config_validated is False:
+        if not self.job_config_validated:
             logger.info(
                 "Job Configuration has not been validated yet , validating it ..."
             )
@@ -1059,7 +1055,7 @@ class SocaHpcJob(SocaHpcJobResourceModel):
                             f"Quota check validated for {_instance} instance type"
                         )
 
-        if _quota_validated is False:
+        if not _quota_validated:
             SocaHpcJobController(job=self).set_error_message(
                 errors=["You have exceeded the AWS Quotas for this type of instance"]
             )
@@ -1073,7 +1069,7 @@ class SocaHpcJob(SocaHpcJobResourceModel):
             f"Probing EC2 capacity availability for {self.nodes=} {self.instance_types=} and {self.subnet_ids=}"
         )
 
-        if self.placement_group is True:
+        if self.placement_group:
             _create_pg = create_placement_group(stack_name)
             if _create_pg.get("success") is True:
                 _placement_group = {
@@ -1162,7 +1158,7 @@ class SocaHpcJob(SocaHpcJobResourceModel):
                             )
 
                             _capacity_available = True
-                            if _probe_capacity_only is True:
+                            if _probe_capacity_only:
                                 logger.warning(
                                     f"Capacity probing is True. SOCA has cancelled the reservation ID and the reservation ID will not be passed to the SocaCloudFormationBuilderHpc. use probe_capacity_only=False if you want to enforce capacity_reservation for your job"
                                 )
@@ -1173,7 +1169,7 @@ class SocaHpcJob(SocaHpcJobResourceModel):
                                 f"Unable to validate EC2 Capacity via ODCR request on {_subnet_id} for {_instance_type} due to {_request_on_demand_capacity_reservation}, testing another subnet if possible"
                             )
 
-                    if _capacity_available is False:
+                    if not _capacity_available:
                         # Still accept the job if we can't secure a 1:1 ODCR and if there is multiple instance_types / subnet_id as EC2 Fleet may be able to
                         # provision the capacity in multiple subnets/instance types (unless /configuration/FeatureFlags/EnforceStrictCapacityReservation is True)
                         if (
@@ -1262,21 +1258,21 @@ class SocaHpcJob(SocaHpcJobResourceModel):
             template_body=_build_cloudformation_template.get("message"),
             tags=[
                 {
-                    "Key": "soca:JobId",
+                    "Key": "edh:JobId",
                     "Value": str(self.job_id),
                 },  # note: tag value must be str
-                {"Key": "soca:NodeType", "Value": "compute_node"},
-                {"Key": "soca:ClusterId", "Value": cluster_id},
+                {"Key": "edh:NodeType", "Value": "compute_node"},
+                {"Key": "edh:ClusterId", "Value": cluster_id},
                 {
-                    "Key": "soca:SchedulerProvider",
+                    "Key": "edh:SchedulerProvider",
                     "Value": self.job_scheduler_info.provider,
                 },
                 {
-                    "Key": "soca:SchedulerEndpoint",
+                    "Key": "edh:SchedulerEndpoint",
                     "Value": self.job_scheduler_info.endpoint,
                 },
                 {
-                    "Key": "soca:SchedulerIdentifier",
+                    "Key": "edh:SchedulerIdentifier",
                     "Value": self.job_scheduler_info.identifier,
                 },
                 {"Key": "Name", "Value": stack_name},
@@ -1289,7 +1285,7 @@ class SocaHpcJob(SocaHpcJobResourceModel):
             )
 
             # remove the bootstrap folder since the provisioning will not happen
-            _bootstrap_log_folder = f"/apps/soca/{cluster_id}/shared/logs/bootstrap/compute_node/{self.job_id}/"
+            _bootstrap_log_folder = f"/apps/edh/{cluster_id}/shared/logs/bootstrap/compute_node/{self.job_id}/"
             try:
                 folder = Path(_bootstrap_log_folder)
                 logger.info(
@@ -1314,7 +1310,7 @@ class SocaHpcJob(SocaHpcJobResourceModel):
             )
         else:
             logger.info(f"{stack_name} created successfully")
-            if keep_forever is True:
+            if keep_forever:
                 logger.info(
                     f"{stack_name} has {keep_forever=} flag set to True. Stack will be running until you delete it manually, no resource updates are required"
                 )

@@ -12,7 +12,7 @@
 ######################################################################################################################
 
 """
-Update ses_sender_email with your SES user. https://awslabs.github.io/scale-out-computing-on-aws-documentation//tutorials/job-start-stop-email-notification/ for help
+Update ses_sender_email with your SES user. https://awslabs.github.io/engineering-development-hub-documentation/tutorials/job-start-stop-email-notification/ for help
 If SES verified your domain, you can use any address @yourdomain
 If SES verified only some addresses, you can only use these specific addresses
 --
@@ -21,8 +21,8 @@ Update ses_region with the region where you configured SES (may be different wit
 Scheduler Hook (qmgr):
 create hook notify_job_start event=runjob
 create hook notify_job_complete event=execjob_end
-import hook notify_job_start application/x-python default /opt/soca/%SOCA_CLUSTER_ID/cluster_hooks/pbs/job_notifications.py
-import hook notify_job_complete application/x-python default /opt/soca/%SOCA_CLUSTER_ID/cluster_hooks/pbs/job_notifications.py
+import hook notify_job_start application/x-python default /opt/edh/%EDH_CLUSTER_ID/cluster_hooks/pbs/job_notifications.py
+import hook notify_job_complete application/x-python default /opt/edh/%EDH_CLUSTER_ID/cluster_hooks/pbs/job_notifications.py
 """
 
 import sys
@@ -74,7 +74,7 @@ def find_email(job_owner):
     # Ideally we should be using python-ldap, but facing some issue importing it with PBS env as PBS py is still py2
     # Will migrate to python-ldap when pbspro supports py3 natively
     if os.path.isdir(
-        "/apps/soca/%SOCA_CLUSTER_ID/cluster_node_bootstrap/ad_automation"
+        "/apps/edh/%EDH_CLUSTER_ID/cluster_node_bootstrap/ad_automation"
     ):
         pbs.logmsg(
             pbs.LOG_DEBUG,
@@ -82,17 +82,17 @@ def find_email(job_owner):
         )
         # Active Directory
         with open(
-            "/apps/soca/%SOCA_CLUSTER_ID/cluster_node_bootstrap/ad_automation/join_domain_user.cache",
+            "/apps/edh/%EDH_CLUSTER_ID/cluster_node_bootstrap/ad_automation/join_domain_user.cache",
             "r",
         ) as f:
             ad_user = f.read()
         with open(
-            "/apps/soca/%SOCA_CLUSTER_ID/cluster_node_bootstrap/ad_automation/join_domain.cache",
+            "/apps/edh/%EDH_CLUSTER_ID/cluster_node_bootstrap/ad_automation/join_domain.cache",
             "r",
         ) as f:
             ad_password = f.read()
         with open(
-            "/apps/soca/%SOCA_CLUSTER_ID/cluster_node_bootstrap/ad_automation/domain_name.cache",
+            "/apps/edh/%EDH_CLUSTER_ID/cluster_node_bootstrap/ad_automation/domain_name.cache",
             "r",
         ) as f:
             domain_name = f.read()
@@ -158,7 +158,7 @@ if job_owner_email_address == "":
         "notify_job_status: Unable to detect email address for " + job_owner,
     )
 
-if ignore is False:
+if not ignore:
     if e.type == pbs.RUNJOB:
         pbs.logmsg(pbs.LOG_DEBUG, "notify_job_status: RUNJOB")
         email_subject = (

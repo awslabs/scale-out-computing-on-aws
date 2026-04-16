@@ -7,9 +7,9 @@ import os
 import sys
 import random
 
-if os.environ.get("SOCA_CLUSTER_ID", None) is None:
+if os.environ.get("EDH_CLUSTER_ID", None) is None:
     print(
-        "SOCA_CLUSTER_ID not found, did you run 'source /etc/environment' and  source '/opt/soca/<REPLACE_WITH_YOUR_CLUSTER_Id>/python/latest/soca_python.env' before calling this script?"
+        "EDH_CLUSTER_ID not found, did you run 'source /etc/environment' and  source '/opt/edh/<REPLACE_WITH_YOUR_CLUSTER_Id>/python/latest/edh_python.env' before calling this script?"
     )
     sys.exit(1)
 
@@ -37,8 +37,8 @@ def get_ec2_dcv_instances(cluster_id: str) -> SocaResponse | SocaError:
                     "running",
                 ],
             },
-            {"Name": "tag:soca:NodeType", "Values": ["dcv_node"]},
-            {"Name": "tag:soca:ClusterId", "Values": [cluster_id]},
+            {"Name": "tag:edh:NodeType", "Values": ["dcv_node"]},
+            {"Name": "tag:edh:ClusterId", "Values": [cluster_id]},
         ]
     )
 
@@ -83,7 +83,7 @@ def register_instance_to_target_group(
         )
 
         if register_ec2["ResponseMetadata"]["HTTPStatusCode"] == 200:
-            logger.info(f"{instance_id=} registered succesfully")
+            logger.info(f"{instance_id=} registered successfully")
             return SocaResponse(success=True, message=True)
         else:
             return SocaError.GENERIC_ERROR(
@@ -102,7 +102,7 @@ def create_new_target_group(
     logger.info(f"Creating new target group for {instance_dns}")
     try:
         new_target_group = elbv2_client.create_target_group(
-            Name=f"soca-{instance_dns}",
+            Name=f"edh-{instance_dns}",
             Protocol="HTTPS",
             Port=8443,
             VpcId=vpc_id,
@@ -123,7 +123,7 @@ def create_new_target_group(
                     new_target_group["TargetGroups"][0]["TargetGroupArn"],
                 ],
                 Tags=[
-                    {"Key": "soca:ClusterId", "Value": cluster_id},
+                    {"Key": "edh:ClusterId", "Value": cluster_id},
                 ],
             )
             logger.info(f"Successfully created target group for {instance_dns}")
@@ -182,7 +182,7 @@ def create_new_alb_rule(
 
 
 def get_current_listener_rules(listener_arn: str) -> SocaResponse | SocaError:
-    logger.info(f"Fetching all listener ruels for {listener_arn=}")
+    logger.info(f"Fetching all listener rules for {listener_arn=}")
     rules = {}
     priority_taken = []
     try:
@@ -283,7 +283,7 @@ if __name__ == "__main__":
     )
 
     logger = SocaLogger(name="soca_logger").timed_rotating_file_handler(
-        file_path=f"/opt/soca/{cluster_id}/cluster_manager/orchestrator/logs/dcv_alb_manager.log"
+        file_path=f"/opt/edh/{cluster_id}/cluster_manager/orchestrator/logs/dcv_alb_manager.log"
     )
 
     elbv2_client = utils_boto3_wrapper.get_boto(service_name="elbv2").message
@@ -410,9 +410,9 @@ if __name__ == "__main__":
             for rule_arn, rule_path in alb_rules.items():
                 try:
                     if current_rule in rule_path:
-                        if delete_rule(rule_arn=rule_arn) is True:
+                        if delete_rule(rule_arn=rule_arn):
                             tg_arn_to_delete = current_target_groups[
-                                f"soca-{instance_dns}"
+                                f"edh-{instance_dns}"
                             ]
                             if (
                                 delete_target_groups(target_group_arn=tg_arn_to_delete)

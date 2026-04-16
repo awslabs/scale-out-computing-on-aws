@@ -21,7 +21,7 @@ _eks_client = get_boto(service_name="eks").message
 
 class EKSListClusters(Resource):
     @private_api
-    @feature_flag(flag_name="CONTAINERS_MANAGEMENT", mode="api")
+    @feature_flag(flag_name="CONTAINERS_MANAGEMENT_EKS", mode="api")
     def get(self):
         """
         List EKS Clusters
@@ -33,7 +33,7 @@ class EKSListClusters(Resource):
         summary: List available EKS clusters
         description: Retrieves a list of EKS clusters that are tagged for visibility with the current SOCA cluster ID
         parameters:
-          - name: X-SOCA-USER
+          - name: X-EDH-USER
             in: header
             required: true
             schema:
@@ -43,7 +43,7 @@ class EKSListClusters(Resource):
               pattern: '^[a-zA-Z0-9._-]+$'
             description: SOCA username for authentication
             example: "john.doe"
-          - name: X-SOCA-TOKEN
+          - name: X-EDH-TOKEN
             in: header
             required: true
             schema:
@@ -147,7 +147,7 @@ class EKSListClusters(Resource):
         _supported_eks_clusters = []
         if not _cluster:
             logger.info(
-                f"Cluster not specified, listing all EKS cluster that match soca:ClusterId = {_soca_cluster_id}"
+                f"Cluster not specified, listing all EKS cluster that match edh:visibility:{_soca_cluster_id}=true"
             )
             next_token = None
 
@@ -169,7 +169,7 @@ class EKSListClusters(Resource):
                     tags = tags_response.get("tags", {})
                     logging.info(f"Tags {tags} for cluster {name}")
                     if (
-                        tags.get(f"soca:visibility:{_soca_cluster_id}", "").lower()
+                        tags.get(f"edh:visibility:{_soca_cluster_id}", "").lower()
                         == "true"
                     ):
                         _supported_eks_clusters.append(name)

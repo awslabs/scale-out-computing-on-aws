@@ -13,26 +13,26 @@ fi
 
 source /etc/environment
 
-if [[ -z "${SOCA_CLUSTER_ID}" ]]; then
-  echo "SOCA_CLUSTER_ID environment variable not found."
+if [[ -z "${EDH_CLUSTER_ID}" ]]; then
+  echo "EDH_CLUSTER_ID environment variable not found."
   exit 1
 else
-  source "/opt/soca/${SOCA_CLUSTER_ID}/python/latest/soca_python.env"
+  source "/opt/edh/${EDH_CLUSTER_ID}/python/latest/edh_python.env"
   case ${ANALYTICS_MODE} in
     cluster_nodes_tracking)
-      "/opt/soca/${SOCA_CLUSTER_ID}/python/latest/bin/python3" "/opt/soca/${SOCA_CLUSTER_ID}/cluster_manager/analytics/cluster_nodes_tracking.py"
+      "/opt/edh/${EDH_CLUSTER_ID}/python/latest/bin/python3" "/opt/edh/${EDH_CLUSTER_ID}/cluster_manager/analytics/cluster_nodes_tracking.py"
       ;;
 
     job_tracking)
-      "//opt/soca/${SOCA_CLUSTER_ID}/python/latest/bin/python3" "/opt/soca/${SOCA_CLUSTER_ID}/cluster_manager/analytics/job_tracking.py"
+      "/opt/edh/${EDH_CLUSTER_ID}/python/latest/bin/python3" "/opt/edh/${EDH_CLUSTER_ID}/cluster_manager/analytics/job_tracking.py"
       ;;
 
     desktop_hosts_tracking)
-       "/opt/soca/${SOCA_CLUSTER_ID}/python/latest/bin/python3" "/opt/soca/${SOCA_CLUSTER_ID}/cluster_manager/analytics/desktop_hosts_tracking.py"
+       "/opt/edh/${EDH_CLUSTER_ID}/python/latest/bin/python3" "/opt/edh/${EDH_CLUSTER_ID}/cluster_manager/analytics/desktop_hosts_tracking.py"
       ;;
 
     target_nodes_tracking)
-       "/opt/soca/${SOCA_CLUSTER_ID}/python/latest/bin/python3" "/opt/soca/${SOCA_CLUSTER_ID}/cluster_manager/analytics/target_nodes_tracking.py"
+       "/opt/edh/${EDH_CLUSTER_ID}/python/latest/bin/python3" "/opt/edh/${EDH_CLUSTER_ID}/cluster_manager/analytics/target_nodes_tracking.py"
       ;;
 
     *)

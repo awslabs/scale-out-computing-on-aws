@@ -39,7 +39,7 @@ class SocaHpcJobLicense(BaseModel):
 
 class SocaCapacityReservation(BaseModel):
     reservation_id: str
-    reservation_exist: bool  # whether the specificied capacity reservation exists
+    reservation_exist: bool  # whether the specified capacity reservation exists
 
     # Note: Optional parameters only if reservation_exist is False
     instance_type: Optional[str] = None
@@ -72,14 +72,14 @@ class SocaHpcJobOrchestrationMethod(str, Enum):
 class SocaHpcJobResourceModel(BaseModel):
     """
     List of all custom EC2 resources supported by a SocaHpcJob that can be applied for each job
-    https://awslabs.github.io/scale-out-computing-on-aws-documentation/tutorials/integration-ec2-job-parameters/
+    https://awslabs.github.io/engineering-development-hub-documentation/tutorials/integration-ec2-job-parameters/
 
     # This class is inherited by all SocaHpcJob[PBS|LSF|Slurm] as well as SocaHpcQueue
     """
 
     # SOCA Custom Job Resources  - Validator SocaHpcJob.validate()
 
-    # Must be explicity set if SocaHpcScheduler.soca_managed_nodes_provisioning is True
+    # Must be explicitly set if SocaHpcScheduler.soca_managed_nodes_provisioning is True
     instance_types: Optional[List[str]] = (
         None  # Instance Type or List of Instance Type to provision for this job
     )
@@ -125,10 +125,11 @@ class SocaHpcJobResourceModel(BaseModel):
     placement_group: Optional[bool] = (
         False  # Whether you want to use a placement group for the node(s)
     )
-    efa_support: Optional[bool] = False  # Wheter Elastic Fabric Adapter is enabled
+    efa_support: Optional[bool] = False  # Whether Elastic Fabric Adapter is enabled
     force_ri: Optional[bool] = (
         False  # Whether the job can only run on Reserved Instance
     )
     ht_support: Optional[bool] = False  # Choose to enable to disable Hyper Threading
+    nested_virtualization: Optional[bool] = False  # Enable nested virtualization (CpuOptions.NestedVirtualization)
     error_message: Optional[list] = []
     licenses: Optional[list[SocaHpcJobLicense]] = []

@@ -25,8 +25,11 @@
 
                 <div class="p-5">
                   <div class="text-center">
-                      <img class="img-fluid" height="150px" width="150px" src="{{ url_for('static', filename='img/soca_logo_rev2.png') }}">
-                      <hr>
+                     <img class="img-fluid" height="150px" width="150px" src="{{ url_for('static', filename='img/soca_logo.png') }}">
+                     <hr>
+                       <h5>Engineering Development Hub</h5>
+                      <br>
+
                   </div>
                   <form class="user" method="post" action="/auth">
                     <div class="form-group">
@@ -41,20 +44,21 @@
                         {% if redirect != false %}
                             <input type="hidden" name="redirect" value={{ redirect }}>
                         {% endif %}
-                        <button type="submit" class="btn btn-success btn-block">Login</button>
+                        <button type="submit" class="btn btn-primary btn-block">Login</button>
                     </div>
                   </form>
+                  {% if custom_links %}
+                   <hr>
+                    {% for link in custom_links %}
+                        <a href="{{link.get('url')}}" class="d-inline">{{link.get('text')}}</a>
+                        {% if not loop.last %}-{% endif %}
+                    {% endfor %}
+                  {% endif %}
 
-                    {% with messages = get_flashed_messages() %}
-                        {% if messages %}
-                            {% for message in messages %}
-                                <br>
-                                <div class="alert alert-danger">
-                                    <strong>{{ message }} </strong>
-                                </div>
-                            {% endfor %}
-                        {% endif %}
-                    {% endwith %}
+                  <br>
+
+                {% include 'common/flashed_messages.html' %}
+
                 </div>
               </div>
             </div>

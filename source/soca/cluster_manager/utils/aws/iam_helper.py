@@ -14,7 +14,7 @@ client_iam = utils_boto3.get_boto(service_name="iam").message
 logger = logging.getLogger("soca_logger")
 
 
-@soca_cache(prefix="soca:webui:aws:iam:describe_instance_type")
+@soca_cache(prefix="edh:webui:aws:iam:describe_instance_type")
 def get_instance_profile(instance_profile_name: str) -> SocaResponse:
     logger.info(f"Get Instance Profile: {instance_profile_name}")
     try:

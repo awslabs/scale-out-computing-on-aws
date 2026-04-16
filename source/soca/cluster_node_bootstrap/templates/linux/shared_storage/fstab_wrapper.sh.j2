@@ -49,7 +49,7 @@
       fi
     fi
 
-    {% if context.get("/configuration/BaseOS") in ("ubuntu2204", "ubuntu2404") %}
+    {% if context.get("/job/BaseOS") in ("ubuntu2204", "ubuntu2404") %}
       # Debian Based distro
       {% set BIND_PKG = "bind9-utils" %}
       {% set NFS_UTILS_PKG = "nfs-common" %}

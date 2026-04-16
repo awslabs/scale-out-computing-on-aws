@@ -7,7 +7,7 @@ function Join-ActiveDirectory {
     $secret = Get-Secret -SecretId "{{ context.get('/configuration/UserDirectory/service_account_secret_arn') }}"
     if ($secret)
     {
-        $serviceAccountUsername = $secret.username.Split('@')[0] # e.g: User@Domain is UPN format, we fallback to SAM format which is DOMAIN\User
+        $serviceAccountUsername = $secret.username.Split('@')[0] # e.g: User@Domain is UPN format, we fall back to SAM format which is DOMAIN\User
         $serviceAccountPassword = $secret.password
     }
     else

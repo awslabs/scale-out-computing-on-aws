@@ -26,6 +26,8 @@ from flask import (
 )
 from requests import post, get
 from utils.http_client import SocaHttpClient
+from utils.validators import Validators
+from urllib.parse import urlparse
 
 logger = logging.getLogger("soca_logger")
 index = Blueprint("index", __name__, template_folder="templates")
@@ -45,28 +47,87 @@ def api_json():
 @index.route("/api/doc", methods=["GET"])
 def api_docs():
     _default_api_doc_provider = "rapidoc"
-    api_doc_provider = request.args.get("ui", _default_api_doc_provider) 
+    api_doc_provider = request.args.get("ui", _default_api_doc_provider)
     if api_doc_provider not in ["rapidoc", "swagger"]:
         api_doc_provider = _default_api_doc_provider
-   
+
     return render_template("api_doc.html", api_doc_provider=api_doc_provider)
 
 
 @index.route("/", methods=["GET"])
 @login_required
 def home():
-    user = session["user"]
     sudoers = session["sudoers"]
-    return render_template("index.html", sudoers=sudoers)
+    _custom_links = config.Config.INDEX_PAGE_CUSTOM_LINKS
+    _valid_links = []
+    if Validators.is_list(value=_custom_links):
+        for link in _custom_links:
+            if "url" not in link or "text" not in link:
+                logger.warning(
+                    "One of your custom links is missing required keys 'url' or 'text', ignoring ... "
+                )
+                continue
+
+            _parsed_url = urlparse(link.get("url"))
+            if _parsed_url.scheme.lower() not in ["http", "https"]:
+                logger.warning(
+                    f"{link.get('url')} is not an HTTP or HTTPS url, ignoring ... "
+                )
+                continue
+
+            if not _parsed_url.netloc:
+                logger.warning(
+                    f"{link.get('url')} does not seems to have any netloc, ignoring ... "
+                )
+                continue
+
+            _valid_links.append(link)
+    else:
+        _custom_links = []
+        logger.warning(
+            "config.Config.INDEX_PAGE_CUSTOM_LINKS is not a valid list ignoring ... "
+        )
+
+    return render_template("index.html", sudoers=sudoers, custom_links=_valid_links)
 
 
 @index.route("/login", methods=["GET"])
 def login():
     redirect_url = request.args.get("fwd", None)
-    if redirect_url is None:
-        return render_template("login.html", redirect=False)
+    _custom_links = config.Config.LOGIN_PAGE_CUSTOM_LINKS
+    _valid_links = []
+    if Validators.is_list(value=_custom_links):
+        for link in _custom_links:
+            if "url" not in link or "text" not in link:
+                logger.warning(
+                    "One of your custom links is missing required keys 'url' or 'text', ignoring ... "
+                )
+                continue
+
+            _parsed_url = urlparse(link.get("url"))
+            if _parsed_url.scheme.lower() not in ["http", "https"]:
+                logger.warning(
+                    f"{link.get('url')} is not an HTTP or HTTPS url, ignoring ... "
+                )
+                continue
+
+            if not _parsed_url.netloc:
+                logger.warning(
+                    f"{link.get('url')} does not seems to have any netloc, ignoring ... "
+                )
+                continue
+
+            _valid_links.append(link)
     else:
-        return render_template("login.html", redirect=redirect_url)
+        _custom_links = []
+        logger.warning(
+            "config.Config.LOGIN_PAGE_CUSTOM_LINKS is not a valid list ignoring ... "
+        )
+
+    if redirect_url is None:
+        return render_template("login.html", custom_links=_valid_links, redirect=False)
+    else:
+        return render_template("login.html", custom_links=_valid_links, redirect=redirect_url)
 
 
 @index.route("/logout", methods=["GET"])
@@ -92,7 +153,7 @@ def authenticate():
     if user is not None and password is not None:
         check_auth = SocaHttpClient(
             endpoint="/api/ldap/authenticate",
-            headers={"X-SOCA-TOKEN": config.Config.API_ROOT_KEY},
+            headers={"X-EDH-TOKEN": config.Config.API_ROOT_KEY},
         ).post(data={"user": user, "password": password})
         logger.info(f"Check Auth for {user} response: {check_auth}")
         if not check_auth.success:
@@ -103,7 +164,7 @@ def authenticate():
             logger.info("User authenticated, checking sudo permissions")
             check_sudo_permission = SocaHttpClient(
                 endpoint="/api/ldap/sudo",
-                headers={"X-SOCA-TOKEN": config.Config.API_ROOT_KEY},
+                headers={"X-EDH-TOKEN": config.Config.API_ROOT_KEY},
             ).get(params={"user": user})
 
             if check_sudo_permission.success:
@@ -129,7 +190,7 @@ def oauth():
         logger.info("User authenticated, checking sudo permissions")
         check_sudo_permission = get(
             config.Config.FLASK_ENDPOINT + "/api/ldap/sudo",
-            headers={"X-SOCA-TOKEN": config.Config.API_ROOT_KEY},
+            headers={"X-EDH-TOKEN": config.Config.API_ROOT_KEY},
             params={"user": session["user"]},
             verify=False,
         )  # nosec

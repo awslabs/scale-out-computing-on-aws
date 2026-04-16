@@ -21,13 +21,13 @@ class Validators:
     @staticmethod
     def is_string(value: Any) -> bool:
         return Validators._return("is_string", isinstance(value, str), value)
-    
+
     @staticmethod
     def _string_len_check(value: Any, predicate, number: int, name: str) -> bool:
         # number -> expected length
         result = isinstance(value, str) and predicate(len(value), number)
         return Validators._return(name, result, value, number)
-    
+
     @staticmethod
     def is_string_length_equal_of(value: Any, number: int) -> bool:
         return Validators._string_len_check(
@@ -63,7 +63,7 @@ class Validators:
         return Validators._string_len_check(
             value, lambda a, b: a <= b, number, "is_string_length_lower_equal_than"
         )
-    
+
     @staticmethod
     def is_int(value: Any) -> bool:
         return Validators._return(
@@ -138,7 +138,7 @@ class Validators:
 
     @staticmethod
     def is_dict_not_empty(value: Any) -> bool:
-        return Validators._log(
+        return Validators._return(
             "is_dict_not_empty", isinstance(value, dict) and bool(value), value
         )
 

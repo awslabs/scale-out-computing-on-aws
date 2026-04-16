@@ -38,26 +38,26 @@ def clean_odcr_assigned_to_stack(stack_name: str) -> bool:
     _success = True
     try:
         logging.info(
-            f"Cleaning SOCA ODCRs associated to tag:soca:AssociatedStackId = {stack_name}..."
+            f"Cleaning SOCA ODCRs associated to tag:edh:AssociatedStackId = {stack_name}..."
         )
 
         reservations = ec2_client.describe_capacity_reservations(
             Filters=[
                 {"Name": "state", "Values": ["active"]},
                 {
-                    "Name": "tag:soca:AssociatedStackId",
+                    "Name": "tag:edh:AssociatedStackId",
                     "Values": [stack_name],
                 },
             ]
         )
         logging.info(
-            f"Found {len(reservations.get('CapacityReservations'))} ODCRs with tag:soca:AssociatedStackId = {stack_name}"
+            f"Found {len(reservations.get('CapacityReservations'))} ODCRs with tag:edh:AssociatedStackId = {stack_name}"
         )
 
         for res in reservations.get("CapacityReservations", []):
             logging.info(f"Processing {res} ... ")
             _reservation_id = res.get("CapacityReservationId")
-            if cancel_reservation(reservation_id=_reservation_id) is False:
+            if not cancel_reservation(reservation_id=_reservation_id):
                 _success = False
 
     except Exception as e:
@@ -72,10 +72,10 @@ def clean_odcr_assigned_to_stack(stack_name: str) -> bool:
 def clean_orphaned_odcr_on_schedule() -> bool:
     _success = True
     try:
-        _cluster_id = os.environ.get("SOCA_CLUSTER_ID", None)
+        _cluster_id = os.environ.get("EDH_CLUSTER_ID", None)
         if not _cluster_id:
             logging.fatal(
-                "SOCA_CLUSTER_ID is not defined, unable to proceed. Verify your configuration."
+                "EDH_CLUSTER_ID is not defined, unable to proceed. Verify your configuration."
             )
             return False
         logging.info(
@@ -85,7 +85,7 @@ def clean_orphaned_odcr_on_schedule() -> bool:
             Filters=[
                 {"Name": "state", "Values": ["active"]},
                 {
-                    "Name": "tag:soca:ClusterId",
+                    "Name": "tag:edh:ClusterId",
                     "Values": [_cluster_id],
                 },
             ]
@@ -101,7 +101,7 @@ def clean_orphaned_odcr_on_schedule() -> bool:
                 (
                     tag["Value"]
                     for tag in _tags
-                    if tag["Key"] == "soca:AssociatedStackId"
+                    if tag["Key"] == "edh:AssociatedStackId"
                 ),
                 None,
             )
@@ -111,7 +111,7 @@ def clean_orphaned_odcr_on_schedule() -> bool:
 
             if _stack_name_tag:
                 logging.info(
-                    f"ODCR {_reservation_id} has tag soca:AssociatedStackId set to {_stack_name_tag}"
+                    f"ODCR {_reservation_id} has tag edh:AssociatedStackId set to {_stack_name_tag}"
                 )
                 try:
                     _check_stack = cfn_client.describe_stacks(StackName=_stack_name_tag)
@@ -142,7 +142,7 @@ def clean_orphaned_odcr_on_schedule() -> bool:
                         logging.info(
                             f"Associated CloudFormation stack is not active {_stack_status=}, cancelling reservation "
                         )
-                        if cancel_reservation(reservation_id=_reservation_id) is False:
+                        if not cancel_reservation(reservation_id=_reservation_id):
                             _success = False
 
                 except ClientError as e:
@@ -154,14 +154,14 @@ def clean_orphaned_odcr_on_schedule() -> bool:
                         logging.info(
                             f"_stack_name_tag does NOT exist. Cancelling ODCR {_reservation_id}..."
                         )
-                        if cancel_reservation(reservation_id=_reservation_id) is False:
+                        if not cancel_reservation(reservation_id=_reservation_id):
                             _success = False
                     else:
                         logging.fatal(f"Error checking stack: {e}")
                         _success = False
             else:
                 logging.info(
-                    f"ODCR {_reservation_id} does NOT have the tag 'soca:AssociatedStackId', skipping"
+                    f"ODCR {_reservation_id} does NOT have the tag 'edh:AssociatedStackId', skipping"
                 )
 
     except Exception as e:
@@ -196,7 +196,7 @@ def lambda_handler(event, context):
 
     if _status in ["CREATE_COMPLETE", "CREATE_IN_PROGRESS"]:
         # EventBridge EventPattern  does not include CREATE_COMPLETE / CREATE_IN_PROGRESS.
-        # We add this extra check to ensure we don't cancel the ODCR if there any mis-configuration post-deployent to the EventBridge event
+        # We add this extra check to ensure we don't cancel the ODCR if there any mis-configuration post-deployment to the EventBridge event
         # if the stack is in active state.
         logging.info(f"Received CloudFormation Stack is in active state, skipping ...")
     else:
@@ -204,7 +204,7 @@ def lambda_handler(event, context):
             logging.info(
                 f"Stack name is not empty, lambda triggered from EventBridge EventPattern, checking ODCR for {_stack_name=}"
             )
-            if clean_odcr_assigned_to_stack(stack_name=_stack_name) is False:
+            if not clean_odcr_assigned_to_stack(stack_name=_stack_name):
                 raise CleanupFailed(
                     "Un-recoverable errors detected during clean_odcr_assigned_to_stack"
                 )
@@ -212,7 +212,7 @@ def lambda_handler(event, context):
             logging.info(
                 "Stack name not provisioned, lambda triggered from EventBridge Schedule, iterating through all ODCR and cancelling orphaned ones"
             )
-            if clean_orphaned_odcr_on_schedule() is False:
+            if not clean_orphaned_odcr_on_schedule():
                 raise CleanupFailed(
                     "Un-recoverable errors detected during clean_orphaned_odcr_on_schedule"
                 )

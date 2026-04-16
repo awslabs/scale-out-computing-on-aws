@@ -6,7 +6,7 @@
 function install_dcv_prerequisites () {
 
   if ! verify_package_installed gnome-terminal; then
-    {% if context.get("/configuration/BaseOS") == "amazonlinux2" %}
+    {% if context.get("/job/BaseOS") == "amazonlinux2" %}
       log_info "Installing MATE Desktop for ALI2"
       packages_install gdm \
        gnome-session \
@@ -22,18 +22,18 @@ function install_dcv_prerequisites () {
        xorg-x11-utils
        # xorg-x11-fonts-Type1 \
        # xorg-x11-drivers \
-    {% elif context.get("/configuration/BaseOS") == "amazonlinux2023" %}
+    {% elif context.get("/job/BaseOS") == "amazonlinux2023" %}
       packages_generic_command groupinstall "Desktop" -y
 
-    {% elif context.get("/configuration/BaseOS") == "rhel7" %}
+    {% elif context.get("/job/BaseOS") == "rhel7" %}
       packages_generic_command groups mark convert
       packages_generic_command groupinstall "Server with GUI" -y --skip-broken
 
-    {% elif context.get("/configuration/BaseOS") == "centos7" %}
+    {% elif context.get("/job/BaseOS") == "centos7" %}
       packages_generic_command groups mark convert
       packages_generic_command groupinstall "GNOME Desktop" -y --skip-broken
 
-    {% elif context.get("/configuration/BaseOS") in ("rhel8", "rhel9", "rocky8", "rocky9") %}
+    {% elif context.get("/job/BaseOS") in ("rhel8", "rhel9", "rocky8", "rocky9") %}
       packages_generic_command groupinstall "Server with GUI" -y --skip-broken --disablerepo=epel-cisco-openh264
       sed -i 's/#WaylandEnable=false/WaylandEnable=false/' /etc/gdm/custom.conf
       systemctl restart gdm
@@ -51,7 +51,7 @@ ResultActive=no" > /etc/polkit-1/localauthority/50-local.d/repos.pkla
       sed -i 's,Exec=/usr/libexec/gsd-subman,#Exec=/usr/libexec/gsd-subman,' /etc/xdg/autostart/org.gnome.SettingsDaemon.Subscription.desktop
       packages_remove subscription-manager-cockpit
 
-    {% elif context.get("/configuration/BaseOS") in ("ubuntu2204", "ubuntu2404") %}
+    {% elif context.get("/job/BaseOS") in ("ubuntu2204", "ubuntu2404") %}
        packages_install ubuntu-desktop gdm3 mesa-utils
        if ! grep -q "^/usr/sbin/gdm3$" /etc/X11/default-display-manager; then
          dpkg-reconfigure gdm3

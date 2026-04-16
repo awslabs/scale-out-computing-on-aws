@@ -41,14 +41,14 @@ class UpdateVirtualDesktopSchedule(Resource):
         description: Update the start/stop schedule for a DCV virtual desktop session
         parameters:
           - in: header
-            name: X-SOCA-USER
+            name: X-EDH-USER
             required: true
             schema:
               type: string
               example: "john.doe"
             description: SOCA username for authentication
           - in: header
-            name: X-SOCA-TOKEN
+            name: X-EDH-TOKEN
             required: true
             schema:
               type: string
@@ -140,9 +140,9 @@ class UpdateVirtualDesktopSchedule(Resource):
                 parameter="Your administrator has disabled virtual desktops schedule update"
             ).as_flask()
 
-        _user = request.headers.get("X-SOCA-USER")
+        _user = request.headers.get("X-EDH-USER")
         if _user is None:
-            return SocaError.CLIENT_MISSING_HEADER(header="X-SOCA-USER").as_flask()
+            return SocaError.CLIENT_MISSING_HEADER(header="X-EDH-USER").as_flask()
 
         if _session_uuid is None:
             return SocaError.CLIENT_MISSING_PARAMETER(

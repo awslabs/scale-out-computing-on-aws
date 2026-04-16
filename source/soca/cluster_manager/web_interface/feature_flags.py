@@ -25,7 +25,6 @@ logger = logging.getLogger("soca_logger")
 # - USERS_GROUPS_MANAGEMENT: Users/Groups Management
 # - CONTAINER_MANAGEMENT: Manage Containers Views and APIs
 # - MY_API_KEY_MANAGEMENT: Manage API Key Views and APIs
-# - SFTP_INSTRUCTIONS: Manage SFTP View
 # - MY_ACCOUNT_MANAGEMENT: Manage My Account Views
 # - ANALYTICS_COST_MANAGEMENT: Manage Budget/Analytics Views
 # ------------------------------------------------------------------------------
@@ -35,20 +34,28 @@ FEATURE_FLAGS = {
     "TARGET_NODES": {"enabled": True, "allowed_users": [], "denied_users": []},
     "LOGIN_NODES": {"enabled": True, "allowed_users": [], "denied_users": []},
     "HPC": {"enabled": True, "allowed_users": [], "denied_users": []},
-    "RUN_REMOTE_COMMAND": {"enabled": False, "allowed_users": [], "denied_users": []}, # WARNING: this will allow user to run remote command on the scheduler
+    "RUN_REMOTE_COMMAND": {
+        "enabled": False,
+        "allowed_users": [],
+        "denied_users": [],
+    },  # WARNING: this will allow user to run remote command on the scheduler
     "FILE_BROWSER": {"enabled": True, "allowed_users": [], "denied_users": []},
     "USERS_GROUPS_MANAGEMENT": {
         "enabled": True,
         "allowed_users": [],
         "denied_users": [],
     },
-    "CONTAINERS_MANAGEMENT": {
-        "enabled": False,
+     "CONTAINERS_MANAGEMENT_EKS": {
+        "enabled": True,
+        "allowed_users": [],
+        "denied_users": [],
+    },
+     "CONTAINERS_MANAGEMENT_BATCH": {
+        "enabled": True,
         "allowed_users": [],
         "denied_users": [],
     },
     "MY_API_KEY_MANAGEMENT": {"enabled": True, "allowed_users": [], "denied_users": []},
-    "SFTP_INSTRUCTIONS": {"enabled": True, "allowed_users": [], "denied_users": []},
     "MY_ACCOUNT_MANAGEMENT": {  # WARNING: this will remove password reset ability for your users
         "enabled": True,
         "allowed_users": [],

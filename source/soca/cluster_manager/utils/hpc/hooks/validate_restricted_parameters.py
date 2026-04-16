@@ -5,7 +5,7 @@
 """
 This hook reject the job if the user is not allowed to use the queue
 Doc:
-> https://awslabs.github.io/scale-out-computing-on-aws-documentation/documentation/security/manage-queue-restricted-parameters/
+> https://awslabs.github.io/engineering-development-hub-documentation/documentation/security/manage-queue-restricted-parameters/
 """
 
 from __future__ import annotations

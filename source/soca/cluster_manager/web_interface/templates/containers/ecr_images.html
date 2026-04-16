@@ -1,0 +1,148 @@
+<!-- Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+ SPDX-License-Identifier: Apache-2.0 -->
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    {% include 'common/header.html' %}
+</head>
+
+<body id="page-top">
+                {% include 'common/horizontal_menu_bar.html' %}
+
+    <div id="wrapper">
+        {% include 'common/vertical_menu_bar.html' %}
+        <div id="content-wrapper" class="d-flex flex-column">
+            <div id="content" style="margin-top: 20px;">
+                <div class="container-fluid">
+                    {% include 'common/flashed_messages.html' %}
+                    <div class="card shadow mb-4">
+    
+                        <div class="card-body">
+                            <div class="py-3 d-flex justify-content-between align-items-center">
+                            <h3 class="mb-0" data-toggle="tooltip" data-placement="top" title="List all your container images stored on one or more Amazon Elastic Container Registry (ECR).">My Container Images <i class="fas fa-question-circle"></i></h3>
+                            </div>
+                            {% if not container_images %}
+                            <div class="alert alert-warning">
+                                Unable to find any and <a href="https://aws.amazon.com/ecr/" target="_blank">Amazon Elastic Container Registry (ECR)</a> onboarded to this EDH environment. <br>
+                                Add the following tag  <kbd>edh:visibility:{{cluster_id}} = true</kbd> to the ECR registries you want to onboard.
+                            </div>
+                            {% else %}
+                                <div class="alert alert-primary">
+                                    <ul>
+                                        <li>Only images that have tags are shown in the repository table. Untagged images are not displayed.</li>
+                                        <li>
+                                            Add the following tag to onboard your <a href="https://aws.amazon.com/ecr/" target="_blank">Amazon Elastic Container repository (ECR)</a> to EDH:
+                                            <kbd>edh:visibility:{{cluster_id}} = true</kbd>
+                                        </li>
+                                    </ul>
+                                </div>
+
+                                <div class="col-md-12">
+                                    <input type="text" id="searchImages" class="form-control" placeholder="Search for an image tag, digest ..." aria-controls="allContainerImages">
+                                    </div>
+                                <br>
+                                <table id="allContainerImages" class="display stripe" style="width:100%">
+                                    <thead>
+                                        <tr>
+                                            <th>Repository Name</th>
+                                            <th>Image Tag</th>
+                                            <th>Image Digest</th>
+                                            <th>Date</th>
+                                            <th>Size (MB)</th>
+                                            <th>Action</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                    {% for repository_name, image_list in container_images.items() %}
+                                        {% if image_list %}
+                                            {% for image_info in image_list %}
+                                                {% if image_info.imageTag %}
+                                                    <tr>
+                                                        <td><strong>{{repository_name}}</strong></td>
+                                                        <td> {{image_info.imageTag}}</td>
+                                                        <td>
+                                                            <a style="text-decoration: none;" href="javascript:void(0);" onclick="toggleDigest({{ loop.index }})" id="toggle-link-{{ loop.index }}">
+                                                                <span class="badge badge-secondary" id="digest-short-{{ loop.index }}">{{ image_info.imageDigest[-30:] }} (show more)</span>
+                                                                <span class="badge badge-secondary" id="digest-full-{{ loop.index }}" style="display:none;">{{ image_info.imageDigest }} (show less)</span>
+                                                            </a>
+                                                        <td>{{image_info.pushedAt }}</td>
+                                                        <td>{{image_info.imageSizeInMB}}</td>
+                                                    <td>
+                                                                <form method="POST" action="/containers/eks/setup">
+                                                                            <input type="hidden" name="image_uri" value="{{image_info.imageUri}}">
+                                                                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                                                            <button type="submit" class="btn btn-success btn-sm">Launch Container</button>
+                                                                </form>                                               
+                                                        </td>
+                                                    </tr>
+                                                {% endif %}
+                                            {% endfor %}
+                                        {% endif %}
+                                    {% endfor %}
+
+                                    </tbody>
+                                </table>
+                                <script>
+                                    document.addEventListener("DOMContentLoaded", function() {
+                                        // build datatable
+                                        let dtable = $('#allContainerImages').DataTable({
+                                            sorting: true,
+                                            paging: true,
+                                            pagingType: "full_numbers",
+                                            lengthMenu: [[15, 30, 50, -1], [15, 30, 50, "All"]],
+                                            language: {
+                                                emptyTable: "<h4>No Images, verify repository tag configuration</h4>",
+                                            },
+                                            dom: "<'row'<'col-sm-12'tr>>" + "<'row'<'col-sm-4'l><'col-sm-8'p>>",
+                                            fixedColumns: {
+                                                heightMatch: 'none'
+                                            },
+                                        });
+                                        // bind search input
+                                        $('#searchImages').keyup(function () {
+                                            dtable.search($(this).val()).draw();
+                                        })
+                                        $('.dataTables_filter input[type="search"]').css({'display': 'none'});
+                                    })
+                                </script>
+                            </div>
+                            {% endif %}
+                    </div>
+
+
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <a class="scroll-to-top rounded" href="#page-top">
+        <i class="fas fa-angle-up"></i>
+    </a>
+
+        {% include 'common/footer.html' %}
+
+    <script>
+        $(document).ready(function () {
+            // enable tooltip
+            $(function () {
+                $('[data-toggle="tooltip"]').tooltip()
+            })
+        })        
+    </script>
+
+<script>
+  function toggleDigest(id) {
+    const shortSpan = document.getElementById(`digest-short-${id}`);
+    const fullSpan = document.getElementById(`digest-full-${id}`);
+
+    const isCollapsed = fullSpan.style.display === "none";
+
+    shortSpan.style.display = isCollapsed ? "none" : "inline";
+    fullSpan.style.display = isCollapsed ? "inline" : "none";
+  }
+</script>
+
+</body>
+
+</html>

@@ -84,7 +84,7 @@
             "Effect": "Allow",
             "Condition": {
                 "StringEquals": {
-                    "ec2:ResourceTag/soca:ClusterId": "%%CLUSTER_ID%%"
+                    "ec2:ResourceTag/edh:ClusterId": "%%CLUSTER_ID%%"
                 }
             }
         }

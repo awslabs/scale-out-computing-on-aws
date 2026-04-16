@@ -29,7 +29,7 @@ class Jobs(Resource):
         tags:
           - Scheduler
         parameters:
-          - name: X-SOCA-USER
+          - name: X-EDH-USER
             in: header
             schema:
               type: string
@@ -37,7 +37,7 @@ class Jobs(Resource):
             required: true
             description: SOCA username for authentication
             example: admin
-          - name: X-SOCA-TOKEN
+          - name: X-EDH-TOKEN
             in: header
             schema:
               type: string

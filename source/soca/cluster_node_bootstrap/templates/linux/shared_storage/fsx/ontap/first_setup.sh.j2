@@ -79,14 +79,14 @@
       # Retrieve filesystem and tag containing Secret Manager information
       local FSX_DESCRIBE_FILESYSTEM=$(aws_cli fsx describe-file-systems --file-system-ids ${FSX_FILESYSTEM_ID})
       local FSX_ENDPOINT_MANAGEMENT="https://$(echo ${FSX_DESCRIBE_FILESYSTEM} | jq -r '.FileSystems[0].OntapConfiguration.Endpoints.Management.DNSName // "NO_VALUE"')"
-      local FSX_FILESYSTEM_TAG_FSX_ADMIN_SECRET=$(echo ${FSX_DESCRIBE_FILESYSTEM} | jq -r '.FileSystems[0].Tags[] | select(.Key == "soca:FsxAdminSecretName") | .Value')
+      local FSX_FILESYSTEM_TAG_FSX_ADMIN_SECRET=$(echo ${FSX_DESCRIBE_FILESYSTEM} | jq -r '.FileSystems[0].Tags[] | select(.Key == "edh:FsxAdminSecretName") | .Value')
 
       if [[ "${FSX_ENDPOINT_MANAGEMENT}" == "NO_VALUE" ]]; then
         exit_fail "Unable to determine FSX Endpoint Management . Details - FSX_ENDPOINT_MANAGEMENT=${FSX_ENDPOINT_MANAGEMENT}"
       fi
 
       if [[ -z "${FSX_FILESYSTEM_TAG_FSX_ADMIN_SECRET}" ]]; then
-        exit_fail "Unable to proceed to FSx ONTAP first setup because tag soca:FsxAdminSecretName is missing"
+        exit_fail "Unable to proceed to FSx ONTAP first setup because tag edh:FsxAdminSecretName is missing"
       else
         log_info "Retrieving fsxadmin credentials from ${FSX_FILESYSTEM_TAG_FSX_ADMIN_SECRET}"
         local FSX_ADMIN_SECRETMANAGER_ID=$(get_secret "${FSX_FILESYSTEM_TAG_FSX_ADMIN_SECRET}")
@@ -108,7 +108,7 @@
       local FSX_ONTAP_CIFS_SHARE_NAME=$(echo "${FSX_VOLUME_JUNCTION_PATH}" | sed 's|/|_|g; s/^_//')
 
       log_info "About to configure FSxN SVM ${FSX_SVM_NAME} for first launch"
-      pushd ${SOCA_BOOTSTRAP_ASSETS_FOLDER}
+      pushd ${EDH_BOOTSTRAP_ASSETS_FOLDER}
 
       # First, get the SVM UUID associated to SVM
       log_info "Retrieve SVM UUID: GET ${FSX_ENDPOINT_MANAGEMENT}/api/svm/svms?name=${FSX_SVM_NAME}"

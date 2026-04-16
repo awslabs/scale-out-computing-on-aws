@@ -103,12 +103,12 @@ class Users(Resource):
             socaAuth:
               type: apiKey
               in: header
-              name: X-SOCA-USER
+              name: X-EDH-USER
               description: SOCA username for authentication
             socaToken:
               type: apiKey
               in: header
-              name: X-SOCA-TOKEN
+              name: X-EDH-TOKEN
               description: SOCA authentication token
         """
         all_ldap_users = {}

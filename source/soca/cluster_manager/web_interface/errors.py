@@ -45,7 +45,7 @@ def all_errors(error_name: str, trace=False):
             232,
         ],
         "MISSING_DS_RESET_LAMBDA": [
-            f"Flask could not locate SOCA_DS_RESET_PW_LAMBDA variable. Make sure you started the UI with socawebui.sh",
+            f"Flask could not locate SOCA_DS_RESET_PW_LAMBDA variable. Make sure you started the UI with edhwebui.sh",
             233,
         ],
         "DS_PASSWORD_COMPLEXITY_ERROR": [
@@ -84,8 +84,8 @@ def all_errors(error_name: str, trace=False):
         "APPLICATION_IMPORT_ERROR": [f"Unable to import image due: {trace}", 400],
         "INVALID_CREDENTIALS": [f"Invalid user credentials.", 401],
         "LDAP_SERVER_DOWN": [f"LDAP server seems to be down or unreachable", 500],
-        "X-SOCA-USER_MISSING": [
-            f"Unable to retrieve request owner. X-SOCA-USER must be set",
+        "X-EDH-USER_MISSING": [
+            f"Unable to retrieve request owner. X-EDH-USER must be set",
             500,
         ],
         "COULD_NOT_CREATE_GROUP": [f"Unable to create LDAP group. " + str(trace), 500],

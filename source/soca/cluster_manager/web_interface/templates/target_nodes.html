@@ -8,50 +8,47 @@
 </head>
 
 <body id="page-top">
+{% include 'common/horizontal_menu_bar.html' %}
     <div id="wrapper">
         {% include 'common/vertical_menu_bar.html' %}
         <div id="content-wrapper" class="d-flex flex-column">
-            <div id="content">
-                <br>
+            <div id="content" style="margin-top: 20px;">
                 <div class="container-fluid">
-                    {% include 'common/horizontal_menu_bar.html' %}
                     {% include 'common/flashed_messages.html' %}
                     <div class="card shadow mb-4">
-                        <div class="card-header py-3 d-flex justify-content-between align-items-center">
-                            <h6 class="m-0 font-weight-bold text-primary">Your Target Nodes</h6>
-
-                            <div class="d-flex ms-auto align-items-center">
-
-                                <div id="selectedCardsToDisplay" class="btn-group btn-group-toggle mr-3" data-toggle="buttons">
-                                    <label class="btn btn-outline-primary active">
-                                        <input type="radio" name="options" id="all" value="all" autocomplete="off" checked onchange="displayCards(this.value)"> All
-                                    </label>
-                                    <label class="btn btn-outline-primary">
-                                        <input type="radio" name="options" id="windows" value="windows" autocomplete="off" onchange="displayCards(this.value)"> Windows
-                                    </label>
-                                    <label class="btn btn-outline-primary">
-                                        <input type="radio" name="options" id="linux" value="linux" autocomplete="off" onchange="displayCards(this.value)"> Linux
-                                    </label>
-                                </div>
-
-                                <button type="button" class="btn btn-success" data-bs-toggle="modal" data-bs-target="#launchNewTargetNodeModal">
-                                    Launch a New Target Node
-                                </button>
-                            </div>
-                        </div>
-
                         <div class="card-body">
+                            <div class="d-flex align-items-center">
+                                <h3 class="mb-0" data-toggle="tooltip" data-placement="top" title="Target Nodes are EC2 Amazon Machine Images (AMIs) without any EDH-specific modifications (e.g: no filesystem mount, AD/OpenLDAP join, packages installed ...). These nodes are designed to work with specialized operating systems or hypervisors, such as those used in embedded development.">My Target Nodes <i class="fas fa-question-circle"></i></h3>
+
+                                <div class="d-flex align-items-center ml-auto">
+                                    <div id="selectedCardsToDisplay" class="btn-group btn-group-toggle mr-3" data-toggle="buttons">
+                                        <label class="btn btn-outline-primary active">
+                                            <input type="radio" name="options" value="all" autocomplete="off" checked onchange="displayCards(this.value)"> All
+                                        </label>
+                                        <label class="btn btn-outline-primary">
+                                            <input type="radio" name="options" value="windows" autocomplete="off" onchange="displayCards(this.value)"> Windows
+                                        </label>
+                                        <label class="btn btn-outline-primary">
+                                            <input type="radio" name="options" value="linux" autocomplete="off" onchange="displayCards(this.value)"> Linux
+                                        </label>
+                                    </div>
+
+                                    <button type="button" class="btn btn-success" data-bs-toggle="modal" data-bs-target="#launchNewTargetNodeModal">
+                                        Launch a New Target Node
+                                    </button>
+                                </div>
+                            </div>
                             {% set CURRENT_SESSION_COUNT = user_sessions | length %}
                                 {% if not user_sessions %}
                                 <p class="card-text">
                                     <div class="text-center">
-                                        <p class="m-0">
+                                        <p class="mt-5">
                                             You do not have a target node yet. Create one by clicking the button above.
                                         </p>
                                     </div>
                                 </p>
                                 {% else %}
-                                <div class="row">
+                                <div class="row mt-5">
                                     {% for session_data in user_sessions.values() %}
                                         {% set TARGET_NODE_CARD_UUID = 'TargetNodeUserSessionCard-' ~ session_data.session_uuid ~ '-'%}
 
@@ -630,15 +627,15 @@
                                                         <label for="selectInstanceType" data-toggle="tooltip" data-placement="top" title="Select the instance type to provision" class="col-sm-2 col-form-label"><i class="fa-solid fa-microchip"></i>  Session Type</label>
                                                         <div class="col-sm-10" id="divSelectInstanceType" style="display: none;">
                                                             <select name="instance_type" required class="form-control" id="selectInstanceType"></select>
-                                                            <small class="form-text text-muted">EC2 Instance Types you are authorized to deploy for this software stack. Manage list via <a href="/admin/target_nodes/profiles">SOCA Target Nodes Profiles.</a></small>
+                                                            <small class="form-text text-muted">EC2 Instance Types you are authorized to deploy for this software stack. Manage list via <a href="/admin/target_nodes/profiles">EDH Target Nodes Profiles.</a></small>
                                                         </div>
                                                     </div>
 
                                                     <div class="form-group row">
-                                                        <label for="project" data-toggle="tooltip" data-placement="top" title="Select the SOCA Projects and optional AWS Budget for this target node" class="col-sm-2 col-form-label"><i class="fa-solid fa-folder-open"></i> Project</label>
+                                                        <label for="project" data-toggle="tooltip" data-placement="top" title="Select the EDH Project and optional AWS Budget for this target node" class="col-sm-2 col-form-label"><i class="fa-solid fa-folder-open"></i> Project</label>
                                                         <div class="col-sm-10" id="divSelectProject" style="display: none;">
                                                             <select name="project" required class="form-control" id="project"></select>
-                                                            <small class="form-text text-muted">SOCA projects you are authorized to use for this stack. Resources will use the assigned budget if specified. Manage list via <a href="/admin/projects">SOCA Projects.</a></small>
+                                                            <small class="form-text text-muted">EDH projects you are authorized to use for this stack. Resources will use the assigned budget if specified. Manage list via <a href="/admin/projects">EDH Projects.</a></small>
                                                         </div>
                                                     </div>
 
@@ -650,7 +647,7 @@
 
                                                             <hr>
 
-                                                            <button class="btn btn-info btn-sm" type="button" data-bs-toggle="collapse" data-bs-target="#advancedOptions" aria-expanded="false">
+                                                            <button class="btn btn-primary btn-sm" type="button" data-bs-toggle="collapse" data-bs-target="#advancedOptions" aria-expanded="false">
                                                                 View Advanced Options
                                                             </button>
 
@@ -675,12 +672,18 @@
                                                                 </select>
                                                                 <small class="form-text text-muted">Enable Hibernation Support. <a href="https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/Hibernate.html" target="_blank">See Documentation.</a> </small>
                                                                 <br>
+                                                                <select class="form-control" name="nested_virtualization">
+                                                                    <option value="false" selected>No</option>
+                                                                    <option value="true">Yes</option>
+                                                                </select>
+                                                                <small class="form-text text-muted">Enable Nested Virtualization. Requires an 8th generation AWS Instance Type Family (e.g. c8i, r8i, m8i).</small>
+                                                                <br>
                                                             </div>
                                                         </div>
                                                     </div>
                                                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                                                     <div class="d-flex justify-content-center">
-                                                        <button type="submit" class="btn btn-primary btn-lg px-5 py-3" id="launchButton" style="display: none;">Launch My Target Node</button>
+                                                        <button type="submit" class="btn btn-primary px-5 py-3" id="launchButton" style="display: none;">Launch My Target Node</button>
                                                     </div>
                                                 </form>
                                             </div>
@@ -881,7 +884,7 @@
             selectInstanceType.onchange = function () {
                 if (selectInstanceType.value) {
                     divSelectProject.style.display = 'block';
-                    selectProject.innerHTML = '<option value="" selected disabled>Select a SOCA Project</option>';
+                    selectProject.innerHTML = '<option value="" selected disabled>Select an EDH Project</option>';
                     allowedProjects.forEach(projectName => {
                         const option = document.createElement('option');
                         option.value = projectName;
@@ -952,7 +955,7 @@
                                                             if (filteredData.length === 0) {
                                                                 var noDataMessage = `
                                                                     <div class="col-12 text-center">
-                                                                        <h3>No software stack found. Please verify that you’ve been added to the appropriate <a href="/admin/projects">SOCA projects</a>. If the issue persists, contact your SOCA administrator.</h3>
+                                                                        <h3>No software stack found. Please verify that you’ve been added to the appropriate <a href="/admin/projects">EDH projects</a>. If the issue persists, contact your EDH administrator.</h3>
                                                                     </div>
                                                                 `;
                                                                 gridContainer.append(noDataMessage);

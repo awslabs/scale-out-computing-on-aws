@@ -10,25 +10,24 @@
     {% include 'common/header.html' %}
 </head>
 <body id="page-top">
+    {% include 'common/horizontal_menu_bar.html' %}
+
 <div id="wrapper">
     {% include 'common/vertical_menu_bar.html' %}
     <div id="content-wrapper" class="d-flex flex-column">
-        <div id="content">
-            <br>
+        <div id="content" style="margin-top: 20px;">
             <div class="container-fluid">
-                {% include 'common/horizontal_menu_bar.html' %}
                 {% include 'common/flashed_messages.html' %}
 
                 <div class="col-md-12">
                     <div class="tab-content" id="nav-tabContent">
                         <div class="tab-pane fade show active" id="nav-add" role="tabpanel"
                              aria-labelledby="nav-home-tab">
-                            <br>
+                         
                             <div class="card shadow mb-4">
-                                <div class="card-header py-3">
-                                    <h6 class="m-0 font-weight-bold text-primary">Edit SOCA Project</h6>
-                                </div>
+
                                     <div class="card-body">
+                                          <h3>Edit EDH Project</h3>
                                         <form action="/admin/projects/edit/update" method="post">
 
                                             <div class="form-group row">
@@ -49,10 +48,8 @@
                                                 </label>
                                                 <div class="col-md-10">
                                                   <select class="form-control" id="aws_budget" name="aws_budget">
-                                                     {% if not project_info.aws_budget %}
-                                                     <option value="" selected > No Budget</option>
-                                                     {% endif %}
-
+                                                     <option value="" {% if not project_info.aws_budget %}selected{% endif %}> No Budget</option>
+                                                    
                                                      {% for budget_name in budgets %}
                                                          {% if budget_name == project_info.aws_budget %}
                                                             <option value="{{ budget_name }}" selected> {{budget_name}}</option>
@@ -121,7 +118,7 @@
                                                     </div>
                                                     <small>
                                                       <ul>
-                                                        <li>Must be a valid SOCA user</li>
+                                                        <li>Must be a valid EDH user</li>
                                                         <li>Use <code>*</code> to allow all users</li>
                                                         <li>Leave blank to remove access</li>
                                                       </ul>
@@ -137,7 +134,7 @@
                                                   </div>
                                                   <small>
                                                       <ul>
-                                                        <li>Must be a valid SOCA user</li>
+                                                        <li>Must be a valid EDH user</li>
                                                         <li>Use <code>*</code> to deny all</li>
                                                         <li>Deny takes precedence over allow</li>
                                                       </ul>
@@ -169,7 +166,7 @@
                                                     </div>
                                                     <small>
                                                       <ul>
-                                                        <li>Must be a valid SOCA group</li>
+                                                        <li>Must be a valid EDH group</li>
                                                       </ul>
                                                     </small>
                                                   </div>
@@ -182,7 +179,7 @@
                                                     <input id="denied_groups" class="form-control mb-2" name="denied_groups" data-ub-tag-variant="primary" value="{{project_info.denied_groups}}">
                                                     <small>
                                                       <ul>
-                                                        <li>Must be a valid SOCA group</li>
+                                                        <li>Must be a valid EDH group</li>
                                                         <li>Deny takes precedence over allow</li>
                                                         <li>Users in denied groups will be denied even if individually allowed</li>
                                                       </ul>
@@ -287,7 +284,7 @@
                                               <input type="hidden" name="project_id" value="{{project_info.id}}">
                                                 <input type="hidden" name="csrf_token"
                                                        value="{{ csrf_token() }}">
-                                                <button type="submit" class="btn btn-primary btn-lg">Update Project</button>
+                                                <button type="submit" class="btn btn-primary">Update Project</button>
                                             </div>
                                           </div>
 

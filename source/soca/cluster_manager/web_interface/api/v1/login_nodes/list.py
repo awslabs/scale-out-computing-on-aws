@@ -89,28 +89,28 @@ class ListLoginNodes(Resource):
             socaAuth:
               type: apiKey
               in: header
-              name: X-SOCA-USER
+              name: X-EDH-USER
               description: SOCA username for authentication
             socaToken:
               type: apiKey
               in: header
-              name: X-SOCA-TOKEN
+              name: X-EDH-TOKEN
               description: SOCA authentication token
         """
         logger.debug("Fetching all Login Nodes IPs for your SOCA environment")
-        user = request.headers.get("X-SOCA-USER")
+        user = request.headers.get("X-EDH-USER")
         if user is None:
-            return SocaError.CLIENT_MISSING_HEADER(header="X-SOCA-USER").as_flask()
+            return SocaError.CLIENT_MISSING_HEADER(header="X-EDH-USER").as_flask()
 
         login_nodes = []
 
         ec2_paginator = client_ec2.get_paginator("describe_instances")
         ec2_iterator = ec2_paginator.paginate(
             Filters=[
-                {"Name": "tag:soca:NodeType", "Values": ["login_node"]},
+                {"Name": "tag:edh:NodeType", "Values": ["login_node"]},
                 {"Name": "instance-state-name", "Values": ["running"]},
                 {
-                    "Name": "tag:soca:ClusterId",
+                    "Name": "tag:edh:ClusterId",
                     "Values": [
                         SocaConfig(key="/configuration/ClusterId")
                         .get_value()

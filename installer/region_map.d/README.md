@@ -1,22 +1,22 @@
 # Region_map.d Directory Information
 
 
-Starting with SOCA `25.x.y` the SOCA installer will read YAML files from a `region_map.d` filesystem tree in order to lookup AMIs used for the environment.
+Starting with SOCA `25.x.y` the installer will read YAML files from a `region_map.d` filesystem tree in order to lookup AMIs used for the environment.
 
 
-This directory structure will be processed in a lexicographically sorted manner so that site-local over-rides can take places from the SOCA supplied defaults (files starting with `000`).
+This directory structure will be processed in a lexicographically sorted manner so that site-local over-rides can take places from the supplied defaults (files starting with `000`).
 
-This will minimize future problems and still allow for SOCA defaults to be updated/shipped with each version while preserving site-local changes.
+This will minimize future problems and still allow for defaults to be updated/shipped with each version while preserving site-local changes.
 
 
-#  SOCA Defaults
+#  Defaults
 
-SOCA defaults (potentially updated with each version of SOCA) are contained in the `aws/000-<region>.yaml` files. These should not be edited directly as they are updated with each SOCA version.
+The defaults (potentially updated with each new version) are contained in the `aws/000-<region>.yaml` files. These should not be edited directly as they are updated with each version.
 
 
 # Site Local Specifications
 
-In order to make use of a different AMI - create/update files in the format `aws/nnn-<region>.yaml` , where `nnn` is numerically greater than `000` (the SOCA defaults).
+In order to make use of a different AMI - create/update files in the format `aws/nnn-<region>.yaml` , where `nnn` is numerically greater than `000` (the defaults).
 
 For example, for the `us-east-1` region, this could be `001-us-east-1.yaml`, etc.
 
@@ -41,9 +41,9 @@ us-east-1:
 
 In this example - the AMI `ami-1234567890abcdef` will be used for `us-east-1` `x86_64` architecture systems running the `amazonlinux2023` base OS.
 
-These values will over-ride the SOCA supplied defaults.
+These values will over-ride the supplied defaults.
 
-*NOTE* - You can supply multiple regions per file. Just make sure the naming / numbering convention would place the file *AFTER* the SOCA default file for a given region, or after all regions.
+*NOTE* - You can supply multiple regions per file. Just make sure the naming / numbering convention would place the file *AFTER* the default file for a given region, or after all regions.
 
 For example - `999-my-ami-defaults.yaml` can contain:
 

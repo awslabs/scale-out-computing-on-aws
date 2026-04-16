@@ -20,7 +20,7 @@ class SocaConfig:
         key: str,
         parameter_name_prefix: Optional[
             str
-        ] = f"/soca/{os.environ.get('SOCA_CLUSTER_ID')}",
+        ] = f"/edh/{os.environ.get('EDH_CLUSTER_ID')}",
         cache_admin: bool = True,
     ):
         self._parameter_name_prefix = parameter_name_prefix
@@ -121,7 +121,7 @@ class SocaConfig:
                             return SocaResponse(success=False, message={})
 
                     for _entry in parameters:
-                        if cache_result is True:
+                        if cache_result:
                             if (
                                 self.cache_admin is True
                                 and _cache_enabled.success is True
@@ -157,7 +157,7 @@ class SocaConfig:
                 )
                 _key_name = _response.get("Parameter").get("Name")
                 _key_value = _response.get("Parameter").get("Value")
-                if cache_result is True:
+                if cache_result:
                     if self.cache_admin is True and _cache_enabled.success is True:
                         logger.debug(f"Caching {_key_name} ...  ")
                         self._cache_client.set(
@@ -181,7 +181,7 @@ class SocaConfig:
             if default is not None:
                 return SocaResponse(success=True, message=default)
             else:
-                if allow_unknown_key is True:
+                if allow_unknown_key:
                     # Will not trigger a SocaError
                     return SocaResponse(success=False, message="Key does not exist")
                 return SocaError.AWS_API_ERROR(

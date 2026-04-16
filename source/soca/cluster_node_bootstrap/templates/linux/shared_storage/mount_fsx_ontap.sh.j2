@@ -105,16 +105,16 @@
         ENDPOINT="${NFS_DNS_NAME}:${FSX_VOLUME_JUNCTION_PATH}"
       fi
 
-      if [[ "${SOCA_NODE_TYPE}" == "controller" ]]; then
-       # Check if tag soca:OntapFirstSetup == true is there, only applicable on the controller
+      if [[ "${EDH_NODE_TYPE}" == "controller" ]]; then
+       # Check if tag edh:OntapFirstSetup == true is there, only applicable on the controller
        # If yes, SOCA will proceed to initial CIFS/SVM configuration
-        local FSX_VOLUME_TAG_ONTAP_FIRST_SETUP=$(aws_cli fsx list-tags-for-resource --resource-arn "${FSX_VOLUME_RESOURCE_ARN}" --query "Tags[?Key=='soca:OntapFirstSetup'].Value" --output text)
+        local FSX_VOLUME_TAG_ONTAP_FIRST_SETUP=$(aws_cli fsx list-tags-for-resource --resource-arn "${FSX_VOLUME_RESOURCE_ARN}" --query "Tags[?Key=='edh:OntapFirstSetup'].Value" --output text)
         if [[ "${FSX_VOLUME_TAG_ONTAP_FIRST_SETUP}" == "true" ]]; then
-          log_info "Tag soca:OntapFirstSetup = true exist on this FSx for NetApp ONTAP, processing to CIFS share creation and SVM conf"
+          log_info "Tag edh:OntapFirstSetup = true exist on this FSx for NetApp ONTAP, processing to CIFS share creation and SVM conf"
           {% include "templates/linux/shared_storage/fsx/ontap/first_setup.sh.j2" %}
           fsx_ontap_first_setup "${MOUNT_TARGET}"
         else
-          log_info "soca:OntapFirstSetup not present or not true, fsx_ontap_first_setup is not needed"
+          log_info "edh:OntapFirstSetup not present or not true, fsx_ontap_first_setup is not needed"
         fi
       fi
 

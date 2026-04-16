@@ -6,7 +6,7 @@
 # Default User Data WS2019/2022: Get-Content C:\ProgramData\Amazon\EC2-Windows\Launch\Log\UserdataExecution.log
 # Default User Data WS2025: Get-Content C:\ProgramData\Amazon\EC2Launch\log\agent.log (then search for 'Output file is created', 'Error file is created')
 
-# SOCA logs: Set-Location -Path "C:\ProgramData\SOCA\<instance_id>"; Get-ChildItem
+# EDH logs: Set-Location -Path "C:\ProgramData\EDH\<instance_id>"; Get-ChildItem
 
 # User Data are configured for each run, but skipped if bootstrap sequence has already been completed for the instance ID
 
@@ -20,50 +20,50 @@ $ProgressPreference = 'SilentlyContinue'
 Log-Info -Message "Starting User Data setup"
 
 
-Log-Info "Setup Environment variables SOCABootstrapAssetsFolder and SOCABootstrapPostRebootTaskName"
+Log-Info "Setup Environment variables EDHBootstrapAssetsFolder and EDHBootstrapPostRebootTaskName"
 #  Set the env variable for the current shell as [System.EnvironmentVariableTarget]::Machine does not affect current shell
-$env:SOCABootstrapAssetsFolder = "C:\ProgramData\SOCA\${instanceId}"
-$env:SOCABootstrapPostRebootTaskName = "SOCABootStrapPostReboot_${instanceId}"
+$env:EDHBootstrapAssetsFolder = "C:\ProgramData\EDH\${instanceId}"
+$env:EDHBootstrapPostRebootTaskName = "EDHBootStrapPostReboot_${instanceId}"
 
 # Set env variable Machine level
-[System.Environment]::SetEnvironmentVariable('SOCABootstrapAssetsFolder', $SOCABootstrapAssetsFolder, [System.EnvironmentVariableTarget]::Machine)
-[System.Environment]::SetEnvironmentVariable('SOCABootstrapPostRebootTaskName', $SOCABootstrapPostRebootTaskName, [System.EnvironmentVariableTarget]::Machine)
+[System.Environment]::SetEnvironmentVariable('EDHBootstrapAssetsFolder', $EDHBootstrapAssetsFolder, [System.EnvironmentVariableTarget]::Machine)
+[System.Environment]::SetEnvironmentVariable('EDHBootstrapPostRebootTaskName', $EDHBootstrapPostRebootTaskName, [System.EnvironmentVariableTarget]::Machine)
 
-# Set the SOCA_DCV_SESSION_ID (same name on Linux). This is used by the scheduled task to retrieve the DCV Session ID
-[System.Environment]::SetEnvironmentVariable('SOCA_DCV_SESSION_ID', "{{ context.get("/dcv/SessionId") }}", [System.EnvironmentVariableTarget]::Machine)
+# Set the EDH_DCV_SESSION_ID (same name on Linux). This is used by the scheduled task to retrieve the DCV Session ID
+[System.Environment]::SetEnvironmentVariable('EDH_DCV_SESSION_ID', "{{ context.get("/dcv/SessionId") }}", [System.EnvironmentVariableTarget]::Machine)
 
-$SOCABootstrapAssetsFolder = $env:SOCABootstrapAssetsFolder
+$EDHBootstrapAssetsFolder = $env:EDHBootstrapAssetsFolder
 
 # Check if bootstrap has not already been completed for this instance and exit if lock file is found
-if (Test-Path -Path "${SOCABootstrapAssetsFolder}\userdata_completed_${instanceId}.txt") {
-    Log-Info -Message "${SOCABootstrapAssetsFolder}\userdata_completed_${instanceId}.txt exist, skipping user-data"
+if (Test-Path -Path "${EDHBootstrapAssetsFolder}\userdata_completed_${instanceId}.txt") {
+    Log-Info -Message "${EDHBootstrapAssetsFolder}\userdata_completed_${instanceId}.txt exist, skipping user-data"
     exit 0
 }
 
-# Create boostrap folder if it does not already exists
+# Create boostrap folder if it does not already exist
 # Add any other actions that should only be executed once
-if (-not (Test-Path -Path "${SOCABootstrapAssetsFolder}")) {
-    Log-Info -Message "${SOCABootstrapAssetsFolder} does not exist, creating it "
-    New-Item -Path "${SOCABootstrapAssetsFolder}" -ItemType Directory
-    Log-Info -Message "Created ${SOCABootstrapAssetsFolder}"  | Out-File -FilePath "${SOCABootstrapAssetsFolder}\01_user_data.ps1.log" -Append
+if (-not (Test-Path -Path "${EDHBootstrapAssetsFolder}")) {
+    Log-Info -Message "${EDHBootstrapAssetsFolder} does not exist, creating it "
+    New-Item -Path "${EDHBootstrapAssetsFolder}" -ItemType Directory
+    Log-Info -Message "Created ${EDHBootstrapAssetsFolder}"  | Out-File -FilePath "${EDHBootstrapAssetsFolder}\01_user_data.ps1.log" -Append
 
     # Download Bootstrap sequence from s3
-    Log-Info -Message "Downloading Boostrap Sequence from  {{ context.get("/job/BootstrapScriptsS3Location") }}" | Out-File -FilePath "${SOCABootstrapAssetsFolder}\01_user_data.ps1.log" -Append
-    Invoke-SOCAAwsCli s3 sync {{ context.get("/job/BootstrapScriptsS3Location") }} $SOCABootstrapAssetsFolder
+    Log-Info -Message "Downloading Boostrap Sequence from  {{ context.get("/job/BootstrapScriptsS3Location") }}" | Out-File -FilePath "${EDHBootstrapAssetsFolder}\01_user_data.ps1.log" -Append
+    Invoke-SOCAAwsCli s3 sync {{ context.get("/job/BootstrapScriptsS3Location") }} $EDHBootstrapAssetsFolder
 
     # Track Bootstrap location
-    Log-Info -Message "{{ context.get("/job/BootstrapScriptsS3Location") }}" | Out-File -FilePath "${SOCABootstrapAssetsFolder}\bootstrap_s3_location.log" -Append
+    Log-Info -Message "{{ context.get("/job/BootstrapScriptsS3Location") }}" | Out-File -FilePath "${EDHBootstrapAssetsFolder}\bootstrap_s3_location.log" -Append
 }
 
 # CD into boostrap location
-Set-Location -Path $SOCABootstrapAssetsFolder
+Set-Location -Path $EDHBootstrapAssetsFolder
 
 # Executes the script
-Log-Info -Message "Executing 02_setup.ps"  | Out-File -FilePath "${SOCABootstrapAssetsFolder}\01_user_data.ps1.log" -Append
+Log-Info -Message "Executing 02_setup.ps"  | Out-File -FilePath "${EDHBootstrapAssetsFolder}\01_user_data.ps1.log" -Append
 Set-ExecutionPolicy RemoteSigned -Scope Process
 
 # Note: must be a .ps1 extension. not .ps
-& "${SOCABootstrapAssetsFolder}\02_setup.ps1" *> "${SOCABootstrapAssetsFolder}\02_setup.ps1.log"
+& "${EDHBootstrapAssetsFolder}\02_setup.ps1" *> "${EDHBootstrapAssetsFolder}\02_setup.ps1.log"
 
 </powershell>
 <persist>true</persist>

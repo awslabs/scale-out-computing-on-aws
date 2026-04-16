@@ -16,9 +16,9 @@
 # Validate umask
 {% include "templates/linux/umask.sh.j2" %}
 
-# Verify previous SOCA Bootstrap lock presence
-if [[ -f "/root/.soca_bootstrap_controller_{{ context.get('/configuration/ClusterId') }}_completed" ]]; then
-  exit_fail "/root/.soca_bootstrap_controller_{{ context.get('/configuration/ClusterId') }}_completed already exist. To prevent configuration overwrite, we exit the script, since this machine seems to be already configured"
+# Verify previous EDH Bootstrap lock presence
+if [[ -f "/root/.edh_bootstrap_controller_{{ context.get('/configuration/ClusterId') }}_completed" ]]; then
+  exit_fail "/root/.edh_bootstrap_controller_{{ context.get('/configuration/ClusterId') }}_completed already exist. To prevent configuration overwrite, we exit the script, since this machine seems to be already configured"
 fi
 
 log_info "Pre-Requisite Start Date: $(date)"
@@ -27,47 +27,57 @@ unset_reboot_required
 
 # Set Environment variables
 set_environment_variable "AWS_DEFAULT_REGION" "{{ context.get("/configuration/Region") }}"
-set_environment_variable "SOCA_BOOTSTRAP_ASSETS_FOLDER" "/root/soca_bootstrap_$(instance_id)"
-set_environment_variable "SOCA_BOOTSTRAP_LOGS_FOLDER" "/root/soca_bootstrap_$(instance_id)/logs"
-set_environment_variable "SOCA_NODE_TYPE" "{{ context.get("/job/NodeType") }}"
-set_environment_variable "SOCA_CLUSTER_ID" "{{ context.get("/configuration/ClusterId") }}" # needed for Logs backup
-set_environment_variable "SOCA_INSTALL_BUCKET" "{{ context.get("/configuration/S3Bucket") }}" # needed for Logs backup
-set_environment_variable "SOCA_VERSION" "{{ context.get("/configuration/Version") }}" # needed for Logs backup
-set_environment_variable "SOCA_HOME" "/opt/soca/{{ context.get("/configuration/ClusterId") }}"
+set_environment_variable "EDH_BOOTSTRAP_ASSETS_FOLDER" "/root/edh_bootstrap_$(instance_id)"
+set_environment_variable "EDH_BOOTSTRAP_LOGS_FOLDER" "/root/edh_bootstrap_$(instance_id)/logs"
+set_environment_variable "EDH_NODE_TYPE" "{{ context.get("/job/NodeType") }}"
+set_environment_variable "EDH_CLUSTER_ID" "{{ context.get("/configuration/ClusterId") }}" # needed for Logs backup
+set_environment_variable "EDH_INSTALL_BUCKET" "{{ context.get("/configuration/S3Bucket") }}" # needed for Logs backup
+set_environment_variable "EDH_VERSION" "{{ context.get("/configuration/Version") }}" # needed for Logs backup
+set_environment_variable "EDH_HOME" "/opt/edh/{{ context.get("/configuration/ClusterId") }}"
+set_environment_variable "SOCA_CLUSTER_ID" "{{ context.get("/configuration/ClusterId") }}" # Legacy
 
-# Create $SOCA_HOME if needed
-mkdir -p ${SOCA_HOME}
+# Create $EDH_HOME if needed
+mkdir -p ${EDH_HOME}
 
-{% if context.get("/configuration/BaseOS") == "centos7" %}
+{% if context.get("/job/BaseOS") == "centos7" %}
   # CentOS7 is EOL, manual patch to support Yum repo
   {% include "templates/linux/patch_centos7_repos.sh.j2" %}
 {% endif %}
 
 # Retrieve the region of the bucket specified at install time
-{% if context.get("/configuration/Region") in ('us-gov-east-1', 'us-gov-west-1')  %}
-  S3_BUCKET_REGION=$(curl -s --head {{ context.get("/configuration/S3Bucket") }}.s3.{{ context.get("/configuration/Region") }}.amazonaws.com | grep bucket-region | awk '{print $2}' | tr -d '\r\n')
+{% if context.get("/configuration/Region") in ["us-gov-east-1', 'us-gov-west-1"]  %}
+    S3_BUCKET_REGION=$(curl -s --head {{ context.get("/configuration/S3Bucket") }}.s3.{{ context.get("/configuration/Region") }}.amazonaws.com | grep bucket-region | awk '{print $2}' | tr -d '\r\n')
+{% elif context.get("/configuration/Region") in ["cn-north-1", "cn-northwest-1"]  %}
+    S3_BUCKET_REGION=$(curl -s --head {{ context.get("/configuration/S3Bucket") }}.s3.amazonaws.com.cn | grep bucket-region | awk '{print $2}' | tr -d '\r\n')
+{% elif context.get("/configuration/Region") in ["eusc-de-east-1"] %}
+    S3_BUCKET_REGION=$(curl -s --head {{ context.get("/configuration/S3Bucket") }}.s3.{{ context.get("/configuration/Region") }}.amazonaws.eu | grep bucket-region | awk '{print $2}' | tr -d '\r\n')
 {% else %}
-  S3_BUCKET_REGION=$(curl -s --head {{ context.get("/configuration/S3Bucket") }}.s3.amazonaws.com | grep bucket-region | awk '{print $2}' | tr -d '\r\n')
+    S3_BUCKET_REGION=$(curl -s --head {{ context.get("/configuration/S3Bucket") }}.s3.amazonaws.com | grep bucket-region | awk '{print $2}' | tr -d '\r\n')
 {% endif %}
 
-# Retrieve SOCA configuration under soca.tar.gz and extract it on /opt/soca/
-aws_cli s3 --region ${S3_BUCKET_REGION} cp s3://{{ context.get("/configuration/S3Bucket") }}/{{ context.get("/configuration/ClusterId") }}/soca.tar.gz ${SOCA_BOOTSTRAP_ASSETS_FOLDER}
+log_info "Detected S3 Bucket Region: ${S3_BUCKET_REGION}"
+# Retrieve SOCA configuration under soca.tar.gz and extract it on /opt/edh/
+aws_cli s3 --region ${S3_BUCKET_REGION} cp s3://{{ context.get("/configuration/S3Bucket") }}/{{ context.get("/configuration/ClusterId") }}/soca.tar.gz ${EDH_BOOTSTRAP_ASSETS_FOLDER}
+
+# Create a symbolic link for SOCA for backward compatibility
+ln -sf /opt/edh /opt/soca
 
 # Download codebase, temp extract on root just to retrieve j2generator
-tar -xvf ${SOCA_BOOTSTRAP_ASSETS_FOLDER}/soca.tar.gz -C /opt/soca/{{ context.get("/configuration/ClusterId") }} --no-same-owner
-mkdir -p /opt/soca/{{ context.get("/configuration/ClusterId") }}/cluster_manager/orchestrator/logs
+tar -xvf ${EDH_BOOTSTRAP_ASSETS_FOLDER}/soca.tar.gz -C /opt/edh/{{ context.get("/configuration/ClusterId") }} --no-same-owner
+mkdir -p /opt/edh/{{ context.get("/configuration/ClusterId") }}/cluster_manager/orchestrator/logs
 
 # Apply permissions
-chmod -R 600 /opt/soca/{{ context.get("/configuration/ClusterId") }}/cluster_manager/
+chmod -R 600 /opt/edh/{{ context.get("/configuration/ClusterId") }}/cluster_manager/
 
 # Set up executable flag
-chmod +x /opt/soca/{{ context.get("/configuration/ClusterId") }}/cluster_manager/orchestrator/socaqstat.py
-chmod +x /opt/soca/{{ context.get("/configuration/ClusterId") }}/cluster_manager/tools/j2generator/j2generator.sh
-chmod +x /opt/soca/{{ context.get("/configuration/ClusterId") }}/cluster_manager/socactl
-chmod +x /opt/soca/{{ context.get("/configuration/ClusterId") }}/cluster_manager/socapython
-chmod +x /opt/soca/{{ context.get("/configuration/ClusterId") }}/cluster_manager/analytics/wrapper.sh
-chmod +x /opt/soca/{{ context.get("/configuration/ClusterId") }}/cluster_manager/orchestrator/jobs_dispatcher.sh
-chmod +x /opt/soca/{{ context.get("/configuration/ClusterId") }}/cluster_manager/orchestrator/nodes_manager.sh
+chmod +x /opt/edh/{{ context.get("/configuration/ClusterId") }}/cluster_manager/orchestrator/socaqstat.py
+chmod +x /opt/edh/{{ context.get("/configuration/ClusterId") }}/cluster_manager/tools/j2generator/j2generator.sh
+chmod +x /opt/edh/{{ context.get("/configuration/ClusterId") }}/cluster_manager/socactl
+chmod +x /opt/edh/{{ context.get("/configuration/ClusterId") }}/cluster_manager/edhctl
+chmod +x /opt/edh/{{ context.get("/configuration/ClusterId") }}/cluster_manager/edhpython
+chmod +x /opt/edh/{{ context.get("/configuration/ClusterId") }}/cluster_manager/analytics/wrapper.sh
+chmod +x /opt/edh/{{ context.get("/configuration/ClusterId") }}/cluster_manager/orchestrator/jobs_dispatcher.sh
+chmod +x /opt/edh/{{ context.get("/configuration/ClusterId") }}/cluster_manager/orchestrator/nodes_manager.sh
 
 
 # Install SQLite (deps for SOCA Python)
@@ -80,44 +90,49 @@ chmod +x /opt/soca/{{ context.get("/configuration/ClusterId") }}/cluster_manager
 {% include "templates/linux/cache_client.sh.j2" %}
 
 # Wait until all parameters have been added to CDK
-while ! aws_cli ssm get-parameter --name "/soca/{{ context.get("/configuration/ClusterId") }}/cdk_completed" > /dev/null 2>&1; do
-    log_info "/soca/{{ context.get("/configuration/ClusterId") }}/cdk_completed not found on SSM, CDK & CloudFormation are probably still in creation, waiting a little longer"
+while ! aws_cli ssm get-parameter --name "/edh/{{ context.get("/configuration/ClusterId") }}/cdk_completed" > /dev/null 2>&1; do
+    log_info "/edh/{{ context.get("/configuration/ClusterId") }}/cdk_completed not found on SSM, CDK & CloudFormation are probably still in creation, waiting a little longer"
     sleep 120
 done
 
 # Mount Filesystems - Reboot may be needed for Lustre Client
-/bin/bash "${SOCA_BOOTSTRAP_ASSETS_FOLDER}/filesystems_automount.sh" >> "${SOCA_BOOTSTRAP_LOGS_FOLDER}/filesystems_mount.log" 2>&1
+/bin/bash "${EDH_BOOTSTRAP_ASSETS_FOLDER}/filesystems_automount.sh" >> "${EDH_BOOTSTRAP_LOGS_FOLDER}/filesystems_mount.log" 2>&1
 if [[ "$(get_reboot_required)" == "yes" ]]; then
-    cp /var/log/cloud-init-output.log "${SOCA_BOOTSTRAP_LOGS_FOLDER}/cloud-init-output-post-filesystems-mount-$(date +%s).log" || echo "/cloud-init-output not found"
+    cp /var/log/cloud-init-output.log "${EDH_BOOTSTRAP_LOGS_FOLDER}/cloud-init-output-post-filesystems-mount-$(date +%s).log" || echo "/cloud-init-output not found"
     log_info "Rebooting and re-running user data post filesystems_automount"
     cloud_init_rerun_user_data
     reboot
 fi
 
 # This shared location will be used to centralize bootstrap logs for easy troubleshooting as well as other automation tools
-log_info "Creating /apps/soca/{{ context.get("/configuration/ClusterId") }}/shared"
-mkdir -p /apps/soca/{{ context.get("/configuration/ClusterId") }}/shared/
+log_info "Creating /apps/edh/{{ context.get("/configuration/ClusterId") }}/shared"
+mkdir -p /apps/edh/{{ context.get("/configuration/ClusterId") }}/shared/
 
-chmod -R 600 /apps/soca/{{ context.get("/configuration/ClusterId") }}/
+chmod -R 600 /apps/edh/{{ context.get("/configuration/ClusterId") }}/
 
-log_info "Generating ${SOCA_BOOTSTRAP_ASSETS_FOLDER}/03_setup.sh from ${SOCA_BOOTSTRAP_ASSETS_FOLDER}/03_setup.sh.j2"
-/bin/bash /opt/soca/{{ context.get("/configuration/ClusterId") }}/cluster_manager/tools/j2generator/j2generator.sh --get-template "03_setup.sh.j2" \
-    --output-file "${SOCA_BOOTSTRAP_ASSETS_FOLDER}/03_setup.sh" \
+# Create a symbolic link for SOCA for backward compatibility
+ln -sf /apps/edh /apps/soca
+
+log_info "Generating ${EDH_BOOTSTRAP_ASSETS_FOLDER}/03_setup.sh from ${EDH_BOOTSTRAP_ASSETS_FOLDER}/03_setup.sh.j2"
+/bin/bash /opt/edh/{{ context.get("/configuration/ClusterId") }}/cluster_manager/tools/j2generator/j2generator.sh --get-template "03_setup.sh.j2" \
+    --output-file "${EDH_BOOTSTRAP_ASSETS_FOLDER}/03_setup.sh" \
     --ssm-key "/" \
     --add-value "KEY=/job/NodeType VALUE=controller TYPE=str" \
-    --template-dirs "/opt/soca/{{ context.get("/configuration/ClusterId") }}/cluster_node_bootstrap/" \
-    --template-dirs "${SOCA_BOOTSTRAP_ASSETS_FOLDER}"
+    --add-value "KEY=/job/BaseOS VALUE={{ context.get("/job/BaseOS") }} TYPE=str" \
+    --template-dirs "/opt/edh/{{ context.get("/configuration/ClusterId") }}/cluster_node_bootstrap/" \
+    --template-dirs "${EDH_BOOTSTRAP_ASSETS_FOLDER}"
 
 
 log_info "Generate the final setup scripts for Login Node, this cannot be done during CDK deployment as not all variables are known"
-/bin/bash /opt/soca/{{ context.get("/configuration/ClusterId") }}/cluster_manager/tools/j2generator/j2generator.sh --get-template "compute_node/02_setup.sh.j2" \
+/bin/bash /opt/edh/{{ context.get("/configuration/ClusterId") }}/cluster_manager/tools/j2generator/j2generator.sh --get-template "compute_node/02_setup.sh.j2" \
     --output-file "s3://{{ context.get("/configuration/S3Bucket") }}/{{ context.get("/configuration/ClusterId") }}/config/do_not_delete/bootstrap/login_node/02_setup.sh" \
     --ssm-key "/" \
     --add-value "KEY=/job/NodeType VALUE=login_node TYPE=str" \
-    --add-value "KEY=/job/BoostrapPath VALUE=/apps/soca/{{ context.get("/configuration/ClusterId") }}/shared/logs/login_node TYPE=str" \
-    --template-dirs "/opt/soca/{{ context.get("/configuration/ClusterId") }}/cluster_node_bootstrap/"
+    --add-value "KEY=/job/BaseOS VALUE={{ context.get("/job/BaseOS") }} TYPE=str" \
+    --add-value "KEY=/job/BoostrapPath VALUE=/apps/edh/{{ context.get("/configuration/ClusterId") }}/shared/logs/login_node TYPE=str" \
+    --template-dirs "/opt/edh/{{ context.get("/configuration/ClusterId") }}/cluster_node_bootstrap/"
 
 # Continue bootstrap process
-/bin/bash ${SOCA_BOOTSTRAP_ASSETS_FOLDER}/03_setup.sh >> ${SOCA_BOOTSTRAP_LOGS_FOLDER}/03_setup.sh.log 2>&1
+/bin/bash ${EDH_BOOTSTRAP_ASSETS_FOLDER}/03_setup.sh >> ${EDH_BOOTSTRAP_LOGS_FOLDER}/03_setup.sh.log 2>&1
 
 

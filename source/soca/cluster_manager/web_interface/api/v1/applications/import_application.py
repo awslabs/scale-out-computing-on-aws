@@ -30,7 +30,7 @@ class ImportApplication(Resource):
         description: Imports an application profile from a JSON file (admin access required)
         parameters:
           - in: header
-            name: X-SOCA-USER
+            name: X-EDH-USER
             required: true
             schema:
               type: string
@@ -40,7 +40,7 @@ class ImportApplication(Resource):
             description: SOCA username for authentication (must be admin)
             example: "admin.user"
           - in: header
-            name: X-SOCA-TOKEN
+            name: X-EDH-TOKEN
             required: true
             schema:
               type: string
@@ -140,8 +140,8 @@ class ImportApplication(Resource):
             _create_application = SocaHttpClient(
                 "/api/applications/application",
                 headers={
-                    "X-SOCA-TOKEN": request.headers.get("X-SOCA-TOKEN"),
-                    "X-SOCA-USER": request.headers.get("X-SOCA-USER"),
+                    "X-EDH-TOKEN": request.headers.get("X-EDH-TOKEN"),
+                    "X-EDH-USER": request.headers.get("X-EDH-USER"),
                 },
             ).post(
                 data={

@@ -19,7 +19,7 @@ function aws_cli () {
 
   log_info "aws_cli received API call: ${AWS_API_CALL}"
 
-  # Do not cache and logs secretsmanager successfull calls
+  # Do not cache and logs secretsmanager successful calls
   if [[ "$*" == "secretsmanager"* ]]; then
     CHECK_CACHE="false"
     LOG_OUTPUT="false"

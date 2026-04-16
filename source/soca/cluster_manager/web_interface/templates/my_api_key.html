@@ -8,22 +8,34 @@
 
 <head>
     {% include 'common/header.html' %}
+    <style>
+.blurred {
+  filter: blur(6px);
+  user-select: none;
+}
+</style>
 </head>
 
 <body id="page-top">
+{% include 'common/horizontal_menu_bar.html' %}
 
 <div id="wrapper">
     {% include 'common/vertical_menu_bar.html' %}
     <div id="content-wrapper" class="d-flex flex-column">
 
-        <div id="content">
-            <br>
+        <div id="content" style="margin-top: 20px;">
             <div class="container-fluid">
-                {% include 'common/horizontal_menu_bar.html' %}
                 <div class="row">
                     <div class="col-md-12">
                         <div class="alert alert-primary">
-                            <h3>Your API key: <strong>{{ user_token }}</strong></h3>
+                            <h3>
+  Your API key:
+  <strong class="apiToken blurred">{{ user_token }}</strong>
+  <button class="btn btn-sm btn-primary toggleTokenBtn" onclick="toggleToken()">Show</button>
+</h3>
+
+
+
 
                             This API key is only available to you.
                             Do not share it externally as this key is used to authorize requests on your behalf.
@@ -33,23 +45,25 @@
 
                         </div>
                         <div class="card shadow mb-4">
-                            <div class="card-header py-3">
-                                <h6 class="m-0 font-weight-bold text-primary">How to interact with REST API</h6>
-                            </div>
+                          
 
                             <div class="card-body">
+                                 <h3>How to interact with EDH APIs</h3>
+                             
+
                                 <div class="alert alert-warning"><strong>API Documentation</strong><br>
-                                    You can interact with your SOCA cluster (create users, groups, queue, submit jobs,
+                                    You can interact with your EDH cluster (create users, groups, queue, submit jobs,
                                     view jobs etc.) via a simple REST interface. <br>
-                                    Documentation and examples can be found here:
+                                    Additional documentation and examples can be found here:
                                     <ul>
                                         <li><a href="{{ scheduler_host }}api/doc?ui=swagger" target="_blank" rel="noopener,noreferrer">{{ scheduler_host }}api/doc?ui=swagger (Swagger UI)</a></li>
                                         <li><a href="{{ scheduler_host }}api/doc?ui=rapidoc" target="_blank" rel="noopener,noreferrer">{{ scheduler_host }}api/doc?ui=rapidoc (RapiDoc UI)</a></li>
-                                    </li> 
+                                    </ul>
 
                                 </div>
+                                <br>
 
-                                <h2>Example: How to submit/query and delete a job via HTTP API</h2>
+                                <h3>Example: How to submit/query and delete a job via HTTP API</h3>
 
                                 <h4>Prepare the input</h4>
                                 Let's assume you want to submit a simple job on the default OpenPBS
@@ -83,60 +97,75 @@ $ echo "IyEvYmluL2Jhc2gKI1BCUyAtTiB0ZXN0am9iCiNQQlMgLVYgLWogb2UgLW8gdGVzdGpvYl9v
 #PBS -l nodes=1,instance_type=c6i.large
 /bin/echo "Hello World"</code></pre>
                                 <br>
-                                <h4>Prepare the POST request</h4>
+                                <h4>Prepare the request</h4>
                                 You will need to specify three headers:
                                 <ul>
-                                    <li>X-SOCA-USER and set the value to <code>{{ user }}</code></li>
-                                    <li>X-SOCA-TOKEN and set the value to <code>{{ user_token }}</code></li>
+                                    <li>X-EDH-USER and set the value to <code>{{ user }}</code></li>
+                                    <li>X-EDH-TOKEN and set the value to <code class="apiToken blurred">{{ user_token }}</code><button class="btn btn-sm btn-primary toggleTokenBtn" onclick="toggleToken()">Show</button></li>
                                 </ul>
                                 You will also need to pass the Base64 encoded string as payload. See below for examples:
                                 <br><br>
-                                <h4>Submit a job</h4>
+                                
+                                <h4>
+                                    <a href="#submitJob" data-bs-toggle="collapse" role="button" aria-expanded="false">
+                                    Submit a job</a>
+                                </h4>
                                 <hr>
-
-                                <div class="row">
-                                    <div class="col-md-6">
-                                        <h5>Using Bash</h5>
-                                        <pre><code class="language-bash">
+                                <!-- submit job -->
+<div class="collapse mt-3" id="submitJob">
+    <div class="row">
+        <div class="col-md-6">
+            <h5>Using Bash</h5>
+            <pre><code class="language-bash">
 # remove -k when using a trusted SSL cert
 curl -k -X POST \
-   -H "X-SOCA-TOKEN: {{ user_token }}" \
-   -H "X-SOCA-USER: {{ user }}" \
+   -H "X-EDH-TOKEN: {{ user_token }}" \
+   -H "X-EDH-USER: {{ user }}" \
    -F interpreter="{{openpbs_scheduler}}" \
-   -F payload="IyEvYmluL2Jhc2gKI1BCUyAtTiB0ZXN0am9iCiNQQlMgLVYgLWogb2UgLW8gdGVzdGpvYl9vdXRwdXQucWxvZwojUEJTIC1QIG15cHJvamVjdAojUEJTIC1xIG5vcm1hbAojUEJTIC1sIG5vZGVzPTEsaW5zdGFuY2VfdHlwZT1jNS5sYXJnZQovYmluL2VjaG8gIkhlbGxvIFdvcmxkIgo="  \
-   {{ scheduler_host }}api/scheduler/job</code></pre>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <h5>Using Python</h5>
-                                        <pre><code class="language-python">
+   -F payload="IyEvYmluL2Jhc2gKI1BCUyAtTiB0ZXN0am9i..."
+   {{ scheduler_host }}api/scheduler/job
+            </code></pre>
+        </div>
+
+        <div class="col-md-6">
+            <h5>Using Python</h5>
+            <pre><code class="language-python">
 import requests
 import json
-hdrs = {"X-SOCA-TOKEN": "{{ user_token }}",
-        "X-SOCA-USER": "{{ user }}"}
+hdrs = {"X-EDH-TOKEN": "{{ user_token }}",
+        "X-EDH-USER": "{{ user }}"}
 api_endpoint="{{ scheduler_host }}api/scheduler/job"
-payload = {"interpreter": "{{openpbs_scheduler}}", "payload": "IyEvYmluL2Jhc2gKI1BCUyAtTiB0ZXN0am9iCiNQQlMgLVYgLWogb2UgLW8gdGVzdGpvYl9vdXRwdXQucWxvZwojUEJTIC1QIG15cHJvamVjdAojUEJTIC1xIG5vcm1hbAojUEJTIC1sIG5vZGVzPTEsaW5zdGFuY2VfdHlwZT1jNS5sYXJnZQovYmluL2VjaG8gIkhlbGxvIFdvcmxkIgo="}
+payload = {"interpreter": "{{openpbs_scheduler}}", "payload": "..."}
 req = requests.post(api_endpoint,
                    headers=hdrs,
                    data=payload,
-                   verify=False)  # change verify=True when using a trusted SSL cert
+                   verify=False)
 print(req.status_code)
 print(req.json())
-                                  </code></pre>
-                                    </div>
-                                    Both commands will return the ID associated to the job you just submitted
-                                </div>
-                                <!-- row -->
+            </code></pre>
+        </div>
+
+        <p>Both commands will return the ID associated to the job you just submitted</p>
+    </div>
+</div>                                
+<!-- end submit job -->
+
+
                                 <br>
-                                <h4>Query a job</h4>
+                                <h4>
+                                    <a href="#queryJob" data-bs-toggle="collapse" role="button" aria-expanded="false">
+                                    Query a job</a>
+                                </h4>
                                 <hr>
+                                <div class="collapse mt-3" id="queryJob">
                                 <div class="row">
                                     <div class="col-md-6">
                                         <h5>Using Bash</h5>
                                         <pre><code class="language-bash">
 # remove -k when using a trusted SSL cert
 curl -k -X GET  \
-   -H "X-SOCA-TOKEN: {{ user_token }}" \
-   -H "X-SOCA-USER: {{ user }}" \
+   -H "X-EDH-TOKEN: {{ user_token }}" \
+   -H "X-EDH-USER: {{ user }}" \
    {{ scheduler_host }}api/scheduler/job?job_id=%YOUR_JOB_ID%&scheduler_id={{openpbs_scheduler}}</code></pre>
                                     </div>
                                     <div class="col-md-6">
@@ -144,8 +173,8 @@ curl -k -X GET  \
                                         <pre><code class="language-python">
 import requests
 import json
-hdrs = {"X-SOCA-TOKEN": "{{ user_token }}",
-        "X-SOCA-USER": "{{ user }}",}
+hdrs = {"X-EDH-TOKEN": "{{ user_token }}",
+        "X-EDH-USER": "{{ user }}",}
 api_endpoint="{{ scheduler_host }}api/scheduler/job"
 data = {"job_id": "%YOUR_JOB_ID%", "scheduler_id": "{{openpbs_scheduler}}"}
 req = requests.get(api_endpoint, headers=hdrs, params=data, verify=False) # change verify=True when using a trusted SSL cert
@@ -154,19 +183,26 @@ print(req.json())
                                   </code></pre>
                                     </div>
                                     Both commands will return a JSON object with all information regarding your job.
-                                </div>
+                                </div> </div>
+
+
+
                                 <!-- row -->
                                 <br>
-                                <h4>Delete a job</h4>
+                                <h4>
+                                    <a href="#deleteJob" data-bs-toggle="collapse" role="button" aria-expanded="false">
+                                    Delete a job</a>
+                                </h4>
                                 <hr>
+                                <div class="collapse mt-3" id="deleteJob">
                                 <div class="row">
                                     <div class="col-md-6">
                                         <h5>Using Bash</h5>
                                         <pre><code class="language-bash">
 # remove -k when using a trusted SSL cert
 curl -k -X DELETE  \
-   -H "X-SOCA-TOKEN: {{ user_token }}" \
-   -H "X-SOCA-USER: {{ user }}" \
+   -H "X-EDH-TOKEN: {{ user_token }}" \
+   -H "X-EDH-USER: {{ user }}" \
    -F job_id=%YOUR_JOB_ID% \
    -F scheduler_id="{{openpbs_scheduler}}" \
    {{ scheduler_host }}api/scheduler/job</code></pre>
@@ -176,8 +212,8 @@ curl -k -X DELETE  \
                                         <pre><code class="language-python">
 import requests
 import json
-hdrs = {"X-SOCA-TOKEN": "{{ user_token }}",
-        "X-SOCA-USER": "{{ user }}"}
+hdrs = {"X-EDH-TOKEN": "{{ user_token }}",
+        "X-EDH-USER": "{{ user }}"}
 api_endpoint="{{ scheduler_host }}api/scheduler/job"
 data = {"job_id": "%YOUR_JOB_ID%", "scheduler_id": "{{openpbs_scheduler}}"}
 req = requests.delete(api_endpoint, headers=hdrs, data=data, verify=False) # change verify=True when using a trusted SSL cert
@@ -185,7 +221,7 @@ print(req.status_code)
 print(req.json())
                                   </code></pre>
                                     </div>
-                                </div>
+                                </div> </div>
                                 <!-- row -->
 
 
@@ -193,15 +229,13 @@ print(req.json())
                         </div>
 
                         <div class="card shadow mb-4">
-                            <div class="card-header py-3">
-                                <h6 class="m-0 font-weight-bold text-primary">Reset my API key</h6>
-                            </div>
-
+                            
                             <div class="card-body">
+                                <h3>DANGER ZONE - Reset my API key</h3>
+
                                 <div class="alert alert-danger">
-                                    <h3>DANGER ZONE</h3>
                                     Generating a new API key will invalidate the previous key
-                                    (<strong>{{ user_token }}</strong>).
+                                    (<strong class="apiToken blurred">{{ user_token }}</strong> <button class="btn btn-sm btn-primary toggleTokenBtn" onclick="toggleToken()">Show</button>).
                                     <hr>
                                     <strong>Any script authenticating to SOCA using this key will return <code>HTTP
                                         401/Unauthorized</code>.
@@ -213,7 +247,7 @@ print(req.json())
                                             <input type="checkbox" class="form-check-input" name="verif" id="verif"
                                                    required>
                                             <label class="form-check-label" for="verif">I am sure I want to generate a
-                                                new key and delete {{ user_token }}</label><br>
+                                                new key and delete this key</label><br>
                                             <input type="checkbox" class="form-check-input" name="verif2" id="verif2"
                                                    required>
                                             <label class="form-check-label" for="verif2">I understand I will need to
@@ -223,7 +257,7 @@ print(req.json())
                                         <div>
                                             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                                             <input type="hidden" name="user" value="{{ user }}">
-                                            <button type="submit" class="btn btn-danger btn-lg">Regenerate new key
+                                            <button type="submit" class="btn btn-danger">Regenerate new key
                                             </button>
                                         </div>
                                     </form>
@@ -245,6 +279,20 @@ print(req.json())
     </a>
 </div>
 
+<script>
+function toggleToken() {
+  const tokens = document.querySelectorAll(".apiToken");
+  const buttons = document.querySelectorAll(".toggleTokenBtn");
+
+  tokens.forEach(token => token.classList.toggle("blurred"));
+
+  const isBlurred = tokens[0].classList.contains("blurred");
+
+  buttons.forEach(btn => {
+    btn.innerText = isBlurred ? "Show" : "Hide";
+  });
+}
+</script>
 {% include 'common/footer.html' %}
 
 </body>

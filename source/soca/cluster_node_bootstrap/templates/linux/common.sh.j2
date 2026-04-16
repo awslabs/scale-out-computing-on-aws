@@ -23,14 +23,14 @@
 
 {% include "templates/linux/common/cloud_init.sh.j2" %}
 
-{% set PATH = '/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin:/opt/soca/' ~ context.get("/configuration/ClusterId") ~ ':/opt/soca/' ~ context.get("/configuration/ClusterId") ~ '/packages/sqlite/bin' %}
+{% set PATH = '/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin:/opt/edh/' ~ context.get("/configuration/ClusterId") ~ ':/opt/edh/' ~ context.get("/configuration/ClusterId") ~ '/packages/sqlite/bin' %}
 export PATH={{ PATH }}:${PATH}
 
 # Source environment
 source /etc/environment
 
 # Source SOCA_PYTHON if exist
-SOCA_PYTHON_ENV_PATH="/opt/soca/{{ context.get("/configuration/ClusterId") }}/python/latest/soca_python.env"
+SOCA_PYTHON_ENV_PATH="/opt/edh/{{ context.get("/configuration/ClusterId") }}/python/latest/edh_python.env"
 
 if [[ -f "${SOCA_PYTHON_ENV_PATH}" ]]; then
     source "${SOCA_PYTHON_ENV_PATH}"

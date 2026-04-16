@@ -48,14 +48,14 @@ class VirtualDesktopProfilesManager(Resource):
         description: Retrieves virtual desktop profiles, optionally filtered by profile ID (admin access required)
         parameters:
           - in: header
-            name: X-SOCA-USER
+            name: X-EDH-USER
             required: true
             schema:
               type: string
               example: "admin.user"
             description: SOCA username for authentication (must be admin)
           - in: header
-            name: X-SOCA-TOKEN
+            name: X-EDH-TOKEN
             required: true
             schema:
               type: string
@@ -191,14 +191,14 @@ class VirtualDesktopProfilesManager(Resource):
         description: Creates a new virtual desktop profile with specified configuration (admin access required)
         parameters:
           - in: header
-            name: X-SOCA-USER
+            name: X-EDH-USER
             required: true
             schema:
               type: string
               example: "admin.user"
             description: SOCA username for authentication (must be admin)
           - in: header
-            name: X-SOCA-TOKEN
+            name: X-EDH-TOKEN
             required: true
             schema:
               type: string
@@ -283,7 +283,7 @@ class VirtualDesktopProfilesManager(Resource):
                       example: 401
                     message:
                       type: string
-                      example: "Missing required header: X-SOCA-USER"
+                      example: "Missing required header: X-EDH-USER"
           '403':
             description: Insufficient permissions or feature not enabled
             content:
@@ -349,9 +349,9 @@ class VirtualDesktopProfilesManager(Resource):
                 helpers="Description cannot be greater than 500 characters"
             ).as_flask()
 
-        _user = request.headers.get("X-SOCA-USER")
+        _user = request.headers.get("X-EDH-USER")
         if _user is None:
-            return SocaError.CLIENT_MISSING_HEADER(header="X-SOCA-USER").as_flask()
+            return SocaError.CLIENT_MISSING_HEADER(header="X-EDH-USER").as_flask()
 
         _required_input = [
             "profile_name",
@@ -457,14 +457,14 @@ class VirtualDesktopProfilesManager(Resource):
         description: Deactivates a virtual desktop profile by setting is_active to false (admin access required)
         parameters:
           - in: header
-            name: X-SOCA-USER
+            name: X-EDH-USER
             required: true
             schema:
               type: string
               example: "admin.user"
             description: SOCA username for authentication (must be admin)
           - in: header
-            name: X-SOCA-TOKEN
+            name: X-EDH-TOKEN
             required: true
             schema:
               type: string
@@ -575,9 +575,9 @@ class VirtualDesktopProfilesManager(Resource):
                 helper=f"profile_id does not seems to be a valid integer {args['profile_id']}",
             ).as_flask()
 
-        _user = request.headers.get("X-SOCA-USER")
+        _user = request.headers.get("X-EDH-USER")
         if _user is None:
-            return SocaError.CLIENT_MISSING_HEADER(header="X-SOCA-USER").as_flask()
+            return SocaError.CLIENT_MISSING_HEADER(header="X-EDH-USER").as_flask()
 
         _check_profile = VirtualDesktopProfiles.query.filter_by(
             id=_profile_id, is_active=True
@@ -634,14 +634,14 @@ class VirtualDesktopProfilesManager(Resource):
         description: Updates an existing virtual desktop profile with new configuration (admin access required)
         parameters:
           - in: header
-            name: X-SOCA-USER
+            name: X-EDH-USER
             required: true
             schema:
               type: string
               example: "admin.user"
             description: SOCA username for authentication (must be admin)
           - in: header
-            name: X-SOCA-TOKEN
+            name: X-EDH-TOKEN
             required: true
             schema:
               type: string
@@ -720,7 +720,7 @@ class VirtualDesktopProfilesManager(Resource):
                       example: false
                     message:
                       type: string
-                      example: "Missing required header: X-SOCA-USER"
+                      example: "Missing required header: X-EDH-USER"
           '403':
             description: Insufficient permissions or feature not enabled
             content:
@@ -779,9 +779,9 @@ class VirtualDesktopProfilesManager(Resource):
                 helpers="Description cannot be greater than 500 characters"
             ).as_flask()
 
-        _user = request.headers.get("X-SOCA-USER")
+        _user = request.headers.get("X-EDH-USER")
         if _user is None:
-            return SocaError.CLIENT_MISSING_HEADER(header="X-SOCA-USER").as_flask()
+            return SocaError.CLIENT_MISSING_HEADER(header="X-EDH-USER").as_flask()
 
         _required_input = [
             "pattern_allowed_instance_types",

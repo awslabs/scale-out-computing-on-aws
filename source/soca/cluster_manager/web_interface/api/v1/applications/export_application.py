@@ -26,7 +26,7 @@ class ExportApplication(Resource):
         description: Exports an application profile configuration for backup or migration (admin access required)
         parameters:
           - in: header
-            name: X-SOCA-USER
+            name: X-EDH-USER
             required: true
             schema:
               type: string
@@ -36,7 +36,7 @@ class ExportApplication(Resource):
             description: SOCA username for authentication (must be admin)
             example: "admin.user"
           - in: header
-            name: X-SOCA-TOKEN
+            name: X-EDH-TOKEN
             required: true
             schema:
               type: string
@@ -68,7 +68,7 @@ class ExportApplication(Resource):
                       properties:
                         Instructions:
                           type: string
-                          example: "https://awslabs.github.io/scale-out-computing-on-aws-documentation/documentation/web-interface/import-export-application-profiles"
+                          example: "https://awslabs.github.io/engineering-development-hub-documentation/documentation/web-interface/import-export-application-profiles"
                         profile_form:
                           type: string
                           example: "<form><input name='cores' type='number' /></form>"
@@ -153,7 +153,7 @@ class ExportApplication(Resource):
         _profile = ApplicationProfiles.query.filter_by(id=_application_id).first()
         if _profile:
             output = {
-                "Instructions:": "https://awslabs.github.io/scale-out-computing-on-aws-documentation/documentation/web-interface/import-export-application-profiles",
+                "Instructions:": "https://awslabs.github.io/engineering-development-hub-documentation/documentation/web-interface/import-export-application-profiles",
                 "profile_form": _profile.profile_form,
                 "profile_job": _profile.profile_job,
                 "profile_interpreter": _profile.profile_interpreter,

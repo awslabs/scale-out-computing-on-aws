@@ -41,14 +41,14 @@ class ResizeVirtualDesktop(Resource):
         description: Modify the instance type of a DCV desktop session. The session must be in stopped state.
         parameters:
           - in: header
-            name: X-SOCA-USER
+            name: X-EDH-USER
             required: true
             schema:
               type: string
               example: "john.doe"
             description: SOCA username for authentication
           - in: header
-            name: X-SOCA-TOKEN
+            name: X-EDH-TOKEN
             required: true
             schema:
               type: string
@@ -118,7 +118,7 @@ class ResizeVirtualDesktop(Resource):
                       example: "CLIENT_MISSING_HEADER"
                     message:
                       type: string
-                      example: "Missing required header: X-SOCA-USER"
+                      example: "Missing required header: X-EDH-USER"
           '403':
             description: Forbidden - session not owned by user or session not in stopped state
             content:
@@ -166,9 +166,9 @@ class ResizeVirtualDesktop(Resource):
                 parameter="_session_uuid"
             ).as_flask()
 
-        _user = request.headers.get("X-SOCA-USER")
+        _user = request.headers.get("X-EDH-USER")
         if _user is None:
-            return SocaError.CLIENT_MISSING_HEADER(header="X-SOCA-USER").as_flask()
+            return SocaError.CLIENT_MISSING_HEADER(header="X-EDH-USER").as_flask()
 
         if _instance_type is None:
             return SocaError.CLIENT_MISSING_PARAMETER(

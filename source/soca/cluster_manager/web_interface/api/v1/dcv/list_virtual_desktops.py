@@ -46,7 +46,7 @@ class ListVirtualDesktops(Resource):
         summary: List user's virtual desktop sessions
         description: Retrieves DCV desktop sessions for the authenticated user with optional filtering
         parameters:
-          - name: X-SOCA-USER
+          - name: X-EDH-USER
             in: header
             required: true
             schema:
@@ -56,7 +56,7 @@ class ListVirtualDesktops(Resource):
               pattern: '^[a-zA-Z0-9._-]+$'
             description: SOCA username for authentication
             example: "john.doe"
-          - name: X-SOCA-TOKEN
+          - name: X-EDH-TOKEN
             in: header
             required: true
             schema:
@@ -187,7 +187,7 @@ class ListVirtualDesktops(Resource):
                       example: 401
                     message:
                       type: string
-                      example: "Missing required header: X-SOCA-USER"
+                      example: "Missing required header: X-EDH-USER"
           '500':
             description: Internal server error
             content:
@@ -216,9 +216,9 @@ class ListVirtualDesktops(Resource):
         args = parser.parse_args()
         logger.debug(f"Received parameter for listing DCV desktop: {args}")
 
-        user = request.headers.get("X-SOCA-USER")
+        user = request.headers.get("X-EDH-USER")
         if user is None:
-            return SocaError.CLIENT_MISSING_HEADER(header="X-SOCA-USER").as_flask()
+            return SocaError.CLIENT_MISSING_HEADER(header="X-EDH-USER").as_flask()
 
         if args["is_active"] is None:
             return SocaError.CLIENT_MISSING_PARAMETER(parameter="is_active").as_flask()

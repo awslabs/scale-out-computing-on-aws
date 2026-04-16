@@ -36,7 +36,7 @@ def main(
     )
 
     if obj.job_project is None:
-        if allow_job_no_project is False:
+        if not allow_job_no_project:
             return SocaError.GENERIC_ERROR(
                 helper=f"You tried to submit job without project. Specify project using -P parameter (PBS) or --project"
             )

@@ -21,7 +21,7 @@ logger = logging.getLogger("soca_logger")
 
 class EKSJob(Resource):
     @private_api
-    @feature_flag(flag_name="CONTAINERS_MANAGEMENT", mode="api")
+    @feature_flag(flag_name="CONTAINERS_MANAGEMENT_EKS", mode="api")
     def get(self):
         """
         Get EKS Job Details
@@ -33,7 +33,7 @@ class EKSJob(Resource):
         summary: Retrieve details of a specific EKS job
         description: Gets detailed information about an EKS job including status, configuration, and pod information
         parameters:
-          - name: X-SOCA-USER
+          - name: X-EDH-USER
             in: header
             required: true
             schema:
@@ -43,7 +43,7 @@ class EKSJob(Resource):
               pattern: '^[a-zA-Z0-9._-]+$'
             description: SOCA username for authentication
             example: "john.doe"
-          - name: X-SOCA-TOKEN
+          - name: X-EDH-TOKEN
             in: header
             required: true
             schema:
@@ -226,9 +226,9 @@ class EKSJob(Resource):
         if not _job_name:
             return SocaError.CLIENT_MISSING_PARAMETER(parameter="job_name").as_flask()
 
-        _user = request.headers.get("X-SOCA-USER")
+        _user = request.headers.get("X-EDH-USER")
         if _user is None:
-            return SocaError.CLIENT_MISSING_HEADER(header="X-SOCA-USER").as_flask()
+            return SocaError.CLIENT_MISSING_HEADER(header="X-EDH-USER").as_flask()
 
         _soca_eks_client = SocaEKSClient(cluster_name=_eks_cluster)
         if _soca_eks_client.healthcheck() is False:
@@ -278,7 +278,7 @@ class EKSJob(Resource):
         return SocaResponse(success=True, message=job_info).as_flask()
 
     @private_api
-    @feature_flag(flag_name="CONTAINERS_MANAGEMENT", mode="api")
+    @feature_flag(flag_name="CONTAINERS_MANAGEMENT_EKS", mode="api")
     def post(self):
         """
         Submit EKS Job
@@ -290,7 +290,7 @@ class EKSJob(Resource):
         summary: Submit a new EKS job
         description: Creates and submits a new job to the specified EKS cluster with the provided configuration
         parameters:
-          - name: X-SOCA-USER
+          - name: X-EDH-USER
             in: header
             required: true
             schema:
@@ -300,7 +300,7 @@ class EKSJob(Resource):
               pattern: '^[a-zA-Z0-9._-]+$'
             description: SOCA username for authentication
             example: "john.doe"
-          - name: X-SOCA-TOKEN
+          - name: X-EDH-TOKEN
             in: header
             required: true
             schema:
@@ -377,7 +377,7 @@ class EKSJob(Resource):
                   envVars:
                     type: string
                     format: json
-                    description: JSON array of Key;Value for Environemtn Variable
+                    description: JSON array of Key;Value for Environment Variable
                     example: f' [{"name": "MY_ENV", "value": "Hello"}, {"name": "API_KEY", "value": "12345"}]'
                   namespace:
                     type: string
@@ -539,9 +539,9 @@ class EKSJob(Resource):
                     helper=f"Unable to parse overrideArgs {args.get('overrideArgs', '[]')}"
                 ).as_flask()
 
-        _user = request.headers.get("X-SOCA-USER")
+        _user = request.headers.get("X-EDH-USER")
         if _user is None:
-            return SocaError.CLIENT_MISSING_HEADER(header="X-SOCA-USER").as_flask()
+            return SocaError.CLIENT_MISSING_HEADER(header="X-EDH-USER").as_flask()
 
         _soca_eks_client = SocaEKSClient(cluster_name=_eks_cluster)
         if _soca_eks_client.healthcheck() is False:
@@ -606,8 +606,8 @@ class EKSJob(Resource):
             "metadata": {
                 "name": _job_name.lower(),  # force lowercase
                 "labels": {  # : is not supported by kube
-                    "soca_JobOwner": _user,
-                    "soca_ClusterId": _soca_cluster_id,
+                    "edh_JobOwner": _user,
+                    "edh_ClusterId": _soca_cluster_id,
                 },
             },
             "spec": {
@@ -651,7 +651,7 @@ class EKSJob(Resource):
             ).as_flask()
 
     @private_api
-    @feature_flag(flag_name="CONTAINERS_MANAGEMENT", mode="api")
+    @feature_flag(flag_name="CONTAINERS_MANAGEMENT_EKS", mode="api")
     def delete(self):
         """
         Delete EKS Job
@@ -663,7 +663,7 @@ class EKSJob(Resource):
         summary: Delete an existing EKS job
         description: Deletes an EKS job from the specified cluster and namespace. Only the job owner can delete their jobs.
         parameters:
-          - name: X-SOCA-USER
+          - name: X-EDH-USER
             in: header
             required: true
             schema:
@@ -673,7 +673,7 @@ class EKSJob(Resource):
               pattern: '^[a-zA-Z0-9._-]+$'
             description: SOCA username for authentication
             example: "john.doe"
-          - name: X-SOCA-TOKEN
+          - name: X-EDH-TOKEN
             in: header
             required: true
             schema:
@@ -829,9 +829,9 @@ class EKSJob(Resource):
         if not _job_name:
             return SocaError.CLIENT_MISSING_PARAMETER(parameter="job_name").as_flask()
 
-        _user = request.headers.get("X-SOCA-USER")
+        _user = request.headers.get("X-EDH-USER")
         if _user is None:
-            return SocaError.CLIENT_MISSING_HEADER(header="X-SOCA-USER").as_flask()
+            return SocaError.CLIENT_MISSING_HEADER(header="X-EDH-USER").as_flask()
 
         logger.info(f"Deleting job {_job_name} from cluster {_eks_cluster}")
         _soca_eks_client = SocaEKSClient(cluster_name=_eks_cluster)
@@ -853,14 +853,14 @@ class EKSJob(Resource):
 
         # Validate if job has the correct labels
         _job_labels = _get_job.metadata.labels or {}
-        _job_owner = _job_labels.get("soca_JobOwner", "")
-        _cluster_id = _job_labels.get("soca_ClusterId", "")
+        _job_owner = _job_labels.get("edh_JobOwner", "")
+        _cluster_id = _job_labels.get("edh_ClusterId", "")
 
         if _job_owner != _user or _cluster_id != SocaConfig(
             key="/configuration/ClusterId"
         ).get_value().get("message"):
             return SocaError.GENERIC_ERROR(
-                helper="This job does not seem to belong to you. Missing or incorrect soca_JobOwner or soca_ClusterId label."
+                helper="This job does not seem to belong to you. Missing or incorrect edh_JobOwner or edh_ClusterId label."
             )
 
         delete_response = _soca_eks_client.delete_namespaced_job(

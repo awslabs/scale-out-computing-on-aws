@@ -4,6 +4,54 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Calendar Versioning](https://calver.org/).
 
+
+## [26.4.0] - 2026-04-16
+
+Project name has been updated to Engineering Development Hub (EDH)
+
+### Features
+- The `SOCA/EDH` Web Interface has undergone an overhaul to modernize the look and feel. Please let us know what you think!
+- SOCA/EDH Now supports the AWS European Sovereign Cloud (EUSC)
+  - For more information https://aws.amazon.com/blogs/aws/opening-the-aws-european-sovereign-cloud/
+- Users can now automatically deactivate (enabled by default) the AD 42 days password expiration when deploying AWS Directory Service Managed AD 
+- Users can now decide to enable/disable Nested Virtualization on their EC2 machines
+
+### Changed
+- `X-SOCA-TOKEN` / `X-SOCA-USER` / `X-SOCA-PASSWORD` has been renamed `X-EDH-TOKEN` / `X-EDH-USER` / `X-EDH-PASSWORD`
+- AWS tag prefix has been updated to `edh:` from `soca:`
+- When viewing the API key in the WebUI - the API key is now blurred by default.
+- When viewing the details of a job from the `My Jobs` screen, the auto-refresh will now disable to avoid a refresh while reviewing the job details.
+
+### Fixes
+- Improvements have been made for Active Directory..
+- When using a timezone other than UTC on the SOCA Controller, users may encounter a failure to launch VDIs due to an error in capacity validation.
+- Fixed a SSH passwordless configuration when using Target Nodes user data
+- Removed hardcoded EBS root device name based on OS distro. Value is now automatically detected via AWS APIs.
+
+### Known Issues
+ - N/A
+
+
+## [26.3.1] - 2026-03-20
+
+
+### Features
+- _No new features in this release. Bug fixes only._
+
+### Changed
+- _No new changes in this release. Bug fixes only._
+
+### Fixes
+- When using a timezone other than UTC on the SOCA Controller, users may encounter a failure to launch VDIs due to an error in capacity validation.
+- During WebUI submission of HPC jobs, in some situations, the CPU/vCPU calculations may be incorrect causing problems with job launches due to incorrect number of nodes or CPUs.
+- An incorrect directory name was generated for portions of the OpenPBS scheduler installation.
+- 
+
+
+## Known Issues
+
+
+
 ## [26.3.0] - 2026-03-06
 
 ### Features

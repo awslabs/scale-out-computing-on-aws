@@ -34,10 +34,10 @@ my_account = Blueprint("my_account", __name__, template_folder="templates")
 def index():
     group_name = f"{session['user']}{config.Config.DIRECTORY_GROUP_NAME_SUFFIX}"
     _get_user_ldap_group = SocaHttpClient(
-        endpoint="/api/ldap/group", headers={"X-SOCA-TOKEN": config.Config.API_ROOT_KEY}
+        endpoint="/api/ldap/group", headers={"X-EDH-TOKEN": config.Config.API_ROOT_KEY}
     ).get(params={"group": group_name})
     _get_user_ldap_users = SocaHttpClient(
-        endpoint="/api/ldap/users", headers={"X-SOCA-TOKEN": config.Config.API_ROOT_KEY}
+        endpoint="/api/ldap/users", headers={"X-EDH-TOKEN": config.Config.API_ROOT_KEY}
     ).get()
     all_users = []
     group_members = []
@@ -71,7 +71,7 @@ def manage_group():
     user = request.form.get("user")
     action = request.form.get("action")
     _update_group = SocaHttpClient(
-        endpoint="/api/ldap/group", headers={"X-SOCA-TOKEN": config.Config.API_ROOT_KEY}
+        endpoint="/api/ldap/group", headers={"X-EDH-TOKEN": config.Config.API_ROOT_KEY}
     ).put(data={"group": group_name, "user": user, "action": action})
 
     if _update_group.success:
@@ -110,8 +110,8 @@ def reset_key():
             change_password = post(
                 config.Config.FLASK_ENDPOINT + "/api/user/reset_password",
                 headers={
-                    "X-SOCA-TOKEN": session["api_key"],
-                    "X-SOCA-USER": session["user"],
+                    "X-EDH-TOKEN": session["api_key"],
+                    "X-EDH-USER": session["user"],
                 },
                 data={"user": user, "password": password},
                 verify=False,
@@ -139,8 +139,8 @@ def reset_key():
                 change_password = post(
                     config.Config.FLASK_ENDPOINT + "/api/user/reset_password",
                     headers={
-                        "X-SOCA-TOKEN": config.Config.API_ROOT_KEY,
-                        "X-SOCA-USER": session["user"],
+                        "X-EDH-TOKEN": config.Config.API_ROOT_KEY,
+                        "X-EDH-USER": session["user"],
                     },
                     data={"user": session["user"], "password": password},
                     verify=False,

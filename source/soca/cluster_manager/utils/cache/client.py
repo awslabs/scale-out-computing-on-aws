@@ -18,7 +18,7 @@ logger = logging.getLogger("soca_logger")
 class SocaCacheClient:
     def __init__(
         self,
-        cache_key_prefix: Optional[str] = f"/soca/{os.environ.get('SOCA_CLUSTER_ID')}/",
+        cache_key_prefix: Optional[str] = f"/edh/{os.environ.get('EDH_CLUSTER_ID')}/",
         is_admin: Optional[bool] = False,
     ):
         self.cache_key_prefix = cache_key_prefix
@@ -215,7 +215,7 @@ def get_cache_config(is_admin: bool = False) -> dict:
     logger.debug(f"Building a cache_client)")
     _cache_info: dict = {}
     _ssm_client = utils_boto3.get_boto(service_name="ssm").message
-    _ssm_key_path = f"/soca/{os.environ.get('SOCA_CLUSTER_ID')}/configuration/Cache/"
+    _ssm_key_path = f"/edh/{os.environ.get('EDH_CLUSTER_ID')}/configuration/Cache/"
 
     _ssm_paginator = _ssm_client.get_paginator("get_parameters_by_path")
     _ssm_iterator = _ssm_paginator.paginate(Path=_ssm_key_path, Recursive=True)

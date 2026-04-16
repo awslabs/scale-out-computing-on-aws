@@ -10,7 +10,7 @@ function pbspro_configure_server_{{  SCHEDULER_VARS.get("IDENTIFIER") }} () {
     local SCHEDULER_HOSTNAME="{{ SCHEDULER_VARS.get("ENDPOINT") }}"
     local SCHEDULER_IDENTIFIER="{{ SCHEDULER_VARS.get("IDENTIFIER") }}"
     local SOCA_CLUSTER_ID="{{ context.get("/configuration/ClusterId") }}"
-    local SOCA_BASE_OS="{{ context.get("/configuration/BaseOS") }}"
+    local SOCA_BASE_OS="{{ context.get("/job/BaseOS") }}"
     local PBSPRO_INSTALL_DIR="{{ SCHEDULER_VARS.get("PBS_CONFIGURATION").get("pbs_exec") }}"
     local PBSPRO_PBS_HOME="{{ SCHEDULER_VARS.get("PBS_CONFIGURATION").get("pbs_home") }}"
     local PBSPRO_LICENSE_SERVER="{{ context.get("/system/scheduler/pbspro/pbspro_license_server") }}"
@@ -72,11 +72,11 @@ terminate_when_idle type=string flag=h
 keep_forever type=string flag=h
 EOF
 
-    log_info "Starting  soca_scheduler_${SCHEDULER_IDENTIFIER}.service"
-    systemctl enable soca_scheduler_${SCHEDULER_IDENTIFIER}.service
-    if ! systemctl start soca_scheduler_${SCHEDULER_IDENTIFIER}.service; then
-        journalctl -xeu soca_scheduler_${SCHEDULER_IDENTIFIER}.service
-        exit_fail "Unable to start PBSPro via soca_scheduler_${SCHEDULER_IDENTIFIER}.service, check logs"
+    log_info "Starting edh_scheduler_${SCHEDULER_IDENTIFIER}.service"
+    systemctl enable edh_scheduler_${SCHEDULER_IDENTIFIER}.service
+    if ! systemctl start edh_scheduler_${SCHEDULER_IDENTIFIER}.service; then
+        journalctl -xeu edh_scheduler_${SCHEDULER_IDENTIFIER}.service
+        exit_fail "Unable to start PBSPro via edh_scheduler_${SCHEDULER_IDENTIFIER}.service, check logs"
     fi
     sleep 30
 
@@ -85,7 +85,7 @@ EOF
     ${PBSPRO_INSTALL_DIR}/bin/pbs_python -m pip install -r requirements.txt
 
     # Create Default PBS hooks
-    for queue_hook_file in /opt/soca/"${SOCA_CLUSTER_ID}"/cluster_hooks/pbs/queuejob/*.py;
+    for queue_hook_file in /opt/edh/"${SOCA_CLUSTER_ID}"/cluster_hooks/pbs/queuejob/*.py;
     do
       hook_name=$(basename "${queue_hook_file}" | cut -f1 -d.)
       if [ "${hook_name}" == "check_project_budget" ]; then
@@ -143,10 +143,10 @@ EOF
     # Add compute_node to list of required resource
     sed -i '/^resources:/ s/^\(resources: "[^"]*\)"/\1, compute_node"/' ${PBSPRO_PBS_HOME}/sched_priv/sched_config
 
-    log_info "Restarting soca_scheduler_${SCHEDULER_IDENTIFIER}.service"
-    if ! systemctl restart soca_scheduler_${SCHEDULER_IDENTIFIER}.service; then
-        journalctl -xeu soca_scheduler_${SCHEDULER_IDENTIFIER}.service
-        exit_fail "Unable to restart PBSPro via soca_scheduler_${SCHEDULER_IDENTIFIER}.service, check logs"
+    log_info "Restarting edh_scheduler_${SCHEDULER_IDENTIFIER}.service"
+    if ! systemctl restart edh_scheduler_${SCHEDULER_IDENTIFIER}.service; then
+        journalctl -xeu edh_scheduler_${SCHEDULER_IDENTIFIER}.service
+        exit_fail "Unable to restart PBSPro via edh_scheduler_${SCHEDULER_IDENTIFIER}.service, check logs"
     fi
     sleep 30
     log_info "[END] pbspro_configure_server .. "

@@ -7,7 +7,7 @@ function install_x_dummy_driver() {
   # The XDummy driver allows the X server to run with a virtual framebuffer when no real GPU is present.
   # Refer: https://docs.aws.amazon.com/dcv/latest/adminguide/setting-up-installing-linux-prereq.html#gpu-xdummy
   log_info "Configuring XDummy Driver"
-  {% if context.get("/configuration/BaseOS") in ("ubuntu2204", "ubuntu2404") %}
+  {% if context.get("/job/BaseOS") in ("ubuntu2204", "ubuntu2404") %}
     packages_install xserver-xorg-video-dummy
   {% else %}
     packages_install xorg-x11-drv-dummy

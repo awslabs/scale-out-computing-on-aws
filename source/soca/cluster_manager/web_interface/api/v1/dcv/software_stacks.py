@@ -51,7 +51,7 @@ class SoftwareStacksManager(Resource):
           - socaAuth: []
         parameters:
           - in: header
-            name: X-SOCA-USER
+            name: X-EDH-USER
             required: true
             schema:
               type: string
@@ -61,7 +61,7 @@ class SoftwareStacksManager(Resource):
               example: "admin.user"
             description: SOCA username for authentication (must be admin)
           - in: header
-            name: X-SOCA-TOKEN
+            name: X-EDH-TOKEN
             required: true
             schema:
               type: string
@@ -133,7 +133,7 @@ class SoftwareStacksManager(Resource):
             socaAuth:
               type: apiKey
               in: header
-              name: X-SOCA-USER
+              name: X-EDH-USER
               description: SOCA authentication using username and token headers
         """
         parser = reqparse.RequestParser()
@@ -187,7 +187,7 @@ class SoftwareStacksManager(Resource):
           - socaAuth: []
         parameters:
           - in: header
-            name: X-SOCA-USER
+            name: X-EDH-USER
             required: true
             schema:
               type: string
@@ -197,7 +197,7 @@ class SoftwareStacksManager(Resource):
               example: "admin.user"
             description: SOCA username for authentication (must be admin)
           - in: header
-            name: X-SOCA-TOKEN
+            name: X-EDH-TOKEN
             required: true
             schema:
               type: string
@@ -294,7 +294,7 @@ class SoftwareStacksManager(Resource):
             socaAuth:
               type: apiKey
               in: header
-              name: X-SOCA-USER
+              name: X-EDH-USER
               description: SOCA authentication using username and token headers
         """
         parser = reqparse.RequestParser()
@@ -318,9 +318,9 @@ class SoftwareStacksManager(Resource):
         _thumbnail = request.files.get("thumbnail")
         _virtual_desktop_profile_id = args["virtual_desktop_profile_id"]
 
-        _user = request.headers.get("X-SOCA-USER")
+        _user = request.headers.get("X-EDH-USER")
         if _user is None:
-            return SocaError.CLIENT_MISSING_HEADER(header="X-SOCA-USER").as_flask()
+            return SocaError.CLIENT_MISSING_HEADER(header="X-EDH-USER").as_flask()
 
         # Launch Tenancy
         if not _launch_tenancy:
@@ -385,6 +385,7 @@ class SoftwareStacksManager(Resource):
             ).as_flask()
 
         if _ami_id.startswith("/aws/service/"):
+            _ami_alias = _ami_id
             logger.info(
                 f"Specified AMI is an alias {_ami_id=}, check if alias is correct"
             )
@@ -397,18 +398,37 @@ class SoftwareStacksManager(Resource):
                 )
                 return SocaError.GENERIC_ERROR(
                     helper=f"{_ami_id} does not seems to be a valid alias."
-                )
+                ).as_flask()
+            else:
+                _ami_id = _check_alias.get("message")
+        else:
+            _ami_alias = None
 
         _get_image = ec2_helper.describe_images(image_ids=[_ami_id])
         logger.debug(f"API response - AMI {_ami_id}: {_get_image}")
-        if _get_image.get("success") is True:
+
+        if _get_image.get("success") is False:
+            return SocaError.IMAGE_REGISTER_ERROR(
+                image_id=_ami_id,
+                image_label=_stack_name,
+                helper=f"{_ami_id} is not available in AWS account. If you just created it, make sure the state of the image is 'available' on the AWS console",
+            ).as_flask()
+        else:
             _image_details = _get_image.get("message")
-            # Grab the root size from the AMI to make sure our admin-input size is at least that size.
-            # This prevents situations where the admin may undersize the AMI setting.
-            # The size is taken from the first (0th) EBS volume within the AMI.
-            _ami_root_size: int = _image_details["Images"][0].get(
-                "BlockDeviceMappings"
-            )[0]["Ebs"]["VolumeSize"]
+            _ami_root_disk_name = _image_details["Images"][0].get("RootDeviceName")
+            _ami_root_size = None
+            for mapping in _image_details["Images"][0].get("BlockDeviceMappings", []):
+                if mapping.get("DeviceName") == _ami_root_disk_name:
+                    _ami_root_size = mapping.get("Ebs", {}).get("VolumeSize")
+                    break
+            if _ami_root_size is None:
+                return SocaError.GENERIC_ERROR(
+                    helper="Unable to find root disk mapping in the AMI details, cannot determine root disk size/name requirement"
+                ).as_flask()
+
+            logger.info(
+                f"Default Root Disk Name: {_ami_root_disk_name=} with minimal size of {_ami_root_size}GB for AMI {_ami_id}"
+            )
             _extra_logging: str = ""
             if _ami_root_size <= root_size:
                 logger.debug(
@@ -462,7 +482,7 @@ class SoftwareStacksManager(Resource):
                 _family = "windows" if "windows" in _ami_base_os.lower() else "linux"
 
             _new_software_stack = SoftwareStacks(
-                ami_id=_ami_id,
+                ami_id=_ami_id if not _ami_alias else _ami_alias,
                 ami_base_os=_ami_base_os,
                 os_family=_family,
                 stack_name=_stack_name,
@@ -493,13 +513,6 @@ class SoftwareStacksManager(Resource):
                 message=f"{_ami_id} registered successfully in SOCA as {_stack_name} {_extra_logging}",
             ).as_flask()
 
-        else:
-            return SocaError.IMAGE_REGISTER_ERROR(
-                image_id=_ami_id,
-                image_label=_stack_name,
-                helper=f"{_ami_id} is not available in AWS account. If you just created it, make sure the state of the image is 'available' on the AWS console",
-            ).as_flask()
-
     @admin_api
     @feature_flag(flag_name="VIRTUAL_DESKTOPS", mode="api")
     def delete(self):
@@ -516,7 +529,7 @@ class SoftwareStacksManager(Resource):
           - socaAuth: []
         parameters:
           - in: header
-            name: X-SOCA-USER
+            name: X-EDH-USER
             required: true
             schema:
               type: string
@@ -526,7 +539,7 @@ class SoftwareStacksManager(Resource):
               example: "admin.user"
             description: SOCA username for authentication (must be admin)
           - in: header
-            name: X-SOCA-TOKEN
+            name: X-EDH-TOKEN
             required: true
             schema:
               type: string
@@ -579,7 +592,7 @@ class SoftwareStacksManager(Resource):
             socaAuth:
               type: apiKey
               in: header
-              name: X-SOCA-USER
+              name: X-EDH-USER
               description: SOCA authentication using username and token headers
         """
         parser = reqparse.RequestParser()
@@ -601,9 +614,9 @@ class SoftwareStacksManager(Resource):
                 helper=f"software_stack_id does not seems to be a valid integer {args['software_stack_id']}",
             ).as_flask()
 
-        _user = request.headers.get("X-SOCA-USER")
+        _user = request.headers.get("X-EDH-USER")
         if _user is None:
-            return SocaError.CLIENT_MISSING_HEADER(header="X-SOCA-USER").as_flask()
+            return SocaError.CLIENT_MISSING_HEADER(header="X-EDH-USER").as_flask()
 
         check_session = SoftwareStacks.query.filter_by(
             id=_software_stack_id, is_active=True
@@ -647,7 +660,7 @@ class SoftwareStacksManager(Resource):
           - socaAuth: []
         parameters:
           - in: header
-            name: X-SOCA-USER
+            name: X-EDH-USER
             required: true
             schema:
               type: string
@@ -657,7 +670,7 @@ class SoftwareStacksManager(Resource):
               example: "admin.user"
             description: SOCA username for authentication (must be admin)
           - in: header
-            name: X-SOCA-TOKEN
+            name: X-EDH-TOKEN
             required: true
             schema:
               type: string
@@ -753,7 +766,7 @@ class SoftwareStacksManager(Resource):
             socaAuth:
               type: apiKey
               in: header
-              name: X-SOCA-USER
+              name: X-EDH-USER
               description: SOCA authentication using username and token headers
         """
         parser = reqparse.RequestParser()
@@ -777,9 +790,9 @@ class SoftwareStacksManager(Resource):
         _virtual_desktop_profile_id = args["virtual_desktop_profile_id"]
         _software_stack_id = args["software_stack_id"]
 
-        _user = request.headers.get("X-SOCA-USER")
+        _user = request.headers.get("X-EDH-USER")
         if _user is None:
-            return SocaError.CLIENT_MISSING_HEADER(header="X-SOCA-USER").as_flask()
+            return SocaError.CLIENT_MISSING_HEADER(header="X-EDH-USER").as_flask()
 
         # Launch Tenancy
         if not _launch_tenancy:
@@ -835,6 +848,19 @@ class SoftwareStacksManager(Resource):
                     helper=f"Unable to find existing stack with id {_software_stack_id}",
                 ).as_flask()
 
+        if _ami_id.startswith("/aws/service/"):
+            _ami_alias = _ami_id
+            _check_alias = get_ami_id_from_alias(
+                    alias_name=_ami_id
+                )
+            if _check_alias.get("success") is False:
+                return SocaError.GENERIC_ERROR(
+                    helper=f"Unable to resolve AMI alias {_ami_id} - {_check_alias.get('message')}"
+                ).as_flask()
+            _ami_id = _check_alias.get("message")
+        else:
+            _ami_alias = None
+            
         _get_image = ec2_helper.describe_images(image_ids=[_ami_id])
         logger.debug(f"API response - AMI {_ami_id}: {_get_image}")
         if _get_image.get("success") is True:
@@ -888,7 +914,7 @@ class SoftwareStacksManager(Resource):
 
             # Update existing stack # NOTE: we do not update the ami label, this one cannot be changed
             try:
-                _software_stack_to_update.ami_id = _ami_id
+                _software_stack_to_update.ami_id = _ami_id if not _ami_alias else _ami_alias
                 _software_stack_to_update.ami_base_os = _ami_base_os
                 _software_stack_to_update.ami_arch = _ami_arch
                 _software_stack_to_update.virtual_desktop_profile_id = (

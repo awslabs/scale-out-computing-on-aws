@@ -29,7 +29,7 @@ admin_groups = Blueprint("admin_groups", __name__, template_folder="templates")
 def index():
     get_all_groups = get(
         config.Config.FLASK_ENDPOINT + "/api/ldap/groups",
-        headers={"X-SOCA-TOKEN": session["api_key"], "X-SOCA-USER": session["user"]},
+        headers={"X-EDH-TOKEN": session["api_key"], "X-EDH-USER": session["user"]},
         verify=False,
     )  # nosec
 
@@ -41,7 +41,7 @@ def index():
 
     get_all_users = get(
         config.Config.FLASK_ENDPOINT + "/api/ldap/users",
-        headers={"X-SOCA-TOKEN": session["api_key"], "X-SOCA-USER": session["user"]},
+        headers={"X-EDH-TOKEN": session["api_key"], "X-EDH-USER": session["user"]},
         verify=False,
     )  # nosec
 
@@ -68,7 +68,7 @@ def create_group():
     members = request.form.getlist("members")
     create_group = post(
         config.Config.FLASK_ENDPOINT + "/api/ldap/group",
-        headers={"X-SOCA-TOKEN": session["api_key"], "X-SOCA-USER": session["user"]},
+        headers={"X-EDH-TOKEN": session["api_key"], "X-EDH-USER": session["user"]},
         data={"group": group_name, "members": ",".join(members)},
         verify=False,
     )  # nosec
@@ -99,7 +99,7 @@ def delete_group():
 
     group_to_delete = delete(
         config.Config.FLASK_ENDPOINT + "/api/ldap/group",
-        headers={"X-SOCA-TOKEN": session["api_key"], "X-SOCA-USER": session["user"]},
+        headers={"X-EDH-TOKEN": session["api_key"], "X-EDH-USER": session["user"]},
         data={"group": group},
         verify=False,
     )  # nosec
@@ -126,7 +126,7 @@ def check_group():
     group = str(request.form.get("group"))
     check_group = get(
         config.Config.FLASK_ENDPOINT + "/api/ldap/group",
-        headers={"X-SOCA-TOKEN": session["api_key"], "X-SOCA-USER": session["user"]},
+        headers={"X-EDH-TOKEN": session["api_key"], "X-EDH-USER": session["user"]},
         params={"group": group},
         verify=False,
     )  # nosec
@@ -158,7 +158,7 @@ def manage_group():
     action = request.form.get("action")
     update_group = put(
         config.Config.FLASK_ENDPOINT + "/api/ldap/group",
-        headers={"X-SOCA-TOKEN": session["api_key"], "X-SOCA-USER": session["user"]},
+        headers={"X-EDH-TOKEN": session["api_key"], "X-EDH-USER": session["user"]},
         data={"group": group, "user": user, "action": action},
         verify=False,
     )  # nosec

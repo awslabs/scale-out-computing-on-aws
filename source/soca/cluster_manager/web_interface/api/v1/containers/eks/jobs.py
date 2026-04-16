@@ -30,7 +30,7 @@ def full_serialize(obj):
 
 class EKSJobs(Resource):
     @private_api
-    @feature_flag(flag_name="CONTAINERS_MANAGEMENT", mode="api")
+    @feature_flag(flag_name="CONTAINERS_MANAGEMENT_EKS", mode="api")
     def get(self):
         """
         List EKS Jobs
@@ -42,7 +42,7 @@ class EKSJobs(Resource):
         summary: List all EKS jobs owned by the current user
         description: Retrieves a list of all EKS jobs owned by the authenticated user across tagged EKS clusters
         parameters:
-          - name: X-SOCA-USER
+          - name: X-EDH-USER
             in: header
             required: true
             schema:
@@ -52,7 +52,7 @@ class EKSJobs(Resource):
               pattern: '^[a-zA-Z0-9._-]+$'
             description: SOCA username for authentication
             example: "john.doe"
-          - name: X-SOCA-TOKEN
+          - name: X-EDH-TOKEN
             in: header
             required: true
             schema:
@@ -220,9 +220,9 @@ class EKSJobs(Resource):
         args = parser.parse_args()
 
         logger.info(f"Received EKS List Jobs for {locals()}")
-        _user = request.headers.get("X-SOCA-USER")
+        _user = request.headers.get("X-EDH-USER")
         if _user is None:
-            return SocaError.CLIENT_MISSING_HEADER(header="X-SOCA-USER").as_flask()
+            return SocaError.CLIENT_MISSING_HEADER(header="X-EDH-USER").as_flask()
 
         _cluster = args.get("cluster") or ""
         if not _cluster:
@@ -238,7 +238,7 @@ class EKSJobs(Resource):
 
             response = resource_tagging.get_resources(
                 TagFilters=[
-                    {"Key": f"soca:visibility:{_soca_cluster_id}", "Values": ["true"]}
+                    {"Key": f"edh:visibility:{_soca_cluster_id}", "Values": ["true"]}
                 ],
                 ResourceTypeFilters=["eks:cluster"],
             )
@@ -260,7 +260,7 @@ class EKSJobs(Resource):
                         helper=f"EKS cluster {_eks_cluster} is unreachable. Check firewall/security group rules."
                     ).as_flask()
                 
-                _labels = f"soca_JobOwner={_user},soca_ClusterId={_soca_cluster_id}"  # : is not supported by kube
+                _labels = f"edh_JobOwner={_user},edh_ClusterId={_soca_cluster_id}"  # : is not supported by kube
 
                 logger.info(f"Listing job with label selector {_labels}")
                 _list_jobs = _soca_eks_client.list_namespaced_job(

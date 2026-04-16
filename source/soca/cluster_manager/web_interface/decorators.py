@@ -31,10 +31,10 @@ def validate_token(
         else:
             if ApiKeys.query.filter_by(token=token, user=user, is_active=True).first():
                 logger.debug(f"{user=} is a valid user, checking {check_sudo=}")
-                if check_sudo is True:
+                if check_sudo:
                     _validate_sudo = SocaHttpClient(
                         endpoint="/api/ldap/sudo",
-                        headers={"X-SOCA-TOKEN": token, "X-SOCA-USER": user},
+                        headers={"X-EDH-TOKEN": token, "X-EDH-USER": user},
                     ).get(params={"user": user})
 
                     if _validate_sudo.get("success") is True:
@@ -64,7 +64,7 @@ def validate_password(
         # password are not stored in DB. We determine successfully login via LDAP bind
         check_auth = SocaHttpClient(
             endpoint="/api/ldap/authenticate",
-            headers={"X-SOCA-TOKEN": config.Config.API_ROOT_KEY},
+            headers={"X-EDH-TOKEN": config.Config.API_ROOT_KEY},
         ).post(data={"user": user, "password": password})
 
         if check_auth.get("success") is True:
@@ -88,7 +88,7 @@ def feature_flag(flag_name, mode):
                 return {"success": False, "message": message}, 400
 
             _feature = feature_flags.FEATURE_FLAGS.get(flag_name, {})
-            _current_user = session.get("user") or request.headers.get("X-SOCA-USER")
+            _current_user = session.get("user") or request.headers.get("X-EDH-USER")
             logger.debug(f"Checking {_current_user} permission to {_feature}")
 
             if not isinstance(_feature, dict):
@@ -96,7 +96,7 @@ def feature_flag(flag_name, mode):
 
             # Global flag
             if not _feature.get("enabled", False):
-                return _deny_access("Feature not available on this SOCA cluster")
+                return _deny_access("Feature not available on this EDH cluster. Please contact your Administrator to enable it.")
 
             _denied_users = _feature.get("denied_users", [])
             _allowed_users = _feature.get("allowed_users", [])
@@ -104,13 +104,13 @@ def feature_flag(flag_name, mode):
             # Explicit Deny
             if _current_user in _denied_users:
                 return _deny_access(
-                    "Feature not available for you on this SOCA cluster"
+                    "Feature not available for you on this EDH cluster. Please contact your Administrator to enable it."
                 )
 
             # Enabled is True, allowed_users list is set but user not in list
             if _allowed_users and _current_user not in _allowed_users:
                 return _deny_access(
-                    "Feature not available for you on this SOCA cluster"
+                    "Feature not available for you on this EDH cluster. Please contact your Administrator to enable it."
                 )
 
             # All other use cases, return True
@@ -126,7 +126,7 @@ def feature_flag(flag_name, mode):
 def restricted_api(f):
     @wraps(f)
     def restricted_resource(*args, **kwargs):
-        token = request.headers.get("X-SOCA-TOKEN", None)
+        token = request.headers.get("X-EDH-TOKEN", None)
         if validate_token("", token):
             return f(*args, **kwargs)
         else:
@@ -139,8 +139,8 @@ def restricted_api(f):
 def admin_api(f):
     @wraps(f)
     def admin_resource(*args, **kwargs):
-        _user = request.headers.get("X-SOCA-USER", None)
-        _token = request.headers.get("X-SOCA-TOKEN", None)
+        _user = request.headers.get("X-EDH-USER", None)
+        _token = request.headers.get("X-EDH-TOKEN", None)
         if validate_token(user=_user, token=_token, check_sudo=True):
             return f(*args, **kwargs)
 
@@ -149,14 +149,14 @@ def admin_api(f):
     return admin_resource
 
 
-# This is the only decorator that accept X-SOCA-PASSWORD.
+# This is the only decorator that accept X-EDH-PASSWORD.
 #  Used to query /api/user/api_key
 def retrieve_api_key(f):
     @wraps(f)
     def get_key(*args, **kwargs):
-        user = request.headers.get("X-SOCA-USER", None)
-        password = request.headers.get("X-SOCA-PASSWORD", None)
-        token = request.headers.get("X-SOCA-TOKEN", None)
+        user = request.headers.get("X-EDH-USER", None)
+        password = request.headers.get("X-EDH-PASSWORD", None)
+        token = request.headers.get("X-EDH-TOKEN", None)
         if token == config.Config.API_ROOT_KEY:
             return f(*args, **kwargs)
 
@@ -178,8 +178,8 @@ def retrieve_api_key(f):
 def private_api(f):
     @wraps(f)
     def private_resource(*args, **kwargs):
-        _user = request.headers.get("X-SOCA-USER", None)
-        _token = request.headers.get("X-SOCA-TOKEN", None)
+        _user = request.headers.get("X-EDH-USER", None)
+        _token = request.headers.get("X-EDH-TOKEN", None)
         if validate_token(user=_user, token=_token, check_sudo=False):
             return f(*args, **kwargs)
         return {"success": False, "message": "Not authorized"}, 401
@@ -222,14 +222,14 @@ def login_required(f):
                 # Retrieve current API key for the user or create a new one
                 check_user_key = SocaHttpClient(
                     "/api/user/api_key",
-                    headers={"X-SOCA-TOKEN": config.Config.API_ROOT_KEY},
+                    headers={"X-EDH-TOKEN": config.Config.API_ROOT_KEY},
                 ).get(params={"user": session["user"]})
                 if check_user_key.success:
                     session["api_key"] = check_user_key.message
 
             return f()
         else:
-            if config.Config.ENABLE_SSO is True:
+            if config.Config.ENABLE_SSO:
                 data = {
                     "redirect_uri": config.Config.COGNITO_CALLBACK_URL,
                     "client_id": config.Config.COGNITO_APP_ID,
@@ -268,7 +268,7 @@ def admin_only(f):
     return check_admin
 
 
-# To be removed, used feature_flag instead https://awslabs.github.io/scale-out-computing-on-aws-documentation/documentation/web-interface/feature-flags/ 
+# To be removed, used feature_flag instead https://awslabs.github.io/engineering-development-hub-documentation/documentation/web-interface/feature-flags/ 
 def disabled(f):
     @wraps(f)
     def disable_feature(*args, **kwargs):

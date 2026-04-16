@@ -24,7 +24,7 @@ from utils.http_client import SocaHttpClient
 
 """
 To enable SSO auth via cognito, update COGNITO section on config.py
-https://awslabs.github.io/scale-out-computing-on-aws-documentation/documentation/security/integrate-cognito-sso/
+https://awslabs.github.io/engineering-development-hub-documentation/documentation/security/integrate-cognito-sso/
 """
 
 logger = logging.getLogger("soca_logger")
@@ -88,7 +88,7 @@ def sso_authorization(code):
                 )
                 return {
                     "success": False,
-                    "message": f"Unable to retrieve user/username/email from SSO claim {_user_claim}. Udpate config.py to change the user claim.  See logs for all detected claims.",
+                    "message": f"Unable to retrieve user/username/email from SSO claim {_user_claim}. Update config.py to change the user claim.  See logs for all detected claims.",
                 }
 
         except Exception as err:
@@ -99,13 +99,13 @@ def sso_authorization(code):
             }
 
         logger.info(
-            f"Retrieved succesfull user {user=} from {claims.get('email')}, checking if user exist in people OU and sssd."
+            f"Retrieved user {user=} from {claims.get('email')}, checking if user exists in people OU and sssd."
         )
 
         check_user = SocaHttpClient(
             endpoint="/api/ldap/user",
             headers={
-                "X-SOCA-TOKEN": config.Config.API_ROOT_KEY,
+                "X-EDH-TOKEN": config.Config.API_ROOT_KEY,
             },
         ).get(params={"user": user})
 
@@ -120,14 +120,14 @@ def sso_authorization(code):
                 )
                 return {
                     "success": False,
-                    "message": "User is valid but  does not seems to be available on the SOCA Controller. See log for more details.",
+                    "message": "User is valid but does not seems to be available on the SOCA Controller. See log for more details.",
                 }
 
             session["user"] = user
             return {"success": True, "message": ""}
         else:
             logger.error(
-                f"Valid credentials but {user} could not be found in the specified OU. Verify specified People Base OU (/configuration/UserDirectory/people_search_base) and update it via cluster_manager/socactl config set --key '/configuration/UserDirectory/people_search_base' --value 'MY_NEW_OU'  if needed. error {check_user.get('message')}"
+                f"Valid credentials but {user} could not be found in the specified OU. Verify specified People Base OU (/configuration/UserDirectory/people_search_base) and update it via cluster_manager/edhctl config set --key '/configuration/UserDirectory/people_search_base' --value 'MY_NEW_OU'  if needed. error {check_user.get('message')}"
             )
             return {
                 "success": False,

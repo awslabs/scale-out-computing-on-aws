@@ -21,7 +21,7 @@ class SocaSSHClient:
       - Uploading and downloading files
 
     # Example usage:
-    ssh = SSHClient("192.168.1.10", "socaadmin", "/data/home/socaadmin/.ssh/id_rsa")
+    ssh = SSHClient("192.168.1.10", "edhadmin", "/data/home/edhadmin/.ssh/id_rsa")
     ssh.connect()
 
     _execute_cmd = ssh.execute("uname -a")

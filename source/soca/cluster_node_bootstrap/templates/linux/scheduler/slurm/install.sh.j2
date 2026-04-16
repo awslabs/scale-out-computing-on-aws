@@ -7,7 +7,7 @@
 {% include "templates/linux/munge.sh.j2" %}
 
 function slurm_install_{{ SCHEDULER_VARS.get("IDENTIFIER") }} {
-    local INSTALLER_DIR="${SOCA_BOOTSTRAP_ASSETS_FOLDER}/slurm"
+    local INSTALLER_DIR="${EDH_BOOTSTRAP_ASSETS_FOLDER}/slurm"
     local SCHEDULER_IDENTIFIER="{{ SCHEDULER_VARS.get("IDENTIFIER") }}"
     local SLURM_VERSION="{{ context.get("/system/scheduler/slurm/version") }}"
     local SLURM_URL="{{ context.get("/system/scheduler/slurm/url") }}"
@@ -25,9 +25,9 @@ function slurm_install_{{ SCHEDULER_VARS.get("IDENTIFIER") }} {
         tar -xaf "slurm_installer.tar.bz2" --strip-components=1
         
         log_info "Installing additional required packages"
-        {% if context.get("/configuration/BaseOS") in ["amazonlinux2023", "amazonlinux2", "rhel8", "rhel9", "rocky8", "rocky9"] %}
+        {% if context.get("/job/BaseOS") in ["amazonlinux2023", "amazonlinux2", "rhel8", "rhel9", "rocky8", "rocky9"] %}
             packages_install pmix pmix-devel dbus-devel json-c-devel pam-devel jansson-devel
-        {% elif context.get("/configuration/BaseOS") in ["ubuntu2204", "ubuntu2404"] %}
+        {% elif context.get("/job/BaseOS") in ["ubuntu2204", "ubuntu2404"] %}
             packages_install libpmix3 libpmix-dev libdbus-1-dev libjson-c-dev libpam0g-dev libjansson4 libjansson-dev
         {% endif %}
         
@@ -98,24 +98,24 @@ function slurm_install_{{ SCHEDULER_VARS.get("IDENTIFIER") }} {
         log_warning "${SLURM_SOCA_INSTALL_DIR} existing, SLURM will not be re-installed but additional reconfiguration will still apply"
     fi
 
-    log_info "Creating custom /bin/soca_${SCHEDULER_IDENTIFIER}"
-    cat << EOF > "/bin/soca_${SCHEDULER_IDENTIFIER}"
+    log_info "Creating custom /bin/edh_${SCHEDULER_IDENTIFIER}"
+    cat << EOF > "/bin/edh_${SCHEDULER_IDENTIFIER}"
 export PATH=${SLURM_SOCA_INSTALL_DIR}/bin:${SLURM_SOCA_INSTALL_DIR}/sbin:${PATH}
-echo "========= SOCA ========= "
+echo "========= EDH ========= "
 echo ">> SLURM environment loaded, you can now run commands such as sbatch/squeue/srun etc ..."
 echo ">> SLURM is installed under: ${SLURM_SOCA_INSTALL_DIR}"
-echo ">> Add /bin/soca_${SCHEDULER_IDENTIFIER} to your .bashrc / .bash_profile to automatically run this script"
+echo ">> Add /bin/edh_${SCHEDULER_IDENTIFIER} to your .bashrc / .bash_profile to automatically run this script"
 echo ">> Type exit to close this shell"
 echo "======================== "
-export PS1="(soca_slurm) \u@\h:\w\$ "
+export PS1="(edh_slurm) \u@\h:\w\$ "
 exec "$SHELL" -i
 EOF
-    chmod +x /bin/soca_${SCHEDULER_IDENTIFIER}
+    chmod +x /bin/edh_${SCHEDULER_IDENTIFIER}
 
 
-    log_info "Creating /etc/systemd/system/soca_scheduler_${SCHEDULER_IDENTIFIER}.service"
+    log_info "Creating /etc/systemd/system/edh_scheduler_${SCHEDULER_IDENTIFIER}.service"
     {% if context.get("/job/NodeType") == "controller" %}
-        cat << EOF > "/etc/systemd/system/soca_scheduler_${SCHEDULER_IDENTIFIER}.service"
+        cat << EOF > "/etc/systemd/system/edh_scheduler_${SCHEDULER_IDENTIFIER}.service"
 [Unit]
 Description=Slurm controller daemon
 After=network.target
@@ -132,7 +132,7 @@ WantedBy=multi-user.target
 EOF
     {% else %}
 
-    cat << EOF > "/etc/systemd/system/soca_scheduler_${SCHEDULER_IDENTIFIER}.service"
+    cat << EOF > "/etc/systemd/system/edh_scheduler_${SCHEDULER_IDENTIFIER}.service"
 [Unit]
 Description=Slurm controller daemon
 After=network.target
@@ -151,13 +151,13 @@ EOF
     {% endif %}
 
     systemctl daemon-reload
-    systemctl enable soca_scheduler_${SCHEDULER_IDENTIFIER}.service
-    if ! systemctl start soca_scheduler_${SCHEDULER_IDENTIFIER}.service; then
-        journalctl -xeu soca_scheduler_${SCHEDULER_IDENTIFIER}.service
-        exit_fail "Unable to start Slurm via soca_scheduler_${SCHEDULER_IDENTIFIER}.service, check logs"
+    systemctl enable edh_scheduler_${SCHEDULER_IDENTIFIER}.service
+    if ! systemctl start edh_scheduler_${SCHEDULER_IDENTIFIER}.service; then
+        journalctl -xeu edh_scheduler_${SCHEDULER_IDENTIFIER}.service
+        exit_fail "Unable to start Slurm via edh_scheduler_${SCHEDULER_IDENTIFIER}.service, check logs"
     else
         log_info "Slurm successfully started, stopping it to finalize installation"
-        systemctl stop soca_scheduler_${SCHEDULER_IDENTIFIER}.service
+        systemctl stop edh_scheduler_${SCHEDULER_IDENTIFIER}.service
     fi 
 
     log_info "Completed Slurm ${SLURM_VERSION} installation"

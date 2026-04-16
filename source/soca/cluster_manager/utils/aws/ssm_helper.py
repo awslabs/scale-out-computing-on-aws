@@ -16,7 +16,7 @@ client_ssm = utils_boto3.get_boto(service_name="ssm").message
 logger = logging.getLogger("soca_logger")
 
 
-@soca_cache(prefix="soca:webui:aws:ssm:get_ami_id_from_alias", ttl=86400)
+@soca_cache(prefix="edh:webui:aws:ssm:get_ami_id_from_alias", ttl=86400)
 def get_ami_id_from_alias(
     alias_name: str,
 ) -> SocaResponse:
@@ -46,14 +46,7 @@ def get_ami_id_from_alias(
         _ami_id = _fetch_ami_id["Parameter"]["Value"]
         # Received results for this alias, we just validate this is a correct AMI ID
         if _ami_id.startswith("ami-"):
-            # check if AMI is correct
-            _validate_ami = describe_images(image_ids=[_ami_id])
-            if _validate_ami.get("success") is False:
-                return SocaError.GENERIC_ERROR(
-                    helper=f"Unable to get AMI ID for {alias_name}. Received Result: {_ami_id}"
-                )
-            else:
-                return SocaResponse(success=True, message=_ami_id)
+            return SocaResponse(success=True, message=_ami_id)
         else:
             return SocaError.GENERIC_ERROR(
                 helper=f"Unable to get AMI ID for {alias_name}. Received Result: {_ami_id}"

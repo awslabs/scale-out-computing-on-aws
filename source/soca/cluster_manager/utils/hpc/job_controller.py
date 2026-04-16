@@ -1,10 +1,10 @@
 # Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 # SPDX-License-Identifier: Apache-2.0
 from __future__ import annotations
+import re
 import time
 import logging
 import os
-import re
 from utils.response import SocaResponse
 from utils.subprocess_client import SocaSubprocessClient
 from utils.error import SocaError
@@ -188,7 +188,7 @@ class SocaHpcJobController:
         _job_data = SocaSubprocessClient(run_command=_run_command).run()
         if _job_data.get("success") is True:
             logger.info(
-                f"LSF Update Job Description for {resource_name=} / {resource_value=} updated succesfully. New Description {_new_job_description=}"
+                f"LSF Update Job Description for {resource_name=} / {resource_value=} updated successfully. New Description {_new_job_description=}"
             )
             return SocaResponse(
                 success=True, message=_job_data.get("message").get("stdout")
@@ -289,7 +289,7 @@ class SocaHpcJobController:
         _job_data = SocaSubprocessClient(run_command=_run_command).run()
         if _job_data.get("success") is True:
             logger.info(
-                f"Slurm Update Job Comment for {resource_name=} / {resource_value=} updated succesfully. New Comment {_new_job_comment=}"
+                f"Slurm Update Job Comment for {resource_name=} / {resource_value=} updated successfully. New Comment {_new_job_comment=}"
             )
             return SocaResponse(
                 success=True, message=_job_data.get("message").get("stdout")
@@ -463,9 +463,7 @@ class SocaHpcJobController:
             logger.info("Detected OpenPBS/PBSPro job, updating select resource")
             _resource_selector_name = "select"
             # remove compute_node if there
-            _select_clean = re.sub(
-                r":?compute_node=[^:\s]*", "", self._job.pbs_resource_list.get("select")
-            )
+            _select_clean = re.sub(r':?compute_node=[^:\s]*', '', self._job.pbs_resource_list.get('select'))
             _resource_selector_value = f"{_select_clean}:compute_node=tbd"
 
         elif self._scheduler_info.provider == SocaHpcSchedulerProvider.LSF:

@@ -1,0 +1,57 @@
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Action": [
+                "logs:CreateLogGroup"
+            ],
+            "Resource": "arn:%%AWS_PARTITION%%:logs:%%AWS_REGION%%:%%AWS_ACCOUNT_ID%%:log-group:/edh/%%CLUSTER_ID%%/NestedVirtLauncher/*",
+            "Effect": "Allow",
+            "Sid": "CloudWatchLogsPermissions"
+        },
+        {
+            "Action": [
+                "logs:CreateLogStream",
+                "logs:PutLogEvents",
+                "logs:DeleteLogStream"
+            ],
+            "Resource": "arn:%%AWS_PARTITION%%:logs:%%AWS_REGION%%:%%AWS_ACCOUNT_ID%%:log-group:/edh/%%CLUSTER_ID%%/NestedVirtLauncher/*",
+            "Effect": "Allow",
+            "Sid": "CloudWatchLogStreamPermissions"
+        },
+        {
+            "Action": [
+                "ec2:RunInstances"
+            ],
+            "Resource": "*",
+            "Effect": "Allow",
+            "Sid": "EC2RunInstances"
+        },
+        {
+            "Action": [
+                "ec2:TerminateInstances",
+                "ec2:DescribeInstances"
+            ],
+            "Resource": "*",
+            "Effect": "Allow",
+            "Sid": "EC2TerminateAndDescribe"
+        },
+        {
+            "Action": [
+                "ec2:CreateTags"
+            ],
+            "Resource": "*",
+            "Effect": "Allow",
+            "Sid": "EC2CreateTags"
+        },
+        {
+            "Action": "iam:PassRole",
+            "Resource": [
+                "%%COMPUTE_NODE_ROLE_ARN%%",
+                "%%TARGET_NODE_ROLE_ARN%%"
+            ],
+            "Effect": "Allow",
+            "Sid": "PassRole"
+        }
+    ]
+}

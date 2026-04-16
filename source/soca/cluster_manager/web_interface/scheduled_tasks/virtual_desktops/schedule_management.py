@@ -56,7 +56,7 @@ def ssm_get_command_info(
                 $GPU_Usage_Level = 0
             }
             """,
-            f"$DCV_Describe_Session = Invoke-Expression \"& 'C:\\Program Files\\NICE\\DCV\\Server\\bin\\dcv' describe-session $env:SOCA_DCV_SESSION_ID -j\" | ConvertFrom-Json",
+            f"$DCV_Describe_Session = Invoke-Expression \"& 'C:\\Program Files\\NICE\\DCV\\Server\\bin\\dcv' describe-session $env:EDH_DCV_SESSION_ID -j\" | ConvertFrom-Json",
             '$CPUAveragePerformanceLast10Secs = (GET-COUNTER -Counter "\\Processor(_Total)\\% Processor Time" -SampleInterval 2 -MaxSamples 5 |select -ExpandProperty countersamples | select -ExpandProperty cookedvalue | Measure-Object -Average).average',
             "$output = @{}",
             '$output["CPUAveragePerformanceLast10Secs"] = $CPUAveragePerformanceLast10Secs',
@@ -81,8 +81,8 @@ def ssm_get_command_info(
                 GPU_USAGE_LEVEL=0
             fi
             """,
-            "export SOCA_DCV_SESSION_ID=$(cat /etc/environment | grep SOCA_DCV_SESSION_ID= | awk -F'=' '{print $2}')",  # ssm.send_command() cannot use source",
-            "DCV_Describe_Session=$(dcv describe-session $SOCA_DCV_SESSION_ID -j)",
+            "export EDH_DCV_SESSION_ID=$(cat /etc/environment | grep EDH_DCV_SESSION_ID= | awk -F'=' '{print $2}')",  # ssm.send_command() cannot use source",
+            "DCV_Describe_Session=$(dcv describe-session $EDH_DCV_SESSION_ID -j)",
             'echo "${DCV_Describe_Session}" | jq --arg GPUUsageLevel "${GPU_USAGE_LEVEL}" --arg CPUAveragePerformanceLast10Secs "$(top -d 5 -b -n2 | grep \'Cpu(s)\' | tail -n 1 | awk \'{print $2 + $4}\')" \'{"DCVCurrentConnections": .["num-of-connections"], "DCVCreationTime": .["creation-time"], "DCVLastDisconnectTime": .["last-disconnection-time"], "CPUAveragePerformanceLast10Secs": $CPUAveragePerformanceLast10Secs, "GPUUsageLevel": $GPUUsageLevel}\'',
         ]
         _ssm_document_name = "AWS-RunShellScript"
@@ -295,7 +295,7 @@ def find_inactive_sessions(sessions_info: list[VirtualDesktopSessions]) -> None:
     # Succeed => All instances succeeded
     # Failed => At least 1 instance failed, but other may have succeeded
     # All others return code => SSM command was not executed for various reason (Quota, Rate Exceeded etc ..)
-    if _skip_linux is False:
+    if not _skip_linux:
         for _session in [
             session for session in sessions_info if session.os_family == "linux"
         ]:
@@ -306,7 +306,7 @@ def find_inactive_sessions(sessions_info: list[VirtualDesktopSessions]) -> None:
             )
 
     # Check all Windows hosts individually
-    if _skip_windows is False:
+    if not _skip_windows:
         for _session in [
             session for session in sessions_info if session.os_family == "windows"
         ]:

@@ -236,11 +236,11 @@ def ssm_get_command_info(os_family: Literal["linux", "windows"]) -> SocaResponse
 
     if os_family == "windows":
         _ssm_commands = [
-            f"Invoke-Expression \"& 'C:\\Program Files\\NICE\\DCV\\Server\\bin\\dcv' describe-session $env:SOCA_DCV_SESSION_ID\"",
+            f"Invoke-Expression \"& 'C:\\Program Files\\NICE\\DCV\\Server\\bin\\dcv' describe-session $env:EDH_DCV_SESSION_ID\"",
             "if ($?) { exit 0 }",
             "Restart-Service -Name dcvserver -Force",
             "Start-Sleep -Seconds 5",
-            f"Invoke-Expression \"& 'C:\\Program Files\\NICE\\DCV\\Server\\bin\\dcv' describe-session $env:SOCA_DCV_SESSION_ID\"",
+            f"Invoke-Expression \"& 'C:\\Program Files\\NICE\\DCV\\Server\\bin\\dcv' describe-session $env:EDH_DCV_SESSION_ID\"",
             "if ($?) { exit 0 } else { exit 1 }",
         ]
 
@@ -248,15 +248,15 @@ def ssm_get_command_info(os_family: Literal["linux", "windows"]) -> SocaResponse
 
     else:
         _ssm_commands = [
-            "export SOCA_DCV_SESSION_ID=$(cat /etc/environment | grep SOCA_DCV_SESSION_ID= | awk -F'=' '{print $2}')",  # ssm.send_command() cannot use source",
-            f"if dcv describe-session $SOCA_DCV_SESSION_ID; then",
+            "export EDH_DCV_SESSION_ID=$(cat /etc/environment | grep EDH_DCV_SESSION_ID= | awk -F'=' '{print $2}')",  # ssm.send_command() cannot use source",
+            f"if dcv describe-session $EDH_DCV_SESSION_ID; then",
             " exit 0",
             "fi",
             " ",
             "systemctl restart socadcv;",
             "sleep 5",
             "",
-            f"if dcv describe-session $SOCA_DCV_SESSION_ID; then",
+            f"if dcv describe-session $EDH_DCV_SESSION_ID; then",
             "exit 0",
             "else",
             "exit 1 ",
@@ -420,7 +420,7 @@ def validate_dcv_session(
                 _skip_windows = True
 
         # Check all linux hosts individually
-        if _skip_linux is False:
+        if not _skip_linux:
             for _session in [
                 session for session in sessions if session.os_family == "linux"
             ]:
@@ -444,7 +444,7 @@ def validate_dcv_session(
                         db_scoped_session=db_scoped_session,
                     )
         # Check all Windows hosts individually
-        if _skip_windows is False:
+        if not _skip_windows:
             for _session in [
                 session for session in sessions if session.os_family == "windows"
             ]:
@@ -508,25 +508,25 @@ def update_ec2_info(
             _base_os = _session.instance_base_os
             _owner = _session.session_owner
             logger.info(
-                f"Checking get_ec2_host_info for VDI Session {_session.id} with tag:soca:DCVSessionUUID: {_session_uuid}, tag:soca:ClusterId {cluster_id}, tag:soca:JobOwner {_owner} and tag:soca:DCVSystem {_base_os}"
+                f"Checking get_ec2_host_info for VDI Session {_session.id} with tag:edh:DCVSessionUUID: {_session_uuid}, tag:edh:ClusterId {cluster_id}, tag:edh:JobOwner {_owner} and tag:edh:DCVSystem {_base_os}"
             )
             _host_info = {}
 
             _find_instance = client_ec2.describe_instances(
                 Filters=[
                     {
-                        "Name": "tag:soca:DCVSessionUUID",
+                        "Name": "tag:edh:DCVSessionUUID",
                         "Values": [_session.session_uuid],
                     },
-                    {"Name": "tag:soca:ClusterId", "Values": [cluster_id]},
-                    {"Name": "tag:soca:DCVSystem", "Values": [_base_os]},
-                    {"Name": "tag:soca:JobOwner", "Values": [_owner]},
+                    {"Name": "tag:edh:ClusterId", "Values": [cluster_id]},
+                    {"Name": "tag:edh:DCVSystem", "Values": [_base_os]},
+                    {"Name": "tag:edh:JobOwner", "Values": [_owner]},
                 ],
             )
 
             if not _find_instance["Reservations"]:
                 logger.warning(
-                    f"No instance found for tag:soca:DCVSessionUUID: {_session_uuid}, checking if the associated CloudFormation stack is healthy"
+                    f"No instance found for tag:edh:DCVSessionUUID: {_session_uuid}, checking if the associated CloudFormation stack is healthy"
                 )
             else:
                 logger.debug(f"Found Instance: {_find_instance}")
@@ -788,7 +788,7 @@ def delete_inactive_instances(
                     f"CloudFormation Stack exist and is in valid state, capacity will be provisioned soon ... "
                 )
 
-        if _stack_deleted is True:
+        if _stack_deleted:
             try:
                 logger.info("Updating is_active flag to False")
                 _session.is_active = False

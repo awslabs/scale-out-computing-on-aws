@@ -235,7 +235,7 @@ class SocaHpcJobFetcher:
             SocaHpcSchedulerProvider.PBSPRO,
         ]:
 
-            # PBS does not natively have a flag to list only jobs in a specific queue / users then output as json. Post processing will be done automatically
+            # PBS does not natively have a flag to list only jobs in a specific queue / users then output as json. Post-processing will be done automatically
             _job_id_option = f"{job_id}" if job_id else ""
             _run_command = SocaHpcPBSJobCommandBuilder(
                 scheduler_info=self.scheduler_info
@@ -415,7 +415,7 @@ class SocaHpcJobFetcher:
 
                 _job_lsf.job_working_directory = _job_data.get("SUB_CWD")
                 # Required SocaHpcJobLSF attributes
-                # On LSF, SOCA specific resources -instance_ami, root_disk..- are configured via the Job Description field
+                # On LSF, SOCA specific resources -instance_ami, root_disk.- are configured via the Job Description field
                 _job_description_variables = {}
                 _job_lsf.lsf_job_description = _job_data.get("JOB_DESCRIPTION", "")
 
@@ -469,6 +469,7 @@ class SocaHpcJobFetcher:
                     "efa_support": "efa_support",
                     "force_ri": "force_ri",
                     "ht_support": "ht_support",
+                    "nested_virtualization": "nested_virtualization",
                     "retry_attempt": "job_failed_provisioning_retry_count",
                     "stack_id": "stack_id",
                     "capacity_reservation_id": "capacity_reservation_id",
@@ -919,6 +920,7 @@ class SocaHpcJobFetcher:
                     "efa_support": "efa_support",
                     "force_ri": "force_ri",
                     "ht_support": "ht_support",
+                    "nested_virtualization": "nested_virtualization",
                     "retry_attempt": "job_failed_provisioning_retry_count",
                     "stack_id": "stack_id",
                     "capacity_reservation_id": "capacity_reservation_id",
@@ -1084,6 +1086,7 @@ class SocaHpcJobFetcher:
                     "efa_support": "efa_support",
                     "force_ri": "force_ri",
                     "ht_support": "ht_support",
+                    "nested_virtualization": "nested_virtualization",
                     "select": "",
                     "retry_attempt": "job_failed_provisioning_retry_count",
                     "capacity_reservation_id": "capacity_reservation_id",

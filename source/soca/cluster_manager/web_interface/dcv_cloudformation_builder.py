@@ -28,6 +28,7 @@ from troposphere.ec2 import (
     EBSBlockDevice,
     IamInstanceProfile,
     LaunchTemplateBlockDeviceMapping,
+    NetworkInterfaces,
     Placement,
     Tag,
 )
@@ -36,6 +37,7 @@ import logging
 from utils.config import SocaConfig
 from utils.response import SocaResponse
 from utils.error import SocaError
+from utils.aws.ec2_helper import describe_images
 
 logger = logging.getLogger("soca_logger")
 
@@ -63,33 +65,49 @@ class CustomResourceSendAnonymousMetrics(AWSCustomObject):
     }
 
 
+class CustomResourceNestedVirtLauncher(AWSCustomObject):
+    resource_type = "Custom::NestedVirtLauncher"
+    props = {
+        "ServiceToken": (str, True),
+        "LaunchTemplateId": (str, True),
+        "LaunchTemplateVersion": (str, True),
+        "NodeCount": (str, True),
+        "InstanceTypes": (list, True),
+        "StackName": (str, True),
+        "CoreCount": (str, False),
+        "ThreadsPerCore": (str, False),
+    }
+
+
 def main(**launch_parameters):
     try:
         logger.debug(f"Received DCV Cloudformation Parameters: {launch_parameters}")
         t = Template()
         t.set_version("2010-09-09")
         t.set_description(
-            "(SOCA) - Base template to deploy DCV nodes version 26.3.0"
+            "(SOCA) - Base template to deploy DCV nodes version 26.4.0"
         )
         allow_anonymous_data_collection = launch_parameters["DefaultMetricCollection"]
         # Launch Actual Capacity
         ltd = LaunchTemplateData("DesktopLaunchTemplateData")
-        if launch_parameters["base_os"] in {"amazonlinux2", "amazonlinux2023"}:
-            _ebs_device_name = "/dev/xvda"
-        else:
-            _ebs_device_name = "/dev/sda1"
 
+        _get_image = describe_images(image_ids=[launch_parameters.get("image_id")])
+        if _get_image.get("success") is False:
+            return SocaError.GENERIC_ERROR(helper=f"Unable to describe the provided image ID because of {_get_image.get('message')}").as_flask()
+        else:
+            _image_details = _get_image.get("message")
+            _ebs_root_device_name = _image_details["Images"][0].get("RootDeviceName")
         # Base tags
         _base_tags = {
             "Name": f"{launch_parameters['cluster_id']}-{launch_parameters['session_name']}-{launch_parameters['user']}",
-            "soca:JobName": str(launch_parameters["session_name"]),
-            "soca:JobOwner": str(launch_parameters["user"]),
-            "soca:NodeType": "dcv_node",
-            "soca:JobProject": str(launch_parameters["project"]),
-            "soca:DCVSupportHibernate": str(launch_parameters["hibernate"]).lower(),
-            "soca:ClusterId": str(launch_parameters["cluster_id"]),
-            "soca:DCVSessionUUID": str(launch_parameters["session_uuid"]),
-            "soca:DCVSystem": str(launch_parameters["base_os"]),
+            "edh:JobName": str(launch_parameters["session_name"]),
+            "edh:JobOwner": str(launch_parameters["user"]),
+            "edh:NodeType": "dcv_node",
+            "edh:JobProject": str(launch_parameters["project"]),
+            "edh:DCVSupportHibernate": str(launch_parameters["hibernate"]).lower(),
+            "edh:ClusterId": str(launch_parameters["cluster_id"]),
+            "edh:DCVSessionUUID": str(launch_parameters["session_uuid"]),
+            "edh:DCVSystem": str(launch_parameters["base_os"]),
         }
 
         if launch_parameters.get("custom_tags"):
@@ -107,7 +125,7 @@ def main(**launch_parameters):
                     )
 
         # Make sure that the requested disk size is proper
-        # This allows the admin to define an min size for DCV sessions
+        # This allows the admin to define a min size for DCV sessions
         # and register this size as part of the AMI registration process.
         # This in turn cannot be smaller than the AMI size either.
 
@@ -123,7 +141,7 @@ def main(**launch_parameters):
 
         ltd.BlockDeviceMappings = [
             LaunchTemplateBlockDeviceMapping(
-                DeviceName=_ebs_device_name,
+                DeviceName=_ebs_root_device_name,
                 Ebs=EBSBlockDevice(
                     VolumeSize=(
                         40
@@ -137,7 +155,18 @@ def main(**launch_parameters):
             )
         ]
         ltd.ImageId = launch_parameters["image_id"]
-        ltd.SecurityGroupIds = [launch_parameters["security_group_id"]]
+        if launch_parameters.get("nested_virtualization") is True:
+            ltd.NetworkInterfaces = [
+                NetworkInterfaces(
+                    DeleteOnTermination=True,
+                    DeviceIndex=0,
+                    Groups=[launch_parameters["security_group_id"]],
+                    SubnetId=launch_parameters["subnet_id"],
+                    AssociatePublicIpAddress=False,
+                )
+            ]
+        else:
+            ltd.SecurityGroupIds = [launch_parameters["security_group_id"]]
         if launch_parameters["hibernate"] is True:
             ltd.HibernationOptions = ec2.HibernationOptions(Configured=True)
         ltd.InstanceType = launch_parameters["instance_type"]
@@ -206,15 +235,24 @@ def main(**launch_parameters):
             string=str(launch_parameters["session_name"])[:32],
         )[:32]
 
-        instance = ec2.Instance(_session_name)
-
-        instance.SubnetId = launch_parameters["subnet_id"]
-        instance.Tenancy = launch_parameters["tenancy"]
-        instance.LaunchTemplate = ec2.LaunchTemplateSpecification(
-            LaunchTemplateId=Ref(lt), Version=GetAtt(lt, "LatestVersionNumber")
-        )
-
-        t.add_resource(instance)
+        if launch_parameters.get("nested_virtualization") is True:
+            _nested_virt_cr = CustomResourceNestedVirtLauncher("NestedVirtLauncher")
+            _nested_virt_cr.DependsOn = "DesktopLaunchTemplate"
+            _nested_virt_cr.ServiceToken = launch_parameters["NestedVirtLauncherLambda"]
+            _nested_virt_cr.LaunchTemplateId = Ref(lt)
+            _nested_virt_cr.LaunchTemplateVersion = GetAtt(lt, "LatestVersionNumber")
+            _nested_virt_cr.NodeCount = "1"
+            _nested_virt_cr.InstanceTypes = [launch_parameters["instance_type"]]
+            _nested_virt_cr.StackName = lt.LaunchTemplateName
+            t.add_resource(_nested_virt_cr)
+        else:
+            instance = ec2.Instance("VirtualDesktopInstance")
+            instance.SubnetId = launch_parameters["subnet_id"]
+            instance.Tenancy = launch_parameters["tenancy"]
+            instance.LaunchTemplate = ec2.LaunchTemplateSpecification(
+                LaunchTemplateId=Ref(lt), Version=GetAtt(lt, "LatestVersionNumber")
+            )
+            t.add_resource(instance)
 
         # Begin Custom Resource
         # Change Mapping to No if you want to disable this
@@ -251,7 +289,7 @@ def main(**launch_parameters):
             t.add_resource(metrics)
         # End Custom Resource
 
-        # Tags must use "soca:<Key>" syntax
+        # Tags must use "edh:<Key>" syntax
         template_output = t.to_yaml()
         return SocaResponse(success=True, message=template_output)
 

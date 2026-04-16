@@ -4,7 +4,7 @@
 # Begin: Patch krb5.conf for AD
 # Some older distribution such as Ubuntu22.04 does not automatically detect the correct kerberos settings when using AD
 
-{% if context.get("/configuration/BaseOS") in ("ubuntu2204")  %}
+{% if context.get("/job/BaseOS") in ("ubuntu2204")  %}
   log_info "Patching /etc/krb5.conf prior to joining AD realm"
   cp /etc/krb5.conf /etc/krb5.conf.original.$(date +%s)
 

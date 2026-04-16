@@ -206,7 +206,7 @@ def create_home(username: str, group: str):
                 logger.warning(f"Unable to chown {_path}, path does not exist")
 
         logger.info(f"Create SSH keypairs for {username}")
-        if populate_ssh_keys(username=username, user_path=user_path) is False:
+        if not populate_ssh_keys(username=username, user_path=user_path):
             logger.error(f"Unable to generate SSH keypairs for user {username}")
             return False
 
@@ -327,12 +327,12 @@ class User(Resource):
             socaAuth:
               type: apiKey
               in: header
-              name: X-SOCA-USER
+              name: X-EDH-USER
               description: SOCA username for authentication
             socaToken:
               type: apiKey
               in: header
-              name: X-SOCA-TOKEN
+              name: X-EDH-TOKEN
               description: SOCA authentication token
         """
         parser = reqparse.RequestParser()
@@ -563,7 +563,7 @@ class User(Resource):
 
         _get_id = SocaHttpClient(
             endpoint="/api/ldap/ids",
-            headers={"X-SOCA-TOKEN": config.Config.API_ROOT_KEY},
+            headers={"X-EDH-TOKEN": config.Config.API_ROOT_KEY},
         ).get()
         if _get_id.success:
             current_ldap_ids = _get_id.message
@@ -603,7 +603,7 @@ class User(Resource):
 
             _is_user_exist = SocaHttpClient(
                 endpoint="/api/ldap/user",
-                headers={"X-SOCA-TOKEN": config.Config.API_ROOT_KEY},
+                headers={"X-EDH-TOKEN": config.Config.API_ROOT_KEY},
             ).get(params={"user": user})
             if _is_user_exist.get('success'):
                 if len(_is_user_exist.get('message')) == 0:
@@ -697,7 +697,7 @@ class User(Resource):
             logger.info("Create group first to prevent GID issue")
             _create_user_group = SocaHttpClient(
                 endpoint="/api/ldap/group",
-                headers={"X-SOCA-TOKEN": config.Config.API_ROOT_KEY},
+                headers={"X-EDH-TOKEN": config.Config.API_ROOT_KEY},
             ).post(data={"group": f"{group}", "gid": gid})
             if _create_user_group.get("success") is False:
                 return SocaError.IDENTITY_PROVIDER_ERROR(
@@ -713,7 +713,7 @@ class User(Resource):
                 )
                 SocaHttpClient(
                     endpoint="/api/ldap/group",
-                    headers={"X-SOCA-TOKEN": config.Config.API_ROOT_KEY},
+                    headers={"X-EDH-TOKEN": config.Config.API_ROOT_KEY},
                 ).delete(data={"group": f"{group}"})
                 return SocaError.IDENTITY_PROVIDER_ERROR(
                     helper=f"Unable to create user {user}, because of {_user_create.get('message')}"
@@ -730,7 +730,7 @@ class User(Resource):
 
                 _pw_reset_request = SocaHttpClient(
                     endpoint="/api/user/reset_password",
-                    headers={"X-SOCA-TOKEN": config.Config.API_ROOT_KEY},
+                    headers={"X-EDH-TOKEN": config.Config.API_ROOT_KEY},
                 ).post(
                     data={
                         "user": user,
@@ -757,13 +757,13 @@ class User(Resource):
                     )
                     time.sleep(1)
 
-            if _user_is_propagated is False:
+            if not _user_is_propagated:
                 logger.error(
                     f"User {user} created but LDAP did not refresh after 15 seconds. Continuing creation process, permissions can still be configured post-user creation"
                 )
 
             logger.info("Creating Home Directory for user")
-            if create_home(user, group) is False:
+            if not create_home(user, group):
                 return SocaError.IDENTITY_PROVIDER_ERROR(
                     helper=f"User created but could not create {user} home directory."
                 ).as_flask()
@@ -773,7 +773,7 @@ class User(Resource):
             try:
                 SocaHttpClient(
                     endpoint="/api/user/api_key",
-                    headers={"X-SOCA-TOKEN": config.Config.API_ROOT_KEY},
+                    headers={"X-EDH-TOKEN": config.Config.API_ROOT_KEY},
                 ).get(params={"user": user})
             except Exception as err:
                 logger.error(
@@ -784,7 +784,7 @@ class User(Resource):
                 logger.info(f"Granting Sudo permission to {user}")
                 _grant_sudo = SocaHttpClient(
                     endpoint="/api/ldap/sudo",
-                    headers={"X-SOCA-TOKEN": config.Config.API_ROOT_KEY},
+                    headers={"X-EDH-TOKEN": config.Config.API_ROOT_KEY},
                 ).post(data={"user": user})
 
                 if not _grant_sudo.success:
@@ -800,7 +800,7 @@ class User(Resource):
             logger.info(f"Adding user {user} to group {group}")
             _update_group = SocaHttpClient(
                 endpoint="/api/ldap/group",
-                headers={"X-SOCA-TOKEN": config.Config.API_ROOT_KEY},
+                headers={"X-EDH-TOKEN": config.Config.API_ROOT_KEY},
             ).put(data={"group": f"{group}", "user": user, "action": "add"})
 
             if not _update_group.success:
@@ -956,9 +956,9 @@ class User(Resource):
         if user is None:
             return SocaError.CLIENT_MISSING_PARAMETER(parameter="user").as_flask()
 
-        request_user = request.headers.get("X-SOCA-USER")
+        request_user = request.headers.get("X-EDH-USER")
         if request_user is None:
-            return SocaError.CLIENT_MISSING_HEADER(header="X-SOCA-USER").as_flask()
+            return SocaError.CLIENT_MISSING_HEADER(header="X-EDH-USER").as_flask()
 
         if request_user == user:
             return SocaError.GENERIC_ERROR(
@@ -967,7 +967,7 @@ class User(Resource):
 
         _is_user_exist = SocaHttpClient(
             endpoint="/api/ldap/user",
-            headers={"X-SOCA-TOKEN": config.Config.API_ROOT_KEY},
+            headers={"X-EDH-TOKEN": config.Config.API_ROOT_KEY},
         ).get(params={"user": user})
 
         if _is_user_exist.success:
@@ -1025,7 +1025,7 @@ class User(Resource):
 
             _invalidate_api_key = SocaHttpClient(
                 endpoint="/api/user/api_key",
-                headers={"X-SOCA-TOKEN": config.Config.API_ROOT_KEY},
+                headers={"X-EDH-TOKEN": config.Config.API_ROOT_KEY},
             ).delete(data={"user": user})
             if _invalidate_api_key.get("success") is False:
                 if (

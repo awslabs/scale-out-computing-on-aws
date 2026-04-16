@@ -77,9 +77,13 @@ from api.v1.containers.eks.list_clusters import EKSListClusters
 from api.v1.containers.eks.job import EKSJob
 from api.v1.containers.eks.jobs import EKSJobs
 
+from api.v1.containers.batch.job_queue import BatchJobQueue
+from api.v1.containers.batch.job_definition import BatchJobDefinition
+from api.v1.containers.batch.job import BatchJob
+from api.v1.containers.batch.jobs import BatchJobs
+
 from views.index import index
 from views.ssh import ssh
-from views.sftp import sftp
 from views.my_api_key import my_api_key
 from views.admin.users import admin_users
 from views.admin.groups import admin_groups
@@ -102,10 +106,12 @@ from views.my_activity import my_activity
 from views.dashboard import dashboard
 from views.virtual_desktops import virtual_desktops
 from views.my_account import my_account
-from views.my_files import my_files
+from views.file_explorer import file_explorer
 from views.submit_job import submit_job
 from views.target_nodes import target_nodes
-from views.containers import containers
+from views.containers.ecr_images import ecr_images
+from views.containers.containers_eks import containers_eks
+from views.containers.containers_batch import containers_batch
 
 
 from flask_wtf.csrf import CSRFProtect, CSRFError
@@ -137,7 +143,7 @@ app = Flask(__name__)
 # Custom Jinja2 filters
 @app.template_filter("folder_name_truncate")
 def folder_name_truncate(folder_name):
-    # This make sure folders with long name on /my_files are displayed correctly
+    # This make sure folders with long name on /file_explorer are displayed correctly
     if folder_name.__len__() < 20:
         return folder_name
     else:
@@ -173,7 +179,7 @@ def inject_global_template_variables():
     else:
         print("AMAZON_Q_BUSINESS_URL is not a valid URL, default value to False")
         _global_variables["AMAZON_Q_BUSINESS_URL"] = False
-
+    _global_variables["CURRENT_PATH"] = request.path
     return _global_variables
 
 
@@ -257,6 +263,10 @@ with app.app_context():
     api.add_resource(EKSListClusters, "/api/containers/eks/list_clusters")
     api.add_resource(EKSJob, "/api/containers/eks/job")
     api.add_resource(EKSJobs, "/api/containers/eks/jobs")
+    api.add_resource(BatchJobQueue, "/api/containers/batch/job_queue")
+    api.add_resource(BatchJobDefinition, "/api/containers/batch/job_definition")
+    api.add_resource(BatchJob, "/api/containers/batch/job")
+    api.add_resource(BatchJobs, "/api/containers/batch/jobs")
 
     # DCV
     api.add_resource(DcvAuthenticator, "/api/dcv/authenticator")
@@ -317,10 +327,9 @@ with app.app_context():
     app.register_blueprint(admin_virtual_desktops_profiles)
     app.register_blueprint(admin_virtual_desktops_list_all)
     app.register_blueprint(admin_projects)
-    app.register_blueprint(my_files)
+    app.register_blueprint(file_explorer)
     app.register_blueprint(submit_job)
     app.register_blueprint(ssh)
-    app.register_blueprint(sftp)
     app.register_blueprint(my_jobs)
     app.register_blueprint(virtual_desktops)
     app.register_blueprint(dashboard)
@@ -329,7 +338,9 @@ with app.app_context():
     app.register_blueprint(admin_target_nodes_user_data)
     app.register_blueprint(admin_target_nodes_software_stacks)
     app.register_blueprint(admin_target_nodes_profiles)
-    app.register_blueprint(containers)
+    app.register_blueprint(ecr_images)
+    app.register_blueprint(containers_batch)
+    app.register_blueprint(containers_eks)
 
     # Logger
     setup_logger("soca_logger", "logs/web_interface.log")

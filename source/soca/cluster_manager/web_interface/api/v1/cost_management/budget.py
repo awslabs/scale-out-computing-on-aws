@@ -46,7 +46,7 @@ class AwsBudgetInfo(Resource):
         summary: Retrieve AWS budget information for a project
         description: Gets current spend, forecasted spend, total budget, and usage percentage for a specific project's AWS budget
         parameters:
-          - name: X-SOCA-USER
+          - name: X-EDH-USER
             in: header
             required: true
             schema:
@@ -56,7 +56,7 @@ class AwsBudgetInfo(Resource):
               pattern: '^[a-zA-Z0-9._-]+$'
             description: SOCA username for authentication
             example: "john.doe"
-          - name: X-SOCA-TOKEN
+          - name: X-EDH-TOKEN
             in: header
             required: true
             schema:

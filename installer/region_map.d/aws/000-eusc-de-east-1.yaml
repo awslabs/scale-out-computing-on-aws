@@ -1,0 +1,10 @@
+---
+# SOCA AMI List for European Sovereign Cloud (EUSC) partition generated 2026-02-26 21:47:43 UTC
+eusc-de-east-1:
+  x86_64:
+    amazonlinux2023: ami-0add22b865e9e49e8
+    windows2025: /aws/service/ami-windows-latest/Windows_Server-2025-English-Full-Base
+  arm64:
+    amazonlinux2023: ami-0e1f7258cebcb29e1
+  
+# SOCA AMI List for govcloud partition generated 2026-02-26 21:47:43 UTC

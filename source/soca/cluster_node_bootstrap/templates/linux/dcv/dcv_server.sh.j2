@@ -17,19 +17,19 @@ function install_dcv_server () {
   local SERVER_HOSTNAME_ALT=$(echo $SERVER_HOSTNAME | cut -d. -f1)
   local DCV_START_COMMAND
 
-  {% if context.get("/configuration/BaseOS") == "amazonlinux2" %}
+  {% if context.get("/job/BaseOS") == "amazonlinux2" %}
     {% set DCV_VERSION_FAMILY = "al2" %}
-  {% elif context.get("/configuration/BaseOS") == "amazonlinux2023" %}
+  {% elif context.get("/job/BaseOS") == "amazonlinux2023" %}
     {% set DCV_VERSION_FAMILY = "al2023" %}
-  {% elif context.get("/configuration/BaseOS") in ("rhel7", "centos7") %}
+  {% elif context.get("/job/BaseOS") in ("rhel7", "centos7") %}
     {% set DCV_VERSION_FAMILY = "el7" %}
-  {% elif context.get("/configuration/BaseOS") in ("rhel8", "rocky8") %}
+  {% elif context.get("/job/BaseOS") in ("rhel8", "rocky8") %}
     {% set DCV_VERSION_FAMILY = "el8" %}
-  {% elif context.get("/configuration/BaseOS") in ("rhel9", "rocky9") %}
+  {% elif context.get("/job/BaseOS") in ("rhel9", "rocky9") %}
     {% set DCV_VERSION_FAMILY = "el9" %}
-  {% elif context.get("/configuration/BaseOS") == "ubuntu2204" %}
+  {% elif context.get("/job/BaseOS") == "ubuntu2204" %}
     {% set DCV_VERSION_FAMILY = "ubuntu2204" %}
-  {% elif context.get("/configuration/BaseOS") == "ubuntu2404" %}
+  {% elif context.get("/job/BaseOS") == "ubuntu2404" %}
     {% set DCV_VERSION_FAMILY = "ubuntu2404" %}
   {% else %}
     exit_fail "Unrecognized Base OS for DCV Server"
@@ -53,8 +53,8 @@ function install_dcv_server () {
   log_info "DCV_VERSION: ${DCV_VERSION}"
   log_info "DCV_SESSION_TYPE: ${DCV_SESSION_TYPE}"
 
-  mkdir -p "${SOCA_BOOTSTRAP_ASSETS_FOLDER}/dcvserver"
-  pushd "${SOCA_BOOTSTRAP_ASSETS_FOLDER}/dcvserver"
+  mkdir -p "${EDH_BOOTSTRAP_ASSETS_FOLDER}/dcvserver"
+  pushd "${EDH_BOOTSTRAP_ASSETS_FOLDER}/dcvserver"
 
   # Download and Install DCV (if not already there)
   if ! verify_package_installed "nice-dcv-server" && ! verify_package_installed "amazon-dcv-server"; then
@@ -65,7 +65,7 @@ function install_dcv_server () {
     tar zxvf "dcv_installer_${DCV_VERSION}.tgz" --strip-components=1 -C .
 
     log_info "Installing DCV ..."
-    {% if context.get("/configuration/BaseOS") in ("centos7", "rhel7", "rhel8", "rhel9", "rocky8", "rocky9", "amazonlinux2", "amazonlinux2023")  %}
+    {% if context.get("/job/BaseOS") in ("centos7", "rhel7", "rhel8", "rhel9", "rocky8", "rocky9", "amazonlinux2", "amazonlinux2023")  %}
 
       packages_install ./nice-dcv-server-*.${MACHINE}.rpm
       packages_install ./nice-dcv-web-viewer-*.${MACHINE}.rpm
@@ -81,7 +81,7 @@ function install_dcv_server () {
         packages_install ./nice-dcv-gl*.rpm
       fi
 
-    {% elif context.get("/configuration/BaseOS") in ("ubuntu2204", "ubuntu2404")  %}
+    {% elif context.get("/job/BaseOS") in ("ubuntu2204", "ubuntu2404")  %}
 
       packages_install ./nice-dcv-server_*.deb
       packages_install ./nice-dcv-web-viewer_*.deb
@@ -98,7 +98,7 @@ function install_dcv_server () {
       fi
 
     {% else %}
-      exit_fail "{{ context.get("/configuration/BaseOS") }} not supported for DCV Server on SOCA"
+      exit_fail "{{ context.get("/job/BaseOS") }} not supported for DCV Server on SOCA"
     {% endif %}
 
     log_info "Enable DCV support for USB remotization .. "

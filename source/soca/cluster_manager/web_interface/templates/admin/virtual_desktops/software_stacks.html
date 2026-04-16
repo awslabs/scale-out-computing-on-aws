@@ -10,13 +10,13 @@
     {% include 'common/header.html' %}
 </head>
 <body id="page-top">
+    {% include 'common/horizontal_menu_bar.html' %}
+
 <div id="wrapper">
     {% include 'common/vertical_menu_bar.html' %}
     <div id="content-wrapper" class="d-flex flex-column">
-        <div id="content">
-            <br>
+        <div id="content" style="margin-top: 20px;">
             <div class="container-fluid">
-                {% include 'common/horizontal_menu_bar.html' %}
                 {% include 'common/flashed_messages.html' %}
 
                 <div class="col-md-12">
@@ -24,12 +24,12 @@
                         Make sure your Amazon Machine Images (AMI) are available in your current region:
                         <strong>{{ region_name }}</strong> <br>
                         <a target="_blank" rel="noopener,noreferrer"
-                           href="https://awslabs.github.io/scale-out-computing-on-aws-documentation/tutorials/reduce-compute-node-launch-time-with-custom-ami/">Click
+                           href="https://awslabs.github.io/engineering-development-hub-documentation/documentation/architecture/reduce-compute-node-launch-time-with-custom-ami/">Click
                             here to learn how to create custom images</a>
                     </div>
 
                       <div class="alert alert-warning">
-                          <strong>Once you have created your Virtual Desktop Software Stack, please ensure that it is <a href="/admin/projects" target="_blank">assigned to at least one SOCA Project.</a></strong> Failure to do so will result in your profile remaining hidden from users.</strong>
+                          <strong>Once you have created your Virtual Desktop Software Stack, please ensure that it is <a href="/admin/projects" target="_blank">assigned to at least one EDH Project.</a></strong> Failure to do so will result in your profile remaining hidden from users.
                       </div>
 
                     <nav>
@@ -46,20 +46,19 @@
                              aria-labelledby="nav-home-tab">
                             <br>
                             <div class="card shadow mb-4">
-                                <div class="card-header py-3">
-                                    <h6 class="m-0 font-weight-bold text-primary">Register a new Software Stack
-                                        (AMI) to SOCA</h6>
-                                </div>
+                               
                                     <div class="card-body">
+                                        <h3>Register a new Software Stack
+                                        (AMI) to EDH</h3>
                                         <form action="/admin/virtual_desktops/software_stacks/create" method="post" enctype="multipart/form-data">
                                             <div class="form-group">
                                                 <label for="ami_id" data-toggle="tooltip" data-placement="top"
-                                                       title="Unique ID of your Amazon image. Must be a valid image, start with ami- and between 8 to 21 chars">AMI
+                                                       title="Unique ID of your Amazon image. Must be a valid image, start with ami- or AMI alias (/aws/service/...)">AMI
                                                     ID</label>
-                                                <input id="ami_id" placeholder="Image ID (start with ami-xxx or) or AMI alias (/service/aws/...)"
+                                                <input id="ami_id" placeholder="Image ID (start with ami-xxx or) or AMI alias (/aws/service/...)"
                                                        class="form-control"
                                                        type="text"
-                                                       required name="ami_id" minlength="8" maxlength="21">
+                                                       required name="ami_id">
                                             </div>
 
                                             <div class="form-group">
@@ -148,7 +147,7 @@
                                             <div>
                                                 <input type="hidden" name="csrf_token"
                                                        value="{{ csrf_token() }}">
-                                                <button type="submit" class="btn btn-primary btn-lg">Register Software Stack in SOCA
+                                                <button type="submit" class="btn btn-primary">Register Software Stack in EDH
                                                 </button>
                                             </div>
                                         </form>
@@ -159,14 +158,14 @@
                             <div class="tab-pane fade" id="nav-delete" role="tabpanel" aria-labelledby="nav-profile-tab">
                                 <br>
                                 <div class="card shadow mb-4">
-                                    <div class="card-header py-3">
-                                        <h6 class="m-0 font-weight-bold text-primary">Manage Software Stacks</h6>
-                                    </div>
+                             
                                     <div class="card-body">
+                                        <h3>Manage Software Stacks</h3>
+
                                         <div class="alert alert-primary" role="alert">
                                             <strong>Important:</strong> <br>
 
-                                            Removing the Software Stack from SOCA will not remove the AMI from your AWS account
+                                            Removing the Software Stack from EDH will not remove the AMI from your AWS account
                                             <br>
                                             Removing a software stack won't impact existing virtual desktops
                                         </div>
@@ -196,14 +195,14 @@
                                                            required>
                                                     <label class="form-check-label" for="verif">I am sure I want to
                                                         unregister this
-                                                        Software Stack from SOCA</label>
+                                                        Software Stack from EDH</label>
                                                 </div>
                                                 <div class="d-flex justify-content-center">
                                                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                                                    <button type="submit" class="btn btn-danger btn-lg mr-2">Unregister Software Stack from
-                                                        SOCA
+                                                    <button type="submit" class="btn btn-danger mr-2">Unregister Software Stack from
+                                                        EDH
                                                     </button>
-                                                    <button type="button" class="btn btn-primary btn-lg" onclick="submitEditForm()">Edit Software Stack</button>
+                                                    <button type="button" class="btn btn-primary" onclick="submitEditForm()">Edit Software Stack</button>
 
                                                 </div>
                                             </form>

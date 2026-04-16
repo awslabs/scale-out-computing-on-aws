@@ -11,15 +11,16 @@
 </head>
 
 <body id="page-top">
+{% include 'common/horizontal_menu_bar.html' %}
 
 <div id="wrapper">
     {% include 'common/vertical_menu_bar.html' %}
     <div id="content-wrapper" class="d-flex flex-column">
 
-        <div id="content">
-            <br>
+        <div id="content" style="margin-top: 20px;">
             <div class="container-fluid">
-                {% include 'common/horizontal_menu_bar.html' %}
+            {% include 'common/flashed_messages.html' %}
+
                 {% if sudoers == false %}
                     <div class="alert alert-danger" role="alert">
                         <strong>Access denied </strong>
@@ -28,30 +29,14 @@
                     </div>
                 {% else %}
                     <div id="accessok">
-                        {% with messages = get_flashed_messages(with_categories=true) %}
-                            {% if messages %}
-                                {% for category, message in messages %}
-                                    <br>
-                                    {% if category == "success" %}
-                                        <div class="alert alert-success">
-                                            <strong>{{ message | safe }} </strong>
-                                        </div>
-                                    {% else %}
-                                        <div class="alert alert-danger">
-                                            <strong>{{ message | safe }} </strong>
-                                        </div>
-                                    {% endif %}
-                                {% endfor %}
-                            {% endif %}
-                        {% endwith %}
+
                         <div class="row">
 
                             <div class="col-md-5">
                                 <div class="card shadow mb-4">
-                                    <div class="card-header py-3">
-                                        <h6 class="m-0 font-weight-bold text-primary">Change my password</h6>
-                                    </div>
                                     <div class="card-body">
+                                        <h3>Change my password</h3>
+                                    
                                         <form action="/reset_password" method="post"
                                               oninput='password_verif.setCustomValidity(password_verif.value != password.value ? "Passwords do not match." : "")'>
                                             <div class="form-group">
@@ -64,7 +49,7 @@
                                             </div>
                                             <div>
                                                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                                                <button type="submit" class="btn btn-primary btn-lg">Update Password
+                                                <button type="submit" class="btn btn-primary">Update Password
                                                 </button>
                                             </div>
                                         </form>
@@ -75,20 +60,24 @@
 
                             <div class="col-md-7">
                                 <div class="card shadow mb-4">
-                                    <div class="card-header py-3">
-                                        <h6 class="m-0 font-weight-bold text-primary">My LDAP Group</h6>
-                                    </div>
                                     <div class="card-body">
+                                    <h3>My LDAP Group</h3>
+                                   
+
                                         <div class="alert alert-primary">
                                             Users in your group can access (read-only) your $HOME directory by default.
                                         </div>
 
                                         <h4>User(s) in your group:</h4>
-                                        {% for member in group_members %}
-                                            {% if member !=  user %}
-                                                <li>{{ member }}</li>
-                                            {% endif %}
-                                        {% endfor %}
+                                        {% if not group_members %}
+                                         No user added to your group yet
+                                        {% else %}
+                                            {% for member in group_members %}
+                                                {% if member !=  user %}
+                                                    <li>{{ member }}</li>
+                                                {% endif %}
+                                            {% endfor %}
+                                        {% endif %}
                                     </div>
                                     <hr>
                                     <div class="card-body">
@@ -111,7 +100,7 @@
                                             <div>
                                                 <input type="hidden" name="action" value="add">
                                                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                                                <button type="submit" class="btn btn-success btn-lg">Add user to your
+                                                <button type="submit" class="btn btn-success">Add user to your
                                                     group
                                                 </button>
                                             </div>
@@ -140,7 +129,7 @@
                                             <div>
                                                 <input type="hidden" name="action" value="remove">
                                                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                                                <button type="submit" class="btn btn-danger btn-lg">Remove user to your
+                                                <button type="submit" class="btn btn-danger">Remove user to your
                                                     group
                                                 </button>
                                             </div>

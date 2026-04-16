@@ -40,7 +40,7 @@ logger = logging.getLogger("soca_logger")
 def index():
     _get_all_sessions = SocaHttpClient(
         endpoint=f"/api/dcv/virtual_desktops/list_all",
-        headers={"X-SOCA-USER": session["user"], "X-SOCA-TOKEN": session["api_key"]},
+        headers={"X-EDH-USER": session["user"], "X-EDH-TOKEN": session["api_key"]},
     ).get()
 
     logger.info(f"get_all_desktops {_get_all_sessions}")

@@ -29,7 +29,7 @@ def main(
             if obj.job_queue in queues:
                 if "allowed_instance_profiles" not in v.keys():
                     return SocaError.GENERIC_ERROR(
-                        helper=f"allowed_instance_profiles is not specified on {obj.queue_settings_file}. See https://awslabs.github.io/scale-out-computing-on-aws-documentation/documentation/security/manage-queue-restricted-parameters/ for examples"
+                        helper=f"allowed_instance_profiles is not specified on {obj.queue_settings_file}. See https://awslabs.github.io/engineering-development-hub-documentation/documentation/security/manage-queue-restricted-parameters/ for examples"
                     )
 
                 if isinstance(v["allowed_instance_profiles"], list) is not True:

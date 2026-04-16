@@ -16,6 +16,8 @@ from utils.logger import SocaLogger
 from utils.error import SocaError
 from utils.aws.boto3_wrapper import get_boto
 from utils.cast import SocaCastEngine
+from utils.datamodels.hpc.scheduler import get_schedulers, SocaHpcSchedulerProvider
+from utils.validators import Validators
 
 # Update EBS rate for your region
 # EBS Formulas: https://aws.amazon.com/ebs/pricing/
@@ -141,8 +143,6 @@ def read_file(filename: str) -> str:
 
 
 if __name__ == "__main__":
-    _index_name = "soca_jobs"
-    _accounting_log_path = "/var/spool/pbs/server_priv/accounting/"
 
     # Choose the number of days you want to ingest, default to 3
     days_to_ingest = 3
@@ -151,16 +151,27 @@ if __name__ == "__main__":
         last_day_to_ingest - datetime.timedelta(days=x) for x in range(days_to_ingest)
     ]
 
-    ec2_client = get_boto(service_name="ec2").message
-    pricing_client = get_boto(service_name="pricing", region_name="us-east-1").message
-
     _cluster_id = SocaConfig(key="/configuration/ClusterId").get_value().message
     _log_file_location = (
-        f"/opt/soca/{_cluster_id}/cluster_manager/analytics/logs/job_tracking.log"
+        f"/opt/edh/{_cluster_id}/cluster_manager/analytics/logs/job_tracking.log"
     )
     logger = SocaLogger(name="analytics_job_tracking").rotating_file_handler(
         file_path=_log_file_location
     )
+
+    _ec2_response = get_boto(service_name="ec2")
+    if _ec2_response.get("success") is False:
+        logger.error(f"Failed to get ec2 client: {_ec2_response.get('message')}")
+        sys.exit(1)
+    ec2_client = _ec2_response.get("message")
+
+    _pricing_response = get_boto(service_name="pricing", region_name="us-east-1")
+    if _pricing_response.get("success") is False:
+        logger.error(f"Failed to get pricing client: {_pricing_response.get('message')}")
+        sys.exit(1)
+    pricing_client = _pricing_response.get("message")
+
+
 
     logger.info(f"Tracking active HPC jobs . Log: {_log_file_location}")
 
@@ -180,48 +191,69 @@ if __name__ == "__main__":
         _analytics_client.initialize()
         logger.info("Analytics client initialized")
 
-    pricing_table = {}
-    management_chain_per_user = {}
-    json_output = []
-    output = {}
+    _schedulers_to_query = get_schedulers()
+    for _scheduler in _schedulers_to_query:
+        if _scheduler.provider in [
+            SocaHpcSchedulerProvider.OPENPBS,
+            SocaHpcSchedulerProvider.PBSPRO,
+        ]:
+            _accounting_log_path = (
+                f"{_scheduler.pbs_configuration.pbs_home}/server_priv/accounting/"
+            )
+            logger.info(
+                f"Scheduler detected: {_scheduler.provider}, proceeding with parsing accounting logs at {_accounting_log_path} for the last {days_to_ingest} days"
+            )
+            _index_name = f"edh_jobs_{_scheduler.identifier}_{_cluster_id}"
+            pricing_table = {}
+            management_chain_per_user = {}
+            json_output = []
+            output = {}
 
-    for day in date_to_check:
-        scheduler_log_format = day.strftime("%Y%m%d")
-        response = read_file(f"{_accounting_log_path}{scheduler_log_format}")
-        try:
-            for line in response.splitlines():
-                logger.debug(f"Processing {line}")
+            for day in date_to_check:
+                scheduler_log_format = day.strftime("%Y%m%d")
+                response = read_file(f"{_accounting_log_path}{scheduler_log_format}")
                 try:
-                    data = (line.rstrip()).split(";")
-                    if data.__len__() != 4:
-                        logger.debug("Line length is not 4, ignoring")
-                    else:
-                        timestamp = data[0]
-                        job_state = data[1]
-                        job_id = data[2].split(".")[0]
-                        job_data = data[3]
-                        logger.debug(
-                            f"Valid line detected, timestamp {timestamp}, job_state {job_state}, job_id {job_id}, job_data {job_data}"
-                        )
+                    for line in response.splitlines():
+                        logger.debug(f"Processing {line}")
+                        try:
+                            data = (line.rstrip()).split(";")
+                            if not Validators.is_list_length_equal_of(data, 4):
+                                logger.debug(f"Line length is not 4, ignoring {data}")
+                            else:
+                                timestamp = data[0]
+                                job_state = data[1]
+                                job_id = data[2].split(".")[0]
+                                job_data = data[3]
+                                logger.debug(
+                                    f"Valid line detected, timestamp {timestamp}, job_state {job_state}, job_id {job_id}, job_data {job_data}"
+                                )
 
-                        if job_id in output.keys():
-                            output[job_id].append(
-                                {
-                                    "utc_date": timestamp,
-                                    "job_state": job_state,
-                                    "job_id": job_id,
-                                    "job_data": job_data,
-                                }
+                                if job_id in output.keys():
+                                    output[job_id].append(
+                                        {
+                                            "utc_date": timestamp,
+                                            "job_state": job_state,
+                                            "job_id": job_id,
+                                            "job_data": job_data,
+                                        }
+                                    )
+                                else:
+                                    output[job_id] = [
+                                        {
+                                            "utc_date": timestamp,
+                                            "job_state": job_state,
+                                            "job_id": job_id,
+                                            "job_data": job_data,
+                                        }
+                                    ]
+                        except Exception as err:
+                            exc_type, exc_obj, exc_tb = sys.exc_info()
+                            fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
+                            SocaError.GENERIC_ERROR(
+                                helper=f"{err}, {exc_type}, {fname}, {exc_tb.tb_lineno}"
                             )
-                        else:
-                            output[job_id] = [
-                                {
-                                    "utc_date": timestamp,
-                                    "job_state": job_state,
-                                    "job_id": job_id,
-                                    "job_data": job_data,
-                                }
-                            ]
+                            sys.exit(1)
+
                 except Exception as err:
                     exc_type, exc_obj, exc_tb = sys.exc_info()
                     fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
@@ -230,327 +262,391 @@ if __name__ == "__main__":
                     )
                     sys.exit(1)
 
-        except Exception as err:
-            exc_type, exc_obj, exc_tb = sys.exc_info()
-            fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
-            SocaError.GENERIC_ERROR(
-                helper=f"{err}, {exc_type}, {fname}, {exc_tb.tb_lineno}"
-            )
-            sys.exit(1)
-
-    for job_id, values in output.items():
-        logger.debug(
-            f"Checking if {job_id} can be index, ignoring all lines where job_state is not 'e'"
-        )
-        try:
-            for data in values:
+            for job_id, values in output.items():
+                logger.debug(
+                    f"Checking if {job_id} can be index, ignoring all lines where job_state is not 'e'"
+                )
                 try:
-                    if data["job_state"].lower() == "e":
-                        logger.debug(f"Valid job state, processing  {data}")
-                        ignore = False
-                        if (
-                            "Resource_List.instance_type" not in data["job_data"]
-                            and "Resource_List.instance_types" not in data["job_data"]
-                        ):
-                            logger.info(
-                                f"No instance type found for {job_id}, ignoring ... "
-                            )
-                            ignore = True
-                        else:
-                            queue = re.search(r"queue=(\w+)", data["job_data"]).group(1)
+                    for data in values:
+                        try:
+                            if data["job_state"].lower() == "e":
+                                logger.debug(f"Valid job state, processing  {data}")
+                                ignore = False
+                                if (
+                                    "Resource_List.instance_type"
+                                    not in data["job_data"]
+                                    and "Resource_List.instance_types"
+                                    not in data["job_data"]
+                                ):
+                                    logger.info(
+                                        f"No instance type found for {job_id}, ignoring ... "
+                                    )
+                                    ignore = True
+                                else:
+                                    queue = re.search(
+                                        r"queue=(\w+)", data["job_data"]
+                                    ).group(1)
 
-                        if ignore is False:
-                            used_resources = re.findall(
-                                r"(\w+)=([^\s]+)", data["job_data"]
-                            )
-                            logger.debug(f"Checking used resources: {used_resources}")
-                            if used_resources:
-                                job_info = {"job_id": job_id}
-                                for res in used_resources:
-                                    resource_name = res[0]
-                                    resource_value = res[1]
+                                if not ignore:
+                                    used_resources = re.findall(
+                                        r"(\w+)=([^\s]+)", data["job_data"]
+                                    )
+                                    logger.debug(
+                                        f"Checking used resources: {used_resources}"
+                                    )
+                                    if used_resources:
+                                        job_info = {"job_id": job_id}
+                                        for res in used_resources:
+                                            resource_name = res[0]
+                                            resource_value = res[1]
 
-                                    if resource_name == "select":
-                                        # Extract meaningful info in select
-                                        _options = {
-                                            "mpiprocs": {
-                                                "regex": r"mpiprocs=(\d+)",
-                                                "type": int,
-                                            },
-                                            "ppn": {"regex": r"ppn=(\d+)", "type": int},
-                                            "ncpus": {
-                                                "regex": r"ncpus=(\d+)",
-                                                "type": int,
-                                            },
-                                        }
+                                            if resource_name == "select":
+                                                # Extract meaningful info in select
+                                                _options = {
+                                                    "mpiprocs": {
+                                                        "regex": r"mpiprocs=(\d+)",
+                                                        "type": int,
+                                                    },
+                                                    "ppn": {
+                                                        "regex": r"ppn=(\d+)",
+                                                        "type": int,
+                                                    },
+                                                    "ncpus": {
+                                                        "regex": r"ncpus=(\d+)",
+                                                        "type": int,
+                                                    },
+                                                }
 
-                                        for attr_name, attr_info in _options.items():
-                                            _attr_exist = re.search(
-                                                attr_info.get("regex"), resource_value
-                                            )
-                                            if _attr_exist:
-                                                job_info[attr_name] = cast_wrapper(
-                                                    data=_attr_exist.group(1),
-                                                    cast_as=attr_info.get("type"),
+                                                for (
+                                                    attr_name,
+                                                    attr_info,
+                                                ) in _options.items():
+                                                    _attr_exist = re.search(
+                                                        attr_info.get("regex"),
+                                                        resource_value,
+                                                    )
+                                                    if _attr_exist:
+                                                        job_info[attr_name] = (
+                                                            cast_wrapper(
+                                                                data=_attr_exist.group(
+                                                                    1
+                                                                ),
+                                                                cast_as=attr_info.get(
+                                                                    "type"
+                                                                ),
+                                                            )
+                                                        )
+
+                                                # Finally add the entire select as str
+                                                job_info["select"] = str(resource_value)
+
+                                            elif resource_name in [
+                                                "start",
+                                                "end",
+                                                "qtime",
+                                                "ctime",
+                                                "etime",
+                                                "Exit_status",
+                                                "root_size",
+                                                "scratch_size",
+                                                "nodect",
+                                            ]:
+                                                # Cast safe value to int
+                                                job_info[resource_name] = cast_wrapper(
+                                                    data=resource_value, cast_as=int
                                                 )
 
-                                        # Finally add the entire select as str
-                                        job_info["select"] = str(resource_value)
+                                            else:
+                                                # Force cast everything else as string to avoid case where you start indexing as long/integer (eg: -l select=3)
+                                                # and then you include some string value (eg: -l select=3:ppn=12)
+                                                if resource_name == "instance_type":
+                                                    # instance_types is the new expected format, rewrite it for backward compatibility
+                                                    resource_name = "instance_types"
 
-                                    elif resource_name in [
-                                        "start",
-                                        "end",
-                                        "qtime",
-                                        "ctime",
-                                        "etime",
-                                        "Exit_status",
-                                        "root_size",
-                                        "scratch_size",
-                                        "nodect",
-                                    ]:
-                                        # Cast safe value to int
-                                        job_info[resource_name] = cast_wrapper(
-                                            data=resource_value, cast_as=int
+                                                job_info[resource_name] = str(
+                                                    resource_value
+                                                )
+
+                                        # Adding custom field to index
+                                        job_info["soca_cluster_id"] = _cluster_id
+                                        job_info["simulation_time_seconds"] = (
+                                            job_info["end"] - job_info["start"]
+                                        )
+                                        job_info["simulation_time_minutes"] = (
+                                            cast_wrapper(
+                                                data=job_info["simulation_time_seconds"]
+                                                / 60,
+                                                cast_as=float,
+                                            )
                                         )
 
-                                    else:
-                                        # Force cast everything else as string to avoid case where you start indexing as long/integer (eg: -l select=3)
-                                        # and then you include some string value (eg: -l select=3:ppn=12)
-                                        if resource_name == "instance_type":
-                                            # instance_types is the new expected format, rewrite it for backward compatibility
-                                            resource_name = "instance_types"
-
-                                        job_info[resource_name] = str(resource_value)
-
-                                # Adding custom field to index
-                                job_info["soca_cluster_id"] = _cluster_id
-                                job_info["simulation_time_seconds"] = (
-                                    job_info["end"] - job_info["start"]
-                                )
-                                job_info["simulation_time_minutes"] = cast_wrapper(
-                                    data=job_info["simulation_time_seconds"] / 60,
-                                    cast_as=float,
-                                )
-
-                                job_info["simulation_time_hours"] = cast_wrapper(
-                                    data=job_info["simulation_time_minutes"] / 60,
-                                    cast_as=float,
-                                )
-
-                                job_info["simulation_time_days"] = cast_wrapper(
-                                    data=job_info["simulation_time_hours"] / 24,
-                                    cast_as=float,
-                                )
-
-                                job_info["mem_kb"] = int(
-                                    job_info["mem"].replace("kb", "")
-                                )
-                                job_info["vmem_kb"] = int(
-                                    job_info["vmem"].replace("kb", "")
-                                )
-                                job_info["qtime_iso"] = datetime.datetime.fromtimestamp(
-                                    job_info["qtime"]
-                                ).isoformat()
-                                job_info["etime_iso"] = datetime.datetime.fromtimestamp(
-                                    job_info["etime"]
-                                ).isoformat()
-                                job_info["ctime_iso"] = datetime.datetime.fromtimestamp(
-                                    job_info["ctime"]
-                                ).isoformat()
-                                job_info["start_iso"] = datetime.datetime.fromtimestamp(
-                                    job_info["start"]
-                                ).isoformat()
-                                job_info["end_iso"] = datetime.datetime.fromtimestamp(
-                                    job_info["end"]
-                                ).isoformat()
-
-                                # Note: create a Job UUID, we will use it to ensure we don't index the same job twice
-                                job_info["job_uuid"] = base64.b64encode(
-                                    f"{job_id}_{_cluster_id}_{job_info['end_iso']}".encode(
-                                        "utf-8"
-                                    )
-                                ).decode("utf-8")
-
-                                # Calculate price of the simulation
-                                # ESTIMATE ONLY. Refer to AWS Cost Explorer for exact data
-
-                                # Note 1: This calculates the price of the simulation based on run time only.
-                                # It does not include the time for EC2 to be launched and configured, so I artificially added a 5 minutes penalty (average time for an EC2 instance to be provisioned)
-
-                                EC2_BOOT_DELAY = 300
-
-                                simulation_time_seconds_with_penalty = (
-                                    job_info["simulation_time_seconds"] + EC2_BOOT_DELAY
-                                )
-                                job_info["estimated_price_storage_scratch_iops"] = 0
-                                job_info["estimated_price_storage_root_size"] = (
-                                    0  # alwayson
-                                )
-                                job_info["estimated_price_storage_scratch_size"] = 0
-                                job_info["estimated_price_fsx_lustre"] = 0
-
-                                if "root_size" in job_info.keys():
-                                    job_info["estimated_price_storage_root_size"] = (
-                                        (
-                                            job_info["root_size"]
-                                            * EBS_GP3_STORAGE_COST
-                                            * simulation_time_seconds_with_penalty
+                                        job_info["simulation_time_hours"] = (
+                                            cast_wrapper(
+                                                data=job_info["simulation_time_minutes"]
+                                                / 60,
+                                                cast_as=float,
+                                            )
                                         )
-                                        / (86400 * 30)
-                                    ) * job_info["nodect"]
 
-                                if "scratch_size" in job_info.keys():
-                                    if "scratch_iops" in job_info.keys():
-                                        job_info[
-                                            "estimated_price_storage_scratch_size"
-                                        ] = (
-                                            (
-                                                int(job_info["scratch_size"])
-                                                * EBS_IO2_STORAGE_COST
-                                                * simulation_time_seconds_with_penalty
+                                        job_info["simulation_time_days"] = cast_wrapper(
+                                            data=job_info["simulation_time_hours"] / 24,
+                                            cast_as=float,
+                                        )
+
+                                        job_info["mem_kb"] = int(
+                                            job_info["mem"].replace("kb", "")
+                                        )
+                                        job_info["vmem_kb"] = int(
+                                            job_info["vmem"].replace("kb", "")
+                                        )
+                                        job_info["qtime_iso"] = (
+                                            datetime.datetime.fromtimestamp(
+                                                job_info["qtime"]
+                                            ).isoformat()
+                                        )
+                                        job_info["etime_iso"] = (
+                                            datetime.datetime.fromtimestamp(
+                                                job_info["etime"]
+                                            ).isoformat()
+                                        )
+                                        job_info["ctime_iso"] = (
+                                            datetime.datetime.fromtimestamp(
+                                                job_info["ctime"]
+                                            ).isoformat()
+                                        )
+                                        job_info["start_iso"] = (
+                                            datetime.datetime.fromtimestamp(
+                                                job_info["start"]
+                                            ).isoformat()
+                                        )
+                                        job_info["end_iso"] = (
+                                            datetime.datetime.fromtimestamp(
+                                                job_info["end"]
+                                            ).isoformat()
+                                        )
+
+                                        # Note: create a Job UUID, we will use it to ensure we don't index the same job twice
+                                        job_info["job_uuid"] = base64.b64encode(
+                                            f"{job_id}_{_cluster_id}_{job_info['end_iso']}".encode(
+                                                "utf-8"
                                             )
-                                            / (86400 * 30)
-                                        ) * job_info[
-                                            "nodect"
-                                        ]
+                                        ).decode("utf-8")
+
+                                        # Calculate price of the simulation
+                                        # ESTIMATE ONLY. Refer to AWS Cost Explorer for exact data
+
+                                        # Note 1: This calculates the price of the simulation based on run time only.
+                                        # It does not include the time for EC2 to be launched and configured, so I artificially added a 5 minutes penalty (average time for an EC2 instance to be provisioned)
+
+                                        EC2_BOOT_DELAY = 300
+
+                                        simulation_time_seconds_with_penalty = (
+                                            job_info["simulation_time_seconds"]
+                                            + EC2_BOOT_DELAY
+                                        )
                                         job_info[
                                             "estimated_price_storage_scratch_iops"
-                                        ] = (
-                                            (
-                                                int(job_info["scratch_iops"])
-                                                * EBS_PROVISIONED_IO_COST
-                                                * simulation_time_seconds_with_penalty
-                                            )
-                                            / (86400 * 30)
-                                        ) * job_info[
-                                            "nodect"
-                                        ]
-                                    else:
+                                        ] = 0
+                                        job_info[
+                                            "estimated_price_storage_root_size"
+                                        ] = 0  # alwayson
                                         job_info[
                                             "estimated_price_storage_scratch_size"
-                                        ] = (
-                                            (
-                                                int(job_info["scratch_size"])
-                                                * EBS_GP3_STORAGE_COST
-                                                * simulation_time_seconds_with_penalty
-                                            )
-                                            / (86400 * 30)
-                                        ) * job_info[
-                                            "nodect"
-                                        ]
+                                        ] = 0
+                                        job_info["estimated_price_fsx_lustre"] = 0
 
-                                if "fsx_lustre_bucket" in job_info.keys():
-                                    if job_info["fsx_lustre_bucket"] != "false":
-                                        if "fsx_lustre_size" in job_info.keys():
-                                            job_info["estimated_price_fsx_lustre"] = (
-                                                job_info["fsx_lustre_size"]
-                                                * FSX_LUSTRE_COST
-                                                * (
-                                                    simulation_time_seconds_with_penalty
-                                                    / 3600
+                                        if "root_size" in job_info.keys():
+                                            job_info[
+                                                "estimated_price_storage_root_size"
+                                            ] = (
+                                                (
+                                                    job_info["root_size"]
+                                                    * EBS_GP3_STORAGE_COST
+                                                    * simulation_time_seconds_with_penalty
                                                 )
-                                            )
-                                        else:
-                                            # default lustre size
-                                            job_info["estimated_price_fsx_lustre"] = (
-                                                1200
-                                                * FSX_LUSTRE_COST
-                                                * (
-                                                    simulation_time_seconds_with_penalty
-                                                    / 3600
-                                                )
-                                            )
+                                                / (86400 * 30)
+                                            ) * job_info[
+                                                "nodect"
+                                            ]
 
-                                if (
-                                    job_info["instance_types"].split("+")[0]
-                                    not in pricing_table.keys()
-                                ):
-                                    pricing_table[
-                                        job_info["instance_types"].split("+")[0]
-                                    ] = get_aws_pricing(
-                                        job_info["instance_types"].split("+")[0]
-                                    )
+                                        if "scratch_size" in job_info.keys():
+                                            if "scratch_iops" in job_info.keys():
+                                                job_info[
+                                                    "estimated_price_storage_scratch_size"
+                                                ] = (
+                                                    (
+                                                        int(job_info["scratch_size"])
+                                                        * EBS_IO2_STORAGE_COST
+                                                        * simulation_time_seconds_with_penalty
+                                                    )
+                                                    / (86400 * 30)
+                                                ) * job_info[
+                                                    "nodect"
+                                                ]
+                                                job_info[
+                                                    "estimated_price_storage_scratch_iops"
+                                                ] = (
+                                                    (
+                                                        int(job_info["scratch_iops"])
+                                                        * EBS_PROVISIONED_IO_COST
+                                                        * simulation_time_seconds_with_penalty
+                                                    )
+                                                    / (86400 * 30)
+                                                ) * job_info[
+                                                    "nodect"
+                                                ]
+                                            else:
+                                                job_info[
+                                                    "estimated_price_storage_scratch_size"
+                                                ] = (
+                                                    (
+                                                        int(job_info["scratch_size"])
+                                                        * EBS_GP3_STORAGE_COST
+                                                        * simulation_time_seconds_with_penalty
+                                                    )
+                                                    / (86400 * 30)
+                                                ) * job_info[
+                                                    "nodect"
+                                                ]
 
-                                job_info["estimated_price_ec2_ondemand"] = (
-                                    simulation_time_seconds_with_penalty
-                                    * (
-                                        pricing_table[
+                                        if "fsx_lustre_bucket" in job_info.keys():
+                                            if job_info["fsx_lustre_bucket"] != "false":
+                                                if "fsx_lustre_size" in job_info.keys():
+                                                    job_info[
+                                                        "estimated_price_fsx_lustre"
+                                                    ] = (
+                                                        job_info["fsx_lustre_size"]
+                                                        * FSX_LUSTRE_COST
+                                                        * (
+                                                            simulation_time_seconds_with_penalty
+                                                            / 3600
+                                                        )
+                                                    )
+                                                else:
+                                                    # default lustre size
+                                                    job_info[
+                                                        "estimated_price_fsx_lustre"
+                                                    ] = (
+                                                        1200
+                                                        * FSX_LUSTRE_COST
+                                                        * (
+                                                            simulation_time_seconds_with_penalty
+                                                            / 3600
+                                                        )
+                                                    )
+
+                                        if (
                                             job_info["instance_types"].split("+")[0]
-                                        ]["ondemand"]
-                                        / 3600
-                                    )
-                                    * job_info["nodect"]
-                                )
-                                
-                                if (
-                                    "reserved"
-                                    in pricing_table[
-                                        job_info["instance_types"].split("+")[0]
-                                    ].keys()
-                                ):
-                                    reserved_hourly_rate = (
-                                        pricing_table[
-                                            job_info["instance_types"].split("+")[0]
-                                        ]["reserved"]
-                                        / 750
-                                    )
-                                    job_info["estimated_price_ec2_reserved"] = (
-                                        simulation_time_seconds_with_penalty
-                                        * (reserved_hourly_rate / 3600)
-                                        * job_info["nodect"]
-                                    )
-                                    
-                                    job_info["estimated_price_reserved"] = (
-                                        job_info["estimated_price_ec2_reserved"]
-                                        + job_info["estimated_price_storage_root_size"]
-                                        + job_info[
-                                            "estimated_price_storage_scratch_size"
-                                        ]
-                                        + job_info[
-                                            "estimated_price_storage_scratch_iops"
-                                        ]
-                                        + job_info["estimated_price_fsx_lustre"]
-                                    )
-                                    
+                                            not in pricing_table.keys()
+                                        ):
+                                            pricing_table[
+                                                job_info["instance_types"].split("+")[0]
+                                            ] = get_aws_pricing(
+                                                job_info["instance_types"].split("+")[0]
+                                            )
 
-                                job_info["estimated_price_ondemand"] = (
-                                    job_info["estimated_price_ec2_ondemand"]
-                                    + job_info["estimated_price_storage_root_size"]
-                                    + job_info["estimated_price_storage_scratch_size"]
-                                    + job_info["estimated_price_storage_scratch_iops"]
-                                    + job_info["estimated_price_fsx_lustre"]
-                                )
+                                        job_info["estimated_price_ec2_ondemand"] = (
+                                            simulation_time_seconds_with_penalty
+                                            * (
+                                                pricing_table[
+                                                    job_info["instance_types"].split(
+                                                        "+"
+                                                    )[0]
+                                                ]["ondemand"]
+                                                / 3600
+                                            )
+                                            * job_info["nodect"]
+                                        )
 
-                                json_output.append(job_info)
+                                        if (
+                                            "reserved"
+                                            in pricing_table[
+                                                job_info["instance_types"].split("+")[0]
+                                            ].keys()
+                                        ):
+                                            reserved_hourly_rate = (
+                                                pricing_table[
+                                                    job_info["instance_types"].split(
+                                                        "+"
+                                                    )[0]
+                                                ]["reserved"]
+                                                / 750
+                                            )
+                                            job_info["estimated_price_ec2_reserved"] = (
+                                                simulation_time_seconds_with_penalty
+                                                * (reserved_hourly_rate / 3600)
+                                                * job_info["nodect"]
+                                            )
+
+                                            job_info["estimated_price_reserved"] = (
+                                                job_info["estimated_price_ec2_reserved"]
+                                                + job_info[
+                                                    "estimated_price_storage_root_size"
+                                                ]
+                                                + job_info[
+                                                    "estimated_price_storage_scratch_size"
+                                                ]
+                                                + job_info[
+                                                    "estimated_price_storage_scratch_iops"
+                                                ]
+                                                + job_info["estimated_price_fsx_lustre"]
+                                            )
+
+                                        job_info["estimated_price_ondemand"] = (
+                                            job_info["estimated_price_ec2_ondemand"]
+                                            + job_info[
+                                                "estimated_price_storage_root_size"
+                                            ]
+                                            + job_info[
+                                                "estimated_price_storage_scratch_size"
+                                            ]
+                                            + job_info[
+                                                "estimated_price_storage_scratch_iops"
+                                            ]
+                                            + job_info["estimated_price_fsx_lustre"]
+                                        )
+
+                                        json_output.append(job_info)
+                        except Exception as err:
+                            exc_type, exc_obj, exc_tb = sys.exc_info()
+                            fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
+                            SocaError.GENERIC_ERROR(
+                                helper=f"Error with {data} for job id {job_id} - {err}, {exc_type}, {fname}, {exc_tb.tb_lineno}"
+                            )
+                            sys.exit(1)
+
                 except Exception as err:
                     exc_type, exc_obj, exc_tb = sys.exc_info()
                     fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
                     SocaError.GENERIC_ERROR(
-                        helper=f"Error with {data} for job id {job_id} - {err}, {exc_type}, {fname}, {exc_tb.tb_lineno}"
+                        helper=f"{err}, {exc_type}, {fname}, {exc_tb.tb_lineno}"
                     )
                     sys.exit(1)
 
-        except Exception as err:
-            exc_type, exc_obj, exc_tb = sys.exc_info()
-            fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
-            SocaError.GENERIC_ERROR(
-                helper=f"{err}, {exc_type}, {fname}, {exc_tb.tb_lineno}"
-            )
-            sys.exit(1)
-
-    _index_exist = _analytics_client.index_exist(index=_index_name)
-    for entry in json_output:
-        if _index_exist.success is False:
-            logger.info(
-                f"Index {_index_name} does not exist, creating it automatically "
-            )
-            _analytics_client.index(index=_index_name, body=json.dumps(entry))
+            _index_exist = _analytics_client.index_exist(index=_index_name)
+            for entry in json_output:
+                if _index_exist.success is False:
+                    logger.info(
+                        f"Index {_index_name} does not exist, creating it automatically "
+                    )
+                    _analytics_client.index(index=_index_name, body=json.dumps(entry))
+                else:
+                    logger.debug(
+                        f"Index {_index_name} already exist, checking if {entry['job_uuid']} is not already indexed"
+                    )
+                    if job_already_indexed(f"{entry['job_uuid']}") is False:
+                        _index_request = _analytics_client.index(
+                            index=_index_name, body=json.dumps(entry)
+                        )
+                        if _index_request.get("success") is True:
+                            logger.info(f"{entry['job_uuid']} indexed successfully ")
+                        else:
+                            logger.error(
+                                f"Error while indexing {entry['job_uuid']} - {entry} - {_index_request}"
+                            )
+                    else:
+                        logger.debug(f"{entry['job_uuid']} already indexed")
         else:
-            logger.debug(
-                f"Index {_index_name} already exist, checking if {entry['job_uuid']} is not already indexed"
+            logger.info(
+                f"Scheduler detected:{_scheduler.identifier} ({_scheduler.provider}), skipping as not supported yet (only PBSPro/OpenPBS supported currently)"
             )
-            if job_already_indexed(f"{entry['job_uuid']}") is False:
-                _analytics_client.index(index=_index_name, body=json.dumps(entry))
-                logger.info(f"{entry['job_uuid']} indexed successfully ")
-            else:
-                logger.debug(f"{entry['job_uuid']} already indexed")

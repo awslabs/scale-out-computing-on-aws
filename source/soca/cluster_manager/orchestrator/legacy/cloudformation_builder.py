@@ -168,7 +168,7 @@ def main(**params):
         t = Template()
         t.set_version("2010-09-09")
         t.set_description(
-            "(SOCA) - Base template to deploy compute nodes. Version 26.3.0"
+            "(SOCA) - Base template to deploy compute nodes. Version 26.4.0"
         )
 
         _cluster_id: str = params.get("ClusterId", "unknown-cluster")
@@ -207,14 +207,16 @@ def main(**params):
 
         # Add custom bootstrap path specific to current job id
         soca_parameters["/job/BootstrapPath"] = (
-            f"/apps/soca/{soca_parameters.get('/configuration/ClusterId')}/shared/logs/bootstrap/compute_node/{soca_parameters.get('/job/JobId')}/{_bootstrap_uuid}"
+            f"/apps/edh/{soca_parameters.get('/configuration/ClusterId')}/shared/logs/bootstrap/compute_node/{soca_parameters.get('/job/JobId')}/{_bootstrap_uuid}"
         )
 
         # add custom NodeType
         soca_parameters["/job/NodeType"] = "compute_node"
 
         # Replace default SOCA wide BaseOs value with job specific OS
-        soca_parameters["/configuration/BaseOS"] = params.get("BaseOS")
+        soca_parameters["/job/BaseOS"] = params.get("BaseOS")
+        soca_parameters["/configuration/BaseOS"] = params.get("BaseOS") # legacy 
+
 
         soca_parameters["/job/BootstrapScriptsS3Location"] = (
             f"s3://{soca_parameters.get('/configuration/S3Bucket')}/{_bootstrap_s3_location_folder}/"
@@ -224,7 +226,7 @@ def main(**params):
         _render_user_data = SocaJinja2Generator(
             get_template=f"compute_node/01_user_data.sh.j2",
             template_dirs=[
-                f"/opt/soca/{os.environ.get('SOCA_CLUSTER_ID')}/cluster_node_bootstrap/"
+                f"/opt/edh/{os.environ.get('EDH_CLUSTER_ID')}/cluster_node_bootstrap/"
             ],
             variables=soca_parameters,
         ).to_stdout(autocast_values=True)
@@ -252,7 +254,6 @@ def main(**params):
         # Check if using AD, if yes check if we need to auto join the HPC nodes
         if soca_parameters.get("/configuration/UserDirectory/provider") in [
             "aws_ds_managed_activedirectory",
-            "aws_ds_simple_activedirectory",
             "existing_activedirectory",
         ]:
 
@@ -280,13 +281,13 @@ def main(**params):
                 logger.info(
                     "AD is enabled and JoinEphemeralNodesToAD is false will attempt to sync AD users"
                 )
-                _json_output_file = f"/apps/soca/{_cluster_id}/shared/active_directory/sync/users_info.json"
-                if pathlib.Path(_json_output_file).exists() is False:
+                _json_output_file = f"/apps/edh/{_cluster_id}/shared/active_directory/sync/users_info.json"
+                if not pathlib.Path(_json_output_file).exists():
                     logger.error(
                         f"Unable to sync AD users because {_json_output_file} does not exist, creating it automatically"
                     )
                     _create_user_mapping_file = SocaSubprocessClient(
-                        run_command=f"/opt/soca/{_cluster_id}/cluster_manager/socactl ad export"
+                        run_command=f"/opt/edh/{_cluster_id}/cluster_manager/edhctl ad export"
                     ).run()
                     if _create_user_mapping_file.get("success") is False:
                         logger.error(
@@ -317,7 +318,7 @@ def main(**params):
                             "AD Local User Last sync is older than 60 minutes, updating file ..."
                         )
                         _create_user_mapping_file = SocaSubprocessClient(
-                            run_command=f"/opt/soca/{_cluster_id}/cluster_manager/socactl ad export"
+                            run_command=f"/opt/edh/{_cluster_id}/cluster_manager/edhctl ad export"
                         ).run()
                         if _create_user_mapping_file.get("success") is False:
                             logger.error(
@@ -347,7 +348,7 @@ def main(**params):
             _render_bootstrap_setup_template = SocaJinja2Generator(
                 get_template=f"{_t}.sh.j2",
                 template_dirs=[
-                    f"/opt/soca/{os.environ.get('SOCA_CLUSTER_ID')}/cluster_node_bootstrap/"
+                    f"/opt/edh/{os.environ.get('EDH_CLUSTER_ID')}/cluster_node_bootstrap/"
                 ],
                 variables=soca_parameters,
             ).to_s3(
@@ -365,16 +366,16 @@ def main(**params):
         # Base tags
         _base_tags = {
             "Name": f"{params['ClusterId']}-compute-job-{params['JobId']}",
-            "soca:JobId": str(params["JobId"]),
-            "soca:JobName": str(params["JobName"]),
-            "soca:JobQueue": str(params["JobQueue"]),
-            "soca:StackId": stack_name,
-            "soca:JobOwner": str(params["JobOwner"]),
-            "soca:NodeType": "compute_node",
-            "soca:JobProject": str(params["JobProject"]),
-            "soca:ClusterId": str(params["ClusterId"]),
-            "soca:TerminateWhenIdle": str(params["TerminateWhenIdle"]),
-            "soca:KeepForever": str(params["KeepForever"]),
+            "edh:JobId": str(params["JobId"]),
+            "edh:JobName": str(params["JobName"]),
+            "edh:JobQueue": str(params["JobQueue"]),
+            "edh:StackId": stack_name,
+            "edh:JobOwner": str(params["JobOwner"]),
+            "edh:NodeType": "compute_node",
+            "edh:JobProject": str(params["JobProject"]),
+            "edh:ClusterId": str(params["ClusterId"]),
+            "edh:TerminateWhenIdle": str(params["TerminateWhenIdle"]),
+            "edh:KeepForever": str(params["KeepForever"]),
         }
 
         if params.get("CustomTags"):
@@ -457,7 +458,7 @@ def main(**params):
                 AssociatePublicIpAddress=False,
             )
         ]
-        if params.get("Efa", False) is not False:
+        if not params.get("Efa", False):
             _max_efa_interfaces: int = params.get("MaxEfaInterfaces", 0)
 
             for _i in range(1, _max_efa_interfaces):
@@ -545,7 +546,7 @@ def main(**params):
         t.add_resource(lt)
         # End Launch Template Resource
 
-        if SpotFleet is True:
+        if SpotFleet:
             # SpotPrice is defined and DesiredCapacity > 1 or need to try more than 1 instance_type
             # Create SpotFleet
 
@@ -737,13 +738,13 @@ def main(**params):
                     )
 
                 fsx_lustre.LustreConfiguration = fsx_lustre_configuration
-                fsx_lustre.Tags = Tags({**_base_tags, "soca:FSxL": "true"})
+                fsx_lustre.Tags = Tags({**_base_tags, "edh:FSxL": "true"})
                 t.add_resource(fsx_lustre)
         # End FSx For Lustre
 
         # Begin Custom Resource
         # Change Mapping to No if you want to disable this
-        if params.get("MetricCollectionAnonymous", False) is True:
+        if params.get("MetricCollectionAnonymous", False):
             metrics = CustomResourceSendAnonymousMetrics("SendAnonymousData")
             metrics.ServiceToken = params["SolutionMetricsLambda"]
             metrics.DesiredCapacity = str(params["DesiredCapacity"])
@@ -786,10 +787,10 @@ def main(**params):
             t.add_resource(metrics)
         # End Custom Resource
 
-        if debug is True:
+        if debug:
             print(t.to_json())
 
-        # Tags must use "soca:<Key>" syntax
+        # Tags must use "edh:<Key>" syntax
         template_output = t.to_yaml()
         return {"success": True, "output": template_output}
 

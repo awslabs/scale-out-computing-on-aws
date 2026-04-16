@@ -19,9 +19,9 @@ function wrapper_install_driver () {
         return 0
     fi
 
-    log_error "Unable to install GPU ${INSTALLER_PATH} driver, copyging /var/log/nvidia-installer.log for troubleshooting"
+    log_error "Unable to install GPU ${INSTALLER_PATH} driver, copying /var/log/nvidia-installer.log for troubleshooting"
     if [[ -f /var/log/nvidia-installer.log ]]; then
-        cp /var/log/nvidia-installer.log "${SOCA_BOOTSTRAP_LOGS_FOLDER}/nvidia-installer-${INSTALLER_PATH}.log"
+        cp /var/log/nvidia-installer.log "${EDH_BOOTSTRAP_LOGS_FOLDER}/nvidia-installer-${INSTALLER_PATH}.log"
     fi
 
     return 1
@@ -51,10 +51,10 @@ function install_nvidia_grid_drivers () {
     fi
 
     log_info "Installing NVIDIA GRID Drivers"
-    {% if context.get("/configuration/BaseOS") in ("rhel8", "rhel9", "rocky8", "rocky9") %}
+    {% if context.get("/job/BaseOS") in ("rhel8", "rhel9", "rocky8", "rocky9") %}
         log_info "Installing additional packages vulkan-loader"
         packages_install vulkan-loader
-    {% elif context.get("/configuration/BaseOS") in ("ubuntu2204", "ubuntu2404") %}
+    {% elif context.get("/job/BaseOS") in ("ubuntu2204", "ubuntu2404") %}
         log_info "Installing additional packages for Ubuntu"
         packages_install dkms linux-headers-aws linux-modules-extra-aws 
     {% endif %}
@@ -64,8 +64,8 @@ function install_nvidia_grid_drivers () {
         kill $x_server_pid
     fi
 
-    mkdir -p "${SOCA_BOOTSTRAP_ASSETS_FOLDER}/gpu_drivers"
-    pushd "${SOCA_BOOTSTRAP_ASSETS_FOLDER}/gpu_drivers"
+    mkdir -p "${EDH_BOOTSTRAP_ASSETS_FOLDER}/gpu_drivers"
+    pushd "${EDH_BOOTSTRAP_ASSETS_FOLDER}/gpu_drivers"
     rm -rf NVIDIA-Linux-*.run || log_info "No previous NVIDIA-Linux-*.run file detected"
     
     local DRIVER_BUCKET_REGION=$(curl -s --head "{{ context.get("/system/gpu/gpu_settings/nvidia/linux/grid_drivers/s3_bucket_url") }}" | grep bucket-region | awk '{print $2}' | tr -d '\r\n')
@@ -116,12 +116,12 @@ function install_nvidia_public_tesla_drivers() {
         return 0
     fi
 
-    {% if context.get("/configuration/BaseOS") in ("rhel8", "rhel9", "rocky8", "rocky9") %}
+    {% if context.get("/job/BaseOS") in ("rhel8", "rhel9", "rocky8", "rocky9") %}
         packages_install vulkan-loader
     {% endif %}
 
-    mkdir -p "${SOCA_BOOTSTRAP_ASSETS_FOLDER}/gpu_drivers"
-    pushd "${SOCA_BOOTSTRAP_ASSETS_FOLDER}/gpu_drivers"
+    mkdir -p "${EDH_BOOTSTRAP_ASSETS_FOLDER}/gpu_drivers"
+    pushd "${EDH_BOOTSTRAP_ASSETS_FOLDER}/gpu_drivers"
     rm -rf NVIDIA-Linux-*.run || log_info "No previous NVIDIA-Linux-*.run file detected"
     
     file_download --download-url="${DRIVER_URL_ENDPOINT}" --save-as="NVIDIA-Linux-${MACHINE}-${DRIVER_VERSION}.run"

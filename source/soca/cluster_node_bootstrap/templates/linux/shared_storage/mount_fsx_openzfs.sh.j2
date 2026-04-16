@@ -8,7 +8,7 @@
   {% include "templates/linux/shared_storage/fstab_wrapper.sh.j2" %}
 
   function mount_fsx_openzfs () {
-    # MOUNT_TARGET (required): FSx OpenZFS Filesytem ID. Used to determine actual mount endpoint if ENDPOINT is not set
+    # MOUNT_TARGET (required): FSx OpenZFS Filesystem ID. Used to determine actual mount endpoint if ENDPOINT is not set
     # MOUNT_PATH (required): Unix path to mount the EFS on
     # ON_MOUNT_FAILURE (required): What to do if the mount is not successful (exit or ignore)
     # MOUNT_OPTIONS (optional): NFS options to use

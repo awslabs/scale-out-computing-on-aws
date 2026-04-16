@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 # Begin: Enable extra repo for Ubuntu https://help.ubuntu.com/community/Repositories/Ubuntu
-{% if context.get("/configuration/BaseOS") in ("ubuntu2204", "ubuntu2404")  %}
+{% if context.get("/job/BaseOS") in ("ubuntu2204", "ubuntu2404")  %}
   log_info "Ubuntu detected, enabling universe and multiverse repository"
   # Check if 'universe' is already enabled
   if ! grep -qE "^[^#]*universe" /etc/apt/sources.list; then

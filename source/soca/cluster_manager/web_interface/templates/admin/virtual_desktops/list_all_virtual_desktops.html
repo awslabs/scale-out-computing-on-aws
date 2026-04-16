@@ -10,21 +10,20 @@
     {% include 'common/header.html' %}
 </head>
 <body id="page-top">
+    {% include 'common/horizontal_menu_bar.html' %}
 <div id="wrapper">
     {% include 'common/vertical_menu_bar.html' %}
     <div id="content-wrapper" class="d-flex flex-column">
-        <div id="content">
-            <br>
+        <div id="content" style="margin-top: 20px;">
             <div class="container-fluid">
-                {% include 'common/horizontal_menu_bar.html' %}
+                
                 {% include 'common/flashed_messages.html' %}
 
                 <div class="col-md-12">
                     <div class="card shadow mb-4">
-                        <div class="card-header py-3">
-                            <h6 class="m-0 font-weight-bold text-primary">List all active Virtual Desktops</h6>
-                        </div>
+                  
                         <div class="card-body">
+                            <h3>List all active Virtual Desktops</h3>
                             <table id="allVirtualDesktopSessions" class="display" style="width:100%">
                                 <thead>
                                     <tr>

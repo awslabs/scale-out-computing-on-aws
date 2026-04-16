@@ -10,36 +10,34 @@
     {% include 'common/header.html' %}
 </head>
 <body id="page-top">
+    {% include 'common/horizontal_menu_bar.html' %}
+
 <div id="wrapper">
     {% include 'common/vertical_menu_bar.html' %}
     <div id="content-wrapper" class="d-flex flex-column">
-        <div id="content">
-            <br>
+        <div id="content" style="margin-top: 20px;">
             <div class="container-fluid">
-                {% include 'common/horizontal_menu_bar.html' %}
                 {% include 'common/flashed_messages.html' %}
 
                 <div class="col-md-12">
                     <nav>
                         <div class="nav nav-tabs" id="nav-tab" role="tablist">
                             <a class="nav-item nav-link active" id="nav-home-tab" data-bs-toggle="tab" href="#nav-add"
-                               role="tab" aria-controls="nav-home" aria-selected="true">Create SOCA Project</a>
+                               role="tab" aria-controls="nav-home" aria-selected="true">Create EDH Project</a>
                             <a class="nav-item nav-link" id="nav-profile-tab" data-bs-toggle="tab" href="#nav-delete"
-                               role="tab" aria-controls="nav-delete" aria-selected="false">Manage SOCA Projects</a>
+                               role="tab" aria-controls="nav-delete" aria-selected="false">Manage EDH Projects</a>
                         </div>
                     </nav>
 
                     <div class="tab-content" id="nav-tabContent">
                         <div class="tab-pane fade show active" id="nav-add" role="tabpanel"
                              aria-labelledby="nav-home-tab">
-                            <br>
+                            
                             <div class="card shadow mb-4">
-                                <div class="card-header py-3">
-                                    <h6 class="m-0 font-weight-bold text-primary">Create a new SOCA Project</h6>
-                                </div>
                                     <div class="card-body">
+                                          <h3>Create a new EDH Project</h3>
                                         <div class="alert alert-primary">
-                                            SOCA Projects let you control visibility for your <a href="/admin/virtual_desktops/software_stacks" target="_blank">Virtual Desktop Software stacks</a> and <a href="/admin/target_nodes/software_stacks" target="_blank">Target Nodes Software stacks</a>.
+                                            EDH Projects let you control visibility for your <a href="/admin/virtual_desktops/software_stacks" target="_blank">Virtual Desktop Software stacks</a> and <a href="/admin/target_nodes/software_stacks" target="_blank">Target Nodes Software stacks</a>.
                                         </div>
 
                                         <form action="/admin/projects/create" method="post">
@@ -120,7 +118,7 @@
                                                     </div>
                                                     <small>
                                                       <ul>
-                                                        <li>Must be a valid SOCA user</li>
+                                                        <li>Must be a valid EDH user</li>
                                                         <li>Use <code>*</code> to allow all users</li>
                                                         <li>Leave blank to remove access</li>
                                                       </ul>
@@ -136,7 +134,7 @@
                                                   </div>
                                                   <small>
                                                       <ul>
-                                                        <li>Must be a valid SOCA user</li>
+                                                        <li>Must be a valid EDH user</li>
                                                         <li>Use <code>*</code> to deny all</li>
                                                         <li>Deny takes precedence over allow</li>
                                                       </ul>
@@ -168,7 +166,7 @@
                                                     </div>
                                                     <small>
                                                       <ul>
-                                                        <li>Must be a valid SOCA group</li>
+                                                        <li>Must be a valid EDH group</li>
                                                       </ul>
                                                     </small>
                                                   </div>
@@ -181,7 +179,7 @@
                                                     <input id="denied_groups" class="form-control mb-2" name="denied_groups" data-ub-tag-variant="primary">
                                                     <small>
                                                       <ul>
-                                                        <li>Must be a valid SOCA group</li>
+                                                        <li>Must be a valid EDH group</li>
                                                         <li>Deny takes precedence over allow</li>
                                                         <li>Users in denied groups will be denied even if individually allowed</li>
                                                       </ul>
@@ -257,11 +255,10 @@
                                           <div class="form-group row">
                                             <div class="col-md-9 offset-md-3">
                                               <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                                              <button type="submit" class="btn btn-primary btn-lg">Create new SOCA Project</button>
+                                              <button type="submit" class="btn btn-primary">Create new EDH Project</button>
                                             </div>
                                           </div>
                                         </form>
-
                                     </div>
                                 </div>
                             </div>
@@ -269,10 +266,9 @@
                             <div class="tab-pane fade" id="nav-delete" role="tabpanel" aria-labelledby="nav-profile-tab">
                                 <br>
                                 <div class="card shadow mb-4">
-                                    <div class="card-header py-3">
-                                        <h6 class="m-0 font-weight-bold text-primary">Manage SOCA Projects</h6>
-                                    </div>
                                     <div class="card-body">
+                                            <h3>Manage EDH Projects</h3>
+
                                         <div class="row">
                                         {% if projects %}
                                             <div class="col-md-5">
@@ -302,12 +298,12 @@
                                                     <input type="checkbox" class="form-check-input" name="verif" id="verif"
                                                            required>
                                                     <label class="form-check-label" for="verif">I am sure I want to
-                                                        delete this project from SOCA</label>
+                                                        delete this project from EDH</label>
                                                 </div>
                                                 <div class="d-flex justify-content-center">
                                                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                                                    <button type="submit" class="btn btn-danger btn-lg mr-2">Delete Project</button>
-                                                    <button type="button" class="btn btn-primary btn-lg" onclick="submitEditForm()">Edit Project</button>
+                                                    <button type="submit" class="btn btn-danger mr-2">Delete Project</button>
+                                                    <button type="button" class="btn btn-primary" onclick="submitEditForm()">Edit Project</button>
 
                                                 </div>
                                             </form>

@@ -111,12 +111,12 @@ class Group(Resource):
             socaAuth:
               type: apiKey
               in: header
-              name: X-SOCA-USER
+              name: X-EDH-USER
               description: SOCA username for authentication
             socaToken:
               type: apiKey
               in: header
-              name: X-SOCA-TOKEN
+              name: X-EDH-TOKEN
               description: SOCA authentication token
         """
         parser = reqparse.RequestParser()
@@ -288,7 +288,7 @@ class Group(Resource):
 
         _get_gid = SocaHttpClient(
             endpoint="/api/ldap/ids",
-            headers={"X-SOCA-TOKEN": config.Config.API_ROOT_KEY},
+            headers={"X-EDH-TOKEN": config.Config.API_ROOT_KEY},
         ).get()
         if _get_gid.success:
             current_ldap_gids = _get_gid.message
@@ -320,7 +320,7 @@ class Group(Resource):
 
                 _get_all_users = SocaHttpClient(
                     endpoint="/api/ldap/users",
-                    headers={"X-SOCA-TOKEN": config.Config.API_ROOT_KEY},
+                    headers={"X-EDH-TOKEN": config.Config.API_ROOT_KEY},
                 ).get()
                 if _get_all_users.success:
                     all_users = _get_all_users.message
@@ -367,7 +367,7 @@ class Group(Resource):
             for member in group_members:
                 _add_member_to_group = SocaHttpClient(
                     endpoint="/api/ldap/group",
-                    headers={"X-SOCA-TOKEN": config.Config.API_ROOT_KEY},
+                    headers={"X-EDH-TOKEN": config.Config.API_ROOT_KEY},
                 ).put(data={"group": group, "user": member, "action": "add"})
                 if not _add_member_to_group.success:
                     users_not_added.append(member)
@@ -465,9 +465,9 @@ class Group(Resource):
         args = parser.parse_args()
         group = args["group"]
 
-        request_user = request.headers.get("X-SOCA-USER")
+        request_user = request.headers.get("X-EDH-USER")
         if request_user is None:
-            return SocaError.CLIENT_MISSING_HEADER(header="X-SOCA-USER").as_flask()
+            return SocaError.CLIENT_MISSING_HEADER(header="X-EDH-USER").as_flask()
 
         if request_user == group:
             return SocaError.IDENTITY_PROVIDER_ERROR(
@@ -647,7 +647,7 @@ class Group(Resource):
 
             _is_user_exist = SocaHttpClient(
                 endpoint="/api/ldap/user",
-                headers={"X-SOCA-TOKEN": config.Config.API_ROOT_KEY},
+                headers={"X-EDH-TOKEN": config.Config.API_ROOT_KEY},
             ).get(params={"user": user})
 
             if _is_user_exist.success:

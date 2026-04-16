@@ -209,25 +209,25 @@ def update_ec2_info(
             _session_uuid = _session.session_uuid
             _owner = _session.session_owner
             logger.info(
-                f"Checking get_ec2_host_info for target nodes Session {_session.id} with tag:soca:TargetNodeSessionUUID: {_session_uuid}, tag:soca:ClusterId {cluster_id}, tag:soca:JobOwner {_owner}"
+                f"Checking get_ec2_host_info for target nodes Session {_session.id} with tag:edh:TargetNodeSessionUUID: {_session_uuid}, tag:edh:ClusterId {cluster_id}, tag:edh:JobOwner {_owner}"
             )
             _host_info = {}
 
             _find_instance = client_ec2.describe_instances(
                 Filters=[
                     {
-                        "Name": "tag:soca:TargetNodeSessionUUID",
+                        "Name": "tag:edh:TargetNodeSessionUUID",
                         "Values": [_session.session_uuid],
                     },
-                    {"Name": "tag:soca:ClusterId", "Values": [cluster_id]},
-                    {"Name": "tag:soca:NodeType", "Values": ["target_node"]},
-                    {"Name": "tag:soca:JobOwner", "Values": [_owner]},
+                    {"Name": "tag:edh:ClusterId", "Values": [cluster_id]},
+                    {"Name": "tag:edh:NodeType", "Values": ["target_node"]},
+                    {"Name": "tag:edh:JobOwner", "Values": [_owner]},
                 ],
             )
 
             if not _find_instance["Reservations"]:
                 logger.warning(
-                    f"No instance found for tag:soca:TargetNodeSessionUUID: {_session_uuid}, checking if the associated CloudFormation stack is healthy"
+                    f"No instance found for tag:edh:TargetNodeSessionUUID: {_session_uuid}, checking if the associated CloudFormation stack is healthy"
                 )
             else:
                 logger.debug(f"Found Instance: {_find_instance}")
@@ -457,7 +457,7 @@ def delete_inactive_instances(
                     f"CloudFormation Stack exist and is in valid state, capacity will be provisioned soon ... "
                 )
 
-        if _stack_deleted is True:
+        if _stack_deleted:
             try:
                 logger.info("Updating is_active flag to False")
                 _session.is_active = False

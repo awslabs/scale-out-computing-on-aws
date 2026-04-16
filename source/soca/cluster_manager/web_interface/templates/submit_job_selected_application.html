@@ -12,24 +12,21 @@
 </head>
 
 <body id="page-top">
+{% include 'common/horizontal_menu_bar.html' %}
 
 <div id="wrapper">
     {% include 'common/vertical_menu_bar.html' %}
     <div id="content-wrapper" class="d-flex flex-column">
-        <div id="content">
-            <br>
+        <div id="content" style="margin-top: 20px;">
             <div class="container-fluid">
-                {% include 'common/horizontal_menu_bar.html' %}
+                {% include 'common/flashed_messages.html' %}
                 <main role="main">
-                    {% include 'common/flashed_messages.html' %}
                     <div class="row">
                         <div class="col-md-6">
                             <div class="card shadow mb-4" style="width: 100%">
-                                <div class="card-header py-3">
-                                    <h6 class="m-0 font-weight-bold text-primary">Launching your {{ profile_name }}
-                                        simulation </h6>
-                                </div>
+                                  
                                 <div class="card-body">
+                                      <h3>{{ profile_name }} </h3> <br>
                                     <form action="/submit_job/send" method="post">
                                         <div class="form-build"></div>
                                         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
@@ -47,13 +44,13 @@
                         </div>
                         <div class="col-md-6">
                             <div class="card shadow mb-4" style="width: 100%">
-                                <div class="card-header py-3">
-                                    <h6 class="m-0 font-weight-bold text-primary">Cost estimate for your job</h6>
-                                </div>
                                 <div class="card-body">
+                                    <h3>Cost estimate for your job</h3>
+                                    <br>
+
                                     {% if profile_interpreter not in all_schedulers_identifiers %}
                                         <div class="alert alert-warning">
-                                            Cost estimate is not available because this application will generate a
+                                            Cost estimate is not available because this Workflow will generate a
                                             Linux command and not a qsub file.
                                         </div>
 
@@ -64,7 +61,7 @@
                                                 <h3>
                                                     Please fill out the form first
                                                 </h3>
-                                                Note: If not specified, SOCA uses the following default parameters:
+                                                Note: If not specified, EDH uses the following default parameters:
                                                 <ul>
                                                     <li><strong>instance_type</strong>: c5.large</li>
                                                     <li><strong>scratch_size</strong>: 0 GB</li>
@@ -181,7 +178,7 @@
                          <li><strong>FSx for Lustre:</strong> ' + fsx_capacity + ' GB for $' + cost_data.fsx_capacity + ' </li> \
                          <li><strong>Estimated Storage:</strong> $' + cost_data.estimated_storage_cost + ' </li></ul> \
                          <hr> \
-                          <div class="alert alert-warning"> <strong> IMPORTANT </strong>Node Count is based on the number of vCPUs (<strong>not CPUs</strong>) per machine. (e.g: a c6i.xlarge has 2 physical CPUs but 4 vCPUs. If you request 8 vCPUs SOCA will provision 2 instances. If you need 8 logical cores, we recommend using ht_support=false and request a single EC2 machine with 16 vCPUs)</div>'
+                          <div class="alert alert-warning"> <strong> IMPORTANT </strong>Node Count is based on the number of vCPUs (<strong>not CPUs</strong>) per machine. (e.g: a c6i.xlarge has 2 physical CPUs but 4 vCPUs. If you request 8 vCPUs EDH will provision 2 instances. If you need 8 logical cores, we recommend using ht_support=false and request a single EC2 machine with 16 vCPUs)</div>'
 
                         $("#cost_result").html(cost_response);
 

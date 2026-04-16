@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 # Note: Any entries must have been created as scheduler resource first.
-# Refer to the documentation for instruction https://awslabs.github.io/scale-out-computing-on-aws-documentation/documentation/High-Performance-Computing/job-with-license-requirements/
+# Refer to the documentation for instruction https://awslabs.github.io/engineering-development-hub-documentation/documentation/High-Performance-Computing/job-with-license-requirements/
 
 settings:
   # Set up LMUTIL path if you are planning to use FlexLM based license, e.g: /my/path/to/lmutil
@@ -13,8 +13,8 @@ daemons: # Do not change this section name
 
   # See examples below
   # IMPORTANT:
-  # - Make sure each Scheduler Resurce name is UNIQUE
-  # - Make sure each Scheduler Resurce name use the following format <something>_lic_<something> (we recommend <application name>_lic_<feature name>)
+  # - Make sure each Scheduler Resource name is UNIQUE
+  # - Make sure each Scheduler Resource name use the following format <something>_lic_<something> (we recommend <application name>_lic_<feature name>)
 
   ansys_lic_hpcpack: # Name of the Scheduler resource
     server: "my.license.endpoint" # Endpoint of your license server, can be an IP or DNS

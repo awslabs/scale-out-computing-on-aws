@@ -24,7 +24,7 @@ from botocore import exceptions
 import utils.aws.odcr_helper as odcr_helper
 
 sys.path.append(
-    f"/opt/soca/{os.environ.get('SOCA_CLUSTER_ID', 'SOCA_CONFIGURATION_NOT_FOUND')}/cluster_manager"
+    f"/opt/edh/{os.environ.get('EDH_CLUSTER_ID', 'SOCA_CONFIGURATION_NOT_FOUND')}/cluster_manager"
 )
 import cloudformation_builder
 from utils.config import SocaConfig
@@ -320,7 +320,7 @@ def can_launch_capacity(
         except ClientError as e:
             if e.response["Error"].get("Code") == "DryRunOperation":
                 # Dry Run Succeed.
-                if enforce_quota is False:
+                if not enforce_quota:
                     return True
                 else:
                     try:
@@ -619,7 +619,7 @@ def check_config(**kwargs):
             )
 
             if kwargs["subnet_id"] is False:
-                if SpotFleet is True:
+                if SpotFleet:
                     kwargs["subnet_id"] = (
                         SocaConfig(key="/configuration/PrivateSubnets")
                         .get_value(return_as=list)
@@ -796,7 +796,7 @@ def check_config(**kwargs):
                         kwargs["spot_allocation_strategy"].lower()
                         in v["accepted_values"]
                     ):
-                        if SpotFleet is True:
+                        if SpotFleet:
                             kwargs["spot_allocation_strategy"] = v["SpotFleet"]
                             break
                         else:
@@ -1017,28 +1017,28 @@ def main(**kwargs):
                 SocaConfig(key="/configuration/ClusterId").get_value().get("message")
                 + f"-keepforever-{params['queue']}-{params['stack_uuid']}"
             )
-            tags["soca:KeepForever"] = "true"
+            tags["edh:KeepForever"] = "true"
         else:
             cfn_stack_name = (
                 SocaConfig(key="/configuration/ClusterId").get_value().get("message")
                 + "-job-"
                 + str(params["job_id"])
             )
-            tags["soca:KeepForever"] = "false"
+            tags["edh:KeepForever"] = "false"
 
         if int(params["terminate_when_idle"]) > 0:
-            tags["soca:TerminateWhenIdle"] = params["terminate_when_idle"]
+            tags["edh:TerminateWhenIdle"] = params["terminate_when_idle"]
 
-        if "soca:NodeType" not in tags.keys():
-            tags["soca:NodeType"] = "compute_node"
+        if "edh:NodeType" not in tags.keys():
+            tags["edh:NodeType"] = "compute_node"
 
-        if "soca:ClusterId" not in tags.keys():
-            tags["soca:ClusterId"] = (
+        if "edh:ClusterId" not in tags.keys():
+            tags["edh:ClusterId"] = (
                 SocaConfig(key="/configuration/ClusterId").get_value().get("message")
             )
 
-        if "soca:JobId" not in tags.keys():
-            tags["soca:JobId"] = params["job_id"]
+        if "edh:JobId" not in tags.keys():
+            tags["edh:JobId"] = params["job_id"]
 
         if "Name" not in tags.keys():
             tags["Name"] = cfn_stack_name.replace("_", "-")

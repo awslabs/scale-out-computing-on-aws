@@ -44,14 +44,14 @@ class StopVirtualDesktop(Resource):
         description: Stop or hibernate a DCV virtual desktop session, automatically detecting hibernation capability
         parameters:
           - in: header
-            name: X-SOCA-USER
+            name: X-EDH-USER
             required: true
             schema:
               type: string
               example: "john.doe"
             description: SOCA username for authentication
           - in: header
-            name: X-SOCA-TOKEN
+            name: X-EDH-TOKEN
             required: true
             schema:
               type: string
@@ -129,10 +129,10 @@ class StopVirtualDesktop(Resource):
         parser.add_argument("session_uuid", type=str, location="form")
 
         args = parser.parse_args()
-        _user = request.headers.get("X-SOCA-USER")
+        _user = request.headers.get("X-EDH-USER")
         _session_uuid = args.get("session_uuid", None)
         if _user is None:
-            return SocaError.CLIENT_MISSING_HEADER(header="X-SOCA-USER").as_flask()
+            return SocaError.CLIENT_MISSING_HEADER(header="X-EDH-USER").as_flask()
 
         logger.debug(f"Received stop_desktop request for {_session_uuid}, user {_user}")
 

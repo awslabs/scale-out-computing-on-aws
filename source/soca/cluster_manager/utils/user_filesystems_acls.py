@@ -115,7 +115,7 @@ def check_user_permission(
     _file_path = Path(path).resolve()
     logger.info(f"Checking user acl for {_file_path=}, {permissions=}, {user=}")
 
-    if _file_path.exists() is False:
+    if not _file_path.exists():
         logger.error(f"{path} does not exist")
         return False
 

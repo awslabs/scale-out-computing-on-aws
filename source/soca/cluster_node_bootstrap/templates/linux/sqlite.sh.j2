@@ -7,12 +7,12 @@ function install_sqlite () {
   local SQLITE_VERSION="{{ context.get("/system/sqlite/version") }}"
   local SQLITE_URL="{{ context.get("/system/sqlite/url") }}"
   local SQLITE_SHA256="{{ context.get("/system/sqlite/sha256") }}"
-  local SQLITE_INSTALL_PREFIX="/opt/soca/{{ context.get('/configuration/ClusterId') }}/packages/sqlite"
+  local SQLITE_INSTALL_PREFIX="/opt/edh/{{ context.get('/configuration/ClusterId') }}/packages/sqlite"
   if [[ $(${SQLITE_INSTALL_PREFIX}/bin/sqlite3 --version | awk {'print $1'}) == "${SQLITE_VERSION}" ]]; then
     log_info "SQLITE3 exist and is at correct version, skipping ..."
   else
-    mkdir -p "${SOCA_BOOTSTRAP_ASSETS_FOLDER}/sqlite"
-    pushd "${SOCA_BOOTSTRAP_ASSETS_FOLDER}/sqlite"
+    mkdir -p "${EDH_BOOTSTRAP_ASSETS_FOLDER}/sqlite"
+    pushd "${EDH_BOOTSTRAP_ASSETS_FOLDER}/sqlite"
     if ! file_download --download-url="${SQLITE_URL}" --save-as="sqlite_installer_${SQLITE_VERSION}.zip" --sha256-checksum="${SQLITE_SHA256}"; then
       exit_fail "Unable to download SQLite"
     fi

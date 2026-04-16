@@ -9,12 +9,13 @@ from utils.subprocess_client import SocaSubprocessClient
 from utils.aws.boto3_wrapper import get_boto
 from utils.http_client import SocaHttpClient
 from utils.response import SocaResponse
+from utils.config import SocaConfig
 from utils.error import SocaError
 from functools import wraps
 import json
-import tempfile, base64
+import tempfile, base64, os, atexit, shlex
 from typing import Callable, Optional, Any, Dict, Union
-from requests.exceptions import ConnectionError
+from datetime import datetime, timedelta
 
 logger = logging.getLogger("soca_logger")
 
@@ -36,21 +37,40 @@ def k8s_api_wrapper(
                     )
                     return SocaError.GENERIC_ERROR(helper=build_result.get("message"))
 
+            # Check if token needs refresh (EKS tokens expire after ~15 minutes)
+            if hasattr(self, '_token_expiry') and datetime.now() >= self._token_expiry:
+                logger.info("Token expired, refreshing...")
+                self._refresh_token()
+
             try:
                 result = func(self, *args, **kwargs)
                 return SocaResponse(success=True, message=result)
             except ApiException as e:
                 logger.error(f"Kubernetes API exception in {func.__name__}: {e}")
                 if e.status in [401, 403]:
-                    return SocaError.GENERIC_ERROR(
-                        helper=f"Unauthorized: Verify if the IAM role can access the cluster '{self.cluster_name}'."
-                    )
+                    # Attempt token refresh on auth failure
+                    logger.info("Received 401/403, attempting token refresh...")
+                    refresh_result = self._refresh_token()
+                    if refresh_result:
+                        # Retry the operation once after token refresh
+                        try:
+                            result = func(self, *args, **kwargs)
+                            return SocaResponse(success=True, message=result)
+                        except Exception as retry_err:
+                            logger.error(f"Retry after token refresh failed: {retry_err}")
+                            return SocaError.GENERIC_ERROR(
+                                helper=f"Unauthorized: Verify if the IAM role can access the cluster '{self.cluster_name}'. Error: {str(e)}"
+                            )
+                    else:
+                        return SocaError.GENERIC_ERROR(
+                            helper=f"Unauthorized: Verify if the IAM role can access the cluster '{self.cluster_name}'. Error: {str(e)}"
+                        )
                 else:
                     logger.error(f"Unable to perform operation due to {e}")
-                    return SocaError.GENERIC_ERROR(helper=helper_message)
+                    return SocaError.GENERIC_ERROR(helper=f"{helper_message} Error: {str(e)}")
             except Exception as e:
                 logger.error(f"Unexpected error in {func.__name__}: {e}")
-                return SocaError.GENERIC_ERROR(helper=helper_message)
+                return SocaError.GENERIC_ERROR(helper=f"{helper_message} Error: {str(e)}")
 
         return wrapper
 
@@ -62,16 +82,25 @@ class SocaEKSClient:
     def __init__(
         self,
         cluster_name: str,
+        timeout: int = 10,
     ):
         self.cluster_name = cluster_name
+        self.timeout = timeout
         self._eks_client = get_boto(service_name="eks").message
         self._api_server = None
         self._cert_data = None
         self._token = None
+        self._token_expiry = None
         self._api_client = None
+        self._ca_cert_file = None
+        # Register cleanup on exit
+        atexit.register(self._cleanup)
 
     def _get_bearer_token(self) -> Optional[str]:
-        command = f"aws eks get-token --cluster-name {self.cluster_name}"
+        # Use shlex.quote to prevent command injection
+        safe_cluster_name = shlex.quote(self.cluster_name)
+        command = f"aws eks get-token --cluster-name {safe_cluster_name}"
+
         result = SocaSubprocessClient(run_command=command).run()
         logger.debug(f"_get_bearer_token: {result}")
 
@@ -82,6 +111,9 @@ class SocaEKSClient:
                     .get("status", {})
                     .get("token")
                 )
+                # Set token expiry to 14 minutes from now (EKS tokens expire at 15 minutes, refresh early)
+                self._token_expiry = datetime.now() + timedelta(minutes=14)
+                logger.info("Bearer token retrieved successfully")
                 return token
             except Exception as e:
                 logger.error(f"Error parsing token: {e}")
@@ -89,20 +121,68 @@ class SocaEKSClient:
             logger.error(f"Failed to get token: {result}")
         return None
 
-    def _describe_cluster(self) -> bool:
+    def _refresh_token(self) -> bool:
+        """Refresh the bearer token and update API client configuration."""
+        try:
+            self._token = self._get_bearer_token()
+            if not self._token:
+                logger.error("Failed to refresh bearer token")
+                return False
+
+            if self._api_client:
+                # Update the existing API client with new token
+                self._api_client.configuration.api_key = {"authorization": self._token}
+                logger.info("Token refreshed successfully")
+            return True
+        except Exception as e:
+            logger.error(f"Error refreshing token: {e}")
+            return False
+
+    def _cleanup(self) -> None:
+        """Clean up temporary certificate file."""
+        if self._ca_cert_file and os.path.exists(self._ca_cert_file):
+            try:
+                os.unlink(self._ca_cert_file)
+                logger.debug(f"Cleaned up CA certificate file: {self._ca_cert_file}")
+            except Exception as e:
+                logger.warning(f"Failed to clean up CA certificate file: {e}")
+
+    def __del__(self):
+        """Destructor to ensure cleanup happens."""
+        self._cleanup()
+
+    def _is_cluster_onboarded(self) -> bool:
         try:
             response = self._eks_client.describe_cluster(name=self.cluster_name)
             cluster = response.get("cluster", {})
             self._api_server = cluster.get("endpoint")
             self._cert_data = cluster.get("certificateAuthority", {}).get("data")
-            return True
+            tags = cluster.get("tags", {})
+            _cluster_id = (
+                SocaConfig(key="/configuration/ClusterId").get_value().get("message")
+            )
+            if tags.get(f"edh:visibility:{_cluster_id}", "").lower() != "true":
+                logger.error(
+                    f"Cluster {self.cluster_name} is not onboarded: missing tag edh:visibility:{_cluster_id} = true"
+                )
+                return False
+            else:
+                return True
         except Exception as err:
             logger.error(f"Unable to describe cluster {self.cluster_name}: {err}")
             return False
 
     def healthcheck(self) -> bool:
         if self._api_server is None:
-            self.build()
+            build_result = self.build()
+            if not build_result.get("success"):
+                logger.error(f"Cannot perform healthcheck: build failed - {build_result.get('message')}")
+                return False
+
+        if not self._api_server:
+            logger.error("Cannot perform healthcheck: API server is None")
+            return False
+
         health_check = SocaHttpClient(
             endpoint=f"{self._api_server}/healthz", timeout=2
         ).get()
@@ -117,8 +197,11 @@ class SocaEKSClient:
     def build(self) -> Dict[str, Union[bool, str, client.ApiClient]]:
         logger.info(f"Building Kubernetes client for cluster: {self.cluster_name}")
 
-        if not self._describe_cluster():
-            return {"success": False, "message": "Failed to describe cluster."}
+        if not self._is_cluster_onboarded():
+            return {
+                "success": False,
+                "message": "Failed to describe cluster or cluster is not onboarded and missing required tags.",
+            }
 
         if not self.healthcheck():
             return {
@@ -135,17 +218,20 @@ class SocaEKSClient:
         configuration.verify_ssl = True
         configuration.api_key = {"authorization": self._token}
         configuration.api_key_prefix = {"authorization": "Bearer"}
-        configuration.timeout = 10
+        configuration.timeout = self.timeout
 
         try:
             ca_cert_bytes = base64.b64decode(self._cert_data)
             ca_file = tempfile.NamedTemporaryFile(delete=False)
             ca_file.write(ca_cert_bytes)
             ca_file.flush()
+            # Store the path for cleanup
+            self._ca_cert_file = ca_file.name
             configuration.ssl_ca_cert = ca_file.name
+            ca_file.close()
         except Exception as e:
             logger.error(f"Failed to write CA certificate: {e}")
-            return {"success": False, "message": "Failed to write CA certificate."}
+            return {"success": False, "message": f"Failed to write CA certificate: {str(e)}"}
 
         self._api_client = client.ApiClient(configuration)
         return {"success": True, "message": self._api_client}

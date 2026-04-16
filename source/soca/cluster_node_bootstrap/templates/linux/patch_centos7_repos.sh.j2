@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 # Begin: Fix patch_centos7_repo
-{% if context.get("/configuration/BaseOS") == "centos7" %}
+{% if context.get("/job/BaseOS") == "centos7" %}
 function patch_centos7_repo () {
   log_info "CentOS7 is EOL and default mirrorlist does not resolve, replacing with vault)"
   sed -i s/mirror.centos.org/vault.centos.org/g /etc/yum.repos.d/*.repo

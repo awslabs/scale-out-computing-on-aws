@@ -42,23 +42,25 @@ sed -i '/SOCA_/d' /etc/environment
 unset_reboot_required
 
 # Note: Log generated prior to filesystems mount will be automatically copied over the POST_FILESYSTEM_MOUNT_LOGS_FOLDER post filesystems mount for simple troubleshooting
-PRE_FILESYSTEM_MOUNT_LOGS_FOLDER="/root/soca_bootstrap_$(instance_id)/logs"
+PRE_FILESYSTEM_MOUNT_LOGS_FOLDER="/root/edh_bootstrap_$(instance_id)/logs"
 POST_FILESYSTEM_MOUNT_LOGS_FOLDER="{{ context.get("/job/BootstrapPath") }}/$(hostname -s)"
-BOOTSTRAP_ASSETS_PATH="/root/soca_bootstrap_$(instance_id)"
+BOOTSTRAP_ASSETS_PATH="/root/edh_bootstrap_$(instance_id)"
 
 if [[ ! -d "${BOOTSTRAP_ASSETS_PATH}" ]]; then
     log_info "First user data execution, downloading bootstrap sequence"
     # Retrieve Boostrap sequence from S3
-    {% if context.get("/configuration/Region") in ("us-gov-east-1', 'us-gov-west-1")  %}
-    S3_REGION=$(curl -s --head {{ context.get("/configuration/S3Bucket") }}.s3.{{ context.get("/configuration/Region") }}.amazonaws.com | grep bucket-region | awk '{print $2}' | tr -d '\r\n')
-    {% elif context.get("/configuration/Region") in ("cn-north-1", "cn-northwest-1")  %}
-    S3_REGION=$(curl -s --head {{ context.get("/configuration/S3Bucket") }}.s3.amazonaws.com.cn | grep bucket-region | awk '{print $2}' | tr -d '\r\n')
+    {% if context.get("/configuration/Region") in ["us-gov-east-1', 'us-gov-west-1"]  %}
+        S3_BUCKET_REGION=$(curl -s --head {{ context.get("/configuration/S3Bucket") }}.s3.{{ context.get("/configuration/Region") }}.amazonaws.com | grep bucket-region | awk '{print $2}' | tr -d '\r\n')
+    {% elif context.get("/configuration/Region") in ["cn-north-1", "cn-northwest-1"]  %}
+        S3_BUCKET_REGION=$(curl -s --head {{ context.get("/configuration/S3Bucket") }}.s3.amazonaws.com.cn | grep bucket-region | awk '{print $2}' | tr -d '\r\n')
+    {% elif context.get("/configuration/Region") in ["eusc-de-east-1"] %}
+        S3_BUCKET_REGION=$(curl -s --head {{ context.get("/configuration/S3Bucket") }}.s3.{{ context.get("/configuration/Region") }}.amazonaws.eu | grep bucket-region | awk '{print $2}' | tr -d '\r\n')
     {% else %}
-    S3_REGION=$(curl -s --head {{ context.get("/configuration/S3Bucket") }}.s3.amazonaws.com | grep bucket-region | awk '{print $2}' | tr -d '\r\n')
+        S3_BUCKET_REGION=$(curl -s --head {{ context.get("/configuration/S3Bucket") }}.s3.amazonaws.com | grep bucket-region | awk '{print $2}' | tr -d '\r\n')
     {% endif %}
 
     log_info "Downloading Bootstrap script"
-    aws_cli s3 --region ${S3_REGION} sync {{ context.get("/job/BootstrapScriptsS3Location") }} ${BOOTSTRAP_ASSETS_PATH}
+    aws_cli s3 --region ${S3_BUCKET_REGION} sync {{ context.get("/job/BootstrapScriptsS3Location") }} ${BOOTSTRAP_ASSETS_PATH}
 fi
 
 mkdir -p ${PRE_FILESYSTEM_MOUNT_LOGS_FOLDER}

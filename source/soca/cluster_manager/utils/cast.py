@@ -166,12 +166,12 @@ class SocaCastEngine:
         # This function will try to automatically cast self._data as its best type
         # Support nested list and dictionary
         _result = {}
-        _cluster_id = f"/soca/{os.environ.get('SOCA_CLUSTER_ID')}"
+        _cluster_id = f"/edh/{os.environ.get('EDH_CLUSTER_ID')}"
         logger.debug(
             f"Trying to autocast dictionary {self._data} with preserve_key_name to {preserve_key_name}"
         )
 
-        if preserve_key_name is False:
+        if not preserve_key_name:
             if not isinstance(self._data, dict):
                 return SocaError.CAST_ERROR(
                     helper=f"Data must be a dict when preserve_key_name is set to False"

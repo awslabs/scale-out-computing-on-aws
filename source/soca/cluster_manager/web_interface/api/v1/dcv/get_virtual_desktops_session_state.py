@@ -32,7 +32,7 @@ class GetVirtualDesktopsSessionState(Resource):
         summary: Get session states for virtual desktops
         description: Retrieves the current state of one or more DCV virtual desktop sessions
         parameters:
-          - name: X-SOCA-USER
+          - name: X-EDH-USER
             in: header
             required: true
             schema:
@@ -42,7 +42,7 @@ class GetVirtualDesktopsSessionState(Resource):
               pattern: '^[a-zA-Z0-9._-]+$'
             description: SOCA username for authentication
             example: "john.doe"
-          - name: X-SOCA-TOKEN
+          - name: X-EDH-TOKEN
             in: header
             required: true
             schema:

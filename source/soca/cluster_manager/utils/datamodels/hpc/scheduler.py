@@ -58,7 +58,7 @@ def get_schedulers(
 
     logger.debug("Retrieving all enabled schedulers")
 
-    # Returns all enabled schedulers by default. Limit the list by specifying a scheduler_iddentifiers list
+    # Returns all enabled schedulers by default. Limit the list by specifying a scheduler_identifiers list
     _scheduler_ssm_prefix = "/configuration/HPC/schedulers/"
     _find_scheduler_config = SocaConfig(key=_scheduler_ssm_prefix).get_value(
         return_as=dict
@@ -121,9 +121,9 @@ def get_schedulers(
                         )
                         continue
 
-                    if _scheduler.enabled is False:
+                    if not _scheduler.enabled:
                         logger.warning(f"{_scheduler=} does not seems to be enabled ")
-                        if return_disabled_schedulers is True:
+                        if return_disabled_schedulers:
                             _schedulers.append(_scheduler)
 
                     else:
@@ -305,7 +305,7 @@ class SocaHpcScheduler(BaseModel):
 
         elif provider == SocaHpcSchedulerProvider.LSF:
 
-            if Path(f"{self.lsf_configuration.lsf_top}/conf/profile.lsf").exists() is False:
+            if not Path(f"{self.lsf_configuration.lsf_top}/conf/profile.lsf").exists():
                 raise ValueError(
                     f"Unable to find {self.lsf_configuration.lsf_top}/conf/profile.lsf"
                 )

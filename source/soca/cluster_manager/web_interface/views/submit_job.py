@@ -8,7 +8,7 @@ import base64
 import pathlib
 import re
 import math
-from views.my_files import decrypt
+from views.file_explorer import decrypt
 from flask import render_template, request, redirect, session, flash, Blueprint
 from decorators import login_required, feature_flag
 
@@ -38,19 +38,19 @@ def index():
             "What input file do you want to use? <hr> Navigate to the folder where your input file is located then click 'Use as Simulation Input' icon: <i class='fas fa-microchip fa-lg'  style='color: grey'></i>",
             "info",
         )
-        return redirect("/my_files")
+        return redirect("/file_explorer")
 
     _get_authorized_application_profiles = SocaHttpClient(
         endpoint=f"/api/user/resources_permissions",
         headers={
-            "X-SOCA-USER": _user,
-            "X-SOCA-TOKEN": session.get("api_key", ""),
+            "X-EDH-USER": _user,
+            "X-EDH-TOKEN": session.get("api_key", ""),
         },
     ).get(params={"application_profiles": "all"})
 
     if _get_authorized_application_profiles.get("success") is False:
         logger.error(
-            f"Unable to list application_profiles for {_user} becauyse of {_get_authorized_application_profiles.get('message')}"
+            f"Unable to list application_profiles for {_user} because of {_get_authorized_application_profiles.get('message')}"
         )
         flash(
             "Unable to list applications. See logs for additional details",
@@ -79,7 +79,7 @@ def job_submission():
     _app = request.form.get("app", "")
     _input_file = request.form.get("input_file", "")
     _user = session.get("user", "")
-    logger.info(f"Received submit_job OIST request with {_app=} / {_input_file=}")
+    logger.info(f"Received submit_job POST request with {_app=} / {_input_file=}")
 
     if not _app or not _input_file:
         flash("Missing required parameters (app and input_file).", "error")
@@ -88,8 +88,8 @@ def job_submission():
     _get_authorized_application_profiles = SocaHttpClient(
         endpoint=f"/api/user/resources_permissions",
         headers={
-            "X-SOCA-USER": session["user"],
-            "X-SOCA-TOKEN": session["api_key"],
+            "X-EDH-USER": session["user"],
+            "X-EDH-TOKEN": session["api_key"],
         },
     ).get(params={"application_profiles": f"{_app}"})
 
@@ -222,7 +222,7 @@ def send_job():
     except ValueError:
         logger.error(f"Received cpus {_cpus=} is not a valid integer")
         flash("cpus must be a valid integer", "error")
-        return redirect("/my_files")
+        return redirect("/file_explorer")
 
     _instance_type = request.form.get("instance_type", "")
     _job_script = request.form.get("job_script", "")
@@ -239,7 +239,7 @@ def send_job():
         flash(
             "Unable to read the job script. See logs for additional details.", "error"
         )
-        return redirect("/my_files")
+        return redirect("/file_explorer")
 
     logger.debug(f"About to submit HPC job {_job_to_submit}")
     is_hpc_scheduler = False
@@ -257,7 +257,7 @@ def send_job():
                 f"Interpreter is HPC scheduler {_profile_interpreter} but instance_type is not set"
             )
             flash("You must specify cpus and instance_type parameters", "error")
-            return redirect("/my_files")
+            return redirect("/file_explorer")
 
         # Calculate the number of nodes to be provisioned for the simulation
         _pattern_ht_support = re.compile(
@@ -283,7 +283,7 @@ def send_job():
                 "Unable to describe instance type. See logs for additional details.",
                 "error",
             )
-            return redirect("/my_files")
+            return redirect("/file_explorer")
         else:
             _describe_instance_types = _describe_instance_type.get("message")
 
@@ -304,7 +304,7 @@ def send_job():
                 "Unable to determine vCPU count for instance type. See logs for additional details.",
                 "error",
             )
-            return redirect("/my_files")
+            return redirect("/file_explorer")
 
         _requested_node_count = math.ceil(_requested_cpus / _cpu_per_system)
 
@@ -415,7 +415,7 @@ def send_job():
 
     _send_hpc_job = SocaHttpClient(
         endpoint="/api/scheduler/job",
-        headers={"X-SOCA-TOKEN": session["api_key"], "X-SOCA-USER": session["user"]},
+        headers={"X-EDH-TOKEN": session["api_key"], "X-EDH-USER": session["user"]},
     ).post(data={"payload": _encoded_payload, "interpreter": _profile_interpreter})
 
     if _send_hpc_job.get("success") is True:

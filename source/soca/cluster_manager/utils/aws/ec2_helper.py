@@ -14,7 +14,7 @@ from botocore.exceptions import ClientError
 from typing import Optional
 
 import utils.aws.boto3_wrapper as utils_boto3
-from utils.cache.decorator import soca_cache
+from utils.cache.decorator import soca_cache, _check_response_filter
 from utils.datamodels.soca_node import SocaNode
 from utils.error import SocaError
 from utils.response import SocaResponse
@@ -48,8 +48,8 @@ def create_placement_group(
                 {
                     "ResourceType": "placement-group",
                     "Tags": [
-                        {"Key": "soca:ClusterId", "Value": _cluster_id},
-                        {"Key": "soca:AssociatedStackId", "Value": group_name},
+                        {"Key": "edh:ClusterId", "Value": _cluster_id},
+                        {"Key": "edh:AssociatedStackId", "Value": group_name},
                     ],
                 },
             ],
@@ -143,37 +143,37 @@ def describe_instances_as_soca_nodes(
             logger.debug(f"{scheduler_info=} passed, adding extra filters if needed")
             # Adding additional filters if scheduler_info is not already specified
             _existing_filters = [filter["Name"] for filter in filters]
-            if not "tag:soca:SchedulerEndpoint" in _existing_filters:
+            if not "tag:edh:SchedulerEndpoint" in _existing_filters:
                 logger.debug(
-                    f"Adding tag:soca:SchedulerEndpoint = [{scheduler_info.endpoint}]"
+                    f"Adding tag:edh:SchedulerEndpoint = [{scheduler_info.endpoint}]"
                 )
                 filters.append(
                     {
-                        "Name": "tag:soca:SchedulerEndpoint",
+                        "Name": "tag:edh:SchedulerEndpoint",
                         "Values": [scheduler_info.endpoint],
                     }
                 )
 
-            if not "tag:soca:SchedulerProvider" in _existing_filters:
+            if not "tag:edh:SchedulerProvider" in _existing_filters:
                 logger.debug(
-                    f"Adding tag:soca:SchedulerProvider = [{scheduler_info.provider.value}]"
+                    f"Adding tag:edh:SchedulerProvider = [{scheduler_info.provider.value}]"
                 )
                 filters.append(
                     {
-                        "Name": "tag:soca:SchedulerProvider",
+                        "Name": "tag:edh:SchedulerProvider",
                         "Values": [
                             scheduler_info.provider.value
                         ],  # need the Enum, not  <SocaHpcSchedulerProvider.OPENPBS: 'openpbs'>
                     }
                 )
 
-            if not "tag:soca:SchedulerIdentifier" in _existing_filters:
+            if not "tag:edh:SchedulerIdentifier" in _existing_filters:
                 logger.debug(
-                    f"Adding tag:soca:SchedulerIdentifier = [{scheduler_info.identifier}]"
+                    f"Adding tag:edh:SchedulerIdentifier = [{scheduler_info.identifier}]"
                 )
                 filters.append(
                     {
-                        "Name": "tag:soca:SchedulerIdentifier",
+                        "Name": "tag:edh:SchedulerIdentifier",
                         "Values": [scheduler_info.identifier],
                     }
                 )
@@ -210,7 +210,7 @@ def describe_instances_as_soca_nodes(
 
 
 @soca_cache(
-    prefix="soca:webui:aws:ec2:describe_instance_type"
+    prefix="edh:webui:aws:ec2:describe_instance_type"
 )  # note: ok to use long ttl (Default) as these EC2 instance info won't change
 def describe_instance_types(instance_types: list[str]) -> SocaResponse:
     logger.info(f"Describe Instance Type for {instance_types}")
@@ -236,7 +236,7 @@ def describe_instance_types(instance_types: list[str]) -> SocaResponse:
 
 
 @soca_cache(
-    prefix="soca:webui:aws:ec2:describe_subnets", ttl=3600
+    prefix="edh:webui:aws:ec2:describe_subnets", ttl=3600
 )  # note: Configure a low TTL if the AMI is deregistered from the AWS account through the AWS Management Console or API outside of SOCA
 def describe_subnets(subnet_ids: list[str]) -> SocaResponse:
     logger.info(f"Describe subnet for {subnet_ids}")
@@ -253,16 +253,19 @@ def describe_subnets(subnet_ids: list[str]) -> SocaResponse:
             helper=f"Unable to run describe_subnets due to {e}"
         )
 
+
 @soca_cache(
-    prefix="soca:webui:aws:ec2:describe_capacity_reservations", ttl=15
-) # Use a very low TTL for this cache.
+    prefix="edh:webui:aws:ec2:describe_capacity_reservations", ttl=15
+)  # Use a very low TTL for this cache.
 def describe_capacity_reservations(capacity_reservation_ids: list[str]) -> SocaResponse:
     logger.info(f"Describe Capacity Reservations for {capacity_reservation_ids}")
     try:
         _describe_capacity_reservations = client_ec2.describe_capacity_reservations(
             CapacityReservationIds=capacity_reservation_ids
         )
-        logger.debug(f"Describe Capacity Reservations  Results: {_describe_capacity_reservations}")
+        logger.debug(
+            f"Describe Capacity Reservations  Results: {_describe_capacity_reservations}"
+        )
         return SocaResponse(success=True, message=_describe_capacity_reservations)
     except botocore.exceptions.ClientError as e:
         return SocaError.GENERIC_ERROR(
@@ -272,9 +275,10 @@ def describe_capacity_reservations(capacity_reservation_ids: list[str]) -> SocaR
         return SocaError.GENERIC_ERROR(
             helper=f"Unable to run describe_capacity_reservations due to {e}"
         )
-    
+
+
 @soca_cache(
-    prefix="soca:webui:aws:ec2:describe_security_groups", ttl=3600
+    prefix="edh:webui:aws:ec2:describe_security_groups", ttl=3600
 )  # note: Configure a low TTL if the AMI is deregistered from the AWS account through the AWS Management Console or API outside of SOCA
 def describe_security_groups(security_groups_ids: list[str]) -> SocaResponse:
     logger.info(f"Describe Security Groups Type for {security_groups_ids}")
@@ -295,8 +299,10 @@ def describe_security_groups(security_groups_ids: list[str]) -> SocaResponse:
 
 
 @soca_cache(
-    prefix="soca:webui:aws:ec2:describe_images", ttl=3600
-)  # note: Configure a low TTL if the AMI is deregistered from the AWS account through the AWS Management Console or API outside of SOCA
+    prefix="edh:webui:aws:ec2:describe_images",
+    ttl=3600,
+    cache_if=lambda r: _check_response_filter(r, "message.Images.0.State", "available"),
+)  # note: Configure a low TTL if the AMI is deregistered from the AWS account through the AWS Management Console or API outside of SOCA. Only cache if the image is available
 def describe_images(
     image_ids: list,
     filters: list = [{"Name": "state", "Values": ["available"]}],
@@ -316,7 +322,7 @@ def describe_images(
         )
 
 
-@soca_cache(prefix="soca:webui:aws:ec2:is_ebs_optimized")
+@soca_cache(prefix="edh:webui:aws:ec2:is_ebs_optimized")
 def is_ebs_optimized(instance_types: list[str]) -> SocaResponse:
     try:
         logger.info(f"Checking if {instance_types} supports EBS Optimization")
@@ -430,7 +436,7 @@ def create_capacity_dry_run(
 ) -> SocaResponse:
     """
     Run EC2 RunInstance DryRun to validate basic parameter config
-    DrynRun won't validate capacity availabiliy, use odcr_helper for that
+    DryRun won't validate that capacity is available - use odcr_helper for that
     """
     _enable_dryrun = (
         SocaConfig(key="/configuration/FeatureFlags/Hpc/EnableDryRun")
@@ -508,7 +514,7 @@ def create_capacity_dry_run(
         return SocaError.GENERIC_ERROR(helper=f"Unable to launch capacity: {err}")
 
 
-@soca_cache(prefix="soca:webui:aws:ec2:get_ec2_quotas", ttl=86400)
+@soca_cache(prefix="edh:webui:aws:ec2:get_ec2_quotas", ttl=86400)
 def get_ec2_quotas() -> SocaResponse:
     logger.info("Fetching all 'Running on Demand' EC2 Quotas")
     _quotas = []
@@ -546,11 +552,7 @@ def validate_ec2_quota_for_instance(
             f"EnforceQuota check is disabled via /configuration/FeatureFlags/Hpc/EnableQuotasCheck, skipping quota check for {instance_type}"
         )
         # return 201 tells jobs.py the EnforceQuota is disabled
-        return SocaResponse(
-            success=True,
-            message={},
-            status_code=201
-        )
+        return SocaResponse(success=True, message={}, status_code=201)
 
     _get_quotas_info = get_ec2_quotas()
 

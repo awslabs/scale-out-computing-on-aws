@@ -40,7 +40,7 @@ class DeleteTargetNode(Resource):
         summary: Delete an existing target node session
         description: Terminates and removes a target node session including associated AWS resources
         parameters:
-          - name: X-SOCA-USER
+          - name: X-EDH-USER
             in: header
             schema:
               type: string
@@ -48,7 +48,7 @@ class DeleteTargetNode(Resource):
             required: true
             description: SOCA username for authentication
             example: john.doe
-          - name: X-SOCA-TOKEN
+          - name: X-EDH-TOKEN
             in: header
             schema:
               type: string
@@ -98,7 +98,7 @@ class DeleteTargetNode(Resource):
         parser.add_argument("session_uuid", type=str, location="form")
 
         args = parser.parse_args()
-        user = request.headers.get("X-SOCA-USER")
+        user = request.headers.get("X-EDH-USER")
         session_uuid = args["session_uuid"]
         logger.info(f"Receive Delete Target Node {args} session number {session_uuid}")
 
@@ -108,7 +108,7 @@ class DeleteTargetNode(Resource):
             ).as_flask()
 
         if user is None:
-            return SocaError.CLIENT_MISSING_HEADER(header="X-SOCA-USER").as_flask()
+            return SocaError.CLIENT_MISSING_HEADER(header="X-EDH-USER").as_flask()
 
         _check_session = TargetNodeSessions.query.filter_by(
             session_owner=user, session_uuid=session_uuid, is_active=True

@@ -372,10 +372,10 @@ EOF
 }
 EOF
 
-    log_info "Creating /etc/systemd/system/soca_scheduler_${SCHEDULER_IDENTIFIER}.service"
-    cat <<EOF > "/etc/systemd/system/soca_scheduler_${SCHEDULER_IDENTIFIER}.service"
+    log_info "Creating /etc/systemd/system/edh_scheduler_${SCHEDULER_IDENTIFIER}.service"
+    cat <<EOF > "/etc/systemd/system/edh_scheduler_${SCHEDULER_IDENTIFIER}.service"
 [Unit]
-Description=Manage SOCA LSF Daemons - Server Node
+Description=Manage EDH LSF Daemons - Server Node
 After=network.target
 
 [Service]
@@ -391,14 +391,14 @@ WantedBy=multi-user.target
 EOF
 
     systemctl daemon-reload
-    systemctl enable soca_scheduler_${SCHEDULER_IDENTIFIER}.service
-    if ! systemctl start soca_scheduler_${SCHEDULER_IDENTIFIER}.service; then
-        journalctl -xeu soca_scheduler_${SCHEDULER_IDENTIFIER}.service
-        exit_fail "Unable to start LSF via soca_scheduler_${SCHEDULER_IDENTIFIER}.service, check logs"
+    systemctl enable edh_scheduler_${SCHEDULER_IDENTIFIER}.service
+    if ! systemctl start edh_scheduler_${SCHEDULER_IDENTIFIER}.service; then
+        journalctl -xeu edh_scheduler_${SCHEDULER_IDENTIFIER}.service
+        exit_fail "Unable to start LSF via edh_scheduler_${SCHEDULER_IDENTIFIER}.service, check logs"
     fi 
     log_info "Waiting for LSF process to be healthy"
     sleep 15
-    log_info "Closing SOCA_CONTROLLER to avoid running jobs on it"
+    log_info "Closing EDH_CONTROLLER to avoid running jobs on it"
     badmin hclose ${SCHEDULER_HOSTNAME}
     log_info "Completed LSF Server Configuration"
 }

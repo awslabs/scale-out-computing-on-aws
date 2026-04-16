@@ -42,7 +42,7 @@ class RunRemoteCommand(Resource):
         summary: Execute a command as the specified user
         description: Executes a command on the system as the specified user (private API)
         parameters:
-          - name: X-SOCA-USER
+          - name: X-EDH-USER
             in: header
             schema:
               type: string
@@ -89,7 +89,7 @@ class RunRemoteCommand(Resource):
         parser.add_argument("command", type=str, default="", location="data")
         args = parser.parse_args()
         _command = args.get("command", "")
-        _user = request.headers.get("X-SOCA-USER", "")
+        _user = request.headers.get("X-EDH-USER", "")
 
         logger.debug(f"Received RunRemoteCommand {_command=} as {_user=}")
 
@@ -97,7 +97,7 @@ class RunRemoteCommand(Resource):
             return SocaError.CLIENT_MISSING_PARAMETER(parameter="command").as_flask()
 
         if not _user:
-            return SocaError.CLIENT_MISSING_HEADER(header="X-SOCA-USER").as_flask()
+            return SocaError.CLIENT_MISSING_HEADER(header="X-EDH-USER").as_flask()
 
         _run_as_command = f"{shlex.quote(_command)}"
 

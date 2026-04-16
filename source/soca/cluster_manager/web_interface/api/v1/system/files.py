@@ -40,7 +40,7 @@ class Files(Resource):
         tags:
           - System Files
         parameters:
-          - name: X-SOCA-USER
+          - name: X-EDH-USER
             in: header
             schema:
               type: string
@@ -48,7 +48,7 @@ class Files(Resource):
             required: true
             description: SOCA username for authentication
             example: admin
-          - name: X-SOCA-TOKEN
+          - name: X-EDH-TOKEN
             in: header
             schema:
               type: string
@@ -113,7 +113,7 @@ class Files(Resource):
 
             if (
                 check_user_permission(
-                    user=request.headers.get("X-SOCA-USER"),
+                    user=request.headers.get("X-EDH-USER"),
                     permissions=Permissions.READ,
                     path=file_to_read,
                     paths_to_restrict=config.Config.PATH_TO_RESTRICT,
@@ -156,7 +156,7 @@ class Files(Resource):
         tags:
           - System Files
         parameters:
-          - name: X-SOCA-USER
+          - name: X-EDH-USER
             in: header
             schema:
               type: string
@@ -164,7 +164,7 @@ class Files(Resource):
             required: true
             description: SOCA username for authentication
             example: admin
-          - name: X-SOCA-TOKEN
+          - name: X-EDH-TOKEN
             in: header
             schema:
               type: string
@@ -249,7 +249,7 @@ class Files(Resource):
 
             if (
                 check_user_permission(
-                    user=request.headers.get("X-SOCA-USER"),
+                    user=request.headers.get("X-EDH-USER"),
                     permissions=Permissions.WRITE,
                     path=file_name.parent,  # validate if user has write permission to the folder where the file will be created/updated
                 )

@@ -81,7 +81,7 @@ class ProjectsManager(Resource):
         tags:
           - Projects
         parameters:
-          - name: X-SOCA-USER
+          - name: X-EDH-USER
             in: header
             schema:
               type: string
@@ -89,7 +89,7 @@ class ProjectsManager(Resource):
             required: true
             description: SOCA username for authentication
             example: admin
-          - name: X-SOCA-TOKEN
+          - name: X-EDH-TOKEN
             in: header
             schema:
               type: string
@@ -191,7 +191,7 @@ class ProjectsManager(Resource):
         tags:
           - Projects
         parameters:
-          - name: X-SOCA-USER
+          - name: X-EDH-USER
             in: header
             schema:
               type: string
@@ -199,7 +199,7 @@ class ProjectsManager(Resource):
             required: true
             description: SOCA username for authentication
             example: admin
-          - name: X-SOCA-TOKEN
+          - name: X-EDH-TOKEN
             in: header
             schema:
               type: string
@@ -313,28 +313,28 @@ class ProjectsManager(Resource):
         logger.debug(f"Received ProjectsManager Create Request args {args}")
         _project_name = args["project_name"]
         _description = args["description"]
-        if is_valid_csv(csv_string=args.get("allowed_users", "")) is False:
+        if not is_valid_csv(csv_string=args.get("allowed_users", "")):
             return SocaError.GENERIC_ERROR(
                 helper="allowed_users must be a valid CSV string"
             ).as_flask()
         else:
             _allowed_users = args.get("allowed_users", "").split(",")
 
-        if is_valid_csv(csv_string=args.get("allowed_groups", "")) is False:
+        if not is_valid_csv(csv_string=args.get("allowed_groups", "")):
             return SocaError.GENERIC_ERROR(
                 helper="allowed_groups must be a valid CSV string"
             ).as_flask()
         else:
             _allowed_groups = args.get("allowed_groups", "").split(",")
 
-        if is_valid_csv(csv_string=args.get("denied_users", "")) is False:
+        if not is_valid_csv(csv_string=args.get("denied_users", "")):
             return SocaError.GENERIC_ERROR(
                 helper="denied_users must be a valid CSV string"
             ).as_flask()
         else:
             _denied_users = args.get("denied_users", "").split(",")
 
-        if is_valid_csv(csv_string=args.get("denied_groups", "")) is False:
+        if not is_valid_csv(csv_string=args.get("denied_groups", "")):
             return SocaError.GENERIC_ERROR(
                 helper="denied_groups must be a valid CSV string"
             ).as_flask()
@@ -348,9 +348,9 @@ class ProjectsManager(Resource):
         _application_profile_ids = args.get("application_profile_ids", "")
         _aws_budget = args.get("aws_budget", "")
 
-        _user = request.headers.get("X-SOCA-USER")
+        _user = request.headers.get("X-EDH-USER")
         if _user is None:
-            return SocaError.CLIENT_MISSING_HEADER(header="X-SOCA-USER").as_flask()
+            return SocaError.CLIENT_MISSING_HEADER(header="X-EDH-USER").as_flask()
 
         _required_input = [
             "project_name",
@@ -380,8 +380,8 @@ class ProjectsManager(Resource):
             _check_budget = SocaHttpClient(
                 endpoint="/api/cost_management/budgets",
                 headers={
-                    "X-SOCA-USER": request.headers.get("X-SOCA-USER"),
-                    "X-SOCA-TOKEN": request.headers.get("X-SOCA-TOKEN"),
+                    "X-EDH-USER": request.headers.get("X-EDH-USER"),
+                    "X-EDH-TOKEN": request.headers.get("X-EDH-TOKEN"),
                 },
             ).get()
             if _check_budget.get("success") is False:
@@ -453,8 +453,8 @@ class ProjectsManager(Resource):
                 _list_all_users = SocaHttpClient(
                     endpoint="/api/ldap/users",
                     headers={
-                        "X-SOCA-TOKEN": request.headers.get("X-SOCA-TOKEN"),
-                        "X-SOCA-USER": request.headers.get("X-SOCA-USER"),
+                        "X-EDH-TOKEN": request.headers.get("X-EDH-TOKEN"),
+                        "X-EDH-USER": request.headers.get("X-EDH-USER"),
                     },
                 ).get()
                 logger.debug(f"List all SOCA Users {_list_all_users}")
@@ -516,8 +516,8 @@ class ProjectsManager(Resource):
                 _list_all_groups = SocaHttpClient(
                     endpoint="/api/ldap/groups",
                     headers={
-                        "X-SOCA-TOKEN": request.headers.get("X-SOCA-TOKEN"),
-                        "X-SOCA-USER": request.headers.get("X-SOCA-USER"),
+                        "X-EDH-TOKEN": request.headers.get("X-EDH-TOKEN"),
+                        "X-EDH-USER": request.headers.get("X-EDH-USER"),
                     },
                 ).get()
                 logger.debug(f"List all SOCA Groups {_list_all_users}")
@@ -606,7 +606,7 @@ class ProjectsManager(Resource):
         tags:
           - Projects
         parameters:
-          - name: X-SOCA-USER
+          - name: X-EDH-USER
             in: header
             schema:
               type: string
@@ -614,7 +614,7 @@ class ProjectsManager(Resource):
             required: true
             description: SOCA username for authentication
             example: admin
-          - name: X-SOCA-TOKEN
+          - name: X-EDH-TOKEN
             in: header
             schema:
               type: string
@@ -680,9 +680,9 @@ class ProjectsManager(Resource):
                 helper=f"profile_id does not seems to be a valid integer {args['project_id']}",
             ).as_flask()
 
-        _user = request.headers.get("X-SOCA-USER")
+        _user = request.headers.get("X-EDH-USER")
         if _user is None:
-            return SocaError.CLIENT_MISSING_HEADER(header="X-SOCA-USER").as_flask()
+            return SocaError.CLIENT_MISSING_HEADER(header="X-EDH-USER").as_flask()
 
         _check_project = Projects.query.filter_by(
             id=_project_id, is_active=True
@@ -776,7 +776,7 @@ class ProjectsManager(Resource):
         tags:
           - Projects
         parameters:
-          - name: X-SOCA-USER
+          - name: X-EDH-USER
             in: header
             schema:
               type: string
@@ -784,7 +784,7 @@ class ProjectsManager(Resource):
             required: true
             description: SOCA username for authentication
             example: admin
-          - name: X-SOCA-TOKEN
+          - name: X-EDH-TOKEN
             in: header
             schema:
               type: string
@@ -894,28 +894,28 @@ class ProjectsManager(Resource):
         parser.add_argument("description", type=str, location="form")
 
         args = parser.parse_args()
-        if is_valid_csv(csv_string=args.get("allowed_users", "")) is False:
+        if not is_valid_csv(csv_string=args.get("allowed_users", "")):
             return SocaError.GENERIC_ERROR(
                 helper="allowed_users must be a valid CSV string"
             ).as_flask()
         else:
             _allowed_users = args.get("allowed_users", "").split(",")
 
-        if is_valid_csv(csv_string=args.get("denied_users", "")) is False:
+        if not is_valid_csv(csv_string=args.get("denied_users", "")):
             return SocaError.GENERIC_ERROR(
                 helper="denied_users must be a valid CSV string"
             ).as_flask()
         else:
             _denied_users = args.get("denied_users", "").split(",")
 
-        if is_valid_csv(csv_string=args.get("allowed_groups", "")) is False:
+        if not is_valid_csv(csv_string=args.get("allowed_groups", "")):
             return SocaError.GENERIC_ERROR(
                 helper="allowed_groups must be a valid CSV string"
             ).as_flask()
         else:
             _allowed_groups = args.get("allowed_groups", "").split(",")
 
-        if is_valid_csv(csv_string=args.get("denied_groups", "")) is False:
+        if not is_valid_csv(csv_string=args.get("denied_groups", "")):
             return SocaError.GENERIC_ERROR(
                 helper="denied_groups must be a valid CSV string"
             ).as_flask()
@@ -932,9 +932,9 @@ class ProjectsManager(Resource):
 
         logger.info(f"Receive Project Update request with {args}")
 
-        _user = request.headers.get("X-SOCA-USER")
+        _user = request.headers.get("X-EDH-USER")
         if _user is None:
-            return SocaError.CLIENT_MISSING_HEADER(header="X-SOCA-USER").as_flask()
+            return SocaError.CLIENT_MISSING_HEADER(header="X-EDH-USER").as_flask()
 
         _required_input = [
             "description",
@@ -973,8 +973,8 @@ class ProjectsManager(Resource):
             _check_budget = SocaHttpClient(
                 endpoint=f"/api/cost_management/budgets",
                 headers={
-                    "X-SOCA-USER": request.headers.get("X-SOCA-USER"),
-                    "X-SOCA-TOKEN": request.headers.get("X-SOCA-TOKEN"),
+                    "X-EDH-USER": request.headers.get("X-EDH-USER"),
+                    "X-EDH-TOKEN": request.headers.get("X-EDH-TOKEN"),
                 },
             ).get()
             if _check_budget.get("success") is False:
@@ -1081,8 +1081,8 @@ class ProjectsManager(Resource):
                 _list_all_users = SocaHttpClient(
                     endpoint="/api/ldap/users",
                     headers={
-                        "X-SOCA-TOKEN": request.headers.get("X-SOCA-TOKEN"),
-                        "X-SOCA-USER": request.headers.get("X-SOCA-USER"),
+                        "X-EDH-TOKEN": request.headers.get("X-EDH-TOKEN"),
+                        "X-EDH-USER": request.headers.get("X-EDH-USER"),
                     },
                 ).get()
 
@@ -1096,8 +1096,8 @@ class ProjectsManager(Resource):
                 _list_all_groups = SocaHttpClient(
                     endpoint="/api/ldap/groups",
                     headers={
-                        "X-SOCA-TOKEN": request.headers.get("X-SOCA-TOKEN"),
-                        "X-SOCA-USER": request.headers.get("X-SOCA-USER"),
+                        "X-EDH-TOKEN": request.headers.get("X-EDH-TOKEN"),
+                        "X-EDH-USER": request.headers.get("X-EDH-USER"),
                     },
                 ).get()
 

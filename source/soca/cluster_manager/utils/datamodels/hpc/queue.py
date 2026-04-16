@@ -15,7 +15,7 @@ class SocaHpcQueue(SocaHpcJobResourceModel):
     max_running_jobs: int = None
     max_provisioned_instances: int = None
 
-    # Queue ACLs:  https://awslabs.github.io/scale-out-computing-on-aws-documentation/documentation/tutorials/manage-queue-acls/
+    # Queue ACLs:  https://awslabs.github.io/engineering-development-hub-documentation/documentation/tutorials/manage-queue-acls/
     allowed_users: list =  Field(default_factory=list)  # empty list = all users can submit job
     excluded_users: list = (
         []
@@ -24,7 +24,7 @@ class SocaHpcQueue(SocaHpcJobResourceModel):
     # Queue mode (can be either fifo or fairshare)
     queue_mode: Literal["fifo", "fairshare"] = "fifo"
 
-    # Instance types restrictions: https://awslabs.github.io/scale-out-computing-on-aws-documentation/documentation/security/manage-queue-instance-types/
+    # Instance types restrictions: https://awslabs.github.io/engineering-development-hub-documentation/documentation/security/manage-queue-instance-types/
     allowed_instance_types: list = (
         []  # Empty list, all EC2 instances allowed. You can restrict by instance type (Eg: ["c5.4xlarge"]) or instance family (eg: ["c5"])
     )
@@ -32,7 +32,7 @@ class SocaHpcQueue(SocaHpcJobResourceModel):
         []  # Empty list, no EC2 instance types prohibited.  You can restrict by instance type (Eg: ["c5.4xlarge"]) or instance family (eg: ["c5"])
     )
 
-    # List of parameters user can not override: https://awslabs.github.io/scale-out-computing-on-aws-documentation/documentation/security/manage-queue-restricted-parameters/
+    # List of parameters user can not override: https://awslabs.github.io/engineering-development-hub-documentation/documentation/security/manage-queue-restricted-parameters/
     restricted_parameters: list = Field(default_factory=list)
 
     # Scaling mode (can be either single_job, or multiple_jobs): single_job runs a single job per EC2 instance, multiple_jobs allows running multiple jobs on the same EC2 instance
@@ -40,7 +40,7 @@ class SocaHpcQueue(SocaHpcJobResourceModel):
         "single_job"  # Allowed values: single_job, multiple_jobs
     )
 
-    # List of additional security groups / IAM instance profile that can be used https://awslabs.github.io/scale-out-computing-on-aws/security/use-custom-sgs-roles/
+    # List of additional security groups / IAM instance profile that can be used https://awslabs.github.io/engineering-development-hub-documentation/documentation/security/use-custom-sgs-roles/
     allowed_security_group_ids: list = Field(default_factory=list)
     allowed_instance_profiles: list = Field(default_factory=list)
 

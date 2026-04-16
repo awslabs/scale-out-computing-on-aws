@@ -70,11 +70,11 @@ def ssm_get_command_info(os_family: Literal["linux", "windows"]) -> SocaResponse
 
     if os_family == "windows":
         _ssm_commands = [
-            f"Invoke-Expression \"& 'C:\\Program Files\\NICE\\DCV\\Server\\bin\\dcv' describe-session $env:SOCA_DCV_SESSION_ID\"",
+            f"Invoke-Expression \"& 'C:\\Program Files\\NICE\\DCV\\Server\\bin\\dcv' describe-session $env:EDH_DCV_SESSION_ID\"",
             "if ($?) { exit 0 }",
             "Restart-Service -Name dcvserver -Force",
             "Start-Sleep -Seconds 5",
-            f"Invoke-Expression \"& 'C:\\Program Files\\NICE\\DCV\\Server\\bin\\dcv' describe-session $env:SOCA_DCV_SESSION_ID\"",
+            f"Invoke-Expression \"& 'C:\\Program Files\\NICE\\DCV\\Server\\bin\\dcv' describe-session $env:EDH_DCV_SESSION_ID\"",
             "if ($?) { exit 0 } else { exit 1 }",
         ]
 
@@ -82,15 +82,15 @@ def ssm_get_command_info(os_family: Literal["linux", "windows"]) -> SocaResponse
 
     else:
         _ssm_commands = [
-            "export SOCA_DCV_SESSION_ID=$(cat /etc/environment | grep SOCA_DCV_SESSION_ID= | awk -F'=' '{print $2}')", # ssm.send_command() cannot use source",
-            f"if dcv describe-session $SOCA_DCV_SESSION_ID; then",
+            "export EDH_DCV_SESSION_ID=$(cat /etc/environment | grep EDH_DCV_SESSION_ID= | awk -F'=' '{print $2}')", # ssm.send_command() cannot use source",
+            f"if dcv describe-session $EDH_DCV_SESSION_ID; then",
             " exit 0",
             "fi",
             " ",
             "systemctl restart socadcv;",
             "sleep 5",
             "",
-            f"if dcv describe-session $SOCA_DCV_SESSION_ID; then",
+            f"if dcv describe-session $EDH_DCV_SESSION_ID; then",
             "exit 0",
             "else",
             "exit 1 ",
@@ -254,7 +254,7 @@ def validate_dcv_session(
                 _skip_windows = True
 
         # Check all linux hosts individually
-        if _skip_linux is False:
+        if not _skip_linux:
             for _session in [
                 session for session in sessions if session.os_family == "linux"
             ]:
@@ -273,7 +273,7 @@ def validate_dcv_session(
                     )
 
         # Check all Windows hosts individually
-        if _skip_windows is False:
+        if not _skip_windows:
             for _session in [
                 session for session in sessions if session.os_family == "windows"
             ]:

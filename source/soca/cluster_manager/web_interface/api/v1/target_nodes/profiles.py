@@ -47,7 +47,7 @@ class TargetNodeProfilesManager(Resource):
         summary: Retrieve target node profiles
         description: Returns target node profile information including allowed instance types and subnet configurations
         parameters:
-          - name: X-SOCA-USER
+          - name: X-EDH-USER
             in: header
             schema:
               type: string
@@ -55,7 +55,7 @@ class TargetNodeProfilesManager(Resource):
             required: true
             description: SOCA username for authentication
             example: admin.user
-          - name: X-SOCA-TOKEN
+          - name: X-EDH-TOKEN
             in: header
             schema:
               type: string
@@ -155,7 +155,7 @@ class TargetNodeProfilesManager(Resource):
         summary: Create a new target node profile
         description: Creates a new target node profile with specified instance types, subnets, and resource limits
         parameters:
-          - name: X-SOCA-USER
+          - name: X-EDH-USER
             in: header
             schema:
               type: string
@@ -163,7 +163,7 @@ class TargetNodeProfilesManager(Resource):
             required: true
             description: SOCA username for authentication
             example: admin.user
-          - name: X-SOCA-TOKEN
+          - name: X-EDH-TOKEN
             in: header
             schema:
               type: string
@@ -256,9 +256,9 @@ class TargetNodeProfilesManager(Resource):
                 helpers="Description cannot be greater than 500 characters"
             ).as_flask()
             
-        _user = request.headers.get("X-SOCA-USER")
+        _user = request.headers.get("X-EDH-USER")
         if _user is None:
-            return SocaError.CLIENT_MISSING_HEADER(header="X-SOCA-USER").as_flask()
+            return SocaError.CLIENT_MISSING_HEADER(header="X-EDH-USER").as_flask()
 
         _required_input = [
             "profile_name",
@@ -362,7 +362,7 @@ class TargetNodeProfilesManager(Resource):
         summary: Delete an existing target node profile
         description: Deactivates a target node profile if it's not being used by any software stacks
         parameters:
-          - name: X-SOCA-USER
+          - name: X-EDH-USER
             in: header
             schema:
               type: string
@@ -370,7 +370,7 @@ class TargetNodeProfilesManager(Resource):
             required: true
             description: SOCA username for authentication
             example: admin.user
-          - name: X-SOCA-TOKEN
+          - name: X-EDH-TOKEN
             in: header
             schema:
               type: string
@@ -436,9 +436,9 @@ class TargetNodeProfilesManager(Resource):
                 helper=f"profile_id does not seems to be a valid integer {args['profile_id']}",
             ).as_flask()
 
-        _user = request.headers.get("X-SOCA-USER")
+        _user = request.headers.get("X-EDH-USER")
         if _user is None:
-            return SocaError.CLIENT_MISSING_HEADER(header="X-SOCA-USER").as_flask()
+            return SocaError.CLIENT_MISSING_HEADER(header="X-EDH-USER").as_flask()
 
         _check_profile = TargetNodeProfiles.query.filter_by(
             id=_profile_id, is_active=True
@@ -494,7 +494,7 @@ class TargetNodeProfilesManager(Resource):
         summary: Update an existing target node profile
         description: Updates the configuration of an existing target node profile including instance types, subnets, and resource limits
         parameters:
-          - name: X-SOCA-USER
+          - name: X-EDH-USER
             in: header
             schema:
               type: string
@@ -502,7 +502,7 @@ class TargetNodeProfilesManager(Resource):
             required: true
             description: SOCA username for authentication
             example: admin.user
-          - name: X-SOCA-TOKEN
+          - name: X-EDH-TOKEN
             in: header
             schema:
               type: string
@@ -588,9 +588,9 @@ class TargetNodeProfilesManager(Resource):
             return SocaError.GENERIC_ERROR(
                 helpers="Description cannot be greater than 500 characters"
             ).as_flask()
-        _user = request.headers.get("X-SOCA-USER")
+        _user = request.headers.get("X-EDH-USER")
         if _user is None:
-            return SocaError.CLIENT_MISSING_HEADER(header="X-SOCA-USER").as_flask()
+            return SocaError.CLIENT_MISSING_HEADER(header="X-EDH-USER").as_flask()
 
         _required_input = [
             "pattern_allowed_instance_types",
