@@ -1,12 +1,12 @@
 {
   "openapi": "3.1.0",
   "info": {
-    "title": "Scale-Out Computing on AWS (SOCA) API",
-    "description": "API specification for SOCA. Add api/doc?ui=swagger or api/doc?ui=rapidoc to change UI provider.",
+    "title": "Engineering Development Hub (EDH) API",
+    "description": "API specification for EDH (formerly Scale Out Computing on AWS - SOCA). Add api/doc?ui=swagger or api/doc?ui=rapidoc to change UI provider.",
     "version": "1.0.0",
     "contact": {
       "name": "Open Source AWS Solution",
-      "url": "https://github.com/awslabs/scale-out-computing-on-aws/tree/main"
+      "url": "https://github.com/awslabs/engineering-development-hub/tree/main"
     },
     "license": {
       "name": "Apache 2.0",
@@ -21,11 +21,11 @@
           "Login Nodes"
         ],
         "summary": "List all login node IP addresses",
-        "description": "Retrieve IP addresses of all running login nodes in the SOCA cluster",
+        "description": "Retrieve IP addresses of all running login nodes in the EDH cluster",
         "security": [
           {
-            "socaAuth": [],
-            "socaToken": []
+            "edhAuth": [],
+            "edhToken": []
           }
         ],
         "responses": {
@@ -110,8 +110,8 @@
         "description": "Start a stopped DCV virtual desktop session with automatic ODCR (On-Demand Capacity Reservation) management",
         "security": [
           {
-            "socaAuth": [],
-            "socaToken": []
+            "edhAuth": [],
+            "edhToken": []
           }
         ],
         "parameters": [
@@ -123,7 +123,7 @@
               "type": "string",
               "example": "john.doe"
             },
-            "description": "SOCA username for authentication"
+            "description": "EDH username for authentication"
           },
           {
             "in": "header",
@@ -133,7 +133,7 @@
               "type": "string",
               "example": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
             },
-            "description": "SOCA authentication token"
+            "description": "EDH authentication token"
           }
         ],
         "requestBody": {
@@ -251,8 +251,8 @@
         "description": "Update the start/stop schedule for a DCV virtual desktop session",
         "security": [
           {
-            "socaAuth": [],
-            "socaToken": []
+            "edhAuth": [],
+            "edhToken": []
           }
         ],
         "parameters": [
@@ -264,7 +264,7 @@
               "type": "string",
               "example": "john.doe"
             },
-            "description": "SOCA username for authentication"
+            "description": "EDH username for authentication"
           },
           {
             "in": "header",
@@ -274,7 +274,7 @@
               "type": "string",
               "example": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
             },
-            "description": "SOCA authentication token"
+            "description": "EDH authentication token"
           }
         ],
         "requestBody": {
@@ -398,8 +398,8 @@
         "description": "Retrieves DCV desktop sessions for the authenticated user with optional filtering",
         "security": [
           {
-            "socaAuth": [],
-            "socaToken": []
+            "edhAuth": [],
+            "edhToken": []
           }
         ],
         "parameters": [
@@ -413,7 +413,7 @@
               "maxLength": 64,
               "pattern": "^[a-zA-Z0-9._-]+$"
             },
-            "description": "SOCA username for authentication",
+            "description": "EDH username for authentication",
             "example": "john.doe"
           },
           {
@@ -425,7 +425,7 @@
               "minLength": 1,
               "maxLength": 256
             },
-            "description": "SOCA authentication token",
+            "description": "EDH authentication token",
             "example": "abc123token456"
           },
           {
@@ -639,7 +639,7 @@
                     },
                     "message": {
                       "type": "string",
-                      "example": "Unable to retrieve SOCA Parameters"
+                      "example": "Unable to retrieve EDH Parameters"
                     }
                   }
                 }
@@ -659,8 +659,8 @@
         "description": "Validates DCV session authentication token and returns XML response for session access",
         "security": [
           {
-            "socaAuth": [],
-            "socaToken": []
+            "edhAuth": [],
+            "edhToken": []
           }
         ],
         "parameters": [
@@ -674,7 +674,7 @@
               "maxLength": 64,
               "pattern": "^[a-zA-Z0-9._-]+$"
             },
-            "description": "SOCA username for authentication",
+            "description": "EDH username for authentication",
             "example": "john.doe"
           },
           {
@@ -686,7 +686,7 @@
               "minLength": 1,
               "maxLength": 256
             },
-            "description": "SOCA authentication token",
+            "description": "EDH authentication token",
             "example": "abc123token456"
           }
         ],
@@ -796,8 +796,8 @@
         "description": "Modify the instance type of a DCV desktop session. The session must be in stopped state.",
         "security": [
           {
-            "socaAuth": [],
-            "socaToken": []
+            "edhAuth": [],
+            "edhToken": []
           }
         ],
         "parameters": [
@@ -809,7 +809,7 @@
               "type": "string",
               "example": "john.doe"
             },
-            "description": "SOCA username for authentication"
+            "description": "EDH username for authentication"
           },
           {
             "in": "header",
@@ -819,7 +819,7 @@
               "type": "string",
               "example": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
             },
-            "description": "SOCA authentication token"
+            "description": "EDH authentication token"
           }
         ],
         "requestBody": {
@@ -979,8 +979,8 @@
         "description": "Retrieves software stacks for virtual desktops, optionally filtered by stack ID (admin access required)",
         "security": [
           {
-            "socaAuth": [],
-            "socaToken": []
+            "edhAuth": [],
+            "edhToken": []
           }
         ],
         "parameters": [
@@ -995,7 +995,7 @@
               "pattern": "^[a-zA-Z0-9._-]+$",
               "example": "admin.user"
             },
-            "description": "SOCA username for authentication (must be admin)"
+            "description": "EDH username for authentication (must be admin)"
           },
           {
             "in": "header",
@@ -1006,7 +1006,7 @@
               "minLength": 1,
               "example": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
             },
-            "description": "SOCA authentication token"
+            "description": "EDH authentication token"
           },
           {
             "in": "query",
@@ -1109,8 +1109,8 @@
         "description": "Creates a new software stack from an AMI for virtual desktop deployment (admin access required)",
         "security": [
           {
-            "socaAuth": [],
-            "socaToken": []
+            "edhAuth": [],
+            "edhToken": []
           }
         ],
         "parameters": [
@@ -1125,7 +1125,7 @@
               "pattern": "^[a-zA-Z0-9._-]+$",
               "example": "admin.user"
             },
-            "description": "SOCA username for authentication (must be admin)"
+            "description": "EDH username for authentication (must be admin)"
           },
           {
             "in": "header",
@@ -1136,7 +1136,7 @@
               "minLength": 1,
               "example": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
             },
-            "description": "SOCA authentication token"
+            "description": "EDH authentication token"
           }
         ],
         "requestBody": {
@@ -1234,7 +1234,7 @@
                     },
                     "message": {
                       "type": "string",
-                      "example": "ami-12345678 registered successfully in SOCA as Ubuntu Desktop 20.04"
+                      "example": "ami-12345678 registered successfully in EDH as Ubuntu Desktop 20.04"
                     }
                   }
                 }
@@ -1267,8 +1267,8 @@
         "description": "Deactivates an existing software stack for virtual desktops by marking it as inactive (admin access required)",
         "security": [
           {
-            "socaAuth": [],
-            "socaToken": []
+            "edhAuth": [],
+            "edhToken": []
           }
         ],
         "parameters": [
@@ -1283,7 +1283,7 @@
               "pattern": "^[a-zA-Z0-9._-]+$",
               "example": "admin.user"
             },
-            "description": "SOCA username for authentication (must be admin)"
+            "description": "EDH username for authentication (must be admin)"
           },
           {
             "in": "header",
@@ -1294,7 +1294,7 @@
               "minLength": 1,
               "example": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
             },
-            "description": "SOCA authentication token"
+            "description": "EDH authentication token"
           }
         ],
         "requestBody": {
@@ -1336,7 +1336,7 @@
                     },
                     "message": {
                       "type": "string",
-                      "example": "Software Stack removed from SOCA"
+                      "example": "Software Stack removed from EDH"
                     }
                   }
                 }
@@ -1369,8 +1369,8 @@
         "description": "Updates an existing software stack configuration for virtual desktop deployment (admin access required)",
         "security": [
           {
-            "socaAuth": [],
-            "socaToken": []
+            "edhAuth": [],
+            "edhToken": []
           }
         ],
         "parameters": [
@@ -1385,7 +1385,7 @@
               "pattern": "^[a-zA-Z0-9._-]+$",
               "example": "admin.user"
             },
-            "description": "SOCA username for authentication (must be admin)"
+            "description": "EDH username for authentication (must be admin)"
           },
           {
             "in": "header",
@@ -1396,7 +1396,7 @@
               "minLength": 1,
               "example": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
             },
-            "description": "SOCA authentication token"
+            "description": "EDH authentication token"
           }
         ],
         "requestBody": {
@@ -1493,7 +1493,7 @@
                     },
                     "message": {
                       "type": "string",
-                      "example": "ami-0abcdef1234567890 updated successfully in SOCA"
+                      "example": "ami-0abcdef1234567890 updated successfully in EDH"
                     }
                   }
                 }
@@ -1528,8 +1528,8 @@
         "description": "Retrieves the current state of one or more DCV virtual desktop sessions",
         "security": [
           {
-            "socaAuth": [],
-            "socaToken": []
+            "edhAuth": [],
+            "edhToken": []
           }
         ],
         "parameters": [
@@ -1543,7 +1543,7 @@
               "maxLength": 64,
               "pattern": "^[a-zA-Z0-9._-]+$"
             },
-            "description": "SOCA username for authentication",
+            "description": "EDH username for authentication",
             "example": "john.doe"
           },
           {
@@ -1555,7 +1555,7 @@
               "minLength": 1,
               "maxLength": 256
             },
-            "description": "SOCA authentication token",
+            "description": "EDH authentication token",
             "example": "abc123token456"
           },
           {
@@ -1680,8 +1680,8 @@
         "description": "Retrieves detailed information about all active DCV virtual desktop sessions (admin access required)",
         "security": [
           {
-            "socaAuth": [],
-            "socaToken": []
+            "edhAuth": [],
+            "edhToken": []
           }
         ],
         "parameters": [
@@ -1695,7 +1695,7 @@
               "maxLength": 64,
               "pattern": "^[a-zA-Z0-9._-]+$"
             },
-            "description": "SOCA username for authentication (must be admin)",
+            "description": "EDH username for authentication (must be admin)",
             "example": "admin.user"
           },
           {
@@ -1707,7 +1707,7 @@
               "minLength": 1,
               "maxLength": 256
             },
-            "description": "SOCA authentication token",
+            "description": "EDH authentication token",
             "example": "abc123token456"
           }
         ],
@@ -1900,7 +1900,7 @@
                     },
                     "message": {
                       "type": "string",
-                      "example": "Unable to retrieve SOCA Parameters"
+                      "example": "Unable to retrieve EDH Parameters"
                     }
                   }
                 }
@@ -1920,8 +1920,8 @@
         "description": "Stop or hibernate a DCV virtual desktop session, automatically detecting hibernation capability",
         "security": [
           {
-            "socaAuth": [],
-            "socaToken": []
+            "edhAuth": [],
+            "edhToken": []
           }
         ],
         "parameters": [
@@ -1933,7 +1933,7 @@
               "type": "string",
               "example": "john.doe"
             },
-            "description": "SOCA username for authentication"
+            "description": "EDH username for authentication"
           },
           {
             "in": "header",
@@ -1943,7 +1943,7 @@
               "type": "string",
               "example": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
             },
-            "description": "SOCA authentication token"
+            "description": "EDH authentication token"
           }
         ],
         "requestBody": {
@@ -2061,8 +2061,8 @@
         "description": "Terminates an active DCV virtual desktop session and cleans up associated resources",
         "security": [
           {
-            "socaAuth": [],
-            "socaToken": []
+            "edhAuth": [],
+            "edhToken": []
           }
         ],
         "parameters": [
@@ -2076,7 +2076,7 @@
               "maxLength": 64,
               "pattern": "^[a-zA-Z0-9._-]+$"
             },
-            "description": "SOCA username for authentication",
+            "description": "EDH username for authentication",
             "example": "john.doe"
           },
           {
@@ -2088,7 +2088,7 @@
               "minLength": 1,
               "maxLength": 256
             },
-            "description": "SOCA authentication token",
+            "description": "EDH authentication token",
             "example": "abc123token456"
           }
         ],
@@ -2296,8 +2296,8 @@
         "description": "Provisions a new EC2 instance with DCV for remote desktop access",
         "security": [
           {
-            "socaAuth": [],
-            "socaToken": []
+            "edhAuth": [],
+            "edhToken": []
           }
         ],
         "parameters": [
@@ -2311,7 +2311,7 @@
               "maxLength": 64,
               "pattern": "^[a-zA-Z0-9._-]+$"
             },
-            "description": "SOCA username for authentication",
+            "description": "EDH username for authentication",
             "example": "john.doe"
           },
           {
@@ -2323,7 +2323,7 @@
               "minLength": 1,
               "maxLength": 256
             },
-            "description": "SOCA authentication token",
+            "description": "EDH authentication token",
             "example": "abc123token456"
           }
         ],
@@ -2344,6 +2344,11 @@
                     "pattern": "^[a-z0-9]+\\.[a-z0-9]+$",
                     "description": "EC2 instance type for the virtual desktop",
                     "example": "m5.large"
+                  },
+                  "capacity_reservation_id": {
+                    "type": "string",
+                    "description": "Existing Capacity Reservation ID to assign",
+                    "example": "cr-abd123"
                   },
                   "disk_size": {
                     "type": "string",
@@ -2566,8 +2571,8 @@
         "description": "Retrieves virtual desktop profiles, optionally filtered by profile ID (admin access required)",
         "security": [
           {
-            "socaAuth": [],
-            "socaToken": []
+            "edhAuth": [],
+            "edhToken": []
           }
         ],
         "parameters": [
@@ -2579,7 +2584,7 @@
               "type": "string",
               "example": "admin.user"
             },
-            "description": "SOCA username for authentication (must be admin)"
+            "description": "EDH username for authentication (must be admin)"
           },
           {
             "in": "header",
@@ -2589,7 +2594,7 @@
               "type": "string",
               "example": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
             },
-            "description": "SOCA authentication token"
+            "description": "EDH authentication token"
           },
           {
             "in": "query",
@@ -2725,8 +2730,8 @@
         "description": "Creates a new virtual desktop profile with specified configuration (admin access required)",
         "security": [
           {
-            "socaAuth": [],
-            "socaToken": []
+            "edhAuth": [],
+            "edhToken": []
           }
         ],
         "parameters": [
@@ -2738,7 +2743,7 @@
               "type": "string",
               "example": "admin.user"
             },
-            "description": "SOCA username for authentication (must be admin)"
+            "description": "EDH username for authentication (must be admin)"
           },
           {
             "in": "header",
@@ -2748,7 +2753,7 @@
               "type": "string",
               "example": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
             },
-            "description": "SOCA authentication token"
+            "description": "EDH authentication token"
           }
         ],
         "requestBody": {
@@ -2810,7 +2815,7 @@
                     },
                     "message": {
                       "type": "string",
-                      "example": "Engineering Profile registered successfully in SOCA"
+                      "example": "Engineering Profile registered successfully in EDH"
                     }
                   }
                 }
@@ -2940,8 +2945,8 @@
         "description": "Deactivates a virtual desktop profile by setting is_active to false (admin access required)",
         "security": [
           {
-            "socaAuth": [],
-            "socaToken": []
+            "edhAuth": [],
+            "edhToken": []
           }
         ],
         "parameters": [
@@ -2953,7 +2958,7 @@
               "type": "string",
               "example": "admin.user"
             },
-            "description": "SOCA username for authentication (must be admin)"
+            "description": "EDH username for authentication (must be admin)"
           },
           {
             "in": "header",
@@ -2963,7 +2968,7 @@
               "type": "string",
               "example": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
             },
-            "description": "SOCA authentication token"
+            "description": "EDH authentication token"
           }
         ],
         "requestBody": {
@@ -3000,7 +3005,7 @@
                     },
                     "message": {
                       "type": "string",
-                      "example": "VDI Profile removed from SOCA"
+                      "example": "VDI Profile removed from EDH"
                     }
                   }
                 }
@@ -3106,8 +3111,8 @@
         "description": "Updates an existing virtual desktop profile with new configuration (admin access required)",
         "security": [
           {
-            "socaAuth": [],
-            "socaToken": []
+            "edhAuth": [],
+            "edhToken": []
           }
         ],
         "parameters": [
@@ -3119,7 +3124,7 @@
               "type": "string",
               "example": "admin.user"
             },
-            "description": "SOCA username for authentication (must be admin)"
+            "description": "EDH username for authentication (must be admin)"
           },
           {
             "in": "header",
@@ -3129,7 +3134,7 @@
               "type": "string",
               "example": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
             },
-            "description": "SOCA authentication token"
+            "description": "EDH authentication token"
           }
         ],
         "requestBody": {
@@ -3311,8 +3316,8 @@
         "description": "Retrieve detailed information for a specific LDAP user by username or DN",
         "security": [
           {
-            "socaAuth": [],
-            "socaToken": []
+            "edhAuth": [],
+            "edhToken": []
           }
         ],
         "parameters": [
@@ -3349,7 +3354,7 @@
                       },
                       "example": [
                         [
-                          "cn=john.doe,ou=people,dc=soca,dc=local",
+                          "cn=john.doe,ou=people,dc=EDH,dc=local",
                           {
                             "uid": [
                               "john.doe"
@@ -3434,8 +3439,8 @@
         "description": "Create a new LDAP user with home directory, SSH keys, and group membership",
         "security": [
           {
-            "socaAuth": [],
-            "socaToken": []
+            "edhAuth": [],
+            "edhToken": []
           }
         ],
         "requestBody": {
@@ -3600,8 +3605,8 @@
         "description": "Delete a LDAP user and associated group. Home directory is backed up with timestamp suffix.",
         "security": [
           {
-            "socaAuth": [],
-            "socaToken": []
+            "edhAuth": [],
+            "edhToken": []
           }
         ],
         "requestBody": {
@@ -3721,8 +3726,8 @@
         "description": "Returns a list of all users from the configured LDAP directory (OpenLDAP or Active Directory)",
         "security": [
           {
-            "socaAuth": [],
-            "socaToken": []
+            "edhAuth": [],
+            "edhToken": []
           }
         ],
         "responses": {
@@ -3745,8 +3750,8 @@
                         "description": "LDAP Distinguished Name"
                       },
                       "example": {
-                        "john.doe": "cn=john.doe,ou=people,dc=soca,dc=local",
-                        "jane.smith": "cn=jane.smith,ou=people,dc=soca,dc=local"
+                        "john.doe": "cn=john.doe,ou=people,dc=EDH,dc=local",
+                        "jane.smith": "cn=jane.smith,ou=people,dc=EDH,dc=local"
                       }
                     }
                   }
@@ -3827,8 +3832,8 @@
         "description": "Verify if a specific user has sudo/administrator privileges in the LDAP directory",
         "security": [
           {
-            "socaAuth": [],
-            "socaToken": []
+            "edhAuth": [],
+            "edhToken": []
           }
         ],
         "parameters": [
@@ -3938,8 +3943,8 @@
         "description": "Grant sudo/administrator privileges to a user and update their API key scope",
         "security": [
           {
-            "socaAuth": [],
-            "socaToken": []
+            "edhAuth": [],
+            "edhToken": []
           }
         ],
         "requestBody": {
@@ -4037,8 +4042,8 @@
         "description": "Remove sudo/administrator privileges from a user and downgrade their API key scope",
         "security": [
           {
-            "socaAuth": [],
-            "socaToken": []
+            "edhAuth": [],
+            "edhToken": []
           }
         ],
         "requestBody": {
@@ -4138,8 +4143,8 @@
         "description": "Returns a list of all groups from the configured LDAP directory with their members",
         "security": [
           {
-            "socaAuth": [],
-            "socaToken": []
+            "edhAuth": [],
+            "edhToken": []
           }
         ],
         "responses": {
@@ -4163,7 +4168,7 @@
                           "group_dn": {
                             "type": "string",
                             "description": "LDAP Distinguished Name of the group",
-                            "example": "cn=developers,ou=group,dc=soca,dc=local"
+                            "example": "cn=developers,ou=group,dc=EDH,dc=local"
                           },
                           "members": {
                             "type": "array",
@@ -4180,14 +4185,14 @@
                       },
                       "example": {
                         "developers": {
-                          "group_dn": "cn=developers,ou=group,dc=soca,dc=local",
+                          "group_dn": "cn=developers,ou=group,dc=EDH,dc=local",
                           "members": [
                             "john.doe",
                             "jane.smith"
                           ]
                         },
                         "admins": {
-                          "group_dn": "cn=admins,ou=group,dc=soca,dc=local",
+                          "group_dn": "cn=admins,ou=group,dc=EDH,dc=local",
                           "members": [
                             "admin"
                           ]
@@ -4252,8 +4257,8 @@
         "description": "Retrieve detailed information for a specific LDAP group including members",
         "security": [
           {
-            "socaAuth": [],
-            "socaToken": []
+            "edhAuth": [],
+            "edhToken": []
           }
         ],
         "parameters": [
@@ -4289,7 +4294,7 @@
                         "group_dn": {
                           "type": "string",
                           "description": "LDAP Distinguished Name of the group",
-                          "example": "cn=developers,ou=group,dc=soca,dc=local"
+                          "example": "cn=developers,ou=group,dc=EDH,dc=local"
                         },
                         "members": {
                           "type": "array",
@@ -4360,8 +4365,8 @@
         "description": "Create a new LDAP group with optional initial members",
         "security": [
           {
-            "socaAuth": [],
-            "socaToken": []
+            "edhAuth": [],
+            "edhToken": []
           }
         ],
         "requestBody": {
@@ -4472,8 +4477,8 @@
         "description": "Delete a LDAP group from the directory",
         "security": [
           {
-            "socaAuth": [],
-            "socaToken": []
+            "edhAuth": [],
+            "edhToken": []
           }
         ],
         "requestBody": {
@@ -4571,8 +4576,8 @@
         "description": "Add or remove a user from a LDAP group",
         "security": [
           {
-            "socaAuth": [],
-            "socaToken": []
+            "edhAuth": [],
+            "edhToken": []
           }
         ],
         "requestBody": {
@@ -4691,8 +4696,8 @@
         "description": "Retrieve lists of used UID/GID numbers and get proposed available numbers for new user/group creation",
         "security": [
           {
-            "socaAuth": [],
-            "socaToken": []
+            "edhAuth": [],
+            "edhToken": []
           }
         ],
         "responses": {
@@ -4792,8 +4797,8 @@
         "description": "Validate LDAP user credentials and create home directory if needed",
         "security": [
           {
-            "socaAuth": [],
-            "socaToken": []
+            "edhAuth": [],
+            "edhToken": []
           }
         ],
         "requestBody": {
@@ -4940,8 +4945,8 @@
         "description": "Reset password for a user in AWS Directory Service (Active Directory) with complexity validation",
         "security": [
           {
-            "socaAuth": [],
-            "socaToken": []
+            "edhAuth": [],
+            "edhToken": []
           }
         ],
         "requestBody": {
@@ -5056,8 +5061,8 @@
         "description": "GET operation for /api/projects",
         "security": [
           {
-            "socaAuth": [],
-            "socaToken": []
+            "edhAuth": [],
+            "edhToken": []
           }
         ],
         "parameters": [
@@ -5069,7 +5074,7 @@
               "minLength": 1
             },
             "required": true,
-            "description": "SOCA username for authentication",
+            "description": "EDH username for authentication",
             "example": "admin"
           },
           {
@@ -5080,7 +5085,7 @@
               "minLength": 1
             },
             "required": true,
-            "description": "SOCA authentication token",
+            "description": "EDH authentication token",
             "example": "abc123token"
           },
           {
@@ -5142,8 +5147,8 @@
         "description": "DELETE operation for /api/projects",
         "security": [
           {
-            "socaAuth": [],
-            "socaToken": []
+            "edhAuth": [],
+            "edhToken": []
           }
         ],
         "parameters": [
@@ -5155,7 +5160,7 @@
               "minLength": 1
             },
             "required": true,
-            "description": "SOCA username for authentication",
+            "description": "EDH username for authentication",
             "example": "admin"
           },
           {
@@ -5166,7 +5171,7 @@
               "minLength": 1
             },
             "required": true,
-            "description": "SOCA authentication token",
+            "description": "EDH authentication token",
             "example": "abc123token"
           }
         ],
@@ -5240,8 +5245,8 @@
         "description": "GET operation for /api/scheduler/job",
         "security": [
           {
-            "socaAuth": [],
-            "socaToken": []
+            "edhAuth": [],
+            "edhToken": []
           }
         ],
         "parameters": [
@@ -5253,7 +5258,7 @@
               "minLength": 1
             },
             "required": true,
-            "description": "SOCA username for authentication",
+            "description": "EDH username for authentication",
             "example": "admin"
           },
           {
@@ -5264,7 +5269,7 @@
               "minLength": 1
             },
             "required": true,
-            "description": "SOCA authentication token",
+            "description": "EDH authentication token",
             "example": "abc123token"
           },
           {
@@ -5277,7 +5282,7 @@
             },
             "required": true,
             "description": "ID of scheduler. Optional if only one scheduler is configured",
-            "example": "openpbs-soca-default"
+            "example": "openpbs-EDH-default"
           },
           {
             "name": "serialize",
@@ -5370,8 +5375,8 @@
         "description": "POST operation for /api/scheduler/job",
         "security": [
           {
-            "socaAuth": [],
-            "socaToken": []
+            "edhAuth": [],
+            "edhToken": []
           }
         ],
         "parameters": [
@@ -5383,7 +5388,7 @@
               "minLength": 1
             },
             "required": true,
-            "description": "SOCA username for authentication",
+            "description": "EDH username for authentication",
             "example": "admin"
           },
           {
@@ -5394,7 +5399,7 @@
               "minLength": 1
             },
             "required": true,
-            "description": "SOCA authentication token",
+            "description": "EDH authentication token",
             "example": "abc123token"
           }
         ],
@@ -5418,7 +5423,7 @@
                   "interpreter": {
                     "type": "string",
                     "minLength": 1,
-                    "description": "Interpreter to use (either valid scheduler indetifier or system interpreter such as /bin/bash, /bin/csh, /bin/sh or /bin/zsh)",
+                    "description": "Interpreter to use (either valid scheduler identifier or system interpreter such as /bin/bash, /bin/csh, /bin/sh or /bin/zsh)",
                     "example": "qsub"
                   }
                 }
@@ -5467,8 +5472,8 @@
         "description": "DELETE operation for /api/scheduler/job",
         "security": [
           {
-            "socaAuth": [],
-            "socaToken": []
+            "edhAuth": [],
+            "edhToken": []
           }
         ],
         "parameters": [
@@ -5480,7 +5485,7 @@
               "minLength": 1
             },
             "required": true,
-            "description": "SOCA username for authentication",
+            "description": "EDH username for authentication",
             "example": "admin"
           },
           {
@@ -5491,7 +5496,7 @@
               "minLength": 1
             },
             "required": true,
-            "description": "SOCA authentication token",
+            "description": "EDH authentication token",
             "example": "abc123token"
           }
         ],
@@ -5518,7 +5523,7 @@
                   "pattern": "^[0-9]+\\.[a-zA-Z0-9_.-]+$",
                   "minLength": 1,
                   "description": "ID of the scheduler. Optional if only one scheduler is configured",
-                  "example": "openpbs-soca-default"
+                  "example": "openpbs-EDH-default"
                 }
               }
             }
@@ -5573,8 +5578,8 @@
         "description": "GET operation for /api/scheduler/jobs",
         "security": [
           {
-            "socaAuth": [],
-            "socaToken": []
+            "edhAuth": [],
+            "edhToken": []
           }
         ],
         "parameters": [
@@ -5586,7 +5591,7 @@
               "minLength": 1
             },
             "required": true,
-            "description": "SOCA username for authentication",
+            "description": "EDH username for authentication",
             "example": "admin"
           },
           {
@@ -5597,7 +5602,7 @@
               "minLength": 1
             },
             "required": true,
-            "description": "SOCA authentication token",
+            "description": "EDH authentication token",
             "example": "abc123token"
           },
           {
@@ -5634,7 +5639,7 @@
             },
             "required": false,
             "description": "Filter jobs by specific scheduler_id (returns all jobs if not specified)",
-            "example": "openpbs-soca-default"
+            "example": "openpbs-EDH-default"
           }
         ],
         "responses": {
@@ -5699,7 +5704,7 @@
             "description": "Authentication required"
           },
           "500": {
-            "description": "SOCA scheduler error or JSON parsing failure"
+            "description": "EDH scheduler error or JSON parsing failure"
           }
         }
       }
@@ -5714,8 +5719,8 @@
         "description": "Executes a command on the system as the specified user (private API)",
         "security": [
           {
-            "socaAuth": [],
-            "socaToken": []
+            "edhAuth": [],
+            "edhToken": []
           }
         ],
         "parameters": [
@@ -5727,7 +5732,7 @@
               "minLength": 1
             },
             "required": true,
-            "description": "SOCA username to execute command as",
+            "description": "EDH username to execute command as",
             "example": "user.name"
           }
         ],
@@ -5793,8 +5798,8 @@
         "description": "Retrieves resource permissions for the authenticated user (private API)",
         "security": [
           {
-            "socaAuth": [],
-            "socaToken": []
+            "edhAuth": [],
+            "edhToken": []
           }
         ],
         "parameters": [
@@ -5806,7 +5811,7 @@
               "minLength": 1
             },
             "required": true,
-            "description": "SOCA username for authentication",
+            "description": "EDH username for authentication",
             "example": "user.name"
           },
           {
@@ -5817,7 +5822,7 @@
               "minLength": 1
             },
             "required": true,
-            "description": "SOCA authentication token",
+            "description": "EDH authentication token",
             "example": "abc123token"
           },
           {
@@ -5929,8 +5934,8 @@
         "description": "Retrieves resource permissions for a specified user (admin access required)",
         "security": [
           {
-            "socaAuth": [],
-            "socaToken": []
+            "edhAuth": [],
+            "edhToken": []
           }
         ],
         "parameters": [
@@ -5942,7 +5947,7 @@
               "minLength": 1
             },
             "required": true,
-            "description": "SOCA username for authentication (must be admin)",
+            "description": "EDH username for authentication (must be admin)",
             "example": "admin.user"
           },
           {
@@ -5953,7 +5958,7 @@
               "minLength": 1
             },
             "required": true,
-            "description": "SOCA authentication token",
+            "description": "EDH authentication token",
             "example": "abc123token"
           }
         ],
@@ -6072,8 +6077,8 @@
         "description": "GET operation for /api/user/api_key",
         "security": [
           {
-            "socaAuth": [],
-            "socaToken": []
+            "edhAuth": [],
+            "edhToken": []
           }
         ],
         "parameters": [
@@ -6085,7 +6090,7 @@
               "minLength": 1
             },
             "required": true,
-            "description": "SOCA username for authentication",
+            "description": "EDH username for authentication",
             "example": "admin"
           },
           {
@@ -6096,7 +6101,7 @@
               "minLength": 1
             },
             "required": true,
-            "description": "SOCA password for the specified user",
+            "description": "EDH password for the specified user",
             "example": "mypassword"
           },
           {
@@ -6154,8 +6159,8 @@
         "description": "DELETE operation for /api/user/api_key",
         "security": [
           {
-            "socaAuth": [],
-            "socaToken": []
+            "edhAuth": [],
+            "edhToken": []
           }
         ],
         "parameters": [
@@ -6167,7 +6172,7 @@
               "minLength": 1
             },
             "required": true,
-            "description": "SOCA username for authentication",
+            "description": "EDH username for authentication",
             "example": "admin"
           },
           {
@@ -6178,7 +6183,7 @@
               "minLength": 1
             },
             "required": true,
-            "description": "SOCA authentication token",
+            "description": "EDH authentication token",
             "example": "abc123token"
           }
         ],
@@ -6247,8 +6252,8 @@
         "description": "Update the start/stop schedule for a Target Node session",
         "security": [
           {
-            "socaAuth": [],
-            "socaToken": []
+            "edhAuth": [],
+            "edhToken": []
           }
         ],
         "parameters": [
@@ -6263,7 +6268,7 @@
               "pattern": "^[a-zA-Z0-9._-]+$",
               "example": "john.doe"
             },
-            "description": "SOCA username for authentication"
+            "description": "EDH username for authentication"
           },
           {
             "in": "header",
@@ -6274,7 +6279,7 @@
               "minLength": 1,
               "example": "abc123def456"
             },
-            "description": "SOCA authentication token"
+            "description": "EDH authentication token"
           }
         ],
         "requestBody": {
@@ -6415,8 +6420,8 @@
         "description": "Returns the current state (pending, running, stopped, etc.) for one or more target node sessions",
         "security": [
           {
-            "socaAuth": [],
-            "socaToken": []
+            "edhAuth": [],
+            "edhToken": []
           }
         ],
         "parameters": [
@@ -6428,7 +6433,7 @@
               "minLength": 1
             },
             "required": true,
-            "description": "SOCA username for authentication",
+            "description": "EDH username for authentication",
             "example": "john.doe"
           },
           {
@@ -6439,7 +6444,7 @@
               "minLength": 1
             },
             "required": true,
-            "description": "SOCA authentication token",
+            "description": "EDH authentication token",
             "example": "abc123token"
           },
           {
@@ -6509,8 +6514,8 @@
         "description": "Returns a list of target node sessions with detailed information including connection strings and instance details",
         "security": [
           {
-            "socaAuth": [],
-            "socaToken": []
+            "edhAuth": [],
+            "edhToken": []
           }
         ],
         "parameters": [
@@ -6522,7 +6527,7 @@
               "minLength": 1
             },
             "required": true,
-            "description": "SOCA username for authentication",
+            "description": "EDH username for authentication",
             "example": "john.doe"
           },
           {
@@ -6533,7 +6538,7 @@
               "minLength": 1
             },
             "required": true,
-            "description": "Authentication token for the SOCA user",
+            "description": "Authentication token for the EDH user",
             "example": "abc123token"
           },
           {
@@ -6654,8 +6659,8 @@
         "description": "Get a list of all available software stacks or a specific software stack by ID",
         "security": [
           {
-            "socaAuth": [],
-            "socaToken": []
+            "edhAuth": [],
+            "edhToken": []
           }
         ],
         "parameters": [
@@ -6670,7 +6675,7 @@
               "pattern": "^[a-zA-Z0-9._-]+$",
               "example": "admin"
             },
-            "description": "SOCA username for authentication"
+            "description": "EDH username for authentication"
           },
           {
             "in": "header",
@@ -6681,7 +6686,7 @@
               "minLength": 1,
               "example": "abc123token"
             },
-            "description": "SOCA authentication token"
+            "description": "EDH authentication token"
           },
           {
             "in": "query",
@@ -6748,8 +6753,8 @@
         "description": "Register a new software stack with AMI and configuration details",
         "security": [
           {
-            "socaAuth": [],
-            "socaToken": []
+            "edhAuth": [],
+            "edhToken": []
           }
         ],
         "parameters": [
@@ -6764,7 +6769,7 @@
               "pattern": "^[a-zA-Z0-9._-]+$",
               "example": "admin"
             },
-            "description": "SOCA username for authentication"
+            "description": "EDH username for authentication"
           },
           {
             "in": "header",
@@ -6775,7 +6780,7 @@
               "minLength": 1,
               "example": "abc123token"
             },
-            "description": "SOCA authentication token"
+            "description": "EDH authentication token"
           }
         ],
         "requestBody": {
@@ -6885,7 +6890,7 @@
                     },
                     "message": {
                       "type": "string",
-                      "example": "ami-12345678 registered successfully in SOCA as Ubuntu 20.04 LTS"
+                      "example": "ami-12345678 registered successfully in EDH as Ubuntu 20.04 LTS"
                     }
                   }
                 }
@@ -6915,8 +6920,8 @@
         "description": "Delete a Target Node Software Stack",
         "security": [
           {
-            "socaAuth": [],
-            "socaToken": []
+            "edhAuth": [],
+            "edhToken": []
           }
         ],
         "parameters": [
@@ -6931,7 +6936,7 @@
               "pattern": "^[a-zA-Z0-9._-]+$",
               "example": "admin"
             },
-            "description": "SOCA username for authentication"
+            "description": "EDH username for authentication"
           },
           {
             "in": "header",
@@ -6942,7 +6947,7 @@
               "minLength": 1,
               "example": "abc123token"
             },
-            "description": "SOCA authentication token"
+            "description": "EDH authentication token"
           }
         ],
         "requestBody": {
@@ -6984,7 +6989,7 @@
                     },
                     "message": {
                       "type": "string",
-                      "example": "Software Stack removed from SOCA"
+                      "example": "Software Stack removed from EDH"
                     }
                   }
                 }
@@ -7011,8 +7016,8 @@
         "description": "Modify an existing software stack with AMI and configuration details",
         "security": [
           {
-            "socaAuth": [],
-            "socaToken": []
+            "edhAuth": [],
+            "edhToken": []
           }
         ],
         "parameters": [
@@ -7027,7 +7032,7 @@
               "pattern": "^[a-zA-Z0-9._-]+$",
               "example": "admin"
             },
-            "description": "SOCA username for authentication"
+            "description": "EDH username for authentication"
           },
           {
             "in": "header",
@@ -7038,7 +7043,7 @@
               "minLength": 1,
               "example": "abc123token"
             },
-            "description": "SOCA authentication token"
+            "description": "EDH authentication token"
           }
         ],
         "requestBody": {
@@ -7149,7 +7154,7 @@
                     },
                     "message": {
                       "type": "string",
-                      "example": "ami-12345678 updated successfully in SOCA"
+                      "example": "ami-12345678 updated successfully in EDH"
                     }
                   }
                 }
@@ -7181,8 +7186,8 @@
         "description": "Terminates and removes a target node session including associated AWS resources",
         "security": [
           {
-            "socaAuth": [],
-            "socaToken": []
+            "edhAuth": [],
+            "edhToken": []
           }
         ],
         "parameters": [
@@ -7194,7 +7199,7 @@
               "minLength": 1
             },
             "required": true,
-            "description": "SOCA username for authentication",
+            "description": "EDH username for authentication",
             "example": "john.doe"
           },
           {
@@ -7205,7 +7210,7 @@
               "minLength": 1
             },
             "required": true,
-            "description": "Authentication token for the SOCA user",
+            "description": "Authentication token for the EDH user",
             "example": "abc123token"
           }
         ],
@@ -7277,8 +7282,8 @@
         "description": "Stop or hibernate a running target node session by session UUID",
         "security": [
           {
-            "socaAuth": [],
-            "socaToken": []
+            "edhAuth": [],
+            "edhToken": []
           }
         ],
         "parameters": [
@@ -7293,7 +7298,7 @@
               "pattern": "^[a-zA-Z0-9._-]+$",
               "example": "john.doe"
             },
-            "description": "SOCA username for authentication"
+            "description": "EDH username for authentication"
           },
           {
             "in": "header",
@@ -7304,7 +7309,7 @@
               "minLength": 1,
               "example": "abc123def456"
             },
-            "description": "SOCA authentication token"
+            "description": "EDH authentication token"
           }
         ],
         "requestBody": {
@@ -7470,8 +7475,8 @@
         "description": "Creates a new target node session with specified configuration including instance type, software stack, and networking parameters",
         "security": [
           {
-            "socaAuth": [],
-            "socaToken": []
+            "edhAuth": [],
+            "edhToken": []
           }
         ],
         "parameters": [
@@ -7483,7 +7488,7 @@
               "minLength": 1
             },
             "required": true,
-            "description": "SOCA username for authentication",
+            "description": "EDH username for authentication",
             "example": "john.doe"
           },
           {
@@ -7494,7 +7499,7 @@
               "minLength": 1
             },
             "required": true,
-            "description": "Authentication token for the SOCA user",
+            "description": "Authentication token for the EDH user",
             "example": "abc123token"
           }
         ],
@@ -7610,8 +7615,8 @@
         "description": "Retrieve user data templates for target nodes",
         "security": [
           {
-            "socaAuth": [],
-            "socaToken": []
+            "edhAuth": [],
+            "edhToken": []
           }
         ],
         "parameters": [
@@ -7626,7 +7631,7 @@
               "pattern": "^[a-zA-Z0-9._-]+$",
               "example": "admin"
             },
-            "description": "SOCA username for authentication"
+            "description": "EDH username for authentication"
           },
           {
             "in": "header",
@@ -7637,7 +7642,7 @@
               "minLength": 1,
               "example": "abc123token"
             },
-            "description": "SOCA authentication token"
+            "description": "EDH authentication token"
           },
           {
             "in": "query",
@@ -7703,8 +7708,8 @@
         "description": "Create a new user data template for target nodes",
         "security": [
           {
-            "socaAuth": [],
-            "socaToken": []
+            "edhAuth": [],
+            "edhToken": []
           }
         ],
         "parameters": [
@@ -7719,7 +7724,7 @@
               "pattern": "^[a-zA-Z0-9._-]+$",
               "example": "admin"
             },
-            "description": "SOCA username for authentication"
+            "description": "EDH username for authentication"
           },
           {
             "in": "header",
@@ -7730,7 +7735,7 @@
               "minLength": 1,
               "example": "abc123token"
             },
-            "description": "SOCA authentication token"
+            "description": "EDH authentication token"
           }
         ],
         "requestBody": {
@@ -7822,8 +7827,8 @@
         "description": "Delete a user data template for target nodes",
         "security": [
           {
-            "socaAuth": [],
-            "socaToken": []
+            "edhAuth": [],
+            "edhToken": []
           }
         ],
         "parameters": [
@@ -7838,7 +7843,7 @@
               "pattern": "^[a-zA-Z0-9._-]+$",
               "example": "admin"
             },
-            "description": "SOCA username for authentication"
+            "description": "EDH username for authentication"
           },
           {
             "in": "header",
@@ -7849,7 +7854,7 @@
               "minLength": 1,
               "example": "abc123token"
             },
-            "description": "SOCA authentication token"
+            "description": "EDH authentication token"
           }
         ],
         "requestBody": {
@@ -7925,8 +7930,8 @@
         "description": "Update an existing user data template for target nodes",
         "security": [
           {
-            "socaAuth": [],
-            "socaToken": []
+            "edhAuth": [],
+            "edhToken": []
           }
         ],
         "parameters": [
@@ -7941,7 +7946,7 @@
               "pattern": "^[a-zA-Z0-9._-]+$",
               "example": "admin"
             },
-            "description": "SOCA username for authentication"
+            "description": "EDH username for authentication"
           },
           {
             "in": "header",
@@ -7952,7 +7957,7 @@
               "minLength": 1,
               "example": "abc123token"
             },
-            "description": "SOCA authentication token"
+            "description": "EDH authentication token"
           }
         ],
         "requestBody": {
@@ -8043,8 +8048,8 @@
         "description": "Restart a previously stopped target node session by session UUID",
         "security": [
           {
-            "socaAuth": [],
-            "socaToken": []
+            "edhAuth": [],
+            "edhToken": []
           }
         ],
         "parameters": [
@@ -8059,7 +8064,7 @@
               "pattern": "^[a-zA-Z0-9._-]+$",
               "example": "john.doe"
             },
-            "description": "SOCA username for authentication"
+            "description": "EDH username for authentication"
           },
           {
             "in": "header",
@@ -8070,7 +8075,7 @@
               "minLength": 1,
               "example": "abc123def456"
             },
-            "description": "SOCA authentication token"
+            "description": "EDH authentication token"
           }
         ],
         "requestBody": {
@@ -8238,8 +8243,8 @@
         "description": "Returns target node profile information including allowed instance types and subnet configurations",
         "security": [
           {
-            "socaAuth": [],
-            "socaToken": []
+            "edhAuth": [],
+            "edhToken": []
           }
         ],
         "parameters": [
@@ -8251,7 +8256,7 @@
               "minLength": 1
             },
             "required": true,
-            "description": "SOCA username for authentication",
+            "description": "EDH username for authentication",
             "example": "admin.user"
           },
           {
@@ -8262,7 +8267,7 @@
               "minLength": 1
             },
             "required": true,
-            "description": "Authentication token for the SOCA user",
+            "description": "Authentication token for the EDH user",
             "example": "abc123token"
           },
           {
@@ -8338,8 +8343,8 @@
         "description": "Creates a new target node profile with specified instance types, subnets, and resource limits",
         "security": [
           {
-            "socaAuth": [],
-            "socaToken": []
+            "edhAuth": [],
+            "edhToken": []
           }
         ],
         "parameters": [
@@ -8351,7 +8356,7 @@
               "minLength": 1
             },
             "required": true,
-            "description": "SOCA username for authentication",
+            "description": "EDH username for authentication",
             "example": "admin.user"
           },
           {
@@ -8362,7 +8367,7 @@
               "minLength": 1
             },
             "required": true,
-            "description": "Authentication token for the SOCA user",
+            "description": "Authentication token for the EDH user",
             "example": "abc123token"
           }
         ],
@@ -8430,7 +8435,7 @@
                     },
                     "message": {
                       "type": "string",
-                      "example": "high-performance-profile registered successfully in SOCA"
+                      "example": "high-performance-profile registered successfully in EDH"
                     }
                   }
                 }
@@ -8463,8 +8468,8 @@
         "description": "Deactivates a target node profile if it's not being used by any software stacks",
         "security": [
           {
-            "socaAuth": [],
-            "socaToken": []
+            "edhAuth": [],
+            "edhToken": []
           }
         ],
         "parameters": [
@@ -8476,7 +8481,7 @@
               "minLength": 1
             },
             "required": true,
-            "description": "SOCA username for authentication",
+            "description": "EDH username for authentication",
             "example": "admin.user"
           },
           {
@@ -8487,7 +8492,7 @@
               "minLength": 1
             },
             "required": true,
-            "description": "Authentication token for the SOCA user",
+            "description": "Authentication token for the EDH user",
             "example": "abc123token"
           }
         ],
@@ -8526,7 +8531,7 @@
                     },
                     "message": {
                       "type": "string",
-                      "example": "Target Node Profile removed from SOCA"
+                      "example": "Target Node Profile removed from EDH"
                     }
                   }
                 }
@@ -8559,8 +8564,8 @@
         "description": "Updates the configuration of an existing target node profile including instance types, subnets, and resource limits",
         "security": [
           {
-            "socaAuth": [],
-            "socaToken": []
+            "edhAuth": [],
+            "edhToken": []
           }
         ],
         "parameters": [
@@ -8572,7 +8577,7 @@
               "minLength": 1
             },
             "required": true,
-            "description": "SOCA username for authentication",
+            "description": "EDH username for authentication",
             "example": "admin.user"
           },
           {
@@ -8583,7 +8588,7 @@
               "minLength": 1
             },
             "required": true,
-            "description": "Authentication token for the SOCA user",
+            "description": "Authentication token for the EDH user",
             "example": "abc123token"
           }
         ],
@@ -8684,8 +8689,8 @@
         "description": "Modify the instance type of a target node session. The session must be in stopped state.",
         "security": [
           {
-            "socaAuth": [],
-            "socaToken": []
+            "edhAuth": [],
+            "edhToken": []
           }
         ],
         "parameters": [
@@ -8700,7 +8705,7 @@
               "pattern": "^[a-zA-Z0-9._-]+$",
               "example": "john.doe"
             },
-            "description": "SOCA username for authentication"
+            "description": "EDH username for authentication"
           },
           {
             "in": "header",
@@ -8711,7 +8716,7 @@
               "minLength": 1,
               "example": "abc123def456"
             },
-            "description": "SOCA authentication token"
+            "description": "EDH authentication token"
           }
         ],
         "requestBody": {
@@ -8906,8 +8911,8 @@
         "description": "GET operation for /api/system/files",
         "security": [
           {
-            "socaAuth": [],
-            "socaToken": []
+            "edhAuth": [],
+            "edhToken": []
           }
         ],
         "parameters": [
@@ -8919,7 +8924,7 @@
               "minLength": 1
             },
             "required": true,
-            "description": "SOCA username for authentication",
+            "description": "EDH username for authentication",
             "example": "admin"
           },
           {
@@ -8930,7 +8935,7 @@
               "minLength": 1
             },
             "required": true,
-            "description": "SOCA authentication token",
+            "description": "EDH authentication token",
             "example": "abc123token"
           },
           {
@@ -8987,8 +8992,8 @@
         "description": "POST operation for /api/system/files",
         "security": [
           {
-            "socaAuth": [],
-            "socaToken": []
+            "edhAuth": [],
+            "edhToken": []
           }
         ],
         "parameters": [
@@ -9000,7 +9005,7 @@
               "minLength": 1
             },
             "required": true,
-            "description": "SOCA username for authentication",
+            "description": "EDH username for authentication",
             "example": "admin"
           },
           {
@@ -9011,7 +9016,7 @@
               "minLength": 1
             },
             "required": true,
-            "description": "SOCA authentication token",
+            "description": "EDH authentication token",
             "example": "abc123token"
           }
         ],
@@ -9088,8 +9093,8 @@
         "description": "Exports an application profile configuration for backup or migration (admin access required)",
         "security": [
           {
-            "socaAuth": [],
-            "socaToken": []
+            "edhAuth": [],
+            "edhToken": []
           }
         ],
         "parameters": [
@@ -9103,7 +9108,7 @@
               "maxLength": 100,
               "pattern": "^[a-zA-Z0-9._-]+$"
             },
-            "description": "SOCA username for authentication (must be admin)",
+            "description": "EDH username for authentication (must be admin)",
             "example": "admin.user"
           },
           {
@@ -9115,7 +9120,7 @@
               "minLength": 10,
               "maxLength": 1000
             },
-            "description": "SOCA authentication token",
+            "description": "EDH authentication token",
             "example": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9"
           },
           {
@@ -9273,8 +9278,8 @@
         "description": "Creates a new application profile with job submission form and script (admin access required)",
         "security": [
           {
-            "socaAuth": [],
-            "socaToken": []
+            "edhAuth": [],
+            "edhToken": []
           }
         ],
         "parameters": [
@@ -9288,7 +9293,7 @@
               "maxLength": 100,
               "pattern": "^[a-zA-Z0-9._-]+$"
             },
-            "description": "SOCA username for authentication (must be admin)",
+            "description": "EDH username for authentication (must be admin)",
             "example": "admin.user"
           },
           {
@@ -9300,7 +9305,7 @@
               "minLength": 10,
               "maxLength": 1000
             },
-            "description": "SOCA authentication token",
+            "description": "EDH authentication token",
             "example": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9"
           }
         ],
@@ -9452,8 +9457,8 @@
         "description": "Updates an existing application profile with new configuration (admin access required)",
         "security": [
           {
-            "socaAuth": [],
-            "socaToken": []
+            "edhAuth": [],
+            "edhToken": []
           }
         ],
         "parameters": [
@@ -9467,7 +9472,7 @@
               "maxLength": 100,
               "pattern": "^[a-zA-Z0-9._-]+$"
             },
-            "description": "SOCA username for authentication (must be admin)",
+            "description": "EDH username for authentication (must be admin)",
             "example": "admin.user"
           },
           {
@@ -9479,7 +9484,7 @@
               "minLength": 10,
               "maxLength": 1000
             },
-            "description": "SOCA authentication token",
+            "description": "EDH authentication token",
             "example": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9"
           }
         ],
@@ -9652,8 +9657,8 @@
         "description": "Deletes an existing application profile from the database (admin access required)",
         "security": [
           {
-            "socaAuth": [],
-            "socaToken": []
+            "edhAuth": [],
+            "edhToken": []
           }
         ],
         "parameters": [
@@ -9667,7 +9672,7 @@
               "maxLength": 100,
               "pattern": "^[a-zA-Z0-9._-]+$"
             },
-            "description": "SOCA username for authentication (must be admin)",
+            "description": "EDH username for authentication (must be admin)",
             "example": "admin.user"
           },
           {
@@ -9679,7 +9684,7 @@
               "minLength": 10,
               "maxLength": 1000
             },
-            "description": "SOCA authentication token",
+            "description": "EDH authentication token",
             "example": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9"
           }
         ],
@@ -9806,8 +9811,8 @@
         "description": "Retrieves all application profiles (admin access required)",
         "security": [
           {
-            "socaAuth": [],
-            "socaToken": []
+            "edhAuth": [],
+            "edhToken": []
           }
         ],
         "parameters": [
@@ -9821,7 +9826,7 @@
               "maxLength": 100,
               "pattern": "^[a-zA-Z0-9._-]+$"
             },
-            "description": "SOCA username for authentication (must be admin)",
+            "description": "EDH username for authentication (must be admin)",
             "example": "admin.user"
           },
           {
@@ -9833,7 +9838,7 @@
               "minLength": 10,
               "maxLength": 1000
             },
-            "description": "SOCA authentication token",
+            "description": "EDH authentication token",
             "example": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9"
           },
           {
@@ -9977,8 +9982,8 @@
         "description": "Imports an application profile from a JSON file (admin access required)",
         "security": [
           {
-            "socaAuth": [],
-            "socaToken": []
+            "edhAuth": [],
+            "edhToken": []
           }
         ],
         "parameters": [
@@ -9992,7 +9997,7 @@
               "maxLength": 100,
               "pattern": "^[a-zA-Z0-9._-]+$"
             },
-            "description": "SOCA username for authentication (must be admin)",
+            "description": "EDH username for authentication (must be admin)",
             "example": "admin.user"
           },
           {
@@ -10004,7 +10009,7 @@
               "minLength": 10,
               "maxLength": 1000
             },
-            "description": "SOCA authentication token",
+            "description": "EDH authentication token",
             "example": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9"
           }
         ],
@@ -10130,8 +10135,8 @@
         "description": "Gets current spend, forecasted spend, total budget, and usage percentage for a specific project's AWS budget",
         "security": [
           {
-            "socaAuth": [],
-            "socaToken": []
+            "edhAuth": [],
+            "edhToken": []
           }
         ],
         "parameters": [
@@ -10145,7 +10150,7 @@
               "maxLength": 64,
               "pattern": "^[a-zA-Z0-9._-]+$"
             },
-            "description": "SOCA username for authentication",
+            "description": "EDH username for authentication",
             "example": "john.doe"
           },
           {
@@ -10157,7 +10162,7 @@
               "minLength": 1,
               "maxLength": 256
             },
-            "description": "SOCA authentication token",
+            "description": "EDH authentication token",
             "example": "abc123token456"
           },
           {
@@ -10328,8 +10333,8 @@
         "description": "Estimates the cost of running a job with specified compute and storage requirements",
         "security": [
           {
-            "socaAuth": [],
-            "socaToken": []
+            "edhAuth": [],
+            "edhToken": []
           }
         ],
         "parameters": [
@@ -10343,7 +10348,7 @@
               "maxLength": 64,
               "pattern": "^[a-zA-Z0-9._-]+$"
             },
-            "description": "SOCA username for authentication",
+            "description": "EDH username for authentication",
             "example": "john.doe"
           },
           {
@@ -10355,7 +10360,7 @@
               "minLength": 1,
               "maxLength": 256
             },
-            "description": "SOCA authentication token",
+            "description": "EDH authentication token",
             "example": "abc123token456"
           },
           {
@@ -10681,8 +10686,8 @@
         "description": "Retrieves a list of all AWS budgets available in the current account",
         "security": [
           {
-            "socaAuth": [],
-            "socaToken": []
+            "edhAuth": [],
+            "edhToken": []
           }
         ],
         "parameters": [
@@ -10696,7 +10701,7 @@
               "maxLength": 64,
               "pattern": "^[a-zA-Z0-9._-]+$"
             },
-            "description": "SOCA username for authentication",
+            "description": "EDH username for authentication",
             "example": "john.doe"
           },
           {
@@ -10708,7 +10713,7 @@
               "minLength": 1,
               "maxLength": 256
             },
-            "description": "SOCA authentication token",
+            "description": "EDH authentication token",
             "example": "abc123token456"
           }
         ],
@@ -10829,11 +10834,11 @@
           "Elastic Container Registry (ECR)"
         ],
         "summary": "Retrieve ECR repository images",
-        "description": "Lists Amazon ECR images from repositories tagged with the current SOCA cluster ID",
+        "description": "Lists Amazon ECR images from repositories tagged with the current EDH cluster ID",
         "security": [
           {
-            "socaAuth": [],
-            "socaToken": []
+            "edhAuth": [],
+            "edhToken": []
           }
         ],
         "parameters": [
@@ -10847,7 +10852,7 @@
               "maxLength": 64,
               "pattern": "^[a-zA-Z0-9._-]+$"
             },
-            "description": "SOCA username for authentication",
+            "description": "EDH username for authentication",
             "example": "john.doe"
           },
           {
@@ -10859,7 +10864,7 @@
               "minLength": 1,
               "maxLength": 256
             },
-            "description": "SOCA authentication token",
+            "description": "EDH authentication token",
             "example": "abc123token456"
           },
           {
@@ -11031,11 +11036,11 @@
           "Elastic Kubernetes Service (EKS)"
         ],
         "summary": "List available EKS clusters",
-        "description": "Retrieves a list of EKS clusters that are tagged for visibility with the current SOCA cluster ID",
+        "description": "Retrieves a list of EKS clusters that are tagged for visibility with the current EDH cluster ID",
         "security": [
           {
-            "socaAuth": [],
-            "socaToken": []
+            "edhAuth": [],
+            "edhToken": []
           }
         ],
         "parameters": [
@@ -11049,7 +11054,7 @@
               "maxLength": 64,
               "pattern": "^[a-zA-Z0-9._-]+$"
             },
-            "description": "SOCA username for authentication",
+            "description": "EDH username for authentication",
             "example": "john.doe"
           },
           {
@@ -11061,7 +11066,7 @@
               "minLength": 1,
               "maxLength": 256
             },
-            "description": "SOCA authentication token",
+            "description": "EDH authentication token",
             "example": "abc123token456"
           },
           {
@@ -11103,8 +11108,8 @@
                       },
                       "description": "List of available EKS cluster names",
                       "example": [
-                        "my-soca-cluster-1",
-                        "my-soca-cluster-2"
+                        "my-EDH-cluster-1",
+                        "my-EDH-cluster-2"
                       ]
                     }
                   }
@@ -11197,8 +11202,8 @@
         "description": "Gets detailed information about an EKS job including status, configuration, and pod information",
         "security": [
           {
-            "socaAuth": [],
-            "socaToken": []
+            "edhAuth": [],
+            "edhToken": []
           }
         ],
         "parameters": [
@@ -11212,7 +11217,7 @@
               "maxLength": 64,
               "pattern": "^[a-zA-Z0-9._-]+$"
             },
-            "description": "SOCA username for authentication",
+            "description": "EDH username for authentication",
             "example": "john.doe"
           },
           {
@@ -11224,7 +11229,7 @@
               "minLength": 1,
               "maxLength": 256
             },
-            "description": "SOCA authentication token",
+            "description": "EDH authentication token",
             "example": "abc123token456"
           },
           {
@@ -11238,7 +11243,7 @@
               "pattern": "^[a-zA-Z0-9._-]+$"
             },
             "description": "Name of the EKS cluster",
-            "example": "my-soca-cluster"
+            "example": "my-EDH-cluster"
           },
           {
             "name": "job_name",
@@ -11314,7 +11319,7 @@
                         },
                         "cluster": {
                           "type": "string",
-                          "example": "my-soca-cluster"
+                          "example": "my-EDH-cluster"
                         },
                         "owner": {
                           "type": "string",
@@ -11464,8 +11469,8 @@
         "description": "Deletes an EKS job from the specified cluster and namespace. Only the job owner can delete their jobs.",
         "security": [
           {
-            "socaAuth": [],
-            "socaToken": []
+            "edhAuth": [],
+            "edhToken": []
           }
         ],
         "parameters": [
@@ -11479,7 +11484,7 @@
               "maxLength": 64,
               "pattern": "^[a-zA-Z0-9._-]+$"
             },
-            "description": "SOCA username for authentication",
+            "description": "EDH username for authentication",
             "example": "john.doe"
           },
           {
@@ -11491,7 +11496,7 @@
               "minLength": 1,
               "maxLength": 256
             },
-            "description": "SOCA authentication token",
+            "description": "EDH authentication token",
             "example": "abc123token456"
           }
         ],
@@ -11512,7 +11517,7 @@
                     "maxLength": 100,
                     "pattern": "^[a-zA-Z0-9._-]+$",
                     "description": "Name of the EKS cluster where the job is running",
-                    "example": "my-soca-cluster"
+                    "example": "my-EDH-cluster"
                   },
                   "job_name": {
                     "type": "string",
@@ -11694,8 +11699,8 @@
         "description": "Retrieves a list of all EKS jobs owned by the authenticated user across tagged EKS clusters",
         "security": [
           {
-            "socaAuth": [],
-            "socaToken": []
+            "edhAuth": [],
+            "edhToken": []
           }
         ],
         "parameters": [
@@ -11709,7 +11714,7 @@
               "maxLength": 64,
               "pattern": "^[a-zA-Z0-9._-]+$"
             },
-            "description": "SOCA username for authentication",
+            "description": "EDH username for authentication",
             "example": "john.doe"
           },
           {
@@ -11721,7 +11726,7 @@
               "minLength": 1,
               "maxLength": 256
             },
-            "description": "SOCA authentication token",
+            "description": "EDH authentication token",
             "example": "abc123token456"
           },
           {
@@ -11735,7 +11740,7 @@
               "pattern": "^[a-zA-Z0-9._-]+$"
             },
             "description": "Name of the EKS cluster to query",
-            "example": "my-soca-cluster"
+            "example": "my-EDH-cluster"
           },
           {
             "name": "namespace",
@@ -11824,7 +11829,7 @@
                           },
                           "eks_cluster": {
                             "type": "string",
-                            "example": "my-soca-cluster"
+                            "example": "my-EDH-cluster"
                           }
                         }
                       },
@@ -11843,7 +11848,7 @@
                           "images": [
                             "nginx:latest"
                           ],
-                          "eks_cluster": "my-soca-cluster"
+                          "eks_cluster": "my-EDH-cluster"
                         }
                       }
                     }
@@ -11951,42 +11956,224 @@
         }
       }
     },
-    "/api/scheduler/queue": {
-      "post": {
-        "operationId": "createQueue",
+    "/api/containers/batch/job": {
+      "get": {
+        "operationId": "getBatchJobDetails",
         "tags": [
-          "PBS Pro Scheduler"
+          "AWS Batch"
         ],
-        "summary": "POST /api/scheduler/queue",
-        "description": "POST operation for /api/scheduler/queue",
+        "summary": "Retrieve details of a specific AWS Batch job",
+        "description": "Gets detailed information about an AWS Batch job including status, configuration, and container details",
         "security": [
           {
-            "socaAuth": [],
-            "socaToken": []
+            "edhAuth": [],
+            "edhToken": []
           }
         ],
         "parameters": [
           {
             "name": "X-EDH-USER",
             "in": "header",
+            "required": true,
             "schema": {
               "type": "string",
-              "minLength": 1
+              "minLength": 1,
+              "maxLength": 64,
+              "pattern": "^[a-zA-Z0-9._-]+$"
             },
-            "required": true,
-            "description": "SOCA username for authentication",
-            "example": "admin"
+            "description": "EDH username for authentication",
+            "example": "john.doe"
           },
           {
             "name": "X-EDH-TOKEN",
             "in": "header",
+            "required": true,
             "schema": {
               "type": "string",
-              "minLength": 1
+              "minLength": 1,
+              "maxLength": 256
             },
+            "description": "EDH authentication token",
+            "example": "abc123token456"
+          },
+          {
+            "name": "job_id",
+            "in": "query",
             "required": true,
-            "description": "SOCA authentication token",
-            "example": "abc123token"
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 256
+            },
+            "description": "AWS Batch job ID",
+            "example": "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Job details retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "success",
+                    "message"
+                  ],
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "message": {
+                      "type": "object",
+                      "properties": {
+                        "job_id": {
+                          "type": "string"
+                        },
+                        "job_name": {
+                          "type": "string"
+                        },
+                        "job_queue": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "string"
+                        },
+                        "job_definition": {
+                          "type": "string"
+                        },
+                        "created_at": {
+                          "type": "integer"
+                        },
+                        "started_at": {
+                          "type": "integer"
+                        },
+                        "stopped_at": {
+                          "type": "integer"
+                        },
+                        "status_reason": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request - missing required parameters",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "success",
+                    "message"
+                  ],
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": false
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "Missing required parameter: job_id"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Job not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "success",
+                    "message"
+                  ],
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": false
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "Job not found"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "success",
+                    "message"
+                  ],
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": false
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "Unable to retrieve job details"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "operationId": "submitBatchJob",
+        "tags": [
+          "AWS Batch"
+        ],
+        "summary": "Submit a new AWS Batch job",
+        "description": "Creates and submits a new job to AWS Batch with the provided configuration",
+        "security": [
+          {
+            "edhAuth": [],
+            "edhToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "X-EDH-USER",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64,
+              "pattern": "^[a-zA-Z0-9._-]+$"
+            },
+            "description": "EDH username for authentication",
+            "example": "john.doe"
+          },
+          {
+            "name": "X-EDH-TOKEN",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 256
+            },
+            "description": "EDH authentication token",
+            "example": "abc123token456"
           }
         ],
         "requestBody": {
@@ -11996,26 +12183,82 @@
               "schema": {
                 "type": "object",
                 "required": [
-                  "name",
-                  "type"
+                  "job_name",
+                  "job_definition",
+                  "job_queue"
                 ],
                 "properties": {
-                  "name": {
+                  "job_name": {
                     "type": "string",
-                    "pattern": "^[a-zA-Z0-9_-]+$",
                     "minLength": 1,
-                    "maxLength": 50,
-                    "description": "Name of the queue to create",
-                    "example": "my-queue"
+                    "maxLength": 128,
+                    "description": "Name for the job",
+                    "example": "my-batch-job"
                   },
-                  "type": {
+                  "job_definition": {
                     "type": "string",
-                    "enum": [
-                      "ondemand",
-                      "alwayson"
-                    ],
-                    "description": "Type of queue (ondemand or alwayson)",
-                    "example": "ondemand"
+                    "minLength": 1,
+                    "description": "ARN of the job definition",
+                    "example": "arn:aws:batch:us-east-1:123456789012:job-definition/my-def:1"
+                  },
+                  "job_queue": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "ARN of the job queue",
+                    "example": "arn:aws:batch:us-east-1:123456789012:job-queue/my-queue"
+                  },
+                  "job_dependencies": {
+                    "type": "string",
+                    "description": "Comma-separated list of job IDs this job depends on",
+                    "example": "job-id-1,job-id-2"
+                  },
+                  "array_size": {
+                    "type": "string",
+                    "description": "Array size for array jobs (2-10000)",
+                    "example": "10"
+                  },
+                  "overrideCommands": {
+                    "type": "string",
+                    "format": "json",
+                    "description": "JSON array of command to override the container. First element is typically the executable, followed by arguments.",
+                    "example": "[\"python\", \"train.py\", \"--epochs\", \"10\"]"
+                  },
+                  "envVars": {
+                    "type": "string",
+                    "format": "json",
+                    "description": "JSON array of environment variable objects",
+                    "example": "[{\"name\": \"MY_ENV\", \"value\": \"Hello\"}]"
+                  },
+                  "scheduling_priority": {
+                    "type": "string",
+                    "description": "Scheduling priority (0-9999) for prioritizing jobs in a queue",
+                    "example": "100"
+                  },
+                  "job_attempts": {
+                    "type": "string",
+                    "description": "Number of times to retry the job (1-10)",
+                    "example": "3"
+                  },
+                  "execution_timeout": {
+                    "type": "string",
+                    "description": "Execution timeout in seconds after which the job is terminated",
+                    "example": "3600"
+                  },
+                  "vcpus": {
+                    "type": "string",
+                    "description": "Number of vCPUs reserved for the container (e.g., 0.25, 1, 2)",
+                    "example": "1"
+                  },
+                  "memory": {
+                    "type": "string",
+                    "description": "Hard limit of memory in GB to present to the container",
+                    "example": "2"
+                  },
+                  "consumableResources": {
+                    "type": "string",
+                    "format": "json",
+                    "description": "JSON array of custom consumable resource objects (max 5 total including VCPU and MEMORY)",
+                    "example": "[{\"type\": \"GPU\", \"value\": \"1\"}, {\"type\": \"FPGA\", \"value\": \"2\"}]"
                   }
                 }
               }
@@ -12024,11 +12267,15 @@
         },
         "responses": {
           "200": {
-            "description": "Queue created successfully",
+            "description": "Job submitted successfully",
             "content": {
               "application/json": {
                 "schema": {
                   "type": "object",
+                  "required": [
+                    "success",
+                    "message"
+                  ],
                   "properties": {
                     "success": {
                       "type": "boolean",
@@ -12036,7 +12283,7 @@
                     },
                     "message": {
                       "type": "string",
-                      "example": "Queue my-queue created"
+                      "example": "Job my-batch-job submitted successfully. Job ID: a1b2c3d4"
                     }
                   }
                 }
@@ -12044,57 +12291,93 @@
             }
           },
           "400": {
-            "description": "Missing parameters or invalid queue type"
-          },
-          "401": {
-            "description": "Authentication required"
-          },
-          "403": {
-            "description": "Admin access required"
-          },
-          "409": {
-            "description": "Queue already exists"
+            "description": "Bad request - missing or invalid parameters",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "success",
+                    "message"
+                  ],
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": false
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "Missing required parameter: job_name"
+                    }
+                  }
+                }
+              }
+            }
           },
           "500": {
-            "description": "PBS scheduler error"
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "success",
+                    "message"
+                  ],
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": false
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "Unable to submit AWS Batch job"
+                    }
+                  }
+                }
+              }
+            }
           }
         }
       },
       "delete": {
-        "operationId": "deleteQueue",
+        "operationId": "deleteBatchJob",
         "tags": [
-          "PBS Pro Scheduler"
+          "AWS Batch"
         ],
-        "summary": "DELETE /api/scheduler/queue",
-        "description": "DELETE operation for /api/scheduler/queue",
+        "summary": "Terminate an existing AWS Batch job",
+        "description": "Terminates an AWS Batch job. Only the job owner can terminate their jobs.",
         "security": [
           {
-            "socaAuth": [],
-            "socaToken": []
+            "edhAuth": [],
+            "edhToken": []
           }
         ],
         "parameters": [
           {
             "name": "X-EDH-USER",
             "in": "header",
+            "required": true,
             "schema": {
               "type": "string",
-              "minLength": 1
+              "minLength": 1,
+              "maxLength": 64,
+              "pattern": "^[a-zA-Z0-9._-]+$"
             },
-            "required": true,
-            "description": "SOCA username for authentication",
-            "example": "admin"
+            "description": "EDH username for authentication",
+            "example": "john.doe"
           },
           {
             "name": "X-EDH-TOKEN",
             "in": "header",
+            "required": true,
             "schema": {
               "type": "string",
-              "minLength": 1
+              "minLength": 1,
+              "maxLength": 256
             },
-            "required": true,
-            "description": "SOCA authentication token",
-            "example": "abc123token"
+            "description": "EDH authentication token",
+            "example": "abc123token456"
           }
         ],
         "requestBody": {
@@ -12104,16 +12387,22 @@
               "schema": {
                 "type": "object",
                 "required": [
-                  "name"
+                  "job_id"
                 ],
                 "properties": {
-                  "name": {
+                  "job_id": {
                     "type": "string",
-                    "pattern": "^[a-zA-Z0-9_-]+$",
                     "minLength": 1,
-                    "maxLength": 50,
-                    "description": "Name of the queue to delete",
-                    "example": "my-queue"
+                    "maxLength": 256,
+                    "description": "AWS Batch job ID to terminate",
+                    "example": "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+                  },
+                  "reason": {
+                    "type": "string",
+                    "maxLength": 1000,
+                    "default": "Terminated by user",
+                    "description": "Reason for terminating the job",
+                    "example": "No longer needed"
                   }
                 }
               }
@@ -12122,11 +12411,15 @@
         },
         "responses": {
           "200": {
-            "description": "Queue deleted successfully",
+            "description": "Job terminated successfully",
             "content": {
               "application/json": {
                 "schema": {
                   "type": "object",
+                  "required": [
+                    "success",
+                    "message"
+                  ],
                   "properties": {
                     "success": {
                       "type": "boolean",
@@ -12134,7 +12427,7 @@
                     },
                     "message": {
                       "type": "string",
-                      "example": "Queue my-queue deleted"
+                      "example": "Job a1b2c3d4 terminated successfully."
                     }
                   }
                 }
@@ -12142,68 +12435,182 @@
             }
           },
           "400": {
-            "description": "Missing queue name parameter"
-          },
-          "401": {
-            "description": "Authentication required"
+            "description": "Bad request - missing required parameters",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "success",
+                    "message"
+                  ],
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": false
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "Missing required parameter: job_id"
+                    }
+                  }
+                }
+              }
+            }
           },
           "403": {
-            "description": "Admin access required"
+            "description": "Forbidden - job does not belong to user",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "success",
+                    "message"
+                  ],
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": false
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "This job does not seem to belong to you"
+                    }
+                  }
+                }
+              }
+            }
           },
           "404": {
-            "description": "Queue does not exist"
+            "description": "Job not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "success",
+                    "message"
+                  ],
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": false
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "Job not found"
+                    }
+                  }
+                }
+              }
+            }
           },
           "500": {
-            "description": "PBS scheduler error"
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "success",
+                    "message"
+                  ],
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": false
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "Unable to terminate job"
+                    }
+                  }
+                }
+              }
+            }
           }
         }
       }
     },
-    "/api/scheduler/queues": {
+    "/api/containers/batch/job_definition": {
       "get": {
-        "operationId": "getQueues",
+        "operationId": "listBatchJobDefinitions",
         "tags": [
-          "PBS Pro Scheduler"
+          "AWS Batch"
         ],
-        "summary": "GET /api/scheduler/queues",
-        "description": "GET operation for /api/scheduler/queues",
+        "summary": "List AWS Batch job definitions visible to this EDH environment",
+        "description": "Retrieves AWS Batch job definitions that are tagged with the EDH visibility tag for this cluster.\nIf a specific job definition name is provided, only that definition is returned (if it has the correct tag).\nOtherwise, all matching definitions are returned with pagination handled automatically.\n",
         "security": [
           {
-            "socaAuth": [],
-            "socaToken": []
+            "edhAuth": [],
+            "edhToken": []
           }
         ],
         "parameters": [
           {
             "name": "X-EDH-USER",
             "in": "header",
+            "required": true,
             "schema": {
               "type": "string",
-              "minLength": 1
+              "minLength": 1,
+              "maxLength": 64,
+              "pattern": "^[a-zA-Z0-9._-]+$"
             },
-            "required": true,
-            "description": "SOCA username for authentication",
-            "example": "admin"
+            "description": "EDH username for authentication",
+            "example": "john.doe"
           },
           {
             "name": "X-EDH-TOKEN",
             "in": "header",
+            "required": true,
             "schema": {
               "type": "string",
-              "minLength": 1
+              "minLength": 1,
+              "maxLength": 256
             },
-            "required": true,
-            "description": "SOCA authentication token",
-            "example": "abc123token"
+            "description": "EDH authentication token",
+            "example": "abc123token456"
+          },
+          {
+            "name": "job_definition",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 256
+            },
+            "description": "Name of a specific job definition to look up. If omitted, all visible job definitions are returned.",
+            "example": "my-job-def"
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "ACTIVE",
+                "INACTIVE"
+              ],
+              "default": "ACTIVE"
+            },
+            "description": "Filter job definitions by status",
+            "example": "ACTIVE"
           }
         ],
         "responses": {
           "200": {
-            "description": "List of queues retrieved successfully",
+            "description": "Job definitions retrieved successfully",
             "content": {
               "application/json": {
                 "schema": {
                   "type": "object",
+                  "required": [
+                    "success",
+                    "message"
+                  ],
                   "properties": {
                     "success": {
                       "type": "boolean",
@@ -12212,15 +12619,63 @@
                     "message": {
                       "type": "array",
                       "items": {
-                        "type": "string",
-                        "pattern": "^[a-zA-Z0-9_-]+$"
-                      },
-                      "example": [
-                        "normal",
-                        "high",
-                        "low",
-                        "gpu"
-                      ]
+                        "type": "object",
+                        "properties": {
+                          "jobDefinitionName": {
+                            "type": "string",
+                            "example": "my-job-def"
+                          },
+                          "jobDefinitionArn": {
+                            "type": "string",
+                            "example": "arn:aws:batch:us-east-1:123456789012:job-definition/my-job-def:1"
+                          },
+                          "revision": {
+                            "type": "integer",
+                            "example": 1
+                          },
+                          "status": {
+                            "type": "string",
+                            "example": "ACTIVE"
+                          },
+                          "type": {
+                            "type": "string",
+                            "example": "container"
+                          },
+                          "containerProperties": {
+                            "type": "object"
+                          },
+                          "tags": {
+                            "type": "object",
+                            "additionalProperties": {
+                              "type": "string"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request - feature disabled or invalid parameters",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "success",
+                    "message"
+                  ],
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": false
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "Feature CONTAINERS_MANAGEMENT_BATCH is not enabled"
                     }
                   }
                 }
@@ -12228,10 +12683,495 @@
             }
           },
           "401": {
-            "description": "Authentication required"
+            "description": "Unauthorized - invalid authentication",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "success",
+                    "message"
+                  ],
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": false
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "Not authorized"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden - IAM permission error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "success",
+                    "message"
+                  ],
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": false
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "IAM permission error: the role does not have sufficient permissions to call batch:DescribeJobDefinitions."
+                    }
+                  }
+                }
+              }
+            }
           },
           "500": {
-            "description": "PBS scheduler error or backend failure"
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "success",
+                    "message"
+                  ],
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": false
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "Error retrieving job definitions. See log for more details"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/containers/batch/jobs": {
+      "get": {
+        "operationId": "listBatchJobs",
+        "tags": [
+          "AWS Batch"
+        ],
+        "summary": "List all AWS Batch jobs owned by the requesting user",
+        "description": "Lists AWS Batch jobs across all visible job queues (tagged with edh:visibility:<ClusterId> = true).\nOnly jobs with matching EDH_JobOwner and EDH_ClusterId tags are returned.\nOptionally filter by a specific job queue or job status.\n",
+        "security": [
+          {
+            "edhAuth": [],
+            "edhToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "X-EDH-USER",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64,
+              "pattern": "^[a-zA-Z0-9._-]+$"
+            },
+            "description": "EDH username for authentication",
+            "example": "john.doe"
+          },
+          {
+            "name": "X-EDH-TOKEN",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 256
+            },
+            "description": "EDH authentication token",
+            "example": "abc123token456"
+          },
+          {
+            "name": "job_queue",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 256
+            },
+            "description": "ARN or name of a specific job queue to list jobs from. If omitted, jobs from all visible queues are returned.",
+            "example": "arn:aws:batch:us-east-1:123456789012:job-queue/my-queue"
+          },
+          {
+            "name": "job_status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "SUBMITTED",
+                "PENDING",
+                "RUNNABLE",
+                "STARTING",
+                "RUNNING",
+                "SUCCEEDED",
+                "FAILED"
+              ]
+            },
+            "description": "Filter jobs by status. If omitted, all statuses are returned.",
+            "example": "RUNNING"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Jobs retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "success",
+                    "message"
+                  ],
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "message": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "jobId": {
+                            "type": "string"
+                          },
+                          "jobName": {
+                            "type": "string"
+                          },
+                          "jobQueue": {
+                            "type": "string"
+                          },
+                          "jobQueueName": {
+                            "type": "string"
+                          },
+                          "jobDefinition": {
+                            "type": "string"
+                          },
+                          "status": {
+                            "type": "string"
+                          },
+                          "createdAt": {
+                            "type": "integer"
+                          },
+                          "startedAt": {
+                            "type": "integer"
+                          },
+                          "stoppedAt": {
+                            "type": "integer"
+                          },
+                          "statusReason": {
+                            "type": "string"
+                          },
+                          "tags": {
+                            "type": "object"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "success",
+                    "message"
+                  ],
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": false
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "success",
+                    "message"
+                  ],
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": false
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "Unable to list AWS Batch jobs"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/containers/batch/job_queue": {
+      "get": {
+        "operationId": "listBatchJobQueues",
+        "tags": [
+          "AWS Batch"
+        ],
+        "summary": "List AWS Batch job queues visible to this EDH environment",
+        "description": "Retrieves AWS Batch job queues that are tagged with the EDH visibility tag for this cluster.\nOnly queues with status VALID and state ENABLED are returned.\nIf a specific job queue name is provided, only that queue is returned (if it has the correct tag).\nOtherwise, all matching queues are returned with pagination handled automatically.\n",
+        "security": [
+          {
+            "edhAuth": [],
+            "edhToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "X-EDH-USER",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64,
+              "pattern": "^[a-zA-Z0-9._-]+$"
+            },
+            "description": "EDH username for authentication",
+            "example": "john.doe"
+          },
+          {
+            "name": "X-EDH-TOKEN",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 256
+            },
+            "description": "EDH authentication token",
+            "example": "abc123token456"
+          },
+          {
+            "name": "job_queue",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 256
+            },
+            "description": "Name or ARN of a specific job queue to look up. If omitted, all visible job queues are returned.",
+            "example": "my-job-queue"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Job queues retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "success",
+                    "message"
+                  ],
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "message": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "jobQueueName": {
+                            "type": "string",
+                            "example": "my-job-queue"
+                          },
+                          "jobQueueArn": {
+                            "type": "string",
+                            "example": "arn:aws:batch:us-east-1:123456789012:job-queue/my-job-queue"
+                          },
+                          "jobQueueType": {
+                            "type": "string",
+                            "example": "STANDARD"
+                          },
+                          "state": {
+                            "type": "string",
+                            "enum": [
+                              "ENABLED",
+                              "DISABLED"
+                            ],
+                            "example": "ENABLED"
+                          },
+                          "status": {
+                            "type": "string",
+                            "enum": [
+                              "CREATING",
+                              "UPDATING",
+                              "DELETING",
+                              "DELETED",
+                              "VALID",
+                              "INVALID"
+                            ],
+                            "example": "VALID"
+                          },
+                          "priority": {
+                            "type": "integer",
+                            "example": 1
+                          },
+                          "computeEnvironmentOrder": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "order": {
+                                  "type": "integer"
+                                },
+                                "computeEnvironment": {
+                                  "type": "string"
+                                }
+                              }
+                            }
+                          },
+                          "tags": {
+                            "type": "object",
+                            "additionalProperties": {
+                              "type": "string"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request - feature disabled or invalid parameters",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "success",
+                    "message"
+                  ],
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": false
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "Feature CONTAINERS_MANAGEMENT_BATCH is not enabled"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - invalid authentication",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "success",
+                    "message"
+                  ],
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": false
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "Not authorized"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden - IAM permission error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "success",
+                    "message"
+                  ],
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": false
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "IAM permission error: the role does not have sufficient permissions to call batch:DescribeJobQueues."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "success",
+                    "message"
+                  ],
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": false
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "Error retrieving job queues. See log for more details"
+                    }
+                  }
+                }
+              }
+            }
           }
         }
       }
@@ -12239,24 +13179,24 @@
   },
   "components": {
     "securitySchemes": {
-      "socaAuth": {
+      "edhAuth": {
         "type": "apiKey",
         "in": "header",
         "name": "X-EDH-USER",
-        "description": "SOCA username for authentication"
+        "description": "EDH username for authentication"
       },
-      "socaToken": {
+      "edhToken": {
         "type": "apiKey",
         "in": "header",
         "name": "X-EDH-TOKEN",
-        "description": "SOCA authentication token"
+        "description": "EDH authentication token"
       }
     }
   },
   "security": [
     {
-      "socaAuth": [],
-      "socaToken": []
+      "edhAuth": [],
+      "edhToken": []
     }
   ]
 }
