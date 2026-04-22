@@ -2921,6 +2921,8 @@ if __name__ == "__main__":
             default_region = "us-gov-west-1"
         case "aws-cn":
             default_region = "cn-north-1"
+        case "aws-eusc":
+            default_region = "eusc-de-east-1"
         case _:
             default_region = os.environ.get("AWS_DEFAULT_REGION", "us-east-1")
 
