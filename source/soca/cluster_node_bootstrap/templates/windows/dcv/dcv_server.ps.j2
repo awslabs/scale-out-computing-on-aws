@@ -11,13 +11,13 @@ function Install-DCVServer {
         $InstalledSoftware = (Get-ItemProperty -Path HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*) | Where-Object {$_.DisplayName -like "Microsoft Visual C++ 2022*"}
         if($InstalledSoftware.count -eq 0) {
             Log-Info -Message "Microsoft Visual C++ 2022 not found, installing it ..."
-            Invoke-WebRequest -uri https://aka.ms/vs/17/release/vc_redist.x64.exe -OutFile "$EDHSBootstrapAssetsFolder\vc_redist_64.exe"
-            & "$EDHSBootstrapAssetsFolder\vc_redist_64.exe" /install /passive /norestart
+            Invoke-WebRequest -uri https://aka.ms/vs/17/release/vc_redist.x64.exe -OutFile "$EDHBootstrapAssetsFolder\vc_redist_64.exe"
+            & "$EDHBootstrapAssetsFolder\vc_redist_64.exe" /install /passive /norestart
         }
 
         # Download Package(s)
-        Invoke-WebRequest -uri "{{ context.get("/system/dcv/windows/url") }}" -OutFile "$EDHSBootstrapAssetsFolder\DCVServer.msi"
-        $checksum = Get-FileHash -Path "$EDHSBootstrapAssetsFolder\DCVServer.msi" -Algorithm SHA256
+        Invoke-WebRequest -uri "{{ context.get("/system/dcv/windows/url") }}" -OutFile "$EDHBootstrapAssetsFolder\DCVServer.msi"
+        $checksum = Get-FileHash -Path "$EDHBootstrapAssetsFolder\DCVServer.msi" -Algorithm SHA256
 
         # Validate DCV hash
         if (! $checksum.Hash -eq "{{ context.get("/system/dcv/windows/sha256") | upper }}" ) {
@@ -25,7 +25,7 @@ function Install-DCVServer {
         }
 
         # Install DCV with all packages
-        Start-Process "msiexec.exe" -ArgumentList "/i $EDHSBootstrapAssetsFolder\DCVServer.msi ADDLOCAL=ALL /qn /norestart /l*v dcv_install_msi.log" -Wait
+        Start-Process "msiexec.exe" -ArgumentList "/i $EDHBootstrapAssetsFolder\DCVServer.msi ADDLOCAL=ALL /qn /norestart /l*v dcv_install_msi.log" -Wait
 
         while (-not(Get-Service dcvserver -ErrorAction SilentlyContinue)) { Start-Sleep -Milliseconds 250 }
 

@@ -8,7 +8,7 @@
 $currentUser = [System.Security.Principal.WindowsIdentity]::GetCurrent().Name
 Log-Info -Message "Script executed via ${currentUser}"
 
-$EDHSBootstrapAssetsFolder = $env:EDHSBootstrapAssetsFolder
+$EDHBootstrapAssetsFolder = $env:EDHBootstrapAssetsFolder
 
 if ((Get-Service -Name dcvserver -ErrorAction SilentlyContinue).Status -eq 'Running') {
     Stop-Service -Name dcvserver -Force
@@ -25,7 +25,7 @@ if ($service.Status -eq 'Running') {
 }
 
 # CD into boostrap location
-Set-Location -Path $EDHSBootstrapAssetsFolder
+Set-Location -Path $EDHBootstrapAssetsFolder
 
 
 # Delete Scheduled Task if it exists
@@ -70,7 +70,7 @@ $EDHShortcut.Save()
 {% include "templates/windows/add_additional_packages.ps.j2" %}
 
 Log-Info "Boostrap Completed, creating lock file to avoid new executions"
-New-Item -Path "${EDHSBootstrapAssetsFolder}\userdata_completed_${instanceId}.txt" -ItemType File
+New-Item -Path "${EDHBootstrapAssetsFolder}\userdata_completed_${instanceId}.txt" -ItemType File
 
 Log-Info -Message "Starting dcvserver service"
 Start-Service -Name dcvserver

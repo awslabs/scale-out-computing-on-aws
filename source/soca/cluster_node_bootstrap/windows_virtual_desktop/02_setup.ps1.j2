@@ -8,10 +8,10 @@
 $currentUser = [System.Security.Principal.WindowsIdentity]::GetCurrent().Name
 Log-Info -Message "Script executed via ${currentUser}"
 
-$EDHSBootstrapAssetsFolder = $env:EDHSBootstrapAssetsFolder
+$EDHBootstrapAssetsFolder = $env:EDHBootstrapAssetsFolder
 
 # CD into boostrap location
-Set-Location -Path $EDHSBootstrapAssetsFolder
+Set-Location -Path $EDHBootstrapAssetsFolder
 
 # Install Chocolatey package manager
 {% include "templates/windows/chocolatey.ps.j2" %}
@@ -76,8 +76,8 @@ if ($requireReboot)
 {
     Log-Info -Message "Reboot required, creating Scheduler tasks"
     $taskName = $env:EDHBootstrapPostRebootTaskName
-    $scriptPath = "${EDHSBootstrapAssetsFolder}\03_setup_post_reboot.ps1"
-    $action = New-ScheduledTaskAction -Execute "powershell.exe" -Argument "-ExecutionPolicy Bypass -File $scriptPath  *> ${EDHSBootstrapAssetsFolder}\03_setup_post_reboot.ps1.log"
+    $scriptPath = "${EDHBootstrapAssetsFolder}\03_setup_post_reboot.ps1"
+    $action = New-ScheduledTaskAction -Execute "powershell.exe" -Argument "-ExecutionPolicy Bypass -File $scriptPath  *> ${EDHBootstrapAssetsFolder}\03_setup_post_reboot.ps1.log"
     $trigger = New-ScheduledTaskTrigger -AtStartup
     $settings = New-ScheduledTaskSettingsSet -StartWhenAvailable
     Register-ScheduledTask -Action $action -Trigger $trigger -Settings $settings -TaskName $taskName -Description "EDH Final Setup post-reboot"
@@ -87,6 +87,6 @@ if ($requireReboot)
     Restart-Computer -Force
 } else {
     Log-Info -Message "No reboot needed, continuing bootstrap sequence"
-    & "${EDHSBootstrapAssetsFolder}\03_setup_post_reboot.ps1" *> "${EDHSBootstrapAssetsFolder}\03_setup_post_reboot.ps1.log"
+    & "${EDHBootstrapAssetsFolder}\03_setup_post_reboot.ps1" *> "${EDHBootstrapAssetsFolder}\03_setup_post_reboot.ps1.log"
 
 }
