@@ -5743,7 +5743,7 @@ class SOCAInstall(Stack):
                 _openldap_secret.secret_full_arn
             )
             self.directory_service_resource_setup["endpoint"] = (
-                f"ldaps://{self.soca_resources['controller_instance'].private_ip_address}"
+                f"ldaps://{self.soca_resources['controller_instance'].attr_private_ip}"
             )
 
         # FIXME TODO -
